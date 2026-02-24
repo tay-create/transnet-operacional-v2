@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import { Warehouse } from 'lucide-react';
 import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import { obterDataBrasilia } from '../utils/helpers';
+import api from '../services/apiService';
 
 const CORES_KPI = {
     delta: '#3b82f6',
@@ -69,6 +70,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     const [pausado, setPausado] = useState(false);
     const [tempoRotacao, setTempoRotacao] = useState(20);
     const [tema, setTema] = useState('dark');
+    const [docasInterditadas, setDocasInterditadas] = useState([]);
     const totalTelas = 4;
     const t = TEMAS[tema];
 
@@ -86,6 +88,20 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         }, tempoRotacao * 1000);
         return () => clearInterval(timer);
     }, [pausado, tempoRotacao]);
+
+    useEffect(() => {
+        let unmounted = false;
+        const fetchDocas = () => {
+            api.get('/api/docas-interditadas').then(r => {
+                if (!unmounted && r.data && r.data.success) {
+                    setDocasInterditadas(r.data.docas);
+                }
+            }).catch(() => { });
+        };
+        fetchDocas();
+        const pollTimer = setInterval(fetchDocas, 10000);
+        return () => { unmounted = true; clearInterval(pollTimer); };
+    }, []);
 
     useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });
@@ -162,8 +178,8 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
             {/* Conteudo */}
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
                 {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} />}
-                {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} t={t} tema={tema} />}
-                {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} t={t} tema={tema} />}
+                {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
+                {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
                 {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} />}
             </div>
 
@@ -327,7 +343,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
 // ================================================================
 // TELA 2: OPERACAO RECIFE DETALHADA
 // ================================================================
-function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
+function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, tema }) {
     const veiculosRecife = veiculos.filter(v => ehOperacaoRecife(v.operacao));
     const totalRecife = veiculosRecife.length;
 
@@ -368,6 +384,13 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
         // Priorizar status mais avancado se houver conflito
         if (!existente || (PRIORIDADE_STATUS[statusAtual] || 0) > (PRIORIDADE_STATUS[existente] || 0)) {
             docaStatusMap[doca] = statusAtual;
+        }
+    });
+
+    // Sobreescrever docas interditadas (Fulgaz)
+    docasInterditadas.filter(c => c.unidade === 'Recife').forEach(c => {
+        if (c.doca && c.doca !== 'SELECIONE') {
+            docaStatusMap[c.doca] = 'FULGAZ';
         }
     });
 
@@ -416,9 +439,23 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
                                 const statusDoca = docaStatusMap[doca];
                                 const cor = statusDoca ? CORES_STATUS[statusDoca] : null;
                                 const livre = !statusDoca;
-                                const bgCor = livre ? 'rgba(52,211,153,0.10)' : `${cor.border}20`;
-                                const borderCor = livre ? '#34d399' : cor.border;
-                                const textCor = livre ? '#34d399' : cor.text;
+                                const bgCor = livre ? 'rgba(52,211,153,0.10)' : (cor ? `${cor.border}20` : 'transparent');
+                                const borderCor = livre ? '#34d399' : (cor ? cor.border : 'transparent');
+                                const textCor = livre ? '#34d399' : (cor ? cor.text : 'inherit');
+
+                                if (statusDoca === 'FULGAZ') {
+                                    return (
+                                        <div key={doca} style={{
+                                            padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
+                                            background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444',
+                                            boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)', transition: 'all 0.5s ease-in-out'
+                                        }}>
+                                            <div style={{ fontSize: '11px', fontWeight: '900', color: '#fca5a5', filter: 'drop-shadow(0 0 4px #ef4444)' }}>{doca}</div>
+                                            <div style={{ fontSize: '8px', color: '#ef4444', marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px' }}>CONTAINER</div>
+                                        </div>
+                                    );
+                                }
+
                                 return (
                                     <div key={doca} style={{
                                         padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
@@ -642,7 +679,7 @@ function StatusBars({ dados, t }) {
 // ================================================================
 // TELA 3: OPERACAO MORENO DETALHADA
 // ================================================================
-function TelaOperacaoMoreno({ veiculos, ctesMoreno, t, tema }) {
+function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, tema }) {
     const veiculosMoreno = veiculos.filter(v => ehOperacaoMoreno(v.operacao));
     const totalMoreno = veiculosMoreno.length;
 
@@ -686,6 +723,13 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, t, tema }) {
         }
     });
 
+    // Sobreescrever docas interditadas (Fulgaz)
+    docasInterditadas.filter(c => c.unidade === 'Moreno').forEach(c => {
+        if (c.doca && c.doca !== 'SELECIONE') {
+            docaStatusMap[c.doca] = 'FULGAZ';
+        }
+    });
+
     // Fluxo CT-e para Moreno
     const aguardandoCte = veiculosMoreno.filter(v => v.status_moreno === 'LIBERADO P/ CT-e').length;
     const emEmissaoCte = ctesMoreno.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
@@ -697,9 +741,23 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, t, tema }) {
         const statusDoca = docaStatusMap[doca];
         const cor = statusDoca ? CORES_STATUS[statusDoca] : null;
         const livre = !statusDoca;
-        const bgCor = livre ? 'rgba(52,211,153,0.10)' : `${cor.border}20`;
-        const borderCor = livre ? '#34d399' : cor.border;
-        const textCor = livre ? '#34d399' : cor.text;
+        const bgCor = livre ? 'rgba(52,211,153,0.10)' : (cor ? `${cor.border}20` : 'transparent');
+        const borderCor = livre ? '#34d399' : (cor ? cor.border : 'transparent');
+        const textCor = livre ? '#34d399' : (cor ? cor.text : 'inherit');
+
+        if (statusDoca === 'FULGAZ') {
+            return (
+                <div key={doca} style={{
+                    padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
+                    background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444',
+                    boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)', transition: 'all 0.5s ease-in-out'
+                }}>
+                    <div style={{ fontSize: '11px', fontWeight: '900', color: '#fca5a5', filter: 'drop-shadow(0 0 4px #ef4444)' }}>{doca}</div>
+                    <div style={{ fontSize: '8px', color: '#ef4444', marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px' }}>CONTAINER</div>
+                </div>
+            );
+        }
+
         return (
             <div key={doca} style={{
                 padding: '10px 6px', borderRadius: '10px', textAlign: 'center',

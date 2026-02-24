@@ -234,6 +234,22 @@ function makeIpcAdapter() {
             data = await window.api.postMarcacao(body);
         }
 
+        // ── Container Doca Interditada (Fulgaz) ────────────────────────────────
+        else if (method === 'get' && path === '/api/docas-interditadas') {
+            data = await window.api.getDocasInterditadas?.() || { success: true, docas: [] };
+        }
+        else if (method === 'post' && path === '/api/docas-interditadas') {
+            data = await window.api.postDocasInterditadas?.(body) || { success: true, doca: body };
+        }
+        else if (method === 'put' && path.startsWith('/api/docas-interditadas/')) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.putDocasInterditadas?.(id, body) || { success: true };
+        }
+        else if (method === 'delete' && path.startsWith('/api/docas-interditadas/')) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.deleteDocasInterditadas?.(id) || { success: true };
+        }
+
         // ── Logs de Auditoria ──────────────────────────────────────────────────
         else if (method === 'get' && path === '/logs') {
             data = await window.api.getLogs(params);

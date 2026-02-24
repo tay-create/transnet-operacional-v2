@@ -93,7 +93,32 @@ export default function PainelOperacional({
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
     const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
     const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
+    const [docasInterditadas, setDocasInterditadas] = useState([]);
     const qtdMotoristasPrev = useRef(null);
+
+    useEffect(() => {
+        api.get('/api/docas-interditadas').then(r => {
+            if (r.data && r.data.success) {
+                setDocasInterditadas(r.data.docas);
+            }
+        }).catch(() => { });
+
+        if (socket) {
+            const handleDocas = (dados) => setDocasInterditadas(dados);
+            socket.on('docas_interditadas_update', handleDocas);
+            return () => socket.off('docas_interditadas_update', handleDocas);
+        }
+    }, [socket]);
+
+    const addCardFulgaz = () => {
+        api.post('/api/docas-interditadas', { unidade: origem }).catch(() => { });
+    };
+    const removerCardFulgaz = (id) => {
+        api.delete(`/api/docas-interditadas/${id}`).catch(() => { });
+    };
+    const alterarDocaFulgaz = (id, doca) => {
+        api.put(`/api/docas-interditadas/${id}`, { doca }).catch(() => { });
+    };
 
 
     const adicionarToast = useCallback((msg, tipo = 'info') => {
@@ -264,8 +289,25 @@ export default function PainelOperacional({
                 <div className="glass-panel-internal" style={{ padding: '15px 25px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <div>
-                            <h2 className="title-neon-blue" style={{ margin: 0, fontSize: '16px' }}>
+                            <h2 className="title-neon-blue" style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 PAINEL <span style={{ color: '#3b82f6' }}>{origem.toUpperCase()}</span>
+                                {podeEditarNaUnidade('operacao') && (
+                                    <button
+                                        onClick={addCardFulgaz}
+                                        title="Interditar Doca (Container Terceiro)"
+                                        className="btn-neon-red"
+                                        style={{
+                                            marginLeft: '12px',
+                                            padding: '4px 12px',
+                                            fontSize: '11px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <AlertTriangle size={14} /> CONTAINER
+                                    </button>
+                                )}
                             </h2>
                             <div style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
                                 <span className="badge-neon-pill" style={{ display: 'inline-block' }}>
@@ -309,6 +351,37 @@ export default function PainelOperacional({
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', paddingBottom: '40px' }}>
+                            {docasInterditadas.filter(c => c.unidade === origem).map(card => (
+                                <div key={`fulgaz-${card.id}`} className="glass-panel-internal card-neon-hover" style={{ borderLeft: '4px solid #ef4444', borderRadius: '12px', overflow: 'hidden', background: 'rgba(239, 68, 68, 0.05)' }}>
+                                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ fontWeight: 'bold', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <AlertTriangle size={14} color="#ef4444" />
+                                            {card.nome || 'CONTAINER (TERCEIRO)'}
+                                        </div>
+                                        {podeEditarNaUnidade('operacao') && (
+                                            <button onClick={() => removerCardFulgaz(card.id)} title="Remover" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}>
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ padding: '16px' }}>
+                                        <label className="label-tech-sm" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Anchor size={10} /> INTERDITAR DOCA
+                                        </label>
+                                        <select
+                                            className="input-internal"
+                                            style={{ borderColor: 'rgba(239, 68, 68, 0.5)', color: '#fca5a5', width: '100%', outline: 'none', marginTop: '4px' }}
+                                            value={card.doca || 'SELECIONE'}
+                                            onChange={(e) => alterarDocaFulgaz(card.id, e.target.value)}
+                                            disabled={!podeEditarNaUnidade('operacao')}
+                                        >
+                                            <option value="SELECIONE">SELECIONE</option>
+                                            {opcoesDocas.filter(d => d !== 'SELECIONE').map(d => <option key={d}>{d}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                            ))}
+
                             {itensFiltrados.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';

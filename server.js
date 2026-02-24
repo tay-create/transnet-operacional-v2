@@ -191,6 +191,12 @@ const inicializarBanco = async () => {
             dados_json TEXT,
             data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS docas_interditadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unidade TEXT,
+            doca TEXT,
+            nome TEXT
+        )`);
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
             try {
                 await dbRun(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo}`);
@@ -2452,6 +2458,57 @@ app.get('/api/programacao-diaria', authMiddleware, async (req, res) => {
     }
 });
 // ────────────────────────────────────────────────────────────
+
+// Endpoints para containers bloqueando docas (Persistente no Banco)
+app.get('/api/docas-interditadas', async (req, res) => {
+    try {
+        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        res.json({ success: true, docas: rows });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/docas-interditadas', async (req, res) => {
+    try {
+        const { unidade } = req.body;
+        const result = await dbRun('INSERT INTO docas_interditadas (unidade, doca, nome) VALUES (?, ?, ?)', [unidade, 'SELECIONE', 'CONTAINER']);
+        const newCard = { id: result.lastID, unidade, doca: 'SELECIONE', nome: 'CONTAINER' };
+
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        io.emit('docas_interditadas_update', allDocas);
+        res.json({ success: true, doca: newCard });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.put('/api/docas-interditadas/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const { doca } = req.body;
+        await dbRun('UPDATE docas_interditadas SET doca = ? WHERE id = ?', [doca, id]);
+
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        io.emit('docas_interditadas_update', allDocas);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.delete('/api/docas-interditadas/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
+
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        io.emit('docas_interditadas_update', allDocas);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
 
 // Porta configurável via .env
 const PORT = process.env.PORT || 3001;
