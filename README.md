@@ -1,70 +1,99 @@
-# Getting Started with Create React App
+# Transnet Operacional 🚚
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Sistema integrado de gestão logística para controle operacional, emissão de CT-e, gestão de frota e monitoramento em tempo real.
 
-## Available Scripts
+![Logo Transnet](file:///d:/transnet-operacional/src/assets/logo.png)
 
-In the project directory, you can run:
+## 🚀 Sobre o Projeto
 
-### `npm start`
+O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida para otimizar o fluxo logístico entre unidades (Recife/Moreno). O sistema centraliza desde o lançamento de veículos e controle de docas até a gestão de cubagem e monitoramento de motoristas em trânsito.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## 🛠️ Stack Tecnológica
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Frontend
+- **React 19**: Interface moderna e reativa.
+- **Zustand**: Gerenciamento de estado leve e eficiente.
+- **Tailwind CSS**: Estilização responsiva e customizada.
+- **Lucide React**: Biblioteca de ícones moderna.
+- **Recharts**: Visualização de dados e dashboards operacionais.
+- **Socket.io-client**: Comunicação bidirecional em tempo real.
 
-### `npm test`
+### Backend
+- **Node.js & Express**: API REST escalável.
+- **SQLite3**: Banco de dados relacional local para alta performance.
+- **Socket.io**: Motor de eventos em tempo real para alertas e atualizações.
+- **JWT & Bcrypt**: Autenticação segura e criptografia de senhas.
+- **Node-cron**: Agendamento de tarefas e automações.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### Desktop
+- **Electron**: Wrapper para execução nativa em Windows com suporte a notificações de sistema.
 
-### `npm run build`
+## ✨ Funcionalidades Principais
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **Painel Operacional**: Gestão de veículos em tempo real (Recife/Moreno) com controle de status e docas.
+- **Gestão de CT-e**: Fluxos de aceite, emissão e arquivamento automático de Conhecimentos de Transporte.
+- **Módulo de Frota**: Aplicativo do motorista, checklist de carreta, previsões de disponibilidade e ocorrências.
+- **Controle de Cubagem**: Cálculo de cubagem por coleta, integração de itens e redespacho.
+- **Dashboards & TV**: Telas de monitoramento em tempo real para operações e desempenho mensal.
+- **Relatórios**: Exportação programada em PDF e XLSX (Excel).
+- **RBAC (Permissões)**: Controle granular de acesso baseado em cargos (Coordenador, Planejamento, Encarregado, etc).
+- **Audit Logs**: Rastreabilidade completa de todas as ações sensíveis no sistema.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 📦 Estrutura do Projeto
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```text
+├── electron/          # Lógica nativa do Electron (main process)
+├── middleware/        # Middlewares Express (Auth, Validação Zod)
+├── public/            # Ativos estáticos públicos
+├── src/               # Código fonte React
+│   ├── assets/        # Imagens e logotipos
+│   ├── components/    # Componentes modulares (Painéis, Modais, UI)
+│   ├── store/         # Estados globais (Zustand)
+│   ├── services/      # Integração com API (Axios)
+│   └── utils/         # Helpers e funções de utilidade
+├── server.js          # Servidor Express & Configuração SQLite
+└── tnetlog.db         # Banco de dados SQLite
+```
 
-### `npm run eject`
+## ⚙️ Instalação e Configuração
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Pré-requisitos
+- [Node.js](https://nodejs.org/) (versão 18+)
+- npm ou yarn
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Passo a Passo
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+1. **Clonar o Repositório**
+   ```bash
+   git clone https://github.com/seu-usuario/transnet-operacional.git
+   cd transnet-operacional
+   ```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+2. **Instalar Dependências**
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. **Configurar Variáveis de Ambiente**
+   Clone o arquivo `.env.example` para `.env` e ajuste as chaves se necessário:
+   ```bash
+   copy .env.example .env
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+4. **Executar em Desenvolvimento**
+   Este comando inicia simultaneamente o servidor backend e o ambiente React:
+   ```bash
+   npm run dev
+   ```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+5. **Executar via Electron (Desktop)**
+   ```bash
+   npm run electron
+   ```
 
-### Code Splitting
+## 📜 Licença
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Propriedade da **Transnet - Logística Integrada**. Todos os direitos reservados.
 
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+*Created in 2026 • Transnet Dev*
