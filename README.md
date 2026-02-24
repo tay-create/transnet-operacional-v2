@@ -91,7 +91,7 @@ O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida
 
 ## 📜 Licença
 
-Propriedade da **Transnet - Logística Integrada**. Todos os direitos reservados.
+Propriedade da **Transnet - Solução Em Logística**. Todos os direitos reservados.
 
 ---
 *Created in 2026 • Transnet Dev*
