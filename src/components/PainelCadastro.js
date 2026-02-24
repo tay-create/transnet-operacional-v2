@@ -44,6 +44,10 @@ function corSituacao(sit) {
 }
 
 export default function PainelCadastro({ user }) {
+    // ── Blindagem de Acesso ──
+    const cargo = (user?.cargo || '').toUpperCase();
+    const podeEditar = ['COORDENADOR', 'CADASTRO', 'ENCARREGADO'].includes(cargo);
+
     const [motoristas, setMotoristas] = useState([]);
     const [edicoes, setEdicoes] = useState({}); // { [id]: { chk_cnh_cad, ... } }
     const [salvando, setSalvando] = useState(null);
@@ -172,6 +176,18 @@ export default function PainelCadastro({ user }) {
             setSalvando(null);
         }
     }
+
+    const handleStatusFila = async (id, novoStatus) => {
+        try {
+            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novoStatus });
+            if (r.data.success) {
+                setMotoristas(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
+            }
+        } catch (e) {
+            console.error('Erro ao atualizar status na fila', e);
+            alert('Erro ao atualizar status na fila');
+        }
+    };
 
     function atualizarEdicaoOp(id, campo, valor) {
         setEdicoesOp(prev => {
@@ -318,11 +334,21 @@ export default function PainelCadastro({ user }) {
                                                     <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
                                                         {m.tipo_veiculo || '—'}
                                                     </span>
-                                                    {m.disponibilidade && (
-                                                        <span style={{ fontSize: '10px', color: '#4ade80', background: 'rgba(34,197,94,0.12)', padding: '2px 6px', borderRadius: '4px' }}>
-                                                            {m.disponibilidade}
-                                                        </span>
-                                                    )}
+                                                    <select
+                                                        value={m.disponibilidade || 'Disponível'}
+                                                        onChange={(e) => handleStatusFila(m.id, e.target.value)}
+                                                        style={{
+                                                            fontSize: '10px', fontWeight: 'bold', outline: 'none', cursor: 'pointer',
+                                                            color: m.disponibilidade === 'Indisponível' ? '#f87171' : (m.disponibilidade === 'Contratado' ? '#fbbf24' : '#4ade80'),
+                                                            background: m.disponibilidade === 'Indisponível' ? 'rgba(239,68,68,0.12)' : (m.disponibilidade === 'Contratado' ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)'),
+                                                            padding: '2px 6px', borderRadius: '4px',
+                                                            border: `1px solid ${m.disponibilidade === 'Indisponível' ? 'rgba(239,68,68,0.3)' : (m.disponibilidade === 'Contratado' ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.3)')}`
+                                                        }}
+                                                    >
+                                                        <option value="Disponível" style={{ color: '#000' }}>DISPONÍVEL</option>
+                                                        <option value="Contratado" style={{ color: '#000' }}>CONTRATADO</option>
+                                                        <option value="Indisponível" style={{ color: '#000' }}>INDISPONÍVEL</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
@@ -359,13 +385,15 @@ export default function PainelCadastro({ user }) {
                                                         return (
                                                             <button
                                                                 key={campo}
-                                                                onClick={() => atualizarEdicao(m.id, campo, !ed[campo])}
+                                                                disabled={!podeEditar}
+                                                                onClick={() => podeEditar && atualizarEdicao(m.id, campo, !ed[campo])}
                                                                 style={{
                                                                     display: 'flex', alignItems: 'center', gap: '5px',
                                                                     background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
                                                                     border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
                                                                     borderRadius: '6px', padding: '5px 10px',
-                                                                    cursor: 'pointer',
+                                                                    cursor: podeEditar ? 'pointer' : 'not-allowed',
+                                                                    opacity: podeEditar ? 1 : 0.5,
                                                                     color: ok ? '#4ade80' : '#f87171',
                                                                     fontSize: '11px', fontWeight: '700',
                                                                     transition: 'all 0.2s'
@@ -386,6 +414,7 @@ export default function PainelCadastro({ user }) {
                                                     className="input-internal"
                                                     style={{ fontSize: '12px' }}
                                                     value={ed.seguradora_cad || ''}
+                                                    disabled={!podeEditar}
                                                     onChange={e => atualizarEdicao(m.id, 'seguradora_cad', e.target.value)}
                                                 >
                                                     <option value="" style={{ color: 'black' }}>-- Selecione --</option>
@@ -401,6 +430,7 @@ export default function PainelCadastro({ user }) {
                                                         className="input-internal"
                                                         style={{ fontSize: '12px' }}
                                                         value={ed.origem_cad || ''}
+                                                        disabled={!podeEditar}
                                                         onChange={e => atualizarEdicao(m.id, 'origem_cad', e.target.value)}
                                                     >
                                                         <option value="" style={{ color: 'black' }}>-- Selecione --</option>
@@ -414,6 +444,7 @@ export default function PainelCadastro({ user }) {
                                                         className="input-internal"
                                                         style={{ fontSize: '12px' }}
                                                         value={ed.destino_uf_cad || ''}
+                                                        disabled={!podeEditar}
                                                         onChange={e => atualizarEdicao(m.id, 'destino_uf_cad', e.target.value)}
                                                     >
                                                         <option value="" style={{ color: 'black' }}>--</option>
@@ -427,6 +458,7 @@ export default function PainelCadastro({ user }) {
                                                     className="input-internal"
                                                     style={{ fontSize: '12px' }}
                                                     value={ed.destino_cidade_cad || ''}
+                                                    disabled={!podeEditar}
                                                     onChange={e => atualizarEdicao(m.id, 'destino_cidade_cad', e.target.value)}
                                                     placeholder="Ex: São Paulo"
                                                 />
@@ -448,6 +480,7 @@ export default function PainelCadastro({ user }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '12px', border: faltaSoNumLib ? '1px solid rgba(245,158,11,0.7)' : undefined, boxShadow: faltaSoNumLib ? '0 0 0 2px rgba(245,158,11,0.2)' : undefined }}
                                                                     value={ed.num_liberacao_cad || ''}
+                                                                    disabled={!podeEditar}
                                                                     onChange={e => atualizarEdicao(m.id, 'num_liberacao_cad', e.target.value)}
                                                                     placeholder="Ex: 123456"
                                                                 />
@@ -459,6 +492,7 @@ export default function PainelCadastro({ user }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '11px' }}
                                                                     value={ed.data_liberacao_manual || ''}
+                                                                    disabled={!podeEditar}
                                                                     onChange={e => atualizarEdicao(m.id, 'data_liberacao_manual', e.target.value)}
                                                                 />
                                                             </div>
@@ -499,23 +533,27 @@ export default function PainelCadastro({ user }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            <button
-                                                onClick={() => salvar(m.id)}
-                                                disabled={estaSalvando}
-                                                style={{
-                                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                                                    padding: '8px', borderRadius: '7px', border: 'none',
-                                                    background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                    color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
-                                                    fontWeight: 'bold', fontSize: '12px',
-                                                    cursor: estaSalvando ? 'default' : 'pointer',
-                                                    opacity: estaSalvando ? 0.6 : 1,
-                                                    transition: 'all 0.2s'
-                                                }}
-                                            >
-                                                <Save size={14} />
-                                                {estaSalvando ? 'Salvando...' : 'Salvar Checklist'}
-                                            </button>
+                                            {podeEditar ? (
+                                                <button
+                                                    onClick={() => salvar(m.id)}
+                                                    disabled={estaSalvando}
+                                                    style={{
+                                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                        padding: '8px', borderRadius: '7px', border: 'none',
+                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
+                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        fontWeight: 'bold', fontSize: '12px',
+                                                        cursor: estaSalvando ? 'default' : 'pointer',
+                                                        opacity: estaSalvando ? 0.6 : 1,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <Save size={14} />
+                                                    {estaSalvando ? 'Salvando...' : 'Salvar Checklist'}
+                                                </button>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -611,13 +649,15 @@ export default function PainelCadastro({ user }) {
                                                         return (
                                                             <button
                                                                 key={campo}
-                                                                onClick={() => atualizarEdicaoOp(m.id, campo, !ed[campo])}
+                                                                disabled={!podeEditar}
+                                                                onClick={() => podeEditar && atualizarEdicaoOp(m.id, campo, !ed[campo])}
                                                                 style={{
                                                                     display: 'flex', alignItems: 'center', gap: '5px',
                                                                     background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
                                                                     border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
                                                                     borderRadius: '6px', padding: '5px 10px',
-                                                                    cursor: 'pointer',
+                                                                    cursor: podeEditar ? 'pointer' : 'not-allowed',
+                                                                    opacity: podeEditar ? 1 : 0.5,
                                                                     color: ok ? '#4ade80' : '#f87171',
                                                                     fontSize: '11px', fontWeight: '700',
                                                                     transition: 'all 0.2s'
@@ -647,6 +687,7 @@ export default function PainelCadastro({ user }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '12px', border: faltaSoNumLib ? '1px solid rgba(245,158,11,0.7)' : undefined, boxShadow: faltaSoNumLib ? '0 0 0 2px rgba(245,158,11,0.2)' : undefined }}
                                                                     value={ed.num_liberacao_cad || ''}
+                                                                    disabled={!podeEditar}
                                                                     onChange={e => atualizarEdicaoOp(m.id, 'num_liberacao_cad', e.target.value)}
                                                                     placeholder="Ex: 123456"
                                                                 />
@@ -658,6 +699,7 @@ export default function PainelCadastro({ user }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '11px' }}
                                                                     value={ed.data_liberacao_manual || ''}
+                                                                    disabled={!podeEditar}
                                                                     onChange={e => atualizarEdicaoOp(m.id, 'data_liberacao_manual', e.target.value)}
                                                                 />
                                                             </div>
@@ -698,23 +740,27 @@ export default function PainelCadastro({ user }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            <button
-                                                onClick={() => salvarOperacao(m.id)}
-                                                disabled={estaSalvando}
-                                                style={{
-                                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                                                    padding: '8px', borderRadius: '7px', border: 'none',
-                                                    background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                    color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
-                                                    fontWeight: 'bold', fontSize: '12px',
-                                                    cursor: estaSalvando ? 'default' : 'pointer',
-                                                    opacity: estaSalvando ? 0.6 : 1,
-                                                    transition: 'all 0.2s'
-                                                }}
-                                            >
-                                                <Save size={14} />
-                                                {estaSalvando ? 'Salvando...' : 'Salvar Checklist Operação'}
-                                            </button>
+                                            {podeEditar ? (
+                                                <button
+                                                    onClick={() => salvarOperacao(m.id)}
+                                                    disabled={estaSalvando}
+                                                    style={{
+                                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                        padding: '8px', borderRadius: '7px', border: 'none',
+                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
+                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        fontWeight: 'bold', fontSize: '12px',
+                                                        cursor: estaSalvando ? 'default' : 'pointer',
+                                                        opacity: estaSalvando ? 0.6 : 1,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <Save size={14} />
+                                                    {estaSalvando ? 'Salvando...' : 'Salvar Checklist Operação'}
+                                                </button>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
+                                            )}
                                         </div>
                                     </div>
                                 );

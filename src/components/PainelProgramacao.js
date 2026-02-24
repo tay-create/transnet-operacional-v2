@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/apiService';
-import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown } from 'lucide-react';
+import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { obterDataBrasilia } from '../utils/helpers';
 
 export default function PainelProgramacao() {
     const [programacoes, setProgramacoes] = useState([]);
     const [carregando, setCarregando] = useState(false);
+
+    const dataHoje = obterDataBrasilia();
+    const [dataInicio, setDataInicio] = useState(dataHoje);
+    const [dataFim, setDataFim] = useState(dataHoje);
 
     const carregarDados = async () => {
         setCarregando(true);
@@ -46,6 +51,13 @@ export default function PainelProgramacao() {
         };
         html2pdf().set(opcoes).from(elemento).save();
     };
+
+    const programacoesFiltradas = programacoes.filter(prog => {
+        if (dataInicio && dataFim && prog.data_referencia) {
+            if (prog.data_referencia < dataInicio || prog.data_referencia > dataFim) return false;
+        }
+        return true;
+    });
 
     return (
         <div style={{ padding: '20px 25px', height: 'calc(100vh - 100px)', overflowY: 'auto' }}>
@@ -90,6 +102,25 @@ export default function PainelProgramacao() {
                         <FileDown size={16} />
                         Exportar PDF
                     </button>
+
+                    {/* Filtros de Data */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(15,23,42,0.6)', padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', marginLeft: '10px' }}>
+                        <Filter size={14} color="#64748b" />
+                        <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>PERÍODO:</span>
+                        <input
+                            type="date"
+                            value={dataInicio}
+                            onChange={(e) => setDataInicio(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: '#f8fafc', fontSize: '12px', outline: 'none', cursor: 'pointer' }}
+                        />
+                        <span style={{ color: '#64748b', fontSize: '11px' }}>até</span>
+                        <input
+                            type="date"
+                            value={dataFim}
+                            onChange={(e) => setDataFim(e.target.value)}
+                            style={{ background: 'transparent', border: 'none', color: '#f8fafc', fontSize: '12px', outline: 'none', cursor: 'pointer' }}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -97,14 +128,14 @@ export default function PainelProgramacao() {
             <div id="relatorio-programacao" style={{ background: 'transparent', padding: '0' }}>
 
                 {/* Listagem das Programações */}
-                {programacoes.length === 0 && !carregando ? (
+                {programacoesFiltradas.length === 0 && !carregando ? (
                     <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
                         <BarChart size={48} style={{ opacity: 0.3, marginBottom: '16px', margin: '0 auto' }} />
-                        <p>Nenhuma programação encontrada.</p>
+                        <p>Nenhuma programação encontrada neste período.</p>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                        {programacoes.map(prog => {
+                        {programacoesFiltradas.map(prog => {
                             const dados = prog.dados_json || {};
                             const clientes = ['Delta', 'Porcelana', 'Eletrik', 'Consolidados'];
 

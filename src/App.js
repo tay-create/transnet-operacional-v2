@@ -18,11 +18,10 @@ import './App.css';
 import DashboardTV from './components/DashboardTV';
 import GestaoMarcacoes from './components/GestaoMarcacoes';
 import RelatorioOperacional from './components/RelatorioOperacional';
-import GestaoFrota from './components/GestaoFrota';
 import PainelCadastro from './components/PainelCadastro';
 import PainelProgramacao from './components/PainelProgramacao';
 import { CheckCircle as CheckCircleIcon } from 'lucide-react';
-import ChecklistCarreta from './components/ChecklistCarreta';
+import PainelChecklist from './components/PainelChecklist';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -262,7 +261,7 @@ function App({ socket }) {
                     const telV = (dj.telefoneMotorista || '').replace(/\D/g, '').slice(-9);
                     const telD = (d.telefone || '').replace(/\D/g, '').slice(-9);
 
-                    if (telV && telD && telV === telD) {
+                    if ((telV && telD && telV === telD) || (d.veiculoId && v.id === d.veiculoId)) {
                         const novosDados = {
                             ...v,
                             situacao_cadastro: d.situacao,
@@ -545,6 +544,25 @@ function App({ socket }) {
                     mostrarNotificacao(`⏱️ Tempo de carregamento: ${tempoDecorrido} min`);
                 }
             }
+
+            // ── Auto-preencher tempos operacionais para Performance CT-e ──
+            const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const temposKey = campo === 'status_recife' ? 'tempos_recife' : 'tempos_moreno';
+            if (!itemAtual[temposKey] || typeof itemAtual[temposKey] !== 'object') {
+                itemAtual[temposKey] = {};
+            }
+            if (valor === 'EM SEPARAÇÃO' && !itemAtual[temposKey].t_inicio_separacao) {
+                itemAtual[temposKey].t_inicio_separacao = agoraHHMM;
+            }
+            if (valor === 'EM CARREGAMENTO' && !itemAtual[temposKey].t_inicio_carregamento) {
+                itemAtual[temposKey].t_inicio_carregamento = agoraHHMM;
+            }
+            if (valor === 'CARREGADO') {
+                itemAtual[temposKey].t_inicio_carregado = agoraHHMM;
+            }
+            if (valor === 'LIBERADO P/ CT-e') {
+                itemAtual[temposKey].t_fim_liberado_cte = agoraHHMM;
+            }
         }
 
         novaLista[index] = itemAtual;
@@ -591,13 +609,14 @@ function App({ socket }) {
                 await api.put(`/${endpoint}/${itemAtual.id}`, itemAtual);
             }
         } catch (e) {
-            console.error("Erro ao salvar no banco:", e);
             // Reverter estado otimista e re-carregar dados frescos do banco
             if (e.response && (e.response.status === 403 || e.response.status === 409)) {
                 const msg = e.response.data?.message || 'Operação bloqueada pelo servidor.';
+                console.warn(`[Trava] ${msg}`);
                 mostrarNotificacao(`⚠️ ${msg}`);
                 carregarVeiculos();
             } else {
+                console.error("Erro ao salvar no banco:", e);
                 mostrarNotificacao("⚠️ Erro ao salvar no servidor.");
             }
         }
@@ -859,12 +878,8 @@ function App({ socket }) {
                     <PainelCadastro user={user} />
                 )}
 
-                {abaAtiva === 'gestao_frota' && temAcesso('gestao_frota') && (
-                    <GestaoFrota />
-                )}
-
-                {abaAtiva === 'checklist_carreta' && (
-                    <ChecklistCarreta user={user} />
+                {abaAtiva === 'checklist_carreta' && temAcesso('checklist_carreta') && (
+                    <PainelChecklist />
                 )}
 
                 {abaAtiva === 'programacao_diaria' && (

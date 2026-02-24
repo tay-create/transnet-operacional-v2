@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import TagInput from './TagInput';
 import {
-    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown
+    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone
 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO, API_URL } from '../constants';
 import api from '../services/apiService';
@@ -330,6 +330,24 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                     style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
                                 />
                             </div>
+                        </div>
+
+                        {/* Campo de Telefone Manual (para lançamentos sem marcação) */}
+                        <div>
+                            <label className="label-tech-sm"><Phone size={12} style={{ display: 'inline', marginRight: '4px' }} /> TELEFONE DO MOTORISTA (WhatsApp)</label>
+                            <input
+                                className="input-internal"
+                                type="text"
+                                value={formLanca.telefoneMotorista || ''}
+                                onChange={e => setFormLanca(prev => ({ ...prev, telefoneMotorista: e.target.value }))}
+                                placeholder="(00) 00000-0000"
+                                style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
+                            />
+                            {!formLanca.telefoneMotorista && (
+                                <span style={{ fontSize: '10px', color: '#f59e0b', marginTop: '4px', display: 'block' }}>
+                                    ⚠️ Sem telefone, os botões de WhatsApp não funcionarão.
+                                </span>
+                            )}
                         </div>
 
                         {/* Campo de Observação */}

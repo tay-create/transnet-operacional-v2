@@ -172,6 +172,18 @@ function makeIpcAdapter() {
             data = await window.api.deleteSolicitacao(id);
         }
 
+        // ── Checklists ─────────────────────────────────────────────────────────
+        else if (method === 'get' && path === '/api/checklists') {
+            data = await window.api.getChecklists();
+        }
+        else if (method === 'post' && path === '/api/checklists') {
+            data = await window.api.postChecklist(body);
+        }
+        else if (method === 'put' && path.startsWith('/api/checklists/') && path.endsWith('/status')) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.putChecklistStatus(id, body.status);
+        }
+
         // ── Relatórios / Histórico CT-e ────────────────────────────────────────
         else if (method === 'get' && path === '/relatorios') {
             data = await window.api.getRelatorios();

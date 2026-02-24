@@ -12,7 +12,7 @@ export const MODULOS_SISTEMA = [
     { id: 'ver_unidade_recife', label: 'Ver Unidade: RECIFE' },
     { id: 'ver_unidade_moreno', label: 'Ver Unidade: MORENO' },
     { id: 'performance_cte', label: 'Performance CT-e' },
-    { id: 'gestao_frota', label: 'Gestão de Frota' },
+    { id: 'checklist_carreta', label: 'Checklist da Carreta' },
     { id: 'cadastro', label: 'Cadastro / Ger. Risco' }
 ];
 

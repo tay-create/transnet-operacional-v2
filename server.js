@@ -89,6 +89,20 @@ const inicializarBanco = async () => {
          )`);
         await dbRun(`CREATE TABLE IF NOT EXISTS notificacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT, data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP)`);
         await dbRun(`CREATE TABLE IF NOT EXISTS fila (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS checklists_carreta (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            veiculo_id INTEGER,
+            motorista_nome TEXT,
+            placa_carreta TEXT,
+            placa_confere INTEGER,
+            condicao_bau TEXT,
+            cordas INTEGER,
+            foto_vazamento TEXT,
+            assinatura TEXT,
+            conferente_nome TEXT,
+            status TEXT DEFAULT 'PENDENTE',
+            created_at TEXT
+        )`);
         await dbRun(`CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             acao TEXT NOT NULL,
@@ -621,6 +635,21 @@ app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Plan
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ── PUT: Alterar Status de Disponibilidade (Fila) ────────────────
+app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro']), async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['Disponível', 'Contratado', 'Indisponível'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Status inválido.' });
+        }
+        await dbRun("UPDATE marcacoes_placas SET disponibilidade = ? WHERE id = ?", [status, req.params.id]);
+        io.emit('marcacao_atualizada');
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
 app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
@@ -823,17 +852,18 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
 
         // Emitir socket + sincronizar em marcacoes_placas
         const dj = (() => { try { return JSON.parse(atual.dados_json || '{}'); } catch { return {}; } })();
+        io.emit('cadastro_situacao_atualizada', {
+            veiculoId: Number(req.params.id),
+            telefone: dj.telefoneMotorista || null,
+            situacao,
+            data_liberacao: novaDataLib,
+            numero_liberacao: num_liberacao_cad || null,
+            chk_cnh: chk_cnh_cad ? 1 : 0,
+            chk_antt: chk_antt_cad ? 1 : 0,
+            chk_tacografo: chk_tacografo_cad ? 1 : 0,
+            chk_crlv: chk_crlv_cad ? 1 : 0,
+        });
         if (dj.telefoneMotorista) {
-            io.emit('cadastro_situacao_atualizada', {
-                telefone: dj.telefoneMotorista,
-                situacao,
-                data_liberacao: novaDataLib,
-                numero_liberacao: num_liberacao_cad || null,
-                chk_cnh: chk_cnh_cad ? 1 : 0,
-                chk_antt: chk_antt_cad ? 1 : 0,
-                chk_tacografo: chk_tacografo_cad ? 1 : 0,
-                chk_crlv: chk_crlv_cad ? 1 : 0,
-            });
             // Sincronizar de volta em marcacoes_placas (para manter consistência caso haja nova viagem)
             await dbRun(
                 `UPDATE marcacoes_placas SET
@@ -982,7 +1012,61 @@ app.delete('/ctes/:id', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: e.message });
     }
 });
+// --- ROTAS DE CHECKLIST DA CARRETA ---
+app.get('/api/checklists', authMiddleware, async (req, res) => {
+    try {
+        const checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
+        // Cast sqlite integers back to booleans
+        const formatted = checklists.map(c => ({
+            ...c,
+            placa_confere: c.placa_confere === 1
+        }));
+        res.json({ success: true, checklists: formatted });
+    } catch (e) {
+        console.error('Erro ao listar checklists:', e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/checklists', authMiddleware, async (req, res) => {
+    try {
+        const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
+
+        const created_at = new Date().toISOString();
+        const result = await dbRun(
+            `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, 'PENDENTE']
+        );
+
+        // Emite alerta para Coordenador aprovar via socket
+        io.emit('receber_alerta', {
+            tipo: 'checklist_pendente',
+            mensagem: `Novo checklist aguardando aprovação: ${placa_carreta}`
+        });
+
+        res.json({ success: true, id: result.lastID });
+    } catch (e) {
+        console.error('Erro ao criar checklist:', e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    try {
+        const { status } = req.body; // 'APROVADO' ou 'RECUSADO'
+        if (!['APROVADO', 'RECUSADO'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Status inválido.' });
+        }
+        await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        console.error('Erro ao atualizar checklist:', e);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 // --- ROTAS DE CUBAGEM ---
+
 app.get('/cubagens', authMiddleware, async (req, res) => {
     try {
         const cubagens = await dbAll("SELECT * FROM cubagens ORDER BY data_criacao DESC");
@@ -1108,33 +1192,44 @@ app.get('/veiculos', authMiddleware, async (req, res) => {
         ]);
 
         const total = countRow[0]?.total || 0;
-        const veiculos = rows.map(row => ({
-            id: row.id,
-            placa: row.placa,
-            modelo: row.modelo,
-            motorista: row.motorista,
-            status_recife: row.status_recife, status_moreno: row.status_moreno,
-            doca_recife: row.doca_recife, doca_moreno: row.doca_moreno,
-            coleta: row.coleta, coletaRecife: row.coletaRecife, coletaMoreno: row.coletaMoreno,
-            rotaRecife: row.rota_recife,
-            rotaMoreno: row.rota_moreno,
-            unidade: row.unidade, operacao: row.operacao,
-            inicio_rota: row.inicio_rota, origem_criacao: row.origem_criacao,
-            data_prevista: row.data_prevista,
-            tempos_recife: JSON.parse(row.tempos_recife || '{}'),
-            tempos_moreno: JSON.parse(row.tempos_moreno || '{}'),
-            status_coleta: JSON.parse(row.status_coleta || '{}'),
-            observacao: row.observacao || '',
-            imagens: JSON.parse(row.imagens || '[]'),
-            chk_cnh: row.chk_cnh ? 1 : 0,
-            chk_antt: row.chk_antt ? 1 : 0,
-            chk_tacografo: row.chk_tacografo ? 1 : 0,
-            chk_crlv: row.chk_crlv ? 1 : 0,
-            situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
-            numero_liberacao: row.numero_liberacao || '',
-            data_liberacao: row.data_liberacao || null,
-            dados_json: row.dados_json || '{}'
-        }));
+        const veiculos = rows.map(row => {
+            let dados_json = {};
+            try {
+                dados_json = JSON.parse(row.dados_json || '{}');
+            } catch (e) { }
+
+            return {
+                id: row.id,
+                placa: row.placa,
+                modelo: row.modelo,
+                motorista: row.motorista,
+                status_recife: row.status_recife, status_moreno: row.status_moreno,
+                doca_recife: row.doca_recife, doca_moreno: row.doca_moreno,
+                coleta: row.coleta, coletaRecife: row.coletaRecife, coletaMoreno: row.coletaMoreno,
+                rotaRecife: row.rota_recife,
+                rotaMoreno: row.rota_moreno,
+                unidade: row.unidade, operacao: row.operacao,
+                inicio_rota: row.inicio_rota, origem_criacao: row.origem_criacao,
+                data_prevista: row.data_prevista,
+                tempos_recife: JSON.parse(row.tempos_recife || '{}'),
+                tempos_moreno: JSON.parse(row.tempos_moreno || '{}'),
+                status_coleta: JSON.parse(row.status_coleta || '{}'),
+                observacao: row.observacao || '',
+                imagens: JSON.parse(row.imagens || '[]'),
+                chk_cnh: row.chk_cnh ? 1 : 0,
+                chk_antt: row.chk_antt ? 1 : 0,
+                chk_tacografo: row.chk_tacografo ? 1 : 0,
+                chk_crlv: row.chk_crlv ? 1 : 0,
+                situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
+                numero_liberacao: row.numero_liberacao || '',
+                data_liberacao: row.data_liberacao || null,
+                tipoVeiculo: dados_json.tipoVeiculo || '',
+                placa1Motorista: dados_json.placa1Motorista || '',
+                placa2Motorista: dados_json.placa2Motorista || '',
+                telefoneMotorista: dados_json.telefoneMotorista || '',
+                dados_json: row.dados_json || '{}'
+            };
+        });
         res.json({ success: true, veiculos, total, page, limit, totalPages: Math.ceil(total / limit) });
     } catch (e) { res.status(500).json({ success: false }); }
 });
@@ -1276,6 +1371,21 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
                             message: 'Liberação expirada (mais de 24h). Solicite renovação no Cadastro.'
                         });
                     }
+                }
+            }
+
+            // ── Trava de Checklist da Carreta (Avanço após Liberado P/ Doca) ──
+            const STATUS_CHECKLIST = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+            const avancoChecklistRecife = STATUS_CHECKLIST.includes(v.status_recife) && !STATUS_CHECKLIST.includes(veiculoAntigo.status_recife);
+            const avancoChecklistMoreno = STATUS_CHECKLIST.includes(v.status_moreno) && !STATUS_CHECKLIST.includes(veiculoAntigo.status_moreno);
+
+            if (avancoChecklistRecife || avancoChecklistMoreno) {
+                const chk = await dbGet("SELECT status FROM checklists_carreta WHERE veiculo_id = ? ORDER BY id DESC LIMIT 1", [req.params.id]);
+                if (!chk || chk.status !== 'APROVADO') {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Status bloqueado: Checklist da carreta pendente ou recusado.'
+                    });
                 }
             }
         }
@@ -2129,7 +2239,56 @@ app.post('/api/frota/checklist', async (req, res) => {
     }
 });
 
-// ── Checklists (coordenador consulta) ────────────────────────
+// ── Nova Rota de Checklist (Operacional / Doca) ───────────────────
+app.post('/api/checklists', authMiddleware, async (req, res) => {
+    try {
+        const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
+        if (!veiculo_id || !placa_carreta || !assinatura) {
+            return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando.' });
+        }
+        const created_at = obterDataHoraBrasilia();
+        const result = await dbRun(
+            `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')`,
+            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at]
+        );
+        res.json({ success: true, id: result.lastID });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// ── GET: Checklists (Painel do Coordenador) ────────────────────
+app.get('/api/checklists', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Aux. Operacional', 'Encarregado']), async (req, res) => {
+    try {
+        const rows = await dbAll(`
+            SELECT id, veiculo_id, motorista_nome, placa_carreta, placa_confere,
+                   condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+                   status, created_at
+            FROM checklists_carreta
+            ORDER BY created_at DESC
+        `);
+        res.json({ success: true, checklists: rows });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// ── PUT: Aprovar/Reprovar Checklist ──────────────────────────────
+app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['APROVADO', 'RECUSADO', 'PENDENTE'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Status inválido.' });
+        }
+        await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// ── Checklists (Antigo/Legado) ────────────────────────
 app.get('/api/frota/checklists', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (_req, res) => {
     try {
         const rows = await dbAll(`

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Shield, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar
+    MapPin, ShieldCheck, Calendar, ClipboardCheck
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -118,14 +118,14 @@ export default function Sidebar({
                         <MenuItem
                             icon={<Users size={20} />}
                             label="Gestão de Usuários"
-                            color="#fcd34d"
+
                             aberto={aberto}
                             onClick={() => { openModal('admin'); carregarSolicitacoes(); carregarUsuarios(); }}
                         />
                         <MenuItem
                             icon={<Shield size={20} />}
                             label="Configurar Cargos"
-                            color="#93c5fd"
+
                             aberto={aberto}
                             onClick={() => { openModal('permissao'); }}
                         />
@@ -137,7 +137,7 @@ export default function Sidebar({
                 <MenuItem
                     icon={<Bell size={20} />}
                     label="Ativar Alertas (PC)"
-                    color="#86efac"
+
                     aberto={aberto}
                     onClick={ativarNotificacoes}
                 />
@@ -146,14 +146,14 @@ export default function Sidebar({
                 {temAcesso('operacao') && (
                     <>
                         <Divider label="Operação" aberto={aberto} />
-                        <MenuItem icon={<PlusCircle size={20} />} label="Novo Lançamento" subItem aberto={aberto} color="#4ade80" onClick={() => { setAbaAtiva('novo_lancamento'); }} />
+                        <MenuItem icon={<PlusCircle size={20} />} label="Novo Lançamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('novo_lancamento'); }} />
                         {podeVerUnidade('Recife') && (
-                            <MenuItem icon={<Truck size={20} />} label="Painel Recife" subItem aberto={aberto} color="#60a5fa" onClick={() => { setAbaAtiva('op_recife'); }} />
+                            <MenuItem icon={<Truck size={20} />} label="Painel Recife" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_recife'); }} />
                         )}
                         {podeVerUnidade('Moreno') && (
-                            <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} color="#fbbf24" onClick={() => { setAbaAtiva('op_moreno'); }} />
+                            <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_moreno'); }} />
                         )}
-                        <MenuItem icon={<Calendar size={20} />} label="H. de Programação" subItem aberto={aberto} color="#a78bfa" onClick={() => { setAbaAtiva('programacao_diaria'); }} />
+                        <MenuItem icon={<Calendar size={20} />} label="H. de Programação" subItem aberto={aberto} onClick={() => { setAbaAtiva('programacao_diaria'); }} />
                     </>
                 )}
 
@@ -174,7 +174,7 @@ export default function Sidebar({
                 {temAcesso('cubagem') && (
                     <>
                         <Divider label="Cubagem" aberto={aberto} />
-                        <MenuItem icon={<Calculator size={20} />} label="Cálculo de Cubagem" subItem color="#a855f7" aberto={aberto} onClick={() => { setAbaAtiva('cubagem'); }} />
+                        <MenuItem icon={<Calculator size={20} />} label="Cálculo de Cubagem" subItem aberto={aberto} onClick={() => { setAbaAtiva('cubagem'); }} />
                     </>
                 )}
 
@@ -182,11 +182,11 @@ export default function Sidebar({
                 {temAcesso('relatorios') && !ehViewer && (
                     <>
                         <Divider label="Relatórios" aberto={aberto} />
-                        <MenuItem icon={<BarChart3 size={20} />} label="Relatório Operacional" subItem color="#38bdf8" aberto={aberto} onClick={() => { setAbaAtiva('relatorio_op'); }} />
+                        <MenuItem icon={<BarChart3 size={20} />} label="Relatório Operacional" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_op'); }} />
                         {temAcesso('performance_cte') && (
-                            <MenuItem icon={<PieChart size={20} />} label="Performance CT-e" subItem color="#fcd34d" aberto={aberto} onClick={() => { buscarRelatorioCte(); }} />
+                            <MenuItem icon={<PieChart size={20} />} label="Performance CT-e" subItem aberto={aberto} onClick={() => { buscarRelatorioCte(); }} />
                         )}
-                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem color="#22d3ee" aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
+                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}
 
@@ -194,7 +194,7 @@ export default function Sidebar({
                 {(ehViewer || (temAcesso('dashboard_tv') && !temAcesso('relatorios'))) && (
                     <>
                         <Divider label="Dashboard" aberto={aberto} />
-                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem color="#22d3ee" aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
+                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}
 
@@ -202,29 +202,29 @@ export default function Sidebar({
                 {(temAcesso('cadastro') || cargo === 'CADASTRO' || cargo === 'ENCARREGADO' || ehCoordenador) && (
                     <>
                         <Divider label="Ger. de Risco" aberto={aberto} />
-                        <MenuItem icon={<ShieldCheck size={20} />} label="Ger. Risco / Liberação" color="#fb923c" aberto={aberto} onClick={() => { setAbaAtiva('cadastro'); }} />
+                        <MenuItem icon={<ShieldCheck size={20} />} label="Ger. Risco / Liberação" aberto={aberto} onClick={() => { setAbaAtiva('cadastro'); }} />
                     </>
                 )}
 
                 {/* FROTA */}
-                {(temAcesso('gestao_frota') || ehCoordenador || cargo === 'PLANEJAMENTO') && (
+                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO') && (
                     <>
-                        <Divider label="Frota" aberto={aberto} />
-                        {temAcesso('gestao_frota') && (
+                        <Divider label="Checklist" aberto={aberto} />
+                        {(temAcesso('checklist_carreta') || ehCoordenador) && (
                             <MenuItem
-                                icon={<Truck size={20} />}
-                                label="Gestão de Frota"
-                                color="#38bdf8"
+                                icon={<ClipboardCheck size={20} />}
+                                label="Checklist da Carreta"
+
                                 subItem
                                 aberto={aberto}
-                                onClick={() => setAbaAtiva('gestao_frota')}
+                                onClick={() => setAbaAtiva('checklist_carreta')}
                             />
                         )}
                         {(ehCoordenador || cargo === 'PLANEJAMENTO') && (
                             <MenuItem
                                 icon={<MapPin size={20} />}
                                 label="Marcação de Placas"
-                                color="#f472b6"
+
                                 subItem
                                 aberto={aberto}
                                 onClick={() => setAbaAtiva('marcacao_placas')}

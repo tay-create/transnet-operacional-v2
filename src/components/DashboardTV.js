@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
+import { Warehouse } from 'lucide-react';
 import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import { obterDataBrasilia } from '../utils/helpers';
 
@@ -228,18 +229,20 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
     return (
         <div className="tv-card-anim">
             <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase' }}>
-                Embarques · {dataHoje}
+                EMBARQUE OP. TRAMONTINA - {dataHoje}
             </h2>
 
-            {/* BENTO GRID principal */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
-
-                {/* TOTAL GERAL — bloco grande */}
-                <div style={{ ...glassCard(t, `${t.accent}60`), padding: '28px 32px', gridColumn: '1', gridRow: '1 / 3', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', borderLeft: `4px solid ${t.accent}` }}>
-                    <div style={{ fontSize: '10px', letterSpacing: '3px', color: t.textMuted, marginBottom: '8px', textTransform: 'uppercase' }}>Total Geral</div>
-                    <div style={{ fontSize: '80px', fontWeight: '900', color: t.accent, lineHeight: 1, filter: `drop-shadow(0 0 16px ${t.accent}80)` }}>{totalGeral}</div>
-                    <div style={{ fontSize: '13px', fontWeight: '600', color: t.textMuted, marginTop: '10px', letterSpacing: '1px' }}>EMBARQUES HOJE</div>
+            {/* TOTAL GERAL CENTRALIZADO */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                <div style={{ ...glassCard(t, `${t.accent}60`), padding: '24px', textAlign: 'center', borderLeft: `4px solid ${t.accent}`, width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: t.accent, lineHeight: 1, filter: `drop-shadow(0 0 12px ${t.accent}80)` }}>{totalGeral}</div>
+                    <div style={{ fontSize: '12px', color: t.accent, marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Geral</div>
+                    <div style={{ fontSize: '10px', fontWeight: '600', color: t.textMuted, marginTop: '4px', letterSpacing: '1px' }}>EMBARQUES HOJE</div>
                 </div>
+            </div>
+
+            {/* BENTO GRID principal */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
 
                 {/* KPI Cards — linha de cima (operação) */}
                 {kpis.map(kpi => (
@@ -256,7 +259,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                 </div>
 
                 {/* CT-e status — linha de baixo (6 colunas) */}
-                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '2 / 8', display: 'flex', alignItems: 'center', gap: '24px' }}>
+                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 7', display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <span style={{ fontSize: '10px', letterSpacing: '2px', color: t.textDim, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Status CT-e</span>
                     {[
                         { label: 'Aguardando', valor: statusCte.aguardando, cor: '#f59e0b' },
@@ -308,8 +311,12 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                             wrapperStyle={{ fontSize: '11px', color: t.textMuted }}
                             formatter={(value) => <span style={{ color: value === 'Recife' ? '#3b82f6' : '#f59e0b', fontWeight: '700' }}>{value}</span>}
                         />
-                        <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]} />
-                        <Bar dataKey="Moreno" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]}>
+                            <LabelList dataKey="Recife" position="top" formatter={value => value > 0 ? `${value}` : ''} fill={t.textDim} fontSize={10} fontWeight="bold" />
+                        </Bar>
+                        <Bar dataKey="Moreno" fill="#f59e0b" radius={[3, 3, 0, 0]}>
+                            <LabelList dataKey="Moreno" position="top" formatter={value => value > 0 ? `${value}` : ''} fill={t.textDim} fontSize={10} fontWeight="bold" />
+                        </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>
@@ -377,16 +384,20 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
                 Operação Recife · Detalhada
             </h2>
 
-            {/* Bento row: total grande + 3 sub-KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', transition: 'all 0.5s ease-in-out' }}>
-                    <div style={{ fontSize: '64px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 12px #3b82f680)' }}>{totalRecife}</div>
-                    <div style={{ fontSize: '11px', color: '#93c5fd', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase' }}>Total Recife</div>
+            {/* CONTADOR GERAL CENTRALIZADO */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 12px #3b82f680)' }}>{totalRecife}</div>
+                    <div style={{ fontSize: '12px', color: '#93c5fd', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Recife</div>
                 </div>
+            </div>
+
+            {/* GRID DOS SUB-CONTADORES */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 {[
-                    { label: 'Delta 100%', valor: contOp.delta, cor: CORES_KPI.delta },
-                    { label: 'Consolidado', valor: contOp.consolidado, cor: CORES_KPI.consolidado },
-                    { label: 'Delta R/M', valor: contOp.deltaRxM, cor: CORES_KPI.deltaRxM }
+                    { label: 'Delta 100%', valor: contOp.delta, cor: '#2563eb' },
+                    { label: 'Consolidado', valor: contOp.consolidado, cor: '#3b82f6' },
+                    { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#60a5fa' }
                 ].map(c => (
                     <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                         <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
@@ -422,8 +433,9 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
                             })}
                         </div>
                     </div>
+
                     <div style={{ ...glassCard(t), padding: '16px' }}>
-                        <h3 style={{ color: t.textMuted, fontSize: '11px', fontWeight: '700', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '2px' }}>Status Embarques</h3>
+                        <h3 className="text-2xl font-black uppercase text-slate-800" style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc' }}>Status de Embarque</h3>
                         <StatusBars dados={dadosStatus} t={t} />
                     </div>
                 </div>
@@ -447,24 +459,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, t, tema }) {
                             </div>
                         </div>
                     ))}
-                    <div style={{ ...glassCard(t), padding: '12px', marginTop: '4px' }}>
-                        <ResponsiveContainer width="100%" height={180}>
-                            <BarChart data={dadosStatus} layout="vertical" margin={{ left: 0, right: 20 }}>
-                                <XAxis type="number" stroke={t.textDim} fontSize={10} />
-                                <YAxis dataKey="name" type="category" width={120} stroke={t.textDim} fontSize={10} />
-                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
-                                    formatter={(value, name) => {
-                                        const total = dadosStatus.reduce((a, d) => a + d.value, 0);
-                                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                                        return [`${value} (${pct}%)`, name];
-                                    }}
-                                />
-                                <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                    {dadosStatus.map((d, idx) => <Cell key={idx} fill={d.fill} />)}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+
                 </div>
             </div>
         </div>
@@ -510,19 +505,6 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
     const recifeMes = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao)).length;
     const morenoMes = veiculosMesAtual.filter(v => ehOperacaoMoreno(v.operacao)).length;
 
-    // Status consolidado
-    const contStatus = {};
-    OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
-    veiculosMesAtual.forEach(v => {
-        // Priorizar status mais avançado entre recife e moreno
-        const stRecife = v.status_recife || 'AGUARDANDO';
-        const stMoreno = v.status_moreno || 'AGUARDANDO';
-        const prioRecife = PRIORIDADE_STATUS[stRecife] || 0;
-        const prioMoreno = PRIORIDADE_STATUS[stMoreno] || 0;
-        const statusFinal = prioRecife >= prioMoreno ? stRecife : stMoreno;
-        if (contStatus[statusFinal] !== undefined) contStatus[statusFinal]++;
-    });
-    const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 
     // Dados para gráfico de pizza - Distribuição por operação
     const dadosPieOp = [
@@ -545,15 +527,19 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                 Fluxo Mensal · {mesNome}
             </h2>
 
-            {/* Bento Grid: total + KPIs mensais */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                <div style={{ ...glassCard(t, '#22d3ee60'), padding: '24px 32px', textAlign: 'center', borderLeft: '4px solid #22d3ee', transition: 'all 0.5s ease-in-out' }}>
+            {/* CONTADOR GERAL (TOTAL) CENTRALIZADO E MAIOR */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                <div style={{ ...glassCard(t, '#22d3ee60'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #22d3ee', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
                     <div style={{ fontSize: '72px', fontWeight: '900', color: '#22d3ee', lineHeight: 1, filter: 'drop-shadow(0 0 16px #22d3ee80)' }}>{totalMes}</div>
                     <div style={{ fontSize: '11px', color: '#67e8f9', marginTop: '8px', letterSpacing: '2px', textTransform: 'uppercase' }}>Embarques do Mês</div>
                     <div style={{ fontSize: '10px', color: t.textDim, marginTop: '4px' }}>
                         {new Date(primeiroDiaMes).toLocaleDateString('pt-BR')} – {new Date(ultimoDiaMes).toLocaleDateString('pt-BR')}
                     </div>
                 </div>
+            </div>
+
+            {/* GRID DOS SUB-CONTADORES */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 {[
                     { label: 'Delta', valor: contadores.delta, cor: CORES_KPI.delta },
                     { label: 'Consolidado', valor: contadores.consolidado, cor: CORES_KPI.consolidado },
@@ -621,26 +607,6 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                         </ResponsiveContainer>
                     ) : <div style={{ textAlign: 'center', padding: '40px', color: t.textDim }}>Sem dados</div>}
                 </div>
-            </div>
-
-            <div style={{ ...glassCard(t), padding: '16px' }}>
-                <h3 style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '2px' }}>Status Consolidado do Mês</h3>
-                <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={dadosStatus} layout="vertical" margin={{ left: 0, right: 20 }}>
-                        <XAxis type="number" stroke={t.textDim} fontSize={10} />
-                        <YAxis dataKey="name" type="category" width={120} stroke={t.textDim} fontSize={10} />
-                        <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
-                            formatter={(value, name) => {
-                                const total = dadosStatus.reduce((a, d) => a + d.value, 0);
-                                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                                return [`${value} (${pct}%)`, name];
-                            }}
-                        />
-                        <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                            {dadosStatus.map((d, idx) => <Cell key={idx} fill={d.fill} />)}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
             </div>
         </div>
     );
@@ -727,70 +693,93 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, t, tema }) {
     const totalFluxoCte = aguardandoCte + emEmissaoCte + emitidoCte;
     const pct = (v) => totalFluxoCte > 0 ? `${Math.round((v / totalFluxoCte) * 100)}%` : '0%';
 
+    const renderDoca = (doca) => {
+        const statusDoca = docaStatusMap[doca];
+        const cor = statusDoca ? CORES_STATUS[statusDoca] : null;
+        const livre = !statusDoca;
+        const bgCor = livre ? 'rgba(52,211,153,0.10)' : `${cor.border}20`;
+        const borderCor = livre ? '#34d399' : cor.border;
+        const textCor = livre ? '#34d399' : cor.text;
+        return (
+            <div key={doca} style={{
+                padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
+                background: bgCor, border: `1px solid ${borderCor}50`,
+                transition: 'all 0.5s ease-in-out',
+                boxShadow: livre ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
+            }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: textCor, ...(livre ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}) }}>{doca}</div>
+                <div style={{ fontSize: '8px', color: livre ? '#34d399' : t.textDim, marginTop: '2px', fontWeight: livre ? '700' : 'normal' }}>{statusDoca || 'Livre'}</div>
+            </div>
+        );
+    };
+
     return (
         <div className="tv-card-anim">
             <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: '#fbbf24', letterSpacing: '2px', textTransform: 'uppercase' }}>
-                Operacao Moreno - Detalhada
+                Operação Moreno - Detalhada
             </h2>
 
-            {/* Bento row: total grande + 4 sub-KPIs + Consolidados */}
             {(() => {
                 const consolidadosMoreno = veiculosMoreno.filter(v =>
                     classificarOperacao(v.operacao) === 'consolidado'
                 ).length;
                 return (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                        <div style={{ ...glassCard(t, '#f59e0b60'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f59e0b', transition: 'all 0.5s ease-in-out' }}>
-                            <div style={{ fontSize: '64px', fontWeight: '900', color: '#f59e0b', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f59e0b80)' }}>{totalMoreno}</div>
-                            <div style={{ fontSize: '11px', color: '#fcd34d', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase' }}>Total Moreno</div>
-                        </div>
-                        {[
-                            { label: '100% Porcelana', valor: contOp.porcelana, cor: CORES_KPI.porcelana },
-                            { label: 'Eletrik', valor: contOp.eletrik, cor: CORES_KPI.eletrik },
-                            { label: 'Delta Moreno', valor: contOp.deltaMoreno, cor: CORES_KPI.deltaRxM },
-                            { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#f97316' }
-                        ].map(c => (
-                            <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
-                                <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
-                                <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                    <>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                            <div style={{ ...glassCard(t, '#f59e0b60'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f59e0b', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                                <div style={{ fontSize: '72px', fontWeight: '900', color: '#f59e0b', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f59e0b80)' }}>{totalMoreno}</div>
+                                <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Moreno</div>
                             </div>
-                        ))}
-                        <div style={{ ...glassCard(t, '#22c55e40'), padding: '20px', textAlign: 'center', borderTop: '3px solid #22c55e', transition: 'all 0.5s ease-in-out' }}>
-                            <div style={{ fontSize: '44px', fontWeight: '900', color: '#22c55e', lineHeight: 1, filter: 'drop-shadow(0 0 8px #22c55e60)' }}>{consolidadosMoreno}</div>
-                            <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>Consolidados</div>
                         </div>
-                    </div>
+
+                        {/* GRID DOS SUB-CONTADORES (Abaixo do Total) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                            {[
+                                { label: '100% Porcelana', valor: contOp.porcelana, cor: '#d97706' },
+                                { label: 'Eletrik', valor: contOp.eletrik, cor: '#f59e0b' },
+                                { label: 'Delta Moreno', valor: contOp.deltaMoreno, cor: '#fbbf24' },
+                                { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#fcd34d' },
+                                { label: 'Consolidados', valor: consolidadosMoreno, cor: '#fef08a' }
+                            ].map(c => (
+                                <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
+                                    <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
+                                    <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 );
             })()}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div style={{ ...glassCard(t), padding: '16px' }}>
-                        <h3 style={{ color: t.textMuted, fontSize: '11px', fontWeight: '700', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '2px' }}>Gestão Visual de Docas</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                            {docasFisicas.map(doca => {
-                                const statusDoca = docaStatusMap[doca];
-                                const cor = statusDoca ? CORES_STATUS[statusDoca] : null;
-                                const livre = !statusDoca;
-                                const bgCor = livre ? 'rgba(52,211,153,0.10)' : `${cor.border}20`;
-                                const borderCor = livre ? '#34d399' : cor.border;
-                                const textCor = livre ? '#34d399' : cor.text;
-                                return (
-                                    <div key={doca} style={{
-                                        padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
-                                        background: bgCor, border: `1px solid ${borderCor}50`,
-                                        transition: 'all 0.5s ease-in-out',
-                                        boxShadow: livre ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
-                                    }}>
-                                        <div style={{ fontSize: '11px', fontWeight: '700', color: textCor, ...(livre ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}) }}>{doca}</div>
-                                        <div style={{ fontSize: '8px', color: livre ? '#34d399' : t.textDim, marginTop: '2px', fontWeight: livre ? '700' : 'normal' }}>{statusDoca || 'Livre'}</div>
-                                    </div>
-                                );
-                            })}
+                    {/* GESTÃO VISUAL DE DOCAS - MORENO (DIVIDIDO) */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {/* SESSÃO 1: PORCELANA */}
+                        <div style={{ ...glassCard(t), padding: '16px' }}>
+                            <h2 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: tema === 'light' ? '#334155' : '#f8fafc' }}>
+                                <Warehouse size={16} color="#64748b" />
+                                Gestão Visual Docas - Porcelana
+                            </h2>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                {docasFisicas.filter(d => d.includes('PORCELANA')).map(doca => renderDoca(doca))}
+                            </div>
+                        </div>
+
+                        {/* SESSÃO 2: DELTA E ELETRIK */}
+                        <div style={{ ...glassCard(t), padding: '16px' }}>
+                            <h2 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: tema === 'light' ? '#334155' : '#f8fafc' }}>
+                                <Warehouse size={16} color="#64748b" />
+                                Gestão Visual Docas - Delta e Eletrik
+                            </h2>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                                {docasFisicas.filter(d => d.includes('DELTA') || d.includes('ELETRIK')).map(doca => renderDoca(doca))}
+                            </div>
                         </div>
                     </div>
+
                     <div style={{ ...glassCard(t), padding: '16px' }}>
-                        <h3 style={{ color: t.textMuted, fontSize: '11px', fontWeight: '700', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '2px' }}>Status Embarques</h3>
+                        <h3 className="text-2xl font-black uppercase text-slate-800" style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc' }}>Status de Embarque</h3>
                         <StatusBars dados={dadosStatus} t={t} />
                     </div>
                 </div>
@@ -813,24 +802,6 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, t, tema }) {
                             </div>
                         </div>
                     ))}
-                    <div style={{ ...glassCard(t), padding: '12px', marginTop: '4px' }}>
-                        <ResponsiveContainer width="100%" height={180}>
-                            <BarChart data={dadosStatus} layout="vertical" margin={{ left: 0, right: 20 }}>
-                                <XAxis type="number" stroke={t.textDim} fontSize={10} />
-                                <YAxis dataKey="name" type="category" width={120} stroke={t.textDim} fontSize={10} />
-                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
-                                    formatter={(value, name) => {
-                                        const total = dadosStatus.reduce((a, d) => a + d.value, 0);
-                                        const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                                        return [`${value} (${pct}%)`, name];
-                                    }}
-                                />
-                                <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                                    {dadosStatus.map((d, idx) => <Cell key={idx} fill={d.fill} />)}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
                 </div>
             </div>
         </div>

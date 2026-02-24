@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import TagInput from './TagInput';
 import {
-    Calendar, MapPin,
-    Search, Box,
-    Anchor, Timer, AlertTriangle, ArrowRight,
-    Circle, Trash2, Clock, FileText, Image, X, Package, Edit2, MessageCircle,
-    Bell, Lock, CheckCircle, ShieldCheck
+    Package, Anchor, Timer, X, Search, Box, Calendar, ArrowRight,
+    MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
+    CheckCircle, Clock, FileText, Warehouse, ClipboardCheck
 } from 'lucide-react';
+import ModalChecklistCarreta from './ModalChecklistCarreta';
 import { OPCOES_STATUS, OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
@@ -64,7 +63,7 @@ const handleOperacaoChange = (item, novaOperacao, updateList, lista, setLista, r
 
     // Persistir no backend em uma unica chamada
     if (itemAtualizado.id && api) {
-        api.put(`/veiculos/${itemAtualizado.id}`, itemAtualizado).catch(err => {
+        api.put(`/ veiculos / ${itemAtualizado.id} `, itemAtualizado).catch(err => {
             console.error("Erro ao salvar mudanca de operacao:", err);
         });
     }
@@ -91,6 +90,9 @@ export default function PainelOperacional({
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
     const [toasts, setToasts] = useState([]);
+    const [modalColetasAberto, setModalColetasAberto] = useState(false);
+    const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
+    const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
     const qtdMotoristasPrev = useRef(null);
 
 
@@ -113,7 +115,7 @@ export default function PainelOperacional({
                     if (qtdMotoristasPrev.current !== null && lista.length > qtdMotoristasPrev.current) {
                         const novos = lista.slice(0, lista.length - qtdMotoristasPrev.current);
                         novos.forEach(m => {
-                            adicionarToast(`${m.nome_motorista} — ${m.disponibilidade || 'Disponível'}`);
+                            adicionarToast(`${m.nome_motorista} — ${m.disponibilidade || 'Disponível'} `);
                         });
                     }
                     qtdMotoristasPrev.current = lista.length;
@@ -144,7 +146,7 @@ export default function PainelOperacional({
         itemAtual.destinoMotorista = m.destino_desejado || '';
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
-        if (itemAtual.id) api.put(`/veiculos/${itemAtual.id}`, itemAtual).catch(() => { });
+        if (itemAtual.id) api.put(`/ veiculos / ${itemAtual.id} `, itemAtual).catch(() => { });
         setEditandoMotorista(null);
     }
 
@@ -223,9 +225,9 @@ export default function PainelOperacional({
     return (
         <div style={{ display: 'flex', gap: '12px', height: 'calc(100vh - 100px)', padding: '0 10px 20px 20px' }}>
             <style>{`
-                @keyframes slideIn { from{opacity:0;transform:translateX(30px)} to{opacity:1;transform:translateX(0)} }
-                .motorista-hover-wrapper:hover .motorista-hover-card { display: block !important; }
-            `}</style>
+@keyframes slideIn { from{ opacity: 0; transform: translateX(30px) } to{ opacity: 1; transform: translateX(0) } }
+                .motorista - hover - wrapper: hover.motorista - hover - card { display: block!important; }
+`}</style>
 
             {/* Toasts de notificação */}
             <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
@@ -234,7 +236,7 @@ export default function PainelOperacional({
                     return (
                         <div key={t.id} style={{
                             background: 'rgba(15,23,42,0.95)',
-                            border: `1px solid ${ehErro ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.4)'}`,
+                            border: `1px solid ${ehErro ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.4)'} `,
                             borderRadius: '10px', padding: '12px 16px', color: '#f1f5f9',
                             boxShadow: '0 8px 24px rgba(0,0,0,0.5)', maxWidth: '340px',
                             display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px',
@@ -347,7 +349,7 @@ export default function PainelOperacional({
                                 const precisaCampoRecife = origem === 'Moreno' && ehOperacaoRecife(item.operacao);
 
                                 return (
-                                    <div key={item.id} className="glass-panel-internal card-neon-hover" style={{ borderLeft: `4px solid ${corStatus.border}`, borderRadius: '12px', overflow: 'hidden' }}>
+                                    <div key={item.id} className="glass-panel-internal card-neon-hover" style={{ borderLeft: `4px solid ${corStatus.border} `, borderRadius: '12px', overflow: 'hidden' }}>
 
                                         {/* Header do Card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between' }}>
@@ -535,7 +537,7 @@ export default function PainelOperacional({
                                                                     lineHeight: '1.6'
                                                                 }}>
                                                                     <div style={{ fontWeight: '700', color: '#60a5fa', marginBottom: '4px', fontSize: '12px' }}>{item.motorista || 'Sem Nome'}</div>
-                                                                    <div>Placa: <strong style={{ color: '#fbbf24' }}>{item.placa1Motorista || item.placa || '—'}</strong>{item.placa2Motorista ? ` / ${item.placa2Motorista}` : ''}</div>
+                                                                    <div>Placa: <strong style={{ color: '#fbbf24' }}>{item.placa1Motorista || item.placa || '—'}</strong>{item.placa2Motorista ? ` / ${item.placa2Motorista} ` : ''}</div>
                                                                     <div>Telefone: <strong style={{ color: item.telefoneMotorista ? '#4ade80' : '#f87171' }}>{item.telefoneMotorista || 'NAO REGISTRADO'}</strong></div>
                                                                     {item.disponibilidadeMotorista && <div>Local: {item.disponibilidadeMotorista}</div>}
                                                                     {item.origemMotorista && <div>Origem: {item.origemMotorista}</div>}
@@ -546,11 +548,13 @@ export default function PainelOperacional({
 
                                                         {/* Botao 1: SEMPRE VISIVEL */}
                                                         <a
-                                                            href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent('Sua contratação já esta efetuada, por favor trazer sua documentação na portaria.')}`}
+                                                            href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent('Prezado motorista, comparecer a portaria para a conferencia da sua documentação')}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            title="WhatsApp: Confirmar contratação"
-                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', color: '#22c55e' }}
+                                                            title="WhatsApp: Documentação na portaria"
+                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', color: '#22c55e', cursor: 'pointer', transition: 'color 0.2s' }}
+                                                            onMouseEnter={e => e.currentTarget.style.color = '#15803d'}
+                                                            onMouseLeave={e => e.currentTarget.style.color = '#22c55e'}
                                                             onClick={(e) => {
                                                                 if (!item.telefoneMotorista) {
                                                                     e.preventDefault();
@@ -558,28 +562,32 @@ export default function PainelOperacional({
                                                                 }
                                                             }}
                                                         >
-                                                            <MessageCircle size={16} />
-                                                        </a>
+                                                            <FileText size={16} />
+                                                        </a >
 
                                                         {/* Botao 2: Chamada para Doca */}
-                                                        {(() => {
-                                                            const campoDocaAlvo = origem === 'Recife' ? 'doca_recife' : 'doca_moreno';
-                                                            const docaAtual = item[campoDocaAlvo];
-                                                            if (valorStatusAtual === 'LIBERADO P/ DOCA' && docaAtual && docaAtual !== 'SELECIONE') {
-                                                                return (
-                                                                    <a
-                                                                        href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent(`Olá, Motorista ${item.motorista}, Veiculo ${item.placa1Motorista || item.placa || ''}${item.placa2Motorista ? '/' + item.placa2Motorista : ''}, Liberado para doca ${docaAtual}, Por favor encostar o mais breve possivel`)}`}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
-                                                                        title="WhatsApp: Avisar liberação da doca"
-                                                                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(59,130,246,0.15)', borderRadius: '50%', color: '#3b82f6' }}
-                                                                    >
-                                                                        <MessageCircle size={16} />
-                                                                    </a>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        })()}
+                                                        {
+                                                            (() => {
+                                                                const campoDocaAlvo = origem === 'Recife' ? 'doca_recife' : 'doca_moreno';
+                                                                const docaAtual = item[campoDocaAlvo];
+                                                                if (valorStatusAtual === 'LIBERADO P/ DOCA' && docaAtual && docaAtual !== 'SELECIONE') {
+                                                                    return (
+                                                                        <a
+                                                                            href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent(`Prezado motorista, por gentileza encostar na doca ${docaAtual} da unidade ${item.unidade || origem} o mais breve possivel.`)}`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            title="WhatsApp: Avisar liberação da doca"
+                                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(59,130,246,0.15)', borderRadius: '50%', color: '#3b82f6', cursor: 'pointer', transition: 'color 0.2s' }}
+                                                                            onMouseEnter={e => e.currentTarget.style.color = '#1d4ed8'}
+                                                                            onMouseLeave={e => e.currentTarget.style.color = '#3b82f6'}
+                                                                        >
+                                                                            <Warehouse size={16} />
+                                                                        </a>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()
+                                                        }
 
                                                         {/* Botao Editar Nome */}
                                                         <button
@@ -588,19 +596,19 @@ export default function PainelOperacional({
                                                         >
                                                             <Edit2 size={14} />
                                                         </button>
-                                                    </div>
-                                                </div>
+                                                    </div >
+                                                </div >
                                                 <div>
                                                     <label className="label-tech-sm">VEÍCULO</label>
                                                     <select className="input-internal" value={item.tipoVeiculo} onChange={e => updateList(lista, setLista, realIndex, 'tipoVeiculo', e.target.value)} disabled={!podeEditarNaUnidade('operacao')}>
                                                         {OPCOES_VEICULO.map(v => <option key={v} style={{ color: 'black' }}>{v}</option>)}
                                                     </select>
                                                 </div>
-                                            </div>
+                                            </div >
 
 
                                             {/* Doca e Status */}
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            < div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                                 <div>
                                                     <label className="label-tech-sm"><Anchor size={10} style={{ display: 'inline', marginRight: '2px' }} /> DOCA</label>
                                                     {(() => {
@@ -617,29 +625,41 @@ export default function PainelOperacional({
                                                     })()}
                                                 </div>
                                                 <div>
-                                                    <label className="label-tech-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        STATUS
-                                                        {item.situacao_cadastro !== 'LIBERADO' && (
-                                                            <Lock size={10} color="#ef4444" title="Checklist incompleto" />
-                                                        )}
-                                                    </label>
-                                                    <select
-                                                        className="input-internal"
-                                                        style={{ color: corStatus.text, borderColor: corStatus.border, fontWeight: 'bold' }}
-                                                        value={valorStatusAtual}
-                                                        onChange={e => {
-                                                            const novoStatus = e.target.value;
-                                                            updateList(lista, setLista, realIndex, campoStatusAlvo, novoStatus, origem);
-                                                        }}
-                                                        disabled={!podeEditarNaUnidade('operacao')}
-                                                    >
-                                                        {OPCOES_STATUS.map(s => <option key={s} style={{ color: 'black' }}>{s}</option>)}
-                                                    </select>
+                                                    {(() => {
+                                                        const STATUS_BLOQUEADOS_TRAVA = ['LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+                                                        const cadastroBloqueado = item.situacao_cadastro !== 'LIBERADO' && STATUS_BLOQUEADOS_TRAVA.includes(valorStatusAtual);
+                                                        return (
+                                                            <>
+                                                                <label className="label-tech-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    STATUS
+                                                                    {item.situacao_cadastro !== 'LIBERADO' && (
+                                                                        <Lock size={10} color="#ef4444" title={cadastroBloqueado ? 'Ação bloqueada: O Gerenciamento de Risco revogou a liberação deste veículo.' : 'Checklist incompleto — não é possível avançar status.'} />
+                                                                    )}
+                                                                </label>
+                                                                <select
+                                                                    className="input-internal"
+                                                                    style={{ color: cadastroBloqueado ? '#ef4444' : corStatus.text, borderColor: cadastroBloqueado ? '#ef4444' : corStatus.border, fontWeight: 'bold' }}
+                                                                    value={valorStatusAtual}
+                                                                    onChange={e => {
+                                                                        if (cadastroBloqueado) {
+                                                                            adicionarToast('O Gerenciamento de Risco revogou a liberação deste veículo.', 'erro');
+                                                                            return;
+                                                                        }
+                                                                        const novoStatus = e.target.value;
+                                                                        updateList(lista, setLista, realIndex, campoStatusAlvo, novoStatus, origem);
+                                                                    }}
+                                                                    disabled={cadastroBloqueado || !podeEditarNaUnidade('operacao')}
+                                                                >
+                                                                    {OPCOES_STATUS.map(s => <option key={s} style={{ color: 'black' }}>{s}</option>)}
+                                                                </select>
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </div>
-                                            </div>
+                                            </div >
 
                                             {/* Campo de Observação */}
-                                            <div>
+                                            < div >
                                                 <label className="label-tech-sm"><FileText size={10} style={{ display: 'inline', marginRight: '2px' }} /> OBSERVAÇÃO</label>
                                                 <textarea
                                                     className="input-internal"
@@ -650,47 +670,49 @@ export default function PainelOperacional({
                                                     disabled={!podeEditarNaUnidade('operacao')}
                                                     style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '11px' }}
                                                 />
-                                            </div>
+                                            </div >
 
                                             {/* Checklist Liberação — Read Only */}
-                                            {(() => {
-                                                const situacao = item.situacao_cadastro || 'NÃO CONFERIDO';
-                                                const cor = situacao === 'LIBERADO' ? '#4ade80'
-                                                    : situacao === 'PENDENTE' ? '#fbbf24'
-                                                        : '#f87171';
-                                                return (
-                                                    <div style={{
-                                                        display: 'flex', alignItems: 'center', gap: '6px',
-                                                        padding: '6px 10px', background: 'rgba(0,0,0,0.2)',
-                                                        borderRadius: '6px', flexWrap: 'wrap',
-                                                        border: `1px solid ${cor}33`
-                                                    }}>
-                                                        <ShieldCheck size={12} color={cor} />
-                                                        {[['chk_cnh', 'CNH'], ['chk_antt', 'ANTT'], ['chk_tacografo', 'TAC'], ['chk_crlv', 'CRLV']].map(([c, l]) => (
-                                                            <span key={c} style={{
-                                                                display: 'flex', alignItems: 'center', gap: '3px',
-                                                                fontSize: '10px', fontWeight: 'bold',
-                                                                color: item[c] ? '#4ade80' : '#f87171'
-                                                            }}>
-                                                                {item[c] ? <CheckCircle size={11} /> : <X size={11} />} {l}
-                                                            </span>
-                                                        ))}
-                                                        <span style={{
-                                                            marginLeft: 'auto', fontSize: '10px', fontWeight: 'bold',
-                                                            color: cor, padding: '2px 6px',
-                                                            background: `${cor}22`, borderRadius: '4px'
+                                            {
+                                                (() => {
+                                                    const situacao = item.situacao_cadastro || 'NÃO CONFERIDO';
+                                                    const cor = situacao === 'LIBERADO' ? '#4ade80'
+                                                        : situacao === 'PENDENTE' ? '#fbbf24'
+                                                            : '#f87171';
+                                                    return (
+                                                        <div style={{
+                                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                                            padding: '6px 10px', background: 'rgba(0,0,0,0.2)',
+                                                            borderRadius: '6px', flexWrap: 'wrap',
+                                                            border: `1px solid ${cor}33`
                                                         }}>
-                                                            {situacao}
-                                                        </span>
-                                                        {item.numero_liberacao && (
-                                                            <span style={{ width: '100%', fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
-                                                                Lib: <strong style={{ color: '#e2e8f0' }}>{item.numero_liberacao}</strong>
-                                                                {item.gerenciadora_risco && <span style={{ color: '#60a5fa', marginLeft: '6px' }}>{item.gerenciadora_risco}</span>}
+                                                            <ShieldCheck size={12} color={cor} />
+                                                            {[['chk_cnh', 'CNH'], ['chk_antt', 'ANTT'], ['chk_tacografo', 'TAC'], ['chk_crlv', 'CRLV']].map(([c, l]) => (
+                                                                <span key={c} style={{
+                                                                    display: 'flex', alignItems: 'center', gap: '3px',
+                                                                    fontSize: '10px', fontWeight: 'bold',
+                                                                    color: item[c] ? '#4ade80' : '#f87171'
+                                                                }}>
+                                                                    {item[c] ? <CheckCircle size={11} /> : <X size={11} />} {l}
+                                                                </span>
+                                                            ))}
+                                                            <span style={{
+                                                                marginLeft: 'auto', fontSize: '10px', fontWeight: 'bold',
+                                                                color: cor, padding: '2px 6px',
+                                                                background: `${cor}22`, borderRadius: '4px'
+                                                            }}>
+                                                                {situacao}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()}
+                                                            {item.numero_liberacao && (
+                                                                <span style={{ width: '100%', fontSize: '9px', color: '#94a3b8', marginTop: '2px' }}>
+                                                                    Lib: <strong style={{ color: '#e2e8f0' }}>{item.numero_liberacao}</strong>
+                                                                    {item.gerenciadora_risco && <span style={{ color: '#60a5fa', marginLeft: '6px' }}>{item.gerenciadora_risco}</span>}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()
+                                            }
 
                                             {/* Campo de Imagens */}
                                             <div>
@@ -762,25 +784,32 @@ export default function PainelOperacional({
                                                     </div>
                                                 )}
                                             </div>
-                                        </div>
+                                        </div >
 
                                         {/* Footer / Timers e Ações */}
-                                        <div style={{ background: 'rgba(0,0,0,0.4)', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                        < div style={{ background: 'rgba(0,0,0,0.4)', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 
                                                 {/* Bloco Timers */}
                                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                    <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '6px', textAlign: 'center' }}>COLETA</span>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', width: '100%' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                            <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold', textAlign: 'center' }}>SOLICITADO</span>
-                                                            <input type="time" value={item.status_coleta?.solicitado || ''} disabled={!podeEditarNaUnidade('timer_solicitado')} onChange={e => updateList(lista, setLista, realIndex, 'status_coleta.solicitado', e.target.value)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '12px', outline: 'none', fontFamily: 'monospace', textAlign: 'center', width: '100%' }} />
-                                                        </div>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                                            <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold', textAlign: 'center' }}>LIBERADO</span>
-                                                            <input type="time" value={item.status_coleta?.liberado || ''} disabled={!podeEditarNaUnidade('timer_liberado')} onChange={e => updateList(lista, setLista, realIndex, 'status_coleta.liberado', e.target.value)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '12px', outline: 'none', fontFamily: 'monospace', textAlign: 'center', width: '100%' }} />
-                                                        </div>
-                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setVeiculoSelecionado({ item, realIndex, lista, setLista, origem });
+                                                            setModalColetasAberto(true);
+                                                        }}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                                            padding: '6px 12px', background: 'rgba(255,255,255,0.05)',
+                                                            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px',
+                                                            color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#f1f5f9'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+                                                    >
+                                                        <Package size={14} className="text-slate-500" /> COLETAS
+                                                    </button>
+
                                                     {item.timestamps_status?.tempo_carregado_ate_cte > 0 && (
                                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px', color: '#4ade80', marginTop: '6px' }}>
                                                             <Clock size={12} />
@@ -791,6 +820,18 @@ export default function PainelOperacional({
 
                                                 {/* Botões de Ação */}
                                                 <div style={{ display: 'flex', gap: '8px', marginLeft: '10px' }}>
+                                                    {OPCOES_STATUS.indexOf(valorStatusAtual) >= OPCOES_STATUS.indexOf('LIBERADO P/ DOCA') ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setVeiculoSelecionado({ item, realIndex, lista, setLista, origem });
+                                                                setModalChecklistAberto(true);
+                                                            }}
+                                                            style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(249, 115, 22, 0.2)', border: 'none', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                            title="Checklist da Carreta"
+                                                        >
+                                                            <ClipboardCheck size={16} />
+                                                        </button>
+                                                    ) : null}
                                                     {podeEditarNaUnidade('gestao_tempo') && (
                                                         <button onClick={() => { setItemTempoAtivo({ lista, setLista, index: realIndex, origem: origem }); setModalTempoAberto(true); }} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Cronômetro">
                                                             <Timer size={16} />
@@ -803,68 +844,137 @@ export default function PainelOperacional({
                                                     )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
+                                        </div >
+                                    </div >
                                 );
                             })}
-                        </div>
+                        </div >
                     )}
-                </div>
-            </div>
+                </div >
+            </div >
 
             {/* Modal de Visualização de Imagem Ampliada */}
-            {imagemAmpliada && (
+            {
+                imagemAmpliada && (
+                    <div
+                        className="modal-overlay"
+                        onClick={() => setImagemAmpliada(null)}
+                        style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <div
+                            style={{
+                                position: 'relative',
+                                maxWidth: '90%',
+                                maxHeight: '90vh',
+                                background: 'rgba(15, 23, 42, 0.95)',
+                                padding: '20px',
+                                borderRadius: '12px',
+                                border: '2px solid rgba(59, 130, 246, 0.3)'
+                            }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <button
+                                onClick={() => setImagemAmpliada(null)}
+                                style={{
+                                    position: 'absolute',
+                                    top: '10px',
+                                    right: '10px',
+                                    background: 'rgba(239, 68, 68, 0.8)',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: 'white',
+                                    zIndex: 10000
+                                }}
+                            >
+                                <X size={18} />
+                            </button>
+                            <img
+                                src={imagemAmpliada}
+                                alt="Ampliada"
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '80vh',
+                                    objectFit: 'contain',
+                                    borderRadius: '8px'
+                                }}
+                            />
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Modal de Coletas Embutido */}
+            {modalColetasAberto && veiculoSelecionado && (
                 <div
                     className="modal-overlay"
-                    onClick={() => setImagemAmpliada(null)}
-                    style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
+                    style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
                 >
                     <div
-                        style={{
-                            position: 'relative',
-                            maxWidth: '90%',
-                            maxHeight: '90vh',
-                            background: 'rgba(15, 23, 42, 0.95)',
-                            padding: '20px',
-                            borderRadius: '12px',
-                            border: '2px solid rgba(59, 130, 246, 0.3)'
-                        }}
                         onClick={e => e.stopPropagation()}
+                        style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', width: '300px', border: '1px solid rgba(96,165,250,0.3)', boxShadow: '0 10px 25px rgba(0,0,0,0.8)' }}
                     >
-                        <button
-                            onClick={() => setImagemAmpliada(null)}
-                            style={{
-                                position: 'absolute',
-                                top: '10px',
-                                right: '10px',
-                                background: 'rgba(239, 68, 68, 0.8)',
-                                border: 'none',
-                                borderRadius: '50%',
-                                width: '32px',
-                                height: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                color: 'white',
-                                zIndex: 10000
-                            }}
-                        >
-                            <X size={18} />
-                        </button>
-                        <img
-                            src={imagemAmpliada}
-                            alt="Ampliada"
-                            style={{
-                                maxWidth: '100%',
-                                maxHeight: '80vh',
-                                objectFit: 'contain',
-                                borderRadius: '8px'
-                            }}
-                        />
+                        <h3 style={{ color: '#f1f5f9', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
+                            <Package size={18} color="#60a5fa" />
+                            Status das Coletas
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>SOLICITADO</label>
+                                <input
+                                    type="time"
+                                    className="input-internal"
+                                    style={{ width: '100%', fontSize: '14px', padding: '10px' }}
+                                    value={veiculoSelecionado.item.status_coleta?.solicitado || ''}
+                                    disabled={!podeEditarNaUnidade('timer_solicitado')}
+                                    onChange={e => {
+                                        updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.solicitado', e.target.value, veiculoSelecionado.origem);
+                                        setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, solicitado: e.target.value } } }));
+                                    }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>LIBERADO</label>
+                                <input
+                                    type="time"
+                                    className="input-internal"
+                                    style={{ width: '100%', fontSize: '14px', padding: '10px' }}
+                                    value={veiculoSelecionado.item.status_coleta?.liberado || ''}
+                                    disabled={!podeEditarNaUnidade('timer_liberado')}
+                                    onChange={e => {
+                                        updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.liberado', e.target.value, veiculoSelecionado.origem);
+                                        setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, liberado: e.target.value } } }));
+                                    }}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
+                                style={{ padding: '8px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                            >
+                                FECHAR
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
-        </div>
+
+            {/* Modal de Checklist Embutido */}
+            {modalChecklistAberto && veiculoSelecionado && (
+                <ModalChecklistCarreta
+                    veiculo={veiculoSelecionado.item}
+                    onClose={() => { setModalChecklistAberto(false); setVeiculoSelecionado(null); }}
+                    onSucesso={(msg) => adicionarToast(msg, 'sucesso')}
+                />
+            )}
+
+        </div >
     );
 }
