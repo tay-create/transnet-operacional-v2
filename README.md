@@ -2,8 +2,6 @@
 
 Sistema integrado de gestão logística para controle operacional, emissão de CT-e, gestão de frota e monitoramento em tempo real.
 
-![Logo Transnet](file:///d:/transnet-operacional/src/assets/logo.png)
-
 ## 🚀 Sobre o Projeto
 
 O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida para otimizar o fluxo logístico entre unidades (Recife/Moreno). O sistema centraliza desde o lançamento de veículos e controle de docas até a gestão de cubagem e monitoramento de motoristas em trânsito.
@@ -65,7 +63,7 @@ O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida
 
 1. **Clonar o Repositório**
    ```bash
-   git clone https://github.com/seu-usuario/transnet-operacional.git
+   git clone https://github.com/tay-create/transnet-operacional-final.git
    cd transnet-operacional
    ```
 
