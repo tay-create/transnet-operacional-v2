@@ -1,0 +1,1142 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+
+:root {
+  --bg-midnight: #020617; 
+  --card-glass: rgba(15, 23, 42, 0.7);
+  --neon-cyan: #22d3ee;
+  --neon-purple: #818cf8;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --bg-deep: #020617;
+}
+
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(1000%); }
+}
+
+.animate-scan {
+  animation: scan 8s linear infinite;
+  opacity: 0.2;
+}
+
+.bg-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+}
+
+.text-neon {
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.5), 0 0 20px rgba(34, 211, 238, 0.3);
+}
+
+.shadow-card-glow {
+  box-shadow: 0 0 40px -10px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(34, 211, 238, 0.1);
+}
+
+.input-neon:focus {
+  border-color: var(--neon-cyan) !important;
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.15);
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+* {
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-midnight);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* Efeito de Glow no fundo */
+.full-screen::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.1) 0%, transparent 70%);
+  z-index: -1;
+}
+
+/* --- TELA DE LOGIN ESTILO ENTERPRISE --- */
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+}
+
+.login-card {
+  background: var(--card-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  padding: 3rem;
+  border-radius: 24px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.login-logo {
+  width: 120px;
+  margin-bottom: 2rem;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.4));
+}
+
+.input-neon {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-glass);
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: white;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+}
+
+.input-neon:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.2);
+}
+
+.btn-neon {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple));
+  color: #020617;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-neon:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(34, 211, 238, 0.4);
+}
+
+/* Toasts / Avisos */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--card-glass);
+  border-left: 4px solid var(--neon-cyan);
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.btn-ghost {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid var(--border-glass);
+  color: var(--text-secondary);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  border-color: white;
+}
+
+.modal-content label {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 5px;
+  text-align: left;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+body, .full-screen {
+  background-color: #020617; /* Preto azulado profundo */
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+/* O Container que centraliza tudo */
+.login-wrapper {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* O Cartão de Login (Igual a referência) */
+.login-card-compact {
+  width: 100%;
+  max-width: 380px; /* Largura fixa para não esticar */
+  background: rgba(15, 23, 42, 0.6); /* Vidro escuro */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 40px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 
+              0 20px 50px -10px rgba(0, 0, 0, 0.5);
+}
+
+/* Efeito de brilho azul atrás do cartão */
+.login-card-compact::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 200px;
+  background: #3b82f6; /* Azul Transnet */
+  filter: blur(100px);
+  opacity: 0.3;
+  z-index: -1;
+  border-radius: 50%;
+}
+
+/* Inputs estilizados (Escuros com borda sutil) */
+.input-dark {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 14px 16px 14px 45px; /* Padding extra na esquerda para o ícone */
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.input-dark:focus {
+  border-color: #3b82f6; /* Azul neon ao focar */
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* Botão Principal (Branco/Brilhante igual a referência) */
+.btn-primary-glow {
+  width: 100%;
+  padding: 14px;
+  background: white;
+  color: #020617;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 13px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary-glow:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+}
+
+/* Texto Transnet */
+.brand-title {
+  font-size: 24px;
+  font-weight: 900;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0;
+  text-align: center;
+  font-style: italic; /* Estilo rápido */
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  color: #3b82f6; /* Azul neon */
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  margin-top: 5px;
+}
+
+/* --- LAYOUT DO DASHBOARD --- */
+
+.dashboard-container {
+  display: flex;
+  gap: 24px;
+  height: calc(100vh - 100px); /* Desconta a altura do Header */
+  padding: 0 20px 20px 20px;
+  overflow: hidden;
+}
+
+/* Coluna Esquerda (Lançamento) */
+.sidebar-glass {
+  width: 340px;
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto; /* Permite rolar se a tela for pequena */
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+}
+
+.sidebar-content {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Área Direita (Grid de Cards) */
+.main-content-glass {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden; /* O scroll fica dentro do grid, não na página */
+}
+
+.content-header {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 15px 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.grid-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px; /* Espaço para scrollbar */
+}
+
+/* Labels Estilizados */
+.label-tech {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b; /* Slate 500 */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Badge de Contagem */
+.count-badge {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.modal-overlay {
+  position: fixed; 
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; /* Centraliza verticalmente */
+  justify-content: center; /* Centraliza horizontalmente */
+  z-index: 9999; 
+  opacity: 0;
+  animation: fadeIn 0.3s forwards;
+}
+
+.modal-neon-panel {
+  background: #0f172a; /* Azul muito escuro (Slate 900) */
+  border: 1px solid #38bdf8; /* Azul Claro (Sky 400) */
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.25); /* Glow Azul Claro */
+  border-radius: 12px;
+  padding: 24px;
+  color: white;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-neon, 
+.modal-neon-panel input, 
+.modal-neon-panel select {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  color: #e0f2fe !important; /* Texto branco azulado */
+  padding: 10px;
+  border-radius: 6px;
+  width: 100%;
+  outline: none;
+  transition: 0.3s;
+}
+
+.input-neon:focus,
+.modal-neon-panel input:focus, 
+.modal-neon-panel select:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.modal-neon-panel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.modal-neon-panel th {
+  text-align: left;
+  padding: 12px;
+  color: #38bdf8; /* Azul Claro no cabeçalho */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-glass {
+  background: #0f172a !important;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 20px;
+  width: 90%;
+  max-width: 420px; 
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  position: relative;
+  transform: translateY(20px);
+  animation: slideUp 0.3s forwards;
+  color: white;
+}
+
+.modal-content {
+  background: #0f172a !important; /* Azul muito escuro (quase preto) */
+  border: 1px solid rgba(59, 130, 246, 0.3); /* Borda Neon sutil */
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+  color: white;
+  padding: 20px;
+}
+
+.modal-neon-panel td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent !important; /* Garante que não fique branco */
+  color: #cbd5e1;
+}
+
+.modal-neon-panel tr:hover td {
+  background: rgba(56, 189, 248, 0.05) !important; /* Efeito hover sutil */
+}
+
+/* Botões fantasmas (fechar) */
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.5); /* Vermelho sutil */
+  color: #fca5a5;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: 0.2s;
+}
+.btn-ghost:hover {
+  background: rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
+
+/* Botão Neon Principal */
+.btn-neon {
+  background: #0ea5e9; /* Sky 500 */
+  color: white;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 10px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  transition: 0.2s;
+}
+.btn-neon:hover {
+  background: #38bdf8;
+  box-shadow: 0 0 15px #38bdf8;
+}
+
+.card-neon-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.card-neon-hover:hover {
+  transform: translateY(-4px); /* Levanta levemente */
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(59, 130, 246, 0.5); /* Borda acende em azul */
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5),
+              0 0 15px rgba(59, 130, 246, 0.1); /* Glow externo */
+}
+
+.date-range-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.input-date-neon {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.input-date-neon::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+/* Animações de entrada */
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  to { transform: translateY(0); }
+}
+
+/* Títulos dos Modais */
+.modal-title {
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+}
+
+.modal-desc {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 25px;
+}
+
+/* --- ESTILO INTERNO (DASHBOARD) --- */
+
+/* Títulos com Neon (Para "NOVO LANÇAMENTO" e "PAINEL RECIFE") */
+.title-neon-blue {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); /* Brilho azul suave */
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* O Badge que você gostou (Estilo Pílula Brilhante) */
+.badge-neon-pill {
+  background: rgba(37, 99, 235, 0.15); /* Fundo translúcido */
+  border: 1px solid rgba(59, 130, 246, 0.4); /* Borda fina */
+  color: #60a5fa; /* Texto azul claro */
+  padding: 6px 16px;
+  border-radius: 999px; /* Formato pílula completa */
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.1); /* Glow sutil */
+  transition: all 0.3s ease;
+}
+
+.badge-neon-pill:hover {
+  background: rgba(37, 99, 235, 0.25);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+  border-color: #60a5fa;
+}
+
+/* Container de Vidro da Sidebar e Header */
+.glass-panel-internal {
+  background: rgba(10, 15, 30, 0.75); /* Mais escuro que o login para contraste */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Inputs Internos (Mais integrados ao fundo) */
+.input-internal {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.input-internal:focus {
+  border-color: #3b82f6; /* Azul foco */
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* Botão de Lançar (Gradiente Vibrante) */
+.btn-launch {
+  width: 100%;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); /* Sombra azul */
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-launch:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+/* Labels Pequenos (Tech Style) */
+.label-tech-sm {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: block;
+  letter-spacing: 0.5px;
+}
+
+/* --- HEADER ESTILO COMMAND BAR --- */
+
+.header-glass {
+  height: 80px;
+  background: rgba(2, 6, 23, 0.85); /* Fundo escuro semi-transparente */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 25px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Área da Logo/Menu */
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.btn-menu-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-menu-toggle:hover {
+  background: rgba(59, 130, 246, 0.1);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Informações do Usuário (Chip Tecnológico) */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 8px 6px 16px;
+  border-radius: 50px; /* Formato pílula */
+}
+
+.user-info {
+  text-align: right;
+  line-height: 1.2;
+}
+
+.user-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+}
+
+.user-role {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.user-avatar {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+}
+
+/* Área do Relógio */
+.clock-display {
+  font-family: 'Courier New', monospace; /* Fonte mono para parecer digital */
+  font-size: 14px;
+  color: #60a5fa;
+  background: rgba(37, 99, 235, 0.1);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+/* Notificações */
+.notification-btn {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #94a3b8;
+  transition: all 0.2s;
+}
+
+.notification-btn:hover {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.notification-badge-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  border: 2px solid #020617; /* Borda da cor do fundo para destacar */
+}
+
+.badge-coleta {
+  background: rgba(59, 130, 246, 0.15) !important; /* Fundo transparente azulado */
+  color: #60a5fa !important; /* Texto azul claro */
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+  text-shadow: none !important;
+}
+
+/* Dropdown de Notificações */
+.notification-dropdown {
+  position: absolute;
+  top: 70px;
+  right: 80px;
+  width: 320px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 100;
+  animation: slideUp 0.2s ease-out;
+}
+
+.notif-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  color: #cbd5e1;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  transition: background 0.2s;
+}
+
+.notif-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notif-icon {
+  margin-top: 2px;
+  color: #3b82f6;
+}
+
+::-webkit-scrollbar {
+  width: 8px;   
+  height: 8px;  
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(30, 41, 59, 0.8); /* Um azul bem escuro, quase preto */
+  border-radius: 10px; /* Bordas redondinhas */
+  border: 1px solid rgba(255, 255, 255, 0.1); /* Borda sutil */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6; /* Azul Neon brilhante */
+  box-shadow: 0 0 10px #3b82f6; /* Glow neon */
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  scrollbar-width: thin; /* Barra fininha */
+  scrollbar-color: rgba(59, 130, 246, 0.5) transparent; /* Cor da barra / Cor do fundo */
+}
+
+h1, h2, h3, h4, span, label {
+  background-color: transparent !important;
+}
+
+input[type="file"]::file-selector-button {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+/* === TÍTULOS DE ABA NEON (ESTILO CYBERPUNK) === */
+.neon-tab-title {
+  background: rgba(15, 23, 42, 0.95); /* Fundo bem escuro */
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.3); /* Borda sutil */
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15), inset 0 0 10px rgba(59, 130, 246, 0.05);
+  margin-bottom: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.neon-text {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #fff;
+  text-transform: uppercase;
+  /* O BRILHO FORTE AQUI: */
+  text-shadow: 
+    0 0 5px #3b82f6,
+    0 0 10px #3b82f6,
+    0 0 20px rgba(59, 130, 246, 0.5);
+}
+
+/* === CARD CT-e (VIDRO ESCURO) === */
+.card-cte-glass {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 16px;
+  color: #e2e8f0;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-cte-glass:hover {
+  transform: translateY(-5px); /* Levanta levemente */
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Labels e Inputs dentro do Card Escuro */
+.card-cte-glass label {
+  color: #94a3b8 !important; /* Cinza azulado */
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.card-cte-glass input, 
+.card-cte-glass select {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white !important;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.card-cte-glass input:focus, 
+.card-cte-glass select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Badges de Documentos */
+.doc-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* === CORREÇÕES FINAIS PARA MODAIS E TABELAS === */
+
+/* Tabelas dentro de modais devem ser transparentes */
+.modal-content table, 
+.modal-glass table {
+  width: 100%;
+  border-collapse: collapse;
+  color: white;
+  background-color: transparent !important;
+}
+
+.modal-content th, .modal-glass th,
+.modal-content td, .modal-glass td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: transparent !important; /* Força transparência */
+}
+
+/* Inputs e Selects dentro dos modais */
+.modal-content input, .modal-glass input,
+.modal-content select, .modal-glass select {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+/* Checkboxes (Tentativa de estilizar para não sumirem no fundo escuro) */
+.modal-content input[type="checkbox"] {
+  accent-color: #3b82f6;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* Scrollbar interna dos modais se tiver muito conteúdo */
+.modal-content, .modal-glass {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.btn-close-header {
+  background: transparent !important;
+  border: none !important;
+  color: #94a3b8 !important;
+  width: 32px !important;       /* Tamanho fixo */
+  height: 32px !important;      /* Tamanho fixo */
+  min-width: 32px !important;   /* Impede de esticar */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 18px;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.btn-close-header:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ef4444 !important; /* Vermelho ao passar o mouse */
+  transform: rotate(90deg); /* Efeito giratório charmoso */
+}
+
+/* Área de Ações (Rodapé do Modal) */
+.modal-actions {
+  margin-top: 25px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: flex-end; /* Alinha à direita */
+  gap: 12px;
+}
+
+/* Ajuste fino para o botão Salvar ficar Neon */
+.btn-save-neon {
+  background: #3b82f6;
+  color: white;
+  padding: 8px 24px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+  transition: 0.3s;
+}
+
+.btn-save-neon:hover {
+  background: #2563eb;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  transform: translateY(-2px);
+}
+
+.container-central {
+  width: 100%;
+  max-width: 1400px; 
+  margin: 0 auto;    
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 1450px) {
+  .container-central {
+    max-width: 100%;
+  }
+}
+
+/* Animação de Pulsar Vermelho */
+@keyframes pulse-red {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(255, 82, 82, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 82, 82, 0);
+  }
+}
+
+/* O estilo da bolinha vermelha (Badge) */
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #ff5252; /* Vermelho alerta */
+  color: white;
+  border-radius: 50%;
+  padding: 2px 4px; /* Ajuste fino do tamanho */
+  font-size: 10px;
+  font-weight: bold;
+  border: 1px solid #fff;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Aqui aplicamos a animação */
+  animation: pulse-red 2s infinite;
+  z-index: 10;
+}
+
+/* Container do ícone para posicionar a bolinha relativa a ele */
+.icon-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
