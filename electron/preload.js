@@ -65,6 +65,12 @@ contextBridge.exposeInMainWorld('api', {
     getLogs: (params) => ipcRenderer.invoke('get-logs', params),
     postLog: (usuario, acao, detalhes) => ipcRenderer.invoke('post-log', { usuario, acao, detalhes }),
 
+    // Docas Interditadas (Containers)
+    getDocasInterditadas: () => ipcRenderer.invoke('get-docas-interditadas'),
+    postDocasInterditadas: (body) => ipcRenderer.invoke('post-docas-interditadas', body),
+    putDocasInterditadas: (id, doca) => ipcRenderer.invoke('put-docas-interditadas', { id, doca }),
+    deleteDocasInterditadas: (id) => ipcRenderer.invoke('delete-docas-interditadas', id),
+
     // Utilitários
     getVersion: () => ipcRenderer.invoke('get-version'),
     platform: process.platform

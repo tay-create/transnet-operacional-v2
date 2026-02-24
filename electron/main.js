@@ -603,6 +603,47 @@ ipcMain.handle('post-log', async (_, { usuario, acao, detalhes }) => {
     }
 });
 
+// ─── Docas Interditadas (Containers) ──────────────────────────────────────────
+ipcMain.handle('get-docas-interditadas', async () => {
+    try {
+        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        return { success: true, docas: rows };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('post-docas-interditadas', async (_, body) => {
+    try {
+        const { unidade } = body;
+        await dbRun('INSERT INTO docas_interditadas (unidade, doca, nome) VALUES (?, ?, ?)', [unidade, 'SELECIONE', 'CONTAINER']);
+        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        return { success: true, docas: rows };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('put-docas-interditadas', async (_, { id, doca }) => {
+    try {
+        await dbRun('UPDATE docas_interditadas SET doca = ? WHERE id = ?', [doca, id]);
+        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        return { success: true, docas: rows };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('delete-docas-interditadas', async (_, id) => {
+    try {
+        await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
+        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        return { success: true, docas: rows };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
 // ─── Versão ───────────────────────────────────────────────────────────────────
 ipcMain.handle('get-version', () => app.getVersion());
 
