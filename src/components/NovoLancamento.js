@@ -48,6 +48,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
             origemMotorista: m.origem_cidade_uf || '',
             destinoMotorista: m.destino_desejado || '',
             disponibilidadeMotorista: m.disponibilidade || '',
+            id_marcacao: m.id,
             // Herdar checklist do cadastro pré-existente
             chk_cnh: m.chk_cnh_cad ? 1 : 0,
             chk_antt: m.chk_antt_cad ? 1 : 0,
@@ -76,7 +77,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
     const buscarCubagemPorColeta = useCallback(async (numeroColeta) => {
         if (!numeroColeta) return null;
         try {
-            const response = await axios.get(`${API_URL}/cubagens/coleta/${numeroColeta}`);
+            const response = await api.get(`/cubagens/coleta/${numeroColeta}`);
             if (response.data.success && response.data.cubagem) {
                 setCubagensCache(prev => ({ ...prev, [numeroColeta]: response.data.cubagem }));
                 return response.data.cubagem;
@@ -265,6 +266,12 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                     />
                                     <ChevronDown size={14} color="#64748b" style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                                 </div>
+                                {formLanca.telefoneMotorista && (
+                                    <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#4ade80' }}>
+                                        <Phone size={10} />
+                                        <span>{formLanca.telefoneMotorista}</span>
+                                    </div>
+                                )}
                                 {dropdownAberto && motoristasFiltered.length > 0 && (
                                     <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: '#1e293b', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)', marginTop: '2px' }}>
                                         {motoristasFiltered.map(m => (

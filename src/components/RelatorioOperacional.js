@@ -25,11 +25,11 @@ const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const TIPOS_OP = [
-    { id: 'delta', label: 'Delta', cor: '#3b82f6' },
-    { id: 'consolidado', label: 'Consolidado', cor: '#a855f7' },
-    { id: 'deltaRxM', label: 'Delta R×M', cor: '#f59e0b' },
-    { id: 'porcelana', label: 'Porcelana', cor: '#ec4899' },
-    { id: 'eletrik', label: 'Eletrik', cor: '#22d3ee' },
+    { id: 'delta', label: 'Delta', cor: '#2563eb' },
+    { id: 'consolidado', label: 'Consolidado', cor: '#3b82f6' },
+    { id: 'deltaRxM', label: 'Delta R×M', cor: '#60a5fa' },
+    { id: 'porcelana', label: 'Porcelana', cor: '#93c5fd' },
+    { id: 'eletrik', label: 'Eletrik', cor: '#bfdbfe' },
 ];
 
 // ── Utilitários de tempo ─────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                         <span style={{ fontSize: '48px', fontWeight: '900', color: '#38bdf8', lineHeight: 1 }}>{contTipos.total}</span>
                         <div style={{ fontSize: '12px', color: '#64748b' }}>
                             <div><span style={{ color: '#60a5fa', fontWeight: '700' }}>{contTipos.totalRecife}</span> Recife</div>
-                            <div><span style={{ color: '#fbbf24', fontWeight: '700' }}>{contTipos.totalMoreno}</span> Moreno</div>
+                            <div><span style={{ color: '#93c5fd', fontWeight: '700' }}>{contTipos.totalMoreno}</span> Moreno</div>
                         </div>
                     </div>
                 </div>

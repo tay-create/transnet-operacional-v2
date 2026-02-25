@@ -60,6 +60,11 @@ export default function PainelCadastro({ user }) {
     const [edicoesOp, setEdicoesOp] = useState({});
     const [salvandoOp, setSalvandoOp] = useState(null);
 
+    // Novo estado para a aba "Frota Própria"
+    const [motoristasFrota, setMotoristasFrota] = useState([]);
+    const [edicoesFrota, setEdicoesFrota] = useState({});
+    const [salvandoFrota, setSalvandoFrota] = useState(null);
+
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
         try {
@@ -98,9 +103,16 @@ export default function PainelCadastro({ user }) {
         try {
             const r = await api.get('/api/cadastro/veiculos-em-operacao');
             if (r.data.success) {
-                setMotoristasOperacao(r.data.veiculos);
+                // Filtra os motoristas da operação para OMITIR os da frota própria,
+                // já que eles devem ficar exclusivos na aba "Frota Própria"
+                const veiculosFiltrados = r.data.veiculos.filter(v => {
+                    const isFrota = String(v.isFrotaMotorista) === 'true' || String(v.isFrotaMotorista) === '1';
+                    return !isFrota;
+                });
+
+                setMotoristasOperacao(veiculosFiltrados);
                 const inicial = {};
-                r.data.veiculos.forEach(m => {
+                veiculosFiltrados.forEach(m => {
                     inicial[m.id] = {
                         chk_cnh_cad: !!m.chk_cnh_cad,
                         chk_antt_cad: !!m.chk_antt_cad,
@@ -121,13 +133,39 @@ export default function PainelCadastro({ user }) {
         }
     }, []);
 
+    const carregarMotoristasFrota = useCallback(async () => {
+        setCarregando(true);
+        try {
+            const r = await api.get('/api/cadastro/frota');
+            if (r.data.success) {
+                setMotoristasFrota(r.data.motoristas);
+                const inicial = {};
+                r.data.motoristas.forEach(m => {
+                    inicial[m.id] = {
+                        seguradora_cad: m.seguradora_cad || '',
+                        num_liberacao_cad: m.num_liberacao_cad || '',
+                        situacao_cad: m.situacao_cad || 'NÃO CONFERIDO',
+                        data_liberacao_cad: m.data_liberacao_cad || null,
+                        data_liberacao_manual: '', // Apenas para edição da data no UI
+                    };
+                });
+                setEdicoesFrota(inicial);
+            }
+        } catch (e) {
+            console.error('Erro ao carregar motoristas frota:', e);
+        } finally {
+            setCarregando(false);
+        }
+    }, []);
+
     useEffect(() => {
         carregarMotoristas();
         carregarMotoristasOperacao();
+        carregarMotoristasFrota();
         // Atualiza timers a cada 30s
         const interval = setInterval(() => setTick(t => t + 1), 30000);
         return () => clearInterval(interval);
-    }, [carregarMotoristas, carregarMotoristasOperacao]);
+    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota]);
 
     function atualizarEdicao(id, campo, valor) {
         setEdicoes(prev => {
@@ -177,18 +215,6 @@ export default function PainelCadastro({ user }) {
         }
     }
 
-    const handleStatusFila = async (id, novoStatus) => {
-        try {
-            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novoStatus });
-            if (r.data.success) {
-                setMotoristas(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
-            }
-        } catch (e) {
-            console.error('Erro ao atualizar status na fila', e);
-            alert('Erro ao atualizar status na fila');
-        }
-    };
-
     function atualizarEdicaoOp(id, campo, valor) {
         setEdicoesOp(prev => {
             const atual = prev[id] || {};
@@ -229,6 +255,43 @@ export default function PainelCadastro({ user }) {
             console.error('Erro ao salvar checklist da operação:', e);
         } finally {
             setSalvandoOp(null);
+        }
+    }
+
+    function atualizarEdicaoFrota(id, campo, valor) {
+        setEdicoesFrota(prev => {
+            const atual = prev[id] || {};
+            const novo = { ...atual, [campo]: valor };
+            return { ...prev, [id]: novo };
+        });
+    }
+
+    async function salvarFrota(id) {
+        setSalvandoFrota(id);
+        try {
+            const dados = edicoesFrota[id] || {};
+            const r = await api.put(`/api/cadastro/frota/${id}`, {
+                ...dados,
+                data_liberacao_manual: dados.data_liberacao_manual ? new Date(dados.data_liberacao_manual).toISOString() : '',
+            });
+            if (r.data.success) {
+                setEdicoesFrota(prev => ({
+                    ...prev,
+                    [id]: {
+                        ...prev[id],
+                        situacao_cad: r.data.situacao,
+                        data_liberacao_cad: r.data.data_liberacao_cad,
+                    }
+                }));
+                setMotoristasFrota(prev => prev.map(m => m.id === id
+                    ? { ...m, ...dados, situacao_cad: r.data.situacao, data_liberacao_cad: r.data.data_liberacao_cad }
+                    : m
+                ));
+            }
+        } catch (e) {
+            console.error('Erro ao salvar liberação frota:', e);
+        } finally {
+            setSalvandoFrota(null);
         }
     }
 
@@ -273,10 +336,23 @@ export default function PainelCadastro({ user }) {
                         >
                             Na Operação <span className="badge-neon-pill" style={{ marginLeft: '6px', background: 'rgba(255,255,255,0.2)', color: 'white' }}>{motoristasOperacao.length}</span>
                         </button>
+                        <button
+                            onClick={() => setAbaAtiva('frota')}
+                            style={{
+                                background: abaAtiva === 'frota' ? '#10b981' : 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                color: abaAtiva === 'frota' ? '#ffffff' : '#94a3b8',
+                                borderRadius: '8px', padding: '6px 14px',
+                                cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            Frota Própria <span className="badge-neon-pill" style={{ marginLeft: '6px', background: 'rgba(255,255,255,0.2)', color: 'white' }}>{motoristasFrota.length}</span>
+                        </button>
                     </div>
                 </div>
                 <button
-                    onClick={() => { carregarMotoristas(); carregarMotoristasOperacao(); }}
+                    onClick={() => { carregarMotoristas(); carregarMotoristasOperacao(); carregarMotoristasFrota(); }}
                     disabled={carregando}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '6px',
@@ -334,21 +410,6 @@ export default function PainelCadastro({ user }) {
                                                     <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
                                                         {m.tipo_veiculo || '—'}
                                                     </span>
-                                                    <select
-                                                        value={m.disponibilidade || 'Disponível'}
-                                                        onChange={(e) => handleStatusFila(m.id, e.target.value)}
-                                                        style={{
-                                                            fontSize: '10px', fontWeight: 'bold', outline: 'none', cursor: 'pointer',
-                                                            color: m.disponibilidade === 'Indisponível' ? '#f87171' : (m.disponibilidade === 'Contratado' ? '#fbbf24' : '#4ade80'),
-                                                            background: m.disponibilidade === 'Indisponível' ? 'rgba(239,68,68,0.12)' : (m.disponibilidade === 'Contratado' ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.12)'),
-                                                            padding: '2px 6px', borderRadius: '4px',
-                                                            border: `1px solid ${m.disponibilidade === 'Indisponível' ? 'rgba(239,68,68,0.3)' : (m.disponibilidade === 'Contratado' ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.3)')}`
-                                                        }}
-                                                    >
-                                                        <option value="Disponível" style={{ color: '#000' }}>DISPONÍVEL</option>
-                                                        <option value="Contratado" style={{ color: '#000' }}>CONTRATADO</option>
-                                                        <option value="Indisponível" style={{ color: '#000' }}>INDISPONÍVEL</option>
-                                                    </select>
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
@@ -760,6 +821,152 @@ export default function PainelCadastro({ user }) {
                                                 </button>
                                             ) : (
                                                 <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ABA: FROTA PRÓPRIA */}
+            {abaAtiva === 'frota' && (
+                <>
+                    {motoristasFrota.length === 0 ? (
+                        <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
+                            <Truck size={48} style={{ opacity: 0.3, marginBottom: '16px', margin: '0 auto' }} />
+                            <p>Nenhum veículo de frota marcado no sistema.</p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                            {motoristasFrota.map(m => {
+                                const ed = edicoesFrota[m.id] || {};
+                                const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
+                                const estaSalvando = salvandoFrota === m.id;
+
+                                // Cores reaproveitadas do helper original
+                                const cor = situacao === 'LIBERADO' ? { bg: 'rgba(74,222,128,0.1)', border: '#4ade80', text: '#4ade80' }
+                                    : situacao === 'PENDENTE' ? { bg: 'rgba(251,191,36,0.1)', border: '#fbbf24', text: '#fbbf24' }
+                                        : { bg: 'rgba(248,113,113,0.1)', border: '#f87171', text: '#f87171' };
+
+                                // Lógica p/ timer de 1 ano
+                                let msRestantes = 0;
+                                let expirado = false;
+                                if (ed.data_liberacao_cad) {
+                                    const dStr = ed.data_liberacao_cad.endsWith('Z') ? ed.data_liberacao_cad : ed.data_liberacao_cad + 'Z';
+                                    const msDiff = Date.now() - new Date(dStr).getTime();
+                                    msRestantes = (365 * 24 * 60 * 60 * 1000) - msDiff;
+                                    expirado = msRestantes <= 0;
+                                }
+
+                                return (
+                                    <div
+                                        key={m.id}
+                                        className="glass-panel-internal"
+                                        style={{
+                                            borderLeft: `4px solid ${cor.border}`,
+                                            borderRadius: '12px',
+                                            overflow: 'hidden',
+                                            animation: 'slideIn 0.3s ease'
+                                        }}
+                                    >
+                                        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    {m.nome_motorista} <span style={{ fontSize: '9px', background: '#059669', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>FROTA</span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                    <span style={{ fontSize: '10px', color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                        <Truck size={10} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />
+                                                        {m.placa1}{m.placa2 ? ` / ${m.placa2}` : ''}
+                                                    </span>
+                                                    {m.tipo_veiculo && (
+                                                        <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                                                            {m.tipo_veiculo}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                                <span style={{ fontSize: '10px', fontWeight: 'bold', color: cor.text, padding: '3px 8px', borderRadius: '5px', background: cor.bg, border: `1px solid ${cor.border}` }}>
+                                                    {situacao}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                            <div>
+                                                <label className="label-tech-sm">SEGURADORA</label>
+                                                <select
+                                                    className="input-internal"
+                                                    style={{ fontSize: '12px' }}
+                                                    value={ed.seguradora_cad || ''}
+                                                    disabled={!podeEditar}
+                                                    onChange={e => atualizarEdicaoFrota(m.id, 'seguradora_cad', e.target.value)}
+                                                >
+                                                    <option value="" style={{ color: 'black' }}>-- Selecionar --</option>
+                                                    {SEGURADORAS.map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="label-tech-sm">LIBERAÇÃO (Validade 1 Ano)</label>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                    <div>
+                                                        <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px', display: 'block' }}>Nº Liberação</label>
+                                                        <input
+                                                            className="input-internal"
+                                                            style={{ fontSize: '12px' }}
+                                                            value={ed.num_liberacao_cad || ''}
+                                                            disabled={!podeEditar}
+                                                            onChange={e => atualizarEdicaoFrota(m.id, 'num_liberacao_cad', e.target.value)}
+                                                            placeholder="Ex: 123456"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px', display: 'block' }}>Data/Hora</label>
+                                                        <input
+                                                            type="datetime-local"
+                                                            className="input-internal"
+                                                            style={{ fontSize: '11px' }}
+                                                            value={ed.data_liberacao_manual || ''}
+                                                            disabled={!podeEditar}
+                                                            onChange={e => atualizarEdicaoFrota(m.id, 'data_liberacao_manual', e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {ed.data_liberacao_cad && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', color: expirado ? '#ef4444' : '#10b981', fontSize: '11px', fontWeight: 'bold' }}>
+                                                        {expirado ? <AlertTriangle size={13} /> : <CheckCircle size={13} />}
+                                                        {expirado ? 'Liberação Vencida!' : `Válida por mais ${Math.max(0, Math.floor(msRestantes / (1000 * 60 * 60 * 24)))} dias`}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
+                                            {podeEditar ? (
+                                                <button
+                                                    onClick={() => salvarFrota(m.id)}
+                                                    disabled={estaSalvando}
+                                                    style={{
+                                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                        padding: '8px', borderRadius: '7px', border: 'none',
+                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
+                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        fontWeight: 'bold', fontSize: '12px',
+                                                        cursor: estaSalvando ? 'default' : 'pointer',
+                                                        opacity: estaSalvando ? 0.6 : 1,
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <Save size={14} />
+                                                    {estaSalvando ? 'Salvando...' : 'Salvar Liberação Frota'}
+                                                </button>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura</div>
                                             )}
                                         </div>
                                     </div>

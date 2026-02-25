@@ -1,7 +1,6 @@
 import React from 'react';
 import useAuthStore from '../store/useAuthStore';
 import App from '../App';
-import PortalMotorista from '../components/PortalMotorista';
 import MarcacaoForm from '../components/MarcacaoForm';
 import LoginScreen from '../components/LoginScreen';
 import io from 'socket.io-client';
@@ -16,11 +15,6 @@ const socket = io(API_URL);
 function AppRouter() {
     const { isAuthenticated, login } = useAuthStore();
     const path = window.location.pathname;
-
-    // 1. Rota do Portal do Motorista (Pública)
-    if (path.startsWith('/motorista')) {
-        return <PortalMotorista />;
-    }
 
     // 2. Rota de Marcação/Cadastro (Pública/Específica)
     if (path.startsWith('/cadastro/')) {

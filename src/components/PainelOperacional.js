@@ -3,9 +3,10 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, Timer, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, ClipboardCheck
+    CheckCircle, Clock, FileText, Warehouse, ClipboardCheck, Truck
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
+import ModalOcorrencia from './ModalOcorrencia';
 import { OPCOES_STATUS, OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
@@ -93,6 +94,7 @@ export default function PainelOperacional({
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
     const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
     const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
+    const [modalOcorrencia, setModalOcorrencia] = useState(null);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const qtdMotoristasPrev = useRef(null);
 
@@ -155,14 +157,16 @@ export default function PainelOperacional({
 
 
     function selecionarMotoristaNaEdicao(item, realIndex, m) {
-        updateList(lista, setLista, realIndex, 'motorista', m.nome_motorista);
         // Herda campos extras sem destruir o objeto
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[realIndex] };
         itemAtual.motorista = m.nome_motorista;
-        itemAtual.telefoneMotorista = m.telefone;
-        itemAtual.placa1Motorista = m.placa1;
-        itemAtual.placa2Motorista = m.placa2 || '';
+        itemAtual.telefoneMotorista = m.telefone || itemAtual.telefoneMotorista;
+
+        // Se o motorista tem placa, sobrescreve. Se não tem, mantém a que já estava no card.
+        itemAtual.placa1Motorista = m.placa1 || itemAtual.placa1Motorista || itemAtual.placa || '';
+        itemAtual.placa2Motorista = m.placa2 || itemAtual.placa2Motorista || '';
+
         itemAtual.tipoVeiculo = m.tipo_veiculo?.toUpperCase().includes('TRUCK') ? 'TRUCK'
             : m.tipo_veiculo?.toUpperCase().includes('CARRETA') ? 'CARRETA' : itemAtual.tipoVeiculo;
         itemAtual.disponibilidadeMotorista = m.disponibilidade || '';
@@ -171,7 +175,7 @@ export default function PainelOperacional({
         itemAtual.destinoMotorista = m.destino_desejado || '';
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
-        if (itemAtual.id) api.put(`/ veiculos / ${itemAtual.id} `, itemAtual).catch(() => { });
+        if (itemAtual.id) api.put(`/veiculos/${itemAtual.id}`, itemAtual).catch(() => { });
         setEditandoMotorista(null);
     }
 
@@ -341,7 +345,7 @@ export default function PainelOperacional({
 
                 {/* Grid Scrollável */}
                 <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
-                    {itensFiltrados.length === 0 ? (
+                    {itensFiltrados.length === 0 && docasInterditadas.filter(c => c.unidade === origem).length === 0 ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
                             <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
                                 <Box size={40} color="#94a3b8" strokeWidth={1.5} />
@@ -621,22 +625,23 @@ export default function PainelOperacional({
 
                                                         {/* Botao 1: SEMPRE VISIVEL */}
                                                         <a
-                                                            href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent('Prezado motorista, comparecer a portaria para a conferencia da sua documentação')}`}
+                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').startsWith('55') ? ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent('Prezado motorista, comparecer a portaria para a conferencia da sua documentação')}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             title="WhatsApp: Documentação na portaria"
-                                                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', color: '#22c55e', cursor: 'pointer', transition: 'color 0.2s' }}
+                                                            style={{
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px',
+                                                                background: 'rgba(34,197,94,0.15)',
+                                                                borderRadius: '50%',
+                                                                color: '#22c55e',
+                                                                cursor: 'pointer',
+                                                                transition: 'color 0.2s'
+                                                            }}
                                                             onMouseEnter={e => e.currentTarget.style.color = '#15803d'}
                                                             onMouseLeave={e => e.currentTarget.style.color = '#22c55e'}
-                                                            onClick={(e) => {
-                                                                if (!item.telefoneMotorista) {
-                                                                    e.preventDefault();
-                                                                    alert('Este motorista não tem número de telefone registado no banco de dados!');
-                                                                }
-                                                            }}
                                                         >
                                                             <FileText size={16} />
-                                                        </a >
+                                                        </a>
 
                                                         {/* Botao 2: Chamada para Doca */}
                                                         {
@@ -646,7 +651,7 @@ export default function PainelOperacional({
                                                                 if (valorStatusAtual === 'LIBERADO P/ DOCA' && docaAtual && docaAtual !== 'SELECIONE') {
                                                                     return (
                                                                         <a
-                                                                            href={`https://wa.me/55${item.telefoneMotorista ? item.telefoneMotorista.replace(/\D/g, '') : ''}?text=${encodeURIComponent(`Prezado motorista, por gentileza encostar na doca ${docaAtual} da unidade ${item.unidade || origem} o mais breve possivel.`)}`}
+                                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').startsWith('55') ? ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent(`Prezado motorista, por gentileza encostar na doca ${docaAtual} da unidade ${item.unidade || origem} o mais breve possivel.`)}`}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             title="WhatsApp: Avisar liberação da doca"
@@ -699,13 +704,13 @@ export default function PainelOperacional({
                                                 </div>
                                                 <div>
                                                     {(() => {
-                                                        const STATUS_BLOQUEADOS_TRAVA = ['LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
-                                                        const cadastroBloqueado = item.situacao_cadastro !== 'LIBERADO' && STATUS_BLOQUEADOS_TRAVA.includes(valorStatusAtual);
+                                                        const STATUS_BLOQUEADOS_TRAVA = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+                                                        const cadastroBloqueado = !item.isFrotaMotorista && item.situacao_cadastro !== 'LIBERADO' && STATUS_BLOQUEADOS_TRAVA.includes(valorStatusAtual);
                                                         return (
                                                             <>
                                                                 <label className="label-tech-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                     STATUS
-                                                                    {item.situacao_cadastro !== 'LIBERADO' && (
+                                                                    {!item.isFrotaMotorista && item.situacao_cadastro !== 'LIBERADO' && (
                                                                         <Lock size={10} color="#ef4444" title={cadastroBloqueado ? 'Ação bloqueada: O Gerenciamento de Risco revogou a liberação deste veículo.' : 'Checklist incompleto — não é possível avançar status.'} />
                                                                     )}
                                                                 </label>
@@ -747,7 +752,7 @@ export default function PainelOperacional({
 
                                             {/* Checklist Liberação — Read Only */}
                                             {
-                                                (() => {
+                                                !item.isFrotaMotorista && (() => {
                                                     const situacao = item.situacao_cadastro || 'NÃO CONFERIDO';
                                                     const cor = situacao === 'LIBERADO' ? '#4ade80'
                                                         : situacao === 'PENDENTE' ? '#fbbf24'
@@ -893,6 +898,15 @@ export default function PainelOperacional({
 
                                                 {/* Botões de Ação */}
                                                 <div style={{ display: 'flex', gap: '8px', marginLeft: '10px' }}>
+                                                    {/* Botão de Ocorrência (Movido do Título) */}
+                                                    <button
+                                                        onClick={(e) => { e.preventDefault(); setModalOcorrencia(item); }}
+                                                        style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(245,158,11,0.2)', border: 'none', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                                                        title="Adicionar Ocorrência"
+                                                    >
+                                                        <AlertTriangle size={16} />
+                                                    </button>
+
                                                     {OPCOES_STATUS.indexOf(valorStatusAtual) >= OPCOES_STATUS.indexOf('LIBERADO P/ DOCA') ? (
                                                         <button
                                                             onClick={() => {
@@ -912,7 +926,7 @@ export default function PainelOperacional({
                                                     )}
                                                     {isMista && souPrimeira && user.cidade === origem && (
                                                         <button onClick={() => socket.emit('enviar_alerta', { tipo: 'aviso', origem: origem, mensagem: `Veículo ${item.motorista} saindo!` })} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', border: 'none', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Avisar Saída">
-                                                            <AlertTriangle size={16} />
+                                                            <Truck size={16} />
                                                         </button>
                                                     )}
                                                 </div>
@@ -1047,6 +1061,15 @@ export default function PainelOperacional({
                     onSucesso={(msg) => adicionarToast(msg, 'sucesso')}
                 />
             )}
+
+            {/* Modal de Ocorrência */}
+            {modalOcorrencia && (
+                <ModalOcorrencia
+                    veiculo={modalOcorrencia}
+                    onClose={() => setModalOcorrencia(null)}
+                />
+            )}
+
 
         </div >
     );

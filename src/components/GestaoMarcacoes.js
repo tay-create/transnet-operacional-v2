@@ -69,7 +69,7 @@ function corTempo(min) {
     return '#f87171';
 }
 
-// ── Cor da disponibilidade ────────────────────────────────────────────────────
+// ── Cor da disponibilidade (localização) ─────────────────────────────────────
 function corDisponibilidade(disp) {
     if (!disp) return '#64748b';
     if (disp === 'NO PÁTIO') return '#4ade80';
@@ -123,7 +123,7 @@ export default function GestaoMarcacoes() {
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
-        else if (aba === 'placas') carregarMarcacoes();
+        else if (aba === 'placas' || aba === 'frota') carregarMarcacoes();
     }, [aba, carregarTokens, carregarMarcacoes]);
 
     async function gerarLink() {
@@ -165,6 +165,16 @@ export default function GestaoMarcacoes() {
             setMarcacoes(prev => prev.filter(m => m.id !== id));
             mostrarToast('Marcação removida.');
         } catch (e) { mostrarToast('Erro ao excluir.'); }
+    }
+
+    async function handleToggleIndisponivel(id, disponibilidadeAtual) {
+        const novoStatus = disponibilidadeAtual === 'Indisponível' ? 'Disponível' : 'Indisponível';
+        try {
+            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novoStatus });
+            if (r.data.success) {
+                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
+            }
+        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
     }
 
     // Frota: apenas nome e telefone — placas inseridas depois no despacho
@@ -362,6 +372,7 @@ export default function GestaoMarcacoes() {
                                         <th style={s.th}>Placa 2</th>
                                         <th style={s.th}>Veículo</th>
                                         <th style={s.th}>Disponibilidade</th>
+                                        <th style={s.th}>Indisponível</th>
                                         <th style={s.th}>Tempo Espera</th>
                                         <th style={s.th}>Rastreador</th>
                                         <th style={s.th}>Destinos</th>
@@ -373,7 +384,7 @@ export default function GestaoMarcacoes() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {marcacoes.map(m => {
+                                    {marcacoes.filter(m => !m.is_frota).map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao);
@@ -394,15 +405,30 @@ export default function GestaoMarcacoes() {
                                                 <td style={{ ...s.td, fontWeight: '700', color: '#60a5fa' }}>{m.placa1}</td>
                                                 <td style={s.td}>{m.placa2 || '—'}</td>
                                                 <td style={s.td}>{m.tipo_veiculo}</td>
-                                                {/* Disponibilidade */}
+                                                {/* Disponibilidade (localização: NO PÁTIO / NO POSTO / EM CASA) */}
                                                 <td style={s.td}>
-                                                    {m.disponibilidade ? (
+                                                    {m.disponibilidade && !['Indisponível', 'Contratado', 'Disponível'].includes(m.disponibilidade) ? (
                                                         <span style={{ fontSize: '12px', fontWeight: '700', color: corDisponibilidade(m.disponibilidade) }}>
                                                             {m.disponibilidade}
                                                         </span>
                                                     ) : (
                                                         <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
                                                     )}
+                                                </td>
+                                                {/* Checkbox Indisponível */}
+                                                <td style={s.td}>
+                                                    <label style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                        cursor: 'pointer', fontSize: '11px', fontWeight: '700',
+                                                        color: m.disponibilidade === 'Indisponível' ? '#f87171' : '#64748b'
+                                                    }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={m.disponibilidade === 'Indisponível'}
+                                                            onChange={() => handleToggleIndisponivel(m.id, m.disponibilidade)}
+                                                            style={{ accentColor: '#ef4444', cursor: 'pointer', width: '14px', height: '14px' }}
+                                                        />
+                                                    </label>
                                                 </td>
                                                 {/* Tempo de Espera */}
                                                 <td style={s.td}>
@@ -428,9 +454,21 @@ export default function GestaoMarcacoes() {
                                                     ) : <span style={{ color: '#475569', fontSize: '12px' }}>Não permitido</span>}
                                                 </td>
                                                 <td style={s.td}>
-                                                    <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
-                                                        {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : 'Em Viagem'}
-                                                    </span>
+                                                    {m.disponibilidade === 'Indisponível' ? (
+                                                        <span style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                            background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)'
+                                                        }}>Indisponível</span>
+                                                    ) : m.disponibilidade === 'Contratado' ? (
+                                                        <span style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                            background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
+                                                        }}>Contratado</span>
+                                                    ) : (
+                                                        <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
+                                                            {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : 'Em Viagem'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td style={s.td}>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#facc15', fontWeight: '700' }}>
@@ -499,8 +537,77 @@ export default function GestaoMarcacoes() {
                     <div style={{ ...s.card, background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
                         <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
                             <strong style={{ color: '#60a5fa' }}>Dica:</strong> Se o motorista já estiver na fila (mesmo telefone), os dados serão <strong>atualizados</strong> e o SLA reiniciado.
-                            Para ver a fila completa, acesse a aba <strong>Fila de Placas</strong>.
                         </p>
+                    </div>
+
+                    {/* Lista de Motoristas da Frota */}
+                    <div style={{ overflowX: 'auto', marginTop: '16px' }}>
+                        <table style={s.table}>
+                            <thead>
+                                <tr>
+                                    <th style={s.th}>Motorista</th>
+                                    <th style={s.th}>Telefone</th>
+                                    <th style={s.th}>Placas (Atual)</th>
+                                    <th style={s.th}>Disponibilidade</th>
+                                    <th style={s.th}>Status</th>
+                                    <th style={s.th}>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {marcacoes.filter(m => m.is_frota === 1).map(m => (
+                                    <tr key={m.id}>
+                                        <td style={s.td}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                {m.nome_motorista}
+                                                <span style={s.badgeFreota}><Truck size={10} /> FROTA</span>
+                                            </div>
+                                        </td>
+                                        <td style={s.td}>{formatarTelefone(m.telefone)}</td>
+                                        <td style={{ ...s.td, color: '#60a5fa' }}>
+                                            {m.placa1 ? `${m.placa1}${m.placa2 ? ' / ' + m.placa2 : ''}` : '—'}
+                                        </td>
+                                        <td style={s.td}>
+                                            {m.disponibilidade && !['Indisponível', 'Contratado', 'Disponível'].includes(m.disponibilidade) ? (
+                                                <span style={{ fontSize: '12px', fontWeight: '700', color: corDisponibilidade(m.disponibilidade) }}>
+                                                    {m.disponibilidade}
+                                                </span>
+                                            ) : (
+                                                <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
+                                            )}
+                                        </td>
+                                        <td style={s.td}>
+                                            {m.disponibilidade === 'Indisponível' ? (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                    background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)'
+                                                }}>Indisponível</span>
+                                            ) : m.disponibilidade === 'Contratado' ? (
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                    background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
+                                                }}>Contratado</span>
+                                            ) : (
+                                                <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
+                                                    {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : 'Em Viagem'}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td style={s.td}>
+                                            <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {marcacoes.filter(m => m.is_frota === 1).length === 0 && (
+                                    <tr>
+                                        <td colSpan="6" style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '20px' }}>
+                                            Nenhum motorista de frota na fila.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </>
             )}

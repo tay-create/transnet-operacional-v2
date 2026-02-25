@@ -175,13 +175,6 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'timestamps_cte', tipo: 'TEXT' }
         ];
 
-        // Tabela da Programação Diária
-        await dbRun(`CREATE TABLE IF NOT EXISTS frota_programacao_diaria (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            data_referencia TEXT,
-            turno TEXT,
-            dados_json TEXT
-        )`);
 
         // Tabela de CT-es Ativos (persistencia entre reloads)
         await dbRun(`CREATE TABLE IF NOT EXISTS ctes_ativos (
@@ -261,6 +254,17 @@ const inicializarBanco = async () => {
             await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios (email)`);
         } catch (_) { }
 
+        // Tabela para Ocorrências das Operações 
+        await dbRun(`CREATE TABLE IF NOT EXISTS operacao_ocorrencias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            veiculo_id INTEGER NOT NULL,
+            motorista TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            foto_base64 TEXT,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (veiculo_id) REFERENCES veiculos(id) ON DELETE CASCADE
+        )`);
+
         // Tabela separada para itens de cubagem (relação N:1)
         await dbRun(`CREATE TABLE IF NOT EXISTS cubagem_itens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -273,45 +277,6 @@ const inicializarBanco = async () => {
         )`);
 
         // ── Módulo de Frota e Telemetria ────────────────────────────────────────
-        await dbRun(`CREATE TABLE IF NOT EXISTS frota_motoristas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            cpf TEXT NOT NULL UNIQUE,
-            celular TEXT,
-            senha TEXT,
-            modo_plantao INTEGER NOT NULL DEFAULT 0
-        )`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS frota_veiculos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            placa TEXT NOT NULL UNIQUE,
-            tipo TEXT NOT NULL,
-            modelo TEXT
-        )`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS frota_viagens_ativas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            motorista_id INTEGER NOT NULL,
-            cavalo_id INTEGER,
-            carreta_id INTEGER,
-            status_atual TEXT NOT NULL DEFAULT 'DISPONÍVEL',
-            ultima_lat_lng TEXT,
-            previsao_disponibilidade TEXT,
-            data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (motorista_id) REFERENCES frota_motoristas(id),
-            FOREIGN KEY (cavalo_id) REFERENCES frota_veiculos(id),
-            FOREIGN KEY (carreta_id) REFERENCES frota_veiculos(id)
-        )`);
-        // Migration: adiciona coluna se não existir (banco existente)
-        try { await dbRun(`ALTER TABLE frota_viagens_ativas ADD COLUMN previsao_disponibilidade TEXT`); } catch (_) { };
-        await dbRun(`CREATE TABLE IF NOT EXISTS frota_ocorrencias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            viagem_id INTEGER NOT NULL,
-            tipo TEXT NOT NULL,
-            descricao TEXT,
-            foto_base64 TEXT,
-            data_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
-            status_ciencia INTEGER NOT NULL DEFAULT 0,
-            FOREIGN KEY (viagem_id) REFERENCES frota_viagens_ativas(id)
-        )`);
         await dbRun(`CREATE TABLE IF NOT EXISTS frota_checklists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             motorista_id INTEGER,
@@ -536,13 +501,18 @@ app.post('/api/marcacoes', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Campos obrigatórios faltando.' });
         }
 
+        const telefoneLimpo = telefone.replace(/\D/g, '');
+
         const estadosJson = JSON.stringify(estados_destino || []);
         const agora = new Date().toISOString();
 
         // Verifica se já existe registro com este telefone
-        const existente = await dbGet("SELECT id FROM marcacoes_placas WHERE telefone = ?", [telefone]);
+        const existente = await dbGet("SELECT id, disponibilidade FROM marcacoes_placas WHERE telefone = ?", [telefoneLimpo]);
 
         if (existente) {
+            // Se estava Indisponível, revoga automaticamente para Disponível ao refazer marcação
+            const novaDisponibilidade = (existente.disponibilidade === 'Indisponível') ? 'Disponível' : (disponibilidade || existente.disponibilidade || '');
+
             // UPDATE: atualiza dados e reseta SLA (data_marcacao) e status para DISPONIVEL
             await dbRun(
                 `UPDATE marcacoes_placas SET
@@ -559,9 +529,9 @@ app.post('/api/marcacoes', async (req, res) => {
                     estadosJson, estado_origem || '',
                     ja_carregou || '', rastreador || 'Não possui', status_rastreador || 'Inativo',
                     latitude || '', longitude || '',
-                    disponibilidade || '', comprovante_pdf || null,
+                    novaDisponibilidade, comprovante_pdf || null,
                     anexo_cnh || null, anexo_doc_veiculo || null, anexo_crlv_carreta || null, anexo_antt || null, anexo_outros || null,
-                    agora, telefone
+                    agora, telefoneLimpo
                 ]
             );
         } else {
@@ -576,7 +546,7 @@ app.post('/api/marcacoes', async (req, res) => {
                   status_operacional)
                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DISPONIVEL')`,
                 [
-                    token_id, nome_motorista, telefone, placa1, placa2 || '',
+                    token_id, nome_motorista, telefoneLimpo, placa1, placa2 || '',
                     tipo_veiculo, altura || null, largura || null, comprimento || null,
                     estadosJson, estado_origem || '',
                     ja_carregou || '', rastreador || 'Não possui', status_rastreador || 'Inativo',
@@ -668,9 +638,62 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
                    origem_cad, destino_uf_cad, destino_cidade_cad
             FROM marcacoes_placas
             WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+              AND (is_frota IS NULL OR is_frota = 0)
             ORDER BY data_marcacao DESC
         `);
         res.json({ success: true, motoristas: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── Frota Própria: listar motoristas de frota para o PainelCadastro ──
+app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+    try {
+        const rows = await dbAll(`
+            SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
+                   data_marcacao,
+                   seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
+                   is_frota
+            FROM marcacoes_placas
+            WHERE is_frota = 1
+            ORDER BY nome_motorista ASC
+        `);
+        res.json({ success: true, motoristas: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── Frota Própria: atualizar liberação ──
+app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+    try {
+        const { num_liberacao_cad, data_liberacao_cad, seguradora_cad } = req.body;
+        // Calcular situacao_cad: LIBERADO se tem num_liberacao + seguradora e não expirou (1 ano)
+        let situacao_cad = 'NÃO CONFERIDO';
+        if (num_liberacao_cad && seguradora_cad) {
+            situacao_cad = 'LIBERADO';
+            if (data_liberacao_cad) {
+                const dataLibStr = data_liberacao_cad.endsWith('Z') ? data_liberacao_cad : data_liberacao_cad + 'Z';
+                const diffMs = Date.now() - new Date(dataLibStr).getTime();
+                if (diffMs > 365 * 24 * 60 * 60 * 1000) {
+                    situacao_cad = 'PENDENTE'; // Expirado (mais de 1 ano)
+                }
+            }
+        } else if (num_liberacao_cad || seguradora_cad) {
+            situacao_cad = 'PENDENTE';
+        }
+
+        await dbRun(`UPDATE marcacoes_placas SET
+            num_liberacao_cad = ?, data_liberacao_cad = ?, seguradora_cad = ?, situacao_cad = ?
+            WHERE id = ? AND is_frota = 1`,
+            [num_liberacao_cad || '', data_liberacao_cad || null, seguradora_cad || '', situacao_cad, req.params.id]
+        );
+        res.json({ success: true, situacao: situacao_cad });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── Frota Própria: excluir motorista de frota ──
+app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+    try {
+        await dbRun("DELETE FROM marcacoes_placas WHERE id = ? AND is_frota = 1", [req.params.id]);
+        res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -793,6 +816,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
                 telefone: dj.telefoneMotorista || '',
                 operacao: r.operacao || '',
                 unidade: r.unidade || '',
+                isFrotaMotorista: String(dj.isFrotaMotorista) === 'true' || String(dj.isFrotaMotorista) === '1',
                 // Mapear campos de veiculos para o esquema de marcacoes_placas usado pelo frontend
                 chk_cnh_cad: r.chk_cnh ? 1 : 0,
                 chk_antt_cad: r.chk_antt ? 1 : 0,
@@ -1193,7 +1217,13 @@ app.get('/veiculos', authMiddleware, async (req, res) => {
         const offset = (page - 1) * limit;
 
         const [rows, countRow] = await Promise.all([
-            dbAll("SELECT * FROM veiculos ORDER BY id DESC LIMIT ? OFFSET ?", [limit, offset]),
+            dbAll(`
+                SELECT v.*, 
+                       (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
+                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                FROM veiculos v 
+                ORDER BY v.id DESC LIMIT ? OFFSET ?
+            `, [limit, offset]),
             dbAll("SELECT COUNT(*) as total FROM veiculos")
         ]);
 
@@ -1232,7 +1262,9 @@ app.get('/veiculos', authMiddleware, async (req, res) => {
                 tipoVeiculo: dados_json.tipoVeiculo || '',
                 placa1Motorista: dados_json.placa1Motorista || '',
                 placa2Motorista: dados_json.placa2Motorista || '',
-                telefoneMotorista: dados_json.telefoneMotorista || '',
+                telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
+                telefone: row.telefone_bd || dados_json.telefoneMotorista || '', // Adicionado conforme solicitado
+                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
                 dados_json: row.dados_json || '{}'
             };
         });
@@ -1248,22 +1280,34 @@ app.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento', 
         // mas tentar buscar o mais atualizado pelo telefone, se existir
         let chk_cnh = v.chk_cnh ? 1 : 0, chk_antt = v.chk_antt ? 1 : 0, chk_tacografo = v.chk_tacografo ? 1 : 0, chk_crlv = v.chk_crlv ? 1 : 0;
         let situacao_cadastro = v.situacao_cadastro || 'NÃO CONFERIDO', numero_liberacao = v.numero_liberacao || null, data_liberacao = v.data_liberacao || null;
-        const telefoneMotorista = v.telefoneMotorista ? v.telefoneMotorista.replace(/\D/g, '') : null;
+        let telefoneMotorista = v.telefoneMotorista ? v.telefoneMotorista.replace(/\D/g, '') : null;
+        let isFrotaMotorista = v.isFrotaMotorista === true;
         const placaAlvo = (v.placa1Motorista || '').trim();
         const motoristaNome = (v.motorista || '').trim();
 
         if (telefoneMotorista || placaAlvo || motoristaNome) {
             const cad = await dbGet(
-                `SELECT chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
+                `SELECT telefone, is_frota, chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
                         situacao_cad, num_liberacao_cad, data_liberacao_cad
                  FROM marcacoes_placas
                  WHERE (telefone IS NOT NULL AND (REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'+','') LIKE '%' || ? || '%' OR telefone = ?))
                     OR (placa1 IS NOT NULL AND placa1 = ?)
-                    OR (nome_motorista IS NOT NULL AND nome_motorista LIKE ?)
+                    OR (nome_motorista IS NOT NULL AND nome_motorista = ?)
                  ORDER BY data_marcacao DESC LIMIT 1`,
-                [telefoneMotorista || '999999999', telefoneMotorista || '999999999', placaAlvo, `%${motoristaNome}%`]
+                [
+                    telefoneMotorista || 'NO_MATCH_123',
+                    telefoneMotorista || 'NO_MATCH_123',
+                    placaAlvo || 'NO_MATCH_123',
+                    motoristaNome || 'NO_MATCH_123'
+                ]
             );
             if (cad) {
+                if (!telefoneMotorista && cad.telefone) {
+                    telefoneMotorista = cad.telefone.replace(/\D/g, '');
+                }
+                if (!isFrotaMotorista && cad.is_frota) {
+                    isFrotaMotorista = true;
+                }
                 chk_cnh = cad.chk_cnh_cad ? 1 : 0;
                 chk_antt = cad.chk_antt_cad ? 1 : 0;
                 chk_tacografo = cad.chk_tacografo_cad ? 1 : 0;
@@ -1301,18 +1345,34 @@ app.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento', 
             situacao_cadastro, numero_liberacao, data_liberacao,
             JSON.stringify({
                 ...v,
+                telefoneMotorista: telefoneMotorista,
+                isFrotaMotorista: isFrotaMotorista, // Guarda a flag para isentar das regras de Ger Risco
                 chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                 situacao_cadastro, numero_liberacao, data_liberacao
             })
         ];
 
         const result = await dbRun(query, values);
+
+        // Atualizar status da marcação para 'Contratado' ou 'EM ROTA'
+        if (v.id_marcacao) {
+            await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA' WHERE id = ?", [v.id_marcacao]);
+            io.emit('marcacao_atualizada');
+        } else if (telefoneMotorista) {
+            await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA' WHERE telefone = ?", [telefoneMotorista]);
+            io.emit('marcacao_atualizada');
+        }
+
         const novo = {
             id: result.lastID, ...v, data_criacao,
+            telefone: telefoneMotorista || '',
+            isFrotaMotorista: isFrotaMotorista || false,
             chk_cnh, chk_antt, chk_tacografo, chk_crlv,
             situacao_cadastro, numero_liberacao, data_liberacao,
             dados_json: JSON.stringify({
                 ...v,
+                telefoneMotorista: telefoneMotorista,
+                isFrotaMotorista: isFrotaMotorista,
                 chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                 situacao_cadastro, numero_liberacao, data_liberacao
             })
@@ -1340,8 +1400,8 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
         // Buscar dados antigos para auditoria
         const veiculoAntigo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
 
-        // ── Trava de Segurança: bloquear qualquer avanço além de EM SEPARAÇÃO sem liberação ──
-        const STATUS_BLOQUEADOS = ['LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+        // ── Trava de Segurança: bloquear avanço sem liberação do Ger. Risco ──
+        const STATUS_BLOQUEADOS = ['LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
         if (veiculoAntigo) {
             const dadosAntigos = (() => { try { return JSON.parse(veiculoAntigo.dados_json || '{}'); } catch { return {}; } })();
             const situacao = dadosAntigos.situacao_cadastro || veiculoAntigo.situacao_cadastro || 'NÃO CONFERIDO';
@@ -1353,7 +1413,17 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
                 STATUS_BLOQUEADOS.includes(v.status_moreno) &&
                 !STATUS_BLOQUEADOS.includes(veiculoAntigo.status_moreno);
 
-            if ((avancoRecife || avancoMoreno) && situacao !== 'LIBERADO') {
+            // Buscar status de frota diretamente do cadastro de placas para ser a prova de falhas
+            let isFrota = String(v.isFrotaMotorista) === 'true' || String(v.isFrotaMotorista) === '1' || String(dadosAntigos.isFrotaMotorista) === 'true' || String(dadosAntigos.isFrotaMotorista) === '1';
+
+            if (!isFrota && veiculoAntigo.motorista) {
+                const checkFrotaBd = await dbGet("SELECT is_frota FROM marcacoes_placas WHERE nome_motorista = ? AND nome_motorista != '' ORDER BY data_marcacao DESC LIMIT 1", [veiculoAntigo.motorista]);
+                if (checkFrotaBd && checkFrotaBd.is_frota === 1) {
+                    isFrota = true;
+                }
+            }
+
+            if ((avancoRecife || avancoMoreno) && situacao !== 'LIBERADO' && !isFrota) {
                 return res.status(403).json({
                     success: false,
                     message: 'Checklist incompleto. Conclua a liberação no Cadastro antes de avançar o status.'
@@ -1380,17 +1450,22 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
                 }
             }
 
-            // ── Trava de Checklist da Carreta (Avanço após Liberado P/ Doca) ──
-            const STATUS_CHECKLIST = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
-            const avancoChecklistRecife = STATUS_CHECKLIST.includes(v.status_recife) && !STATUS_CHECKLIST.includes(veiculoAntigo.status_recife);
-            const avancoChecklistMoreno = STATUS_CHECKLIST.includes(v.status_moreno) && !STATUS_CHECKLIST.includes(veiculoAntigo.status_moreno);
+            // ── Trava Dupla: Ger. Risco + Checklist Carreta (a partir de EM CARREGAMENTO) ──
+            const STATUS_TRAVA_DUPLA = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
+            const avancoDuploRecife = STATUS_TRAVA_DUPLA.includes(v.status_recife) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_recife);
+            const avancoDuploMoreno = STATUS_TRAVA_DUPLA.includes(v.status_moreno) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_moreno);
 
-            if (avancoChecklistRecife || avancoChecklistMoreno) {
+            if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota) {
                 const chk = await dbGet("SELECT status FROM checklists_carreta WHERE veiculo_id = ? ORDER BY id DESC LIMIT 1", [req.params.id]);
-                if (!chk || chk.status !== 'APROVADO') {
+                const checklistAprovado = chk && chk.status === 'APROVADO';
+
+                if (situacao !== 'LIBERADO' || !checklistAprovado) {
+                    const motivos = [];
+                    if (situacao !== 'LIBERADO') motivos.push('Ger. Risco');
+                    if (!checklistAprovado) motivos.push('Checklist da Carreta');
                     return res.status(403).json({
                         success: false,
-                        message: 'Status bloqueado: Checklist da carreta pendente ou recusado.'
+                        message: `Status bloqueado: É necessário aprovação do ${motivos.join(' e do ')} para iniciar o carregamento.`
                     });
                 }
             }
@@ -1481,13 +1556,18 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
             v.status_gerenciadora || '',
             v.numero_liberacao || '',
             v.situacao_cadastro || 'NÃO CONFERIDO',
-            // Preservar data_liberacao: atualizar só quando numero_liberacao é preenchido pela primeira vez
             (() => {
                 const anterior = veiculoAntigo?.data_liberacao || null;
                 if (v.numero_liberacao && !anterior) return new Date().toISOString();
                 return v.data_liberacao || anterior;
             })(),
-            JSON.stringify(v),
+            JSON.stringify({
+                ...(() => { try { return JSON.parse(veiculoAntigo?.dados_json || '{}'); } catch { return {}; } })(),
+                ...v,
+                placa1Motorista: v.placa1Motorista,
+                placa2Motorista: v.placa2Motorista,
+                telefoneMotorista: v.telefoneMotorista,
+            }),
             req.params.id
         ];
 
@@ -1670,6 +1750,38 @@ app.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// ── GET Ocorrências da Operação ──────────────────
+app.get('/api/veiculos/:id/ocorrencias', authMiddleware, async (req, res) => {
+    try {
+        const ocorrencias = await dbAll(
+            "SELECT * FROM operacao_ocorrencias WHERE veiculo_id = ? ORDER BY data_criacao DESC",
+            [req.params.id]
+        );
+        res.json({ success: true, ocorrencias });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// ── POST Nova Ocorrência ─────────────────────────
+app.post('/api/veiculos/:id/ocorrencias', authMiddleware, async (req, res) => {
+    try {
+        const { descricao, foto_base64, motorista } = req.body;
+        const veiculo_id = req.params.id;
+
+        const result = await dbRun(
+            `INSERT INTO operacao_ocorrencias (veiculo_id, motorista, descricao, foto_base64)
+             VALUES (?, ?, ?, ?)`,
+            [veiculo_id, motorista || 'N/A', descricao, foto_base64 || null]
+        );
+
+        res.json({ success: true, id: result.lastID });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 app.post('/login', validate(loginSchema), async (req, res) => {
     const { nome, senha } = req.body;
     let emailLogin = nome.trim().toLowerCase();
@@ -1947,304 +2059,6 @@ function verificarBloqueioFimDeSemana(modePlantao) {
     return null; // sem bloqueio
 }
 
-// ── Motoristas ───────────────────────────────────────────────
-app.get('/api/frota/motoristas', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const rows = await dbAll(`SELECT id, nome, cpf, celular, modo_plantao FROM frota_motoristas ORDER BY nome`);
-        res.json({ success: true, motoristas: rows });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-app.post('/api/frota/motoristas', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { nome, cpf, celular, senha } = req.body;
-        if (!nome || !cpf) return res.status(400).json({ success: false, message: 'Nome e CPF são obrigatórios.' });
-        const cpfLimpo = cpf.replace(/\D/g, '');
-        const senhaHash = senha ? await bcrypt.hash(senha, 10) : null;
-        const result = await dbRun(
-            `INSERT INTO frota_motoristas (nome, cpf, celular, senha) VALUES (?, ?, ?, ?)`,
-            [nome.trim(), cpfLimpo, celular?.trim() || null, senhaHash]
-        );
-        await registrarLog('FROTA_MOTORISTA_CADASTRO', req.user.nome, result.lastID, 'frota_motorista', null, nome.trim(), `CPF: ${cpfLimpo}`);
-        res.json({ success: true, id: result.lastID });
-    } catch (e) {
-        if (e.message.includes('UNIQUE')) return res.status(409).json({ success: false, message: 'CPF já cadastrado.' });
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-app.delete('/api/frota/motoristas/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
-    try {
-        const mot = await dbGet(`SELECT nome, cpf FROM frota_motoristas WHERE id = ?`, [req.params.id]);
-        await dbRun(`DELETE FROM frota_motoristas WHERE id = ?`, [req.params.id]);
-        await registrarLog('FROTA_MOTORISTA_EXCLUSAO', req.user.nome, req.params.id, 'frota_motorista', mot?.nome, null, `CPF: ${mot?.cpf}`);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// Toggle modo_plantao
-app.patch('/api/frota/motoristas/:id/plantao', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const row = await dbGet(`SELECT nome, modo_plantao FROM frota_motoristas WHERE id = ?`, [req.params.id]);
-        if (!row) return res.status(404).json({ success: false, message: 'Motorista não encontrado.' });
-        const novoValor = row.modo_plantao ? 0 : 1;
-        await dbRun(`UPDATE frota_motoristas SET modo_plantao = ? WHERE id = ?`, [novoValor, req.params.id]);
-        await registrarLog('FROTA_PLANTAO_TOGGLE', req.user.nome, req.params.id, 'frota_motorista', row.modo_plantao ? 'PLANTÃO' : 'NORMAL', novoValor ? 'PLANTÃO' : 'NORMAL', `Motorista: ${row.nome}`);
-        res.json({ success: true, modo_plantao: novoValor });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Veículos ─────────────────────────────────────────────────
-app.get('/api/frota/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const rows = await dbAll(`SELECT id, placa, tipo, modelo FROM frota_veiculos ORDER BY placa`);
-        res.json({ success: true, veiculos: rows });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-app.post('/api/frota/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { placa, tipo, modelo } = req.body;
-        if (!placa || !tipo) return res.status(400).json({ success: false, message: 'Placa e tipo são obrigatórios.' });
-        const placaFmt = placa.toUpperCase().trim();
-        const result = await dbRun(
-            `INSERT INTO frota_veiculos (placa, tipo, modelo) VALUES (?, ?, ?)`,
-            [placaFmt, tipo.trim(), modelo?.trim() || null]
-        );
-        await registrarLog('FROTA_VEICULO_CADASTRO', req.user.nome, result.lastID, 'frota_veiculo', null, placaFmt, `Tipo: ${tipo} | Modelo: ${modelo || '—'}`);
-        res.json({ success: true, id: result.lastID });
-    } catch (e) {
-        if (e.message.includes('UNIQUE')) return res.status(409).json({ success: false, message: 'Placa já cadastrada.' });
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-app.delete('/api/frota/veiculos/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
-    try {
-        const vei = await dbGet(`SELECT placa, tipo FROM frota_veiculos WHERE id = ?`, [req.params.id]);
-        await dbRun(`DELETE FROM frota_veiculos WHERE id = ?`, [req.params.id]);
-        await registrarLog('FROTA_VEICULO_EXCLUSAO', req.user.nome, req.params.id, 'frota_veiculo', vei?.placa, null, `Tipo: ${vei?.tipo}`);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Despacho (cria ou atualiza viagem ativa) ─────────────────
-app.post('/api/frota/despacho', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { motorista_id, cavalo_id, carreta_id } = req.body;
-        if (!motorista_id) return res.status(400).json({ success: false, message: 'motorista_id é obrigatório.' });
-
-        const motorista = await dbGet(`SELECT modo_plantao FROM frota_motoristas WHERE id = ?`, [motorista_id]);
-        if (!motorista) return res.status(404).json({ success: false, message: 'Motorista não encontrado.' });
-
-        const bloqueio = verificarBloqueioFimDeSemana(motorista.modo_plantao);
-        const statusInicial = bloqueio || 'DISPONÍVEL';
-
-        // Verifica se já existe viagem ativa para este motorista
-        const viagemExistente = await dbGet(`SELECT id, status_atual FROM frota_viagens_ativas WHERE motorista_id = ?`, [motorista_id]);
-        if (viagemExistente) {
-            // Em edição preserva o status atual (não reseta para DISPONÍVEL)
-            const statusPreservado = bloqueio || viagemExistente.status_atual;
-            await dbRun(
-                `UPDATE frota_viagens_ativas SET cavalo_id = ?, carreta_id = ?, status_atual = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE motorista_id = ?`,
-                [cavalo_id || null, carreta_id || null, statusPreservado, motorista_id]
-            );
-            const mot = await dbGet(`SELECT nome FROM frota_motoristas WHERE id = ?`, [motorista_id]);
-            const cav = cavalo_id ? await dbGet(`SELECT placa FROM frota_veiculos WHERE id = ?`, [cavalo_id]) : null;
-            const carr = carreta_id ? await dbGet(`SELECT placa FROM frota_veiculos WHERE id = ?`, [carreta_id]) : null;
-            await registrarLog('FROTA_CONJUNTO_EDICAO', req.user.nome, viagemExistente.id, 'frota_viagem', null, null, `Motorista: ${mot?.nome} | Cavalo: ${cav?.placa || '—'} | Carreta: ${carr?.placa || '—'}`);
-            res.json({ success: true, id: viagemExistente.id, status: statusPreservado });
-        } else {
-            const result = await dbRun(
-                `INSERT INTO frota_viagens_ativas (motorista_id, cavalo_id, carreta_id, status_atual) VALUES (?, ?, ?, ?)`,
-                [motorista_id, cavalo_id || null, carreta_id || null, statusInicial]
-            );
-            const mot = await dbGet(`SELECT nome FROM frota_motoristas WHERE id = ?`, [motorista_id]);
-            const cav = cavalo_id ? await dbGet(`SELECT placa FROM frota_veiculos WHERE id = ?`, [cavalo_id]) : null;
-            const carr = carreta_id ? await dbGet(`SELECT placa FROM frota_veiculos WHERE id = ?`, [carreta_id]) : null;
-            await registrarLog('FROTA_DESPACHO', req.user.nome, result.lastID, 'frota_viagem', null, null, `Motorista: ${mot?.nome} | Cavalo: ${cav?.placa || '—'} | Carreta: ${carr?.placa || '—'}`);
-            res.json({ success: true, id: result.lastID, status: statusInicial });
-        }
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Desvincular conjunto (remove viagem ativa pelo id) ──
-app.delete('/api/frota/despacho/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const viagem = await dbGet(
-            `SELECT va.id, m.nome AS motorista_nome, c.placa AS cavalo_placa, r.placa AS carreta_placa
-             FROM frota_viagens_ativas va
-             JOIN frota_motoristas m ON va.motorista_id = m.id
-             LEFT JOIN frota_veiculos c ON va.cavalo_id = c.id
-             LEFT JOIN frota_veiculos r ON va.carreta_id = r.id
-             WHERE va.id = ?`, [req.params.id]
-        );
-        await dbRun(`DELETE FROM frota_viagens_ativas WHERE id = ?`, [req.params.id]);
-        await registrarLog('FROTA_DESVINCULAR', req.user.nome, req.params.id, 'frota_viagem', null, null, `Motorista: ${viagem?.motorista_nome} | Cavalo: ${viagem?.cavalo_placa || '—'} | Carreta: ${viagem?.carreta_placa || '—'}`);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Login do Motorista (sem JWT — via CPF) ───────────────────
-app.post('/api/frota/login', async (req, res) => {
-    try {
-        const { cpf, senha } = req.body;
-        if (!cpf || !senha) return res.status(400).json({ success: false, message: 'CPF e senha são obrigatórios.' });
-        const cpfLimpo = cpf.replace(/\D/g, '');
-        const mot = await dbGet(`SELECT * FROM frota_motoristas WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ?`, [cpfLimpo]);
-        if (!mot) return res.status(404).json({ success: false, message: 'Motorista não encontrado.' });
-
-        // Primeiro acesso: senha nula → gravar definitivamente
-        if (!mot.senha) {
-            const hash = await bcrypt.hash(senha, 10);
-            await dbRun(`UPDATE frota_motoristas SET senha = ? WHERE id = ?`, [hash, mot.id]);
-            await registrarLog('FROTA_MOTORISTA_PRIMEIRO_ACESSO', mot.nome, mot.id, 'frota_motorista', null, null, `CPF: ${mot.cpf}`);
-            return res.json({ success: true, motorista: { id: mot.id, nome: mot.nome, cpf: mot.cpf, celular: mot.celular, modo_plantao: mot.modo_plantao }, primeiroAcesso: true });
-        }
-
-        const ok = await bcrypt.compare(senha, mot.senha);
-        if (!ok) return res.status(401).json({ success: false, message: 'Senha incorreta.' });
-        await registrarLog('FROTA_MOTORISTA_LOGIN', mot.nome, mot.id, 'frota_motorista', null, null, `CPF: ${mot.cpf}`);
-        res.json({ success: true, motorista: { id: mot.id, nome: mot.nome, cpf: mot.cpf, celular: mot.celular, modo_plantao: mot.modo_plantao }, primeiroAcesso: false });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Minha viagem (dados do conjunto vinculado) ───────────────
-app.get('/api/frota/minha-viagem/:motoristaId', async (req, res) => {
-    try {
-        const row = await dbGet(`
-            SELECT va.id, va.status_atual, va.ultima_lat_lng, va.data_atualizacao,
-                   va.previsao_disponibilidade,
-                   m.nome AS motorista_nome, m.modo_plantao,
-                   c.placa AS cavalo_placa, c.tipo AS cavalo_tipo, c.modelo AS cavalo_modelo,
-                   r.placa AS carreta_placa, r.tipo AS carreta_tipo
-            FROM frota_viagens_ativas va
-            JOIN frota_motoristas m ON va.motorista_id = m.id
-            LEFT JOIN frota_veiculos c ON va.cavalo_id = c.id
-            LEFT JOIN frota_veiculos r ON va.carreta_id = r.id
-            WHERE va.motorista_id = ?
-        `, [req.params.motoristaId]);
-        if (!row) return res.status(404).json({ success: false, message: 'Nenhuma viagem ativa para este motorista.' });
-        res.json({ success: true, viagem: row });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Atualizar status + GPS ────────────────────────────────────
-app.put('/api/frota/status', async (req, res) => {
-    try {
-        const { motorista_id, novo_status, ultima_lat_lng } = req.body;
-        if (!motorista_id || !novo_status) return res.status(400).json({ success: false, message: 'motorista_id e novo_status são obrigatórios.' });
-        const motorista = await dbGet(`SELECT nome, modo_plantao FROM frota_motoristas WHERE id = ?`, [motorista_id]);
-        if (!motorista) return res.status(404).json({ success: false, message: 'Motorista não encontrado.' });
-        const bloqueio = verificarBloqueioFimDeSemana(motorista.modo_plantao);
-        const statusFinal = bloqueio || novo_status;
-        const latLngFinal = ultima_lat_lng || null;
-        await dbRun(
-            `UPDATE frota_viagens_ativas SET status_atual = ?, ultima_lat_lng = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE motorista_id = ?`,
-            [statusFinal, latLngFinal, motorista_id]
-        );
-        const viagem = await dbGet(
-            `SELECT c.placa AS cavalo_placa, r.placa AS carreta_placa
-             FROM frota_viagens_ativas va
-             LEFT JOIN frota_veiculos c ON va.cavalo_id = c.id
-             LEFT JOIN frota_veiculos r ON va.carreta_id = r.id
-             WHERE va.motorista_id = ?`,
-            [motorista_id]
-        );
-        const payload = {
-            motorista_id,
-            motorista_nome: motorista.nome,
-            status: statusFinal,
-            cavalo_placa: viagem?.cavalo_placa || null,
-            carreta_placa: viagem?.carreta_placa || null,
-            lat_lng: latLngFinal,
-        };
-        io.emit('frota_status_atualizado', payload);
-        await registrarLog('FROTA_STATUS', motorista.nome, motorista_id, 'frota_motorista', null, statusFinal, latLngFinal ? `GPS: ${latLngFinal}` : 'GPS indisponível');
-        res.json({ success: true, status: statusFinal, bloqueado: !!bloqueio });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Previsão de disponibilidade (informada pelo motorista) ───
-app.put('/api/frota/previsao', async (req, res) => {
-    try {
-        const { motorista_id, previsao_disponibilidade } = req.body;
-        if (!motorista_id) return res.status(400).json({ success: false, message: 'motorista_id é obrigatório.' });
-        await dbRun(
-            `UPDATE frota_viagens_ativas SET previsao_disponibilidade = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE motorista_id = ?`,
-            [previsao_disponibilidade || null, motorista_id]
-        );
-        const motorista = await dbGet(`SELECT nome FROM frota_motoristas WHERE id = ?`, [motorista_id]);
-        await registrarLog('FROTA_PREVISAO', motorista?.nome || motorista_id, motorista_id, 'frota_motorista', null, previsao_disponibilidade, null);
-        io.emit('frota_previsao_atualizada', { motorista_id, previsao_disponibilidade: previsao_disponibilidade || null });
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Registrar ocorrência com foto ────────────────────────────
-app.post('/api/frota/ocorrencias', async (req, res) => {
-    try {
-        const { motorista_id, tipo, descricao, foto_base64 } = req.body;
-        if (!motorista_id || !tipo) return res.status(400).json({ success: false, message: 'motorista_id e tipo são obrigatórios.' });
-        const viagem = await dbGet(
-            `SELECT va.id, m.nome AS motorista_nome, v.placa AS cavalo_placa FROM frota_viagens_ativas va JOIN frota_motoristas m ON va.motorista_id = m.id LEFT JOIN frota_veiculos v ON va.cavalo_id = v.id WHERE va.motorista_id = ?`,
-            [motorista_id]
-        );
-        if (!viagem) return res.status(404).json({ success: false, message: 'Nenhuma viagem ativa para este motorista.' });
-        const result = await dbRun(
-            `INSERT INTO frota_ocorrencias (viagem_id, tipo, descricao, foto_base64) VALUES (?, ?, ?, ?)`,
-            [viagem.id, tipo, descricao || null, foto_base64 || null]
-        );
-        io.emit('frota_nova_ocorrencia', { viagem_id: viagem.id, tipo, motorista_id, motorista_nome: viagem.motorista_nome, cavalo_placa: viagem.cavalo_placa || null });
-        await registrarLog('FROTA_OCORRENCIA', viagem.motorista_nome, viagem.id, 'frota_viagem', null, tipo, descricao || null);
-        res.json({ success: true, id: result.lastID });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Checklist da carreta (motorista envia) ───────────────────
-app.post('/api/frota/checklist', async (req, res) => {
-    try {
-        const { motorista_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura } = req.body;
-        if (!motorista_id || !placa_carreta || !assinatura) {
-            return res.status(400).json({ success: false, message: 'motorista_id, placa_carreta e assinatura são obrigatórios.' });
-        }
-        const created_at = obterDataHoraBrasilia();
-        const result = await dbRun(
-            `INSERT INTO frota_checklists (motorista_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [motorista_id, motorista_nome || null, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, created_at]
-        );
-        io.emit('frota_novo_checklist', { motorista_id, motorista_nome, placa_carreta, placa_confere });
-        res.json({ success: true, id: result.lastID });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
 // ── Nova Rota de Checklist (Operacional / Doca) ───────────────────
 app.post('/api/checklists', authMiddleware, async (req, res) => {
     try {
@@ -2289,42 +2103,6 @@ app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 
         }
         await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Checklists (Antigo/Legado) ────────────────────────
-app.get('/api/frota/checklists', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (_req, res) => {
-    try {
-        const rows = await dbAll(`
-            SELECT id, motorista_id, motorista_nome, placa_carreta, placa_confere,
-                   condicao_bau, cordas, foto_vazamento, assinatura, created_at
-            FROM frota_checklists
-            ORDER BY created_at DESC
-        `);
-        res.json({ success: true, checklists: rows });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
-
-// ── Viagens ativas (listagem para painel) ────────────────────
-app.get('/api/frota/viagens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const rows = await dbAll(`
-            SELECT va.id, va.motorista_id, va.status_atual, va.ultima_lat_lng, va.data_atualizacao,
-                   va.previsao_disponibilidade,
-                   m.nome AS motorista_nome, m.modo_plantao,
-                   c.placa AS cavalo_placa, c.tipo AS cavalo_tipo,
-                   r.placa AS carreta_placa, r.tipo AS carreta_tipo
-            FROM frota_viagens_ativas va
-            JOIN frota_motoristas m ON va.motorista_id = m.id
-            LEFT JOIN frota_veiculos c ON va.cavalo_id = c.id
-            LEFT JOIN frota_veiculos r ON va.carreta_id = r.id
-            ORDER BY va.data_atualizacao DESC
-        `);
-        res.json({ success: true, viagens: rows });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }

@@ -160,9 +160,21 @@ function App({ socket }) {
         setFormLanca(prev => ({
             ...prev,
             motorista: item.motorista || '',
+            telefoneMotorista: item.telefone || '',
+            placa1Motorista: item.placa1 || '',
+            placa2Motorista: item.placa2 || '',
             coletaRecife: item.coleta || '',
             coletaMoreno: item.coleta || '',
-            idFilaOriginal: item.id || null
+            idFilaOriginal: item.id || null,
+            id_marcacao: item.id || null,
+            // Herdar checklist se disponível
+            chk_cnh: item.chk_cnh_cad ? 1 : 0,
+            chk_antt: item.chk_antt_cad ? 1 : 0,
+            chk_tacografo: item.chk_tacografo_cad ? 1 : 0,
+            chk_crlv: item.chk_crlv_cad ? 1 : 0,
+            situacao_cadastro: item.situacao_cad || 'NÃO CONFERIDO',
+            numero_liberacao: item.num_liberacao_cad || '',
+            data_liberacao: item.data_liberacao_cad || null,
         }));
 
         // Navega para a aba de lançamento
@@ -404,6 +416,7 @@ function App({ socket }) {
             telefoneMotorista: formLanca.telefoneMotorista || '',
             placa1Motorista: formLanca.placa1Motorista || '',
             placa2Motorista: formLanca.placa2Motorista || '',
+            isFrotaMotorista: formLanca.isFrotaMotorista || false,
             unidade: unidadeForcada,
             rotaRecife: formLanca.rotaRecife || '',
             rotaMoreno: formLanca.rotaMoreno || '',
@@ -423,6 +436,7 @@ function App({ socket }) {
             data_prevista: formLanca.data_prevista,
             observacao: formLanca.observacao || '',
             imagens: formLanca.imagens || [],
+            id_marcacao: formLanca.id_marcacao || null,
             // Checklists herdados
             chk_cnh: formLanca.chk_cnh || 0,
             chk_antt: formLanca.chk_antt || 0,
@@ -441,7 +455,7 @@ function App({ socket }) {
                 await removerDaFila(formLanca.idFilaOriginal);
             }
 
-            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null });
+            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
             mostrarNotificacao("✅ Veículo Lançado !");
         } catch (error) {
             console.error("Erro ao lançar:", error);

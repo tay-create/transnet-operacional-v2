@@ -1,0 +1,214 @@
+-- Table: usuarios
+CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, email TEXT, senha TEXT, cidade TEXT, cargo TEXT, avatarUrl TEXT, usaPermissaoIndividual INTEGER DEFAULT 0, permissoesAcesso TEXT, permissoesEdicao TEXT)
+
+-- Table: sqlite_sequence
+CREATE TABLE sqlite_sequence(name,seq)
+
+-- Table: solicitacoes
+CREATE TABLE solicitacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, nome TEXT, email TEXT, unidade TEXT, senha TEXT, data_criacao TEXT)
+
+-- Table: historico
+CREATE TABLE historico (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)
+
+-- Table: historico_cte
+CREATE TABLE historico_cte (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)
+
+-- Table: configuracoes
+CREATE TABLE configuracoes (chave TEXT PRIMARY KEY, valor TEXT)
+
+-- Table: veiculos
+CREATE TABLE veiculos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT,
+            placa TEXT, modelo TEXT, motorista TEXT,
+            status_recife TEXT, status_moreno TEXT,
+            doca_recife TEXT, doca_moreno TEXT,
+            coleta TEXT, coletaRecife TEXT, coletaMoreno TEXT,
+            rota_recife TEXT, rota_moreno TEXT,
+            unidade TEXT, operacao TEXT, inicio_rota TEXT, origem_criacao TEXT,
+            data_prevista TEXT, data_criacao TEXT,
+            tempos_recife TEXT, tempos_moreno TEXT, status_coleta TEXT
+         , observacao TEXT, imagens TEXT, numero_coleta TEXT, numero_cte TEXT, chave_cte TEXT, chk_cnh INTEGER DEFAULT 0, chk_antt INTEGER DEFAULT 0, chk_tacografo INTEGER DEFAULT 0, gerenciadora_risco TEXT, status_gerenciadora TEXT, numero_liberacao TEXT, situacao_cadastro TEXT DEFAULT 'NÃO CONFERIDO', data_liberacao TEXT, chk_crlv INTEGER DEFAULT 0, status_cte TEXT DEFAULT 'Aguardando Emissão', timestamps_cte TEXT)
+
+-- Table: notificacoes
+CREATE TABLE notificacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT, data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP)
+
+-- Table: fila
+CREATE TABLE fila (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)
+
+-- Table: cubagens
+CREATE TABLE cubagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_coleta TEXT,
+            motorista TEXT,
+            cliente TEXT,
+            redispacho INTEGER DEFAULT 0,
+            destino TEXT,
+            metragem REAL,
+            volume TEXT,
+            data TEXT,
+            faturado INTEGER DEFAULT 0,
+            tipo TEXT,
+            valor_mix REAL,
+            valor_kit REAL,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+        , metragem_total REAL DEFAULT 0, valor_mix_total REAL DEFAULT 0, valor_kit_total REAL DEFAULT 0, nome_redispacho TEXT, nome_redespacho TEXT)
+
+-- Table: cubagem_itens
+CREATE TABLE cubagem_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cubagem_id INTEGER NOT NULL,
+            numero_nf TEXT,
+            metragem REAL DEFAULT 0,
+            valor_mix REAL DEFAULT 0,
+            valor_kit REAL DEFAULT 0,
+            FOREIGN KEY (cubagem_id) REFERENCES cubagens(id) ON DELETE CASCADE
+        )
+
+-- Table: logs
+CREATE TABLE logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            acao TEXT NOT NULL,
+            usuario TEXT NOT NULL,
+            alvo_id INTEGER,
+            alvo_tipo TEXT,
+            valor_antigo TEXT,
+            valor_novo TEXT,
+            detalhes TEXT,
+            data_hora DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+
+-- Table: tokens_motoristas
+CREATE TABLE tokens_motoristas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telefone TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'ativo',
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_expiracao DATETIME
+        )
+
+-- Table: marcacoes_placas
+CREATE TABLE marcacoes_placas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_id INTEGER,
+            nome_motorista TEXT NOT NULL,
+            telefone TEXT NOT NULL,
+            placa1 TEXT NOT NULL,
+            placa2 TEXT,
+            tipo_veiculo TEXT NOT NULL,
+            altura REAL,
+            largura REAL,
+            comprimento REAL,
+            estados_destino TEXT,
+            estado_origem TEXT,
+            ja_carregou TEXT,
+            rastreador TEXT,
+            status_rastreador TEXT,
+            latitude TEXT,
+            longitude TEXT,
+            origem_cidade_uf TEXT,
+            destino_desejado TEXT,
+            disponibilidade TEXT,
+            data_marcacao DATETIME DEFAULT CURRENT_TIMESTAMP, viagens_realizadas INTEGER DEFAULT 0, status_operacional TEXT DEFAULT 'DISPONIVEL', is_frota INTEGER DEFAULT 0, chk_cnh_cad INTEGER DEFAULT 0, chk_antt_cad INTEGER DEFAULT 0, chk_tacografo_cad INTEGER DEFAULT 0, seguradora_cad TEXT, num_liberacao_cad TEXT, data_liberacao_cad TEXT, situacao_cad TEXT DEFAULT 'PENDENTE', chk_crlv_cad INTEGER DEFAULT 0, comprovante_pdf TEXT, origem_cad TEXT, destino_uf_cad TEXT, destino_cidade_cad TEXT, anexo_cnh TEXT, anexo_doc_veiculo TEXT, anexo_antt TEXT, anexo_outros TEXT, anexo_crlv_carreta TEXT,
+            FOREIGN KEY (token_id) REFERENCES tokens_motoristas(id)
+        )
+
+-- Table: frota_motoristas
+CREATE TABLE frota_motoristas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            cpf TEXT NOT NULL UNIQUE,
+            celular TEXT,
+            senha TEXT,
+            modo_plantao INTEGER NOT NULL DEFAULT 0
+        )
+
+-- Table: frota_veiculos
+CREATE TABLE frota_veiculos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            placa TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL,
+            modelo TEXT
+        )
+
+-- Table: frota_viagens_ativas
+CREATE TABLE frota_viagens_ativas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            motorista_id INTEGER NOT NULL,
+            cavalo_id INTEGER,
+            carreta_id INTEGER,
+            status_atual TEXT NOT NULL DEFAULT 'DISPONÍVEL',
+            ultima_lat_lng TEXT,
+            data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP, previsao_disponibilidade TEXT,
+            FOREIGN KEY (motorista_id) REFERENCES frota_motoristas(id),
+            FOREIGN KEY (cavalo_id) REFERENCES frota_veiculos(id),
+            FOREIGN KEY (carreta_id) REFERENCES frota_veiculos(id)
+        )
+
+-- Table: frota_ocorrencias
+CREATE TABLE frota_ocorrencias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            viagem_id INTEGER NOT NULL,
+            tipo TEXT NOT NULL,
+            descricao TEXT,
+            foto_base64 TEXT,
+            data_registro DATETIME DEFAULT CURRENT_TIMESTAMP,
+            status_ciencia INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (viagem_id) REFERENCES frota_viagens_ativas(id)
+        )
+
+-- Table: frota_checklists
+CREATE TABLE frota_checklists (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            motorista_id INTEGER,
+            motorista_nome TEXT,
+            placa_carreta TEXT,
+            placa_confere INTEGER NOT NULL DEFAULT 0,
+            condicao_bau TEXT,
+            cordas INTEGER NOT NULL DEFAULT 0,
+            foto_vazamento TEXT,
+            assinatura TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+
+-- Table: frota_programacao_diaria
+CREATE TABLE frota_programacao_diaria (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_referencia TEXT,
+            turno TEXT,
+            dados_json TEXT
+        )
+
+-- Table: ctes_ativos
+CREATE TABLE ctes_ativos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            origem TEXT NOT NULL,
+            status TEXT DEFAULT 'Aguardando Emissão',
+            dados_json TEXT,
+            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+
+-- Table: checklists_carreta
+CREATE TABLE checklists_carreta (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            veiculo_id INTEGER,
+            motorista_nome TEXT,
+            placa_carreta TEXT,
+            placa_confere INTEGER,
+            condicao_bau TEXT,
+            cordas INTEGER,
+            foto_vazamento TEXT,
+            assinatura TEXT,
+            conferente_nome TEXT,
+            status TEXT DEFAULT 'PENDENTE',
+            created_at TEXT
+        )
+
+-- Table: docas_interditadas
+CREATE TABLE docas_interditadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            unidade TEXT,
+            doca TEXT,
+            nome TEXT
+        )
+

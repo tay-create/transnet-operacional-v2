@@ -16,7 +16,50 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso }) {
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState('');
 
-    const placaCarreta = veiculo.placa1Motorista || veiculo.placa || 'NÃO INFORMADA';
+    const extrairPlacaCarreta = () => {
+        let p2 = veiculo.placa2Motorista?.trim();
+        let p1 = veiculo.placa1Motorista?.trim();
+        let p = veiculo.placa?.trim();
+
+        if (!p1 && !p2 && veiculo.dados_json) {
+            try {
+                const dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : veiculo.dados_json;
+                if (!p2 && dados.placa2Motorista) p2 = dados.placa2Motorista.trim();
+                if (!p1 && dados.placa1Motorista) p1 = dados.placa1Motorista.trim();
+            } catch (e) { }
+        }
+
+        // Tenta achar placas reais nos campos nativos
+        if (p2 && p2 !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p2.replace(/\s/g, ''))) return p2.toUpperCase();
+        if (p1 && p1 !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p1.replace(/\s/g, ''))) return p1.toUpperCase();
+        if (p && p !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p.replace(/\s/g, ''))) return p.toUpperCase();
+
+        // Se não estava cravado nos campos originais ou estava sujo, fareja a placa em qualquer outro lugar do card:
+        const regexGeralPlaca = /[A-Z]{3}\s*-?[0-9][A-Z0-9][0-9]{2}/i;
+
+        const camposParaProcurar = [
+            p2, p1, p, // Tenta caçar dentro de strings corrompidas nesses campos
+            veiculo.operacao,
+            veiculo.motorista,
+            veiculo.coleta,
+            veiculo.coletaRecife,
+            veiculo.coletaMoreno,
+            veiculo.observacao
+        ];
+
+        for (const texto of camposParaProcurar) {
+            if (texto && typeof texto === 'string') {
+                const match = texto.match(regexGeralPlaca);
+                if (match) {
+                    return match[0].toUpperCase().replace(/\s/g, ''); // Retorna placa limpa e extraída
+                }
+            }
+        }
+
+        return 'NÃO INFORMADA';
+    };
+
+    const placaCarreta = extrairPlacaCarreta();
 
     const handleCapturePhoto = (e) => {
         const file = e.target.files[0];

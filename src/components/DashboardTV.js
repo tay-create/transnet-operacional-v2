@@ -6,11 +6,11 @@ import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 
 const CORES_KPI = {
-    delta: '#3b82f6',
-    consolidado: '#a855f7',
-    deltaRxM: '#f59e0b',
-    porcelana: '#ec4899',
-    eletrik: '#22d3ee'
+    delta: '#2563eb',
+    consolidado: '#3b82f6',
+    deltaRxM: '#60a5fa',
+    porcelana: '#93c5fd',
+    eletrik: '#bfdbfe'
 };
 
 const CORES_PIE_CTE = ['#f59e0b', '#3b82f6', '#22c55e'];
@@ -250,9 +250,9 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
 
             {/* TOTAL GERAL CENTRALIZADO */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                <div style={{ ...glassCard(t, `${t.accent}60`), padding: '24px', textAlign: 'center', borderLeft: `4px solid ${t.accent}`, width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
-                    <div style={{ fontSize: '72px', fontWeight: '900', color: t.accent, lineHeight: 1, filter: `drop-shadow(0 0 12px ${t.accent}80)` }}>{totalGeral}</div>
-                    <div style={{ fontSize: '12px', color: t.accent, marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Geral</div>
+                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 12px #3b82f680)' }}>{totalGeral}</div>
+                    <div style={{ fontSize: '12px', color: '#60a5fa', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Geral</div>
                     <div style={{ fontSize: '10px', fontWeight: '600', color: t.textMuted, marginTop: '4px', letterSpacing: '1px' }}>EMBARQUES HOJE</div>
                 </div>
             </div>
@@ -269,8 +269,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                 ))}
 
                 {/* Card Consolidados — última coluna */}
-                <div style={{ ...glassCard(t, '#22c55e40'), padding: '16px 12px', textAlign: 'center', borderTop: '3px solid #22c55e' }}>
-                    <div style={{ fontSize: '36px', fontWeight: '900', color: '#22c55e', lineHeight: 1, filter: 'drop-shadow(0 0 8px #22c55e60)' }}>{totalConsolidados}</div>
+                <div style={{ ...glassCard(t, '#3b82f640'), padding: '16px 12px', textAlign: 'center', borderTop: '3px solid #3b82f6' }}>
+                    <div style={{ fontSize: '36px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 8px #3b82f660)' }}>{totalConsolidados}</div>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consolidados</div>
                 </div>
 
@@ -555,7 +555,7 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
     // Dados para gráfico comparativo Recife vs Moreno
     const dadosUnidades = [
         { name: 'Recife', value: recifeMes, fill: '#3b82f6' },
-        { name: 'Moreno', value: morenoMes, fill: '#f59e0b' }
+        { name: 'Moreno', value: morenoMes, fill: '#60a5fa' }
     ];
 
     return (
@@ -566,9 +566,9 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
 
             {/* CONTADOR GERAL (TOTAL) CENTRALIZADO E MAIOR */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                <div style={{ ...glassCard(t, '#22d3ee60'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #22d3ee', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
-                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#22d3ee', lineHeight: 1, filter: 'drop-shadow(0 0 16px #22d3ee80)' }}>{totalMes}</div>
-                    <div style={{ fontSize: '11px', color: '#67e8f9', marginTop: '8px', letterSpacing: '2px', textTransform: 'uppercase' }}>Embarques do Mês</div>
+                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 16px #3b82f680)' }}>{totalMes}</div>
+                    <div style={{ fontSize: '11px', color: '#60a5fa', marginTop: '8px', letterSpacing: '2px', textTransform: 'uppercase' }}>Embarques do Mês</div>
                     <div style={{ fontSize: '10px', color: t.textDim, marginTop: '4px' }}>
                         {new Date(primeiroDiaMes).toLocaleDateString('pt-BR')} – {new Date(ultimoDiaMes).toLocaleDateString('pt-BR')}
                     </div>
@@ -601,8 +601,8 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                             <div style={{ fontSize: '11px', color: '#93c5fd' }}>Recife</div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#f59e0b', filter: 'drop-shadow(0 0 8px #f59e0b60)' }}>{morenoMes}</div>
-                            <div style={{ fontSize: '11px', color: '#fcd34d' }}>Moreno</div>
+                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#60a5fa', filter: 'drop-shadow(0 0 8px #60a5fa60)' }}>{morenoMes}</div>
+                            <div style={{ fontSize: '11px', color: '#93c5fd' }}>Moreno</div>
                         </div>
                     </div>
                     {dadosUnidades.some(d => d.value > 0) ? (
@@ -784,20 +784,20 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                 return (
                     <>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                            <div style={{ ...glassCard(t, '#f59e0b60'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f59e0b', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
-                                <div style={{ fontSize: '72px', fontWeight: '900', color: '#f59e0b', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f59e0b80)' }}>{totalMoreno}</div>
-                                <div style={{ fontSize: '12px', color: '#fcd34d', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Moreno</div>
+                            <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                                <div style={{ fontSize: '72px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 12px #3b82f680)' }}>{totalMoreno}</div>
+                                <div style={{ fontSize: '12px', color: '#93c5fd', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Moreno</div>
                             </div>
                         </div>
 
                         {/* GRID DOS SUB-CONTADORES (Abaixo do Total) */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                             {[
-                                { label: '100% Porcelana', valor: contOp.porcelana, cor: '#d97706' },
-                                { label: 'Eletrik', valor: contOp.eletrik, cor: '#f59e0b' },
-                                { label: 'Delta Moreno', valor: contOp.deltaMoreno, cor: '#fbbf24' },
-                                { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#fcd34d' },
-                                { label: 'Consolidados', valor: consolidadosMoreno, cor: '#fef08a' }
+                                { label: '100% Porcelana', valor: contOp.porcelana, cor: '#1d4ed8' },
+                                { label: 'Eletrik', valor: contOp.eletrik, cor: '#2563eb' },
+                                { label: 'Delta Moreno', valor: contOp.deltaMoreno, cor: '#3b82f6' },
+                                { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#60a5fa' },
+                                { label: 'Consolidados', valor: consolidadosMoreno, cor: '#93c5fd' }
                             ].map(c => (
                                 <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                                     <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
