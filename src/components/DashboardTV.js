@@ -310,6 +310,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: t.textMuted }} />
                         <YAxis tick={{ fontSize: 10, fill: t.textMuted }} allowDecimals={false} />
                         <Tooltip
+                            cursor={{ fill: 'transparent' }}
                             contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '8px', fontSize: '12px' }}
                             formatter={(value, name, props) => {
                                 const entry = props.payload;
@@ -328,10 +329,22 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                             formatter={(value) => <span style={{ color: value === 'Recife' ? '#3b82f6' : '#f59e0b', fontWeight: '700' }}>{value}</span>}
                         />
                         <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]}>
-                            <LabelList dataKey="Recife" position="top" formatter={value => value > 0 ? `${value}` : ''} fill={t.textDim} fontSize={10} fontWeight="bold" />
+                            <LabelList dataKey="Recife" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
+                                const { x, y, width, height, value, payload } = props;
+                                if (!value || value <= 0) return null;
+                                const total = (payload.Recife || 0) + (payload.Moreno || 0);
+                                const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
+                                return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;
+                            }} />
                         </Bar>
                         <Bar dataKey="Moreno" fill="#f59e0b" radius={[3, 3, 0, 0]}>
-                            <LabelList dataKey="Moreno" position="top" formatter={value => value > 0 ? `${value}` : ''} fill={t.textDim} fontSize={10} fontWeight="bold" />
+                            <LabelList dataKey="Moreno" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
+                                const { x, y, width, height, value, payload } = props;
+                                if (!value || value <= 0) return null;
+                                const total = (payload.Recife || 0) + (payload.Moreno || 0);
+                                const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
+                                return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;
+                            }} />
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
@@ -478,14 +491,14 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                 </div>
 
                 {/* Coluna direita: Fluxo CT-e */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e Recife</div>
                     {[
                         { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'Cards "Liberado p/ CT-e"' },
                         { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
                         { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
                     ].map(item => (
-                        <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out' }}>
+                        <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out', flex: 1 }}>
                             <div>
                                 <div style={{ fontSize: '13px', fontWeight: '700', color: t.text }}>{item.label}</div>
                                 <div style={{ fontSize: '10px', color: t.textDim }}>{item.desc}</div>
@@ -538,9 +551,10 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
         if (cat && contadores[cat] !== undefined) contadores[cat]++;
     });
 
-    // Contadores por unidade
-    const recifeMes = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao)).length;
-    const morenoMes = veiculosMesAtual.filter(v => ehOperacaoMoreno(v.operacao)).length;
+    // Contadores por unidade (Mutuamente exclusivos para soma bater 100%)
+    const recifeOnly = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao) && !ehOperacaoMoreno(v.operacao)).length;
+    const morenoOnly = veiculosMesAtual.filter(v => !ehOperacaoRecife(v.operacao) && ehOperacaoMoreno(v.operacao)).length;
+    const ambasMes = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao) && ehOperacaoMoreno(v.operacao)).length;
 
 
     // Dados para gráfico de pizza - Distribuição por operação
@@ -554,9 +568,10 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
 
     // Dados para gráfico comparativo Recife vs Moreno
     const dadosUnidades = [
-        { name: 'Recife', value: recifeMes, fill: '#3b82f6' },
-        { name: 'Moreno', value: morenoMes, fill: '#60a5fa' }
-    ];
+        { name: 'Só Recife', value: recifeOnly, fill: '#3b82f6' },
+        { name: 'Só Moreno', value: morenoOnly, fill: '#60a5fa' },
+        { name: 'Ambas', value: ambasMes, fill: '#818cf8' }
+    ].filter(d => d.value > 0);
 
     return (
         <div className="tv-card-anim">
@@ -597,20 +612,26 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                     <h3 style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginBottom: '12px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '2px' }}>Distribuição por Unidade</h3>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', marginBottom: '12px' }}>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#3b82f6', filter: 'drop-shadow(0 0 8px #3b82f660)' }}>{recifeMes}</div>
-                            <div style={{ fontSize: '11px', color: '#93c5fd' }}>Recife</div>
+                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#3b82f6', filter: 'drop-shadow(0 0 8px #3b82f660)' }}>{recifeOnly}</div>
+                            <div style={{ fontSize: '11px', color: '#93c5fd' }}>Só Recife</div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#60a5fa', filter: 'drop-shadow(0 0 8px #60a5fa60)' }}>{morenoMes}</div>
-                            <div style={{ fontSize: '11px', color: '#93c5fd' }}>Moreno</div>
+                            <div style={{ fontSize: '40px', fontWeight: '900', color: '#60a5fa', filter: 'drop-shadow(0 0 8px #60a5fa60)' }}>{morenoOnly}</div>
+                            <div style={{ fontSize: '11px', color: '#93c5fd' }}>Só Moreno</div>
                         </div>
+                        {ambasMes > 0 && (
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '40px', fontWeight: '900', color: '#818cf8', filter: 'drop-shadow(0 0 8px #818cf860)' }}>{ambasMes}</div>
+                                <div style={{ fontSize: '11px', color: '#a5b4fc' }}>Ambas (R/M)</div>
+                            </div>
+                        )}
                     </div>
                     {dadosUnidades.some(d => d.value > 0) ? (
                         <ResponsiveContainer width="100%" height={140}>
                             <BarChart data={dadosUnidades}>
                                 <XAxis dataKey="name" stroke={t.textDim} fontSize={11} />
                                 <YAxis stroke={t.textDim} fontSize={10} />
-                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
+                                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
                                     formatter={(value, name) => {
                                         const total = dadosUnidades.reduce((a, d) => a + d.value, 0);
                                         const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
@@ -619,6 +640,11 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                                 />
                                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                                     {dadosUnidades.map((d, idx) => <Cell key={idx} fill={d.fill} />)}
+                                    <LabelList dataKey="value" position="center" fill="#ffffff" fontSize={14} fontWeight="bold" formatter={(val) => {
+                                        const total = dadosUnidades.reduce((a, d) => a + d.value, 0);
+                                        const pct = total > 0 ? ((val / total) * 100).toFixed(0) + '%' : '';
+                                        return val > 0 ? `${val} (${pct})` : '';
+                                    }} />
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
@@ -630,7 +656,11 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                     {dadosPieOp.length > 0 ? (
                         <ResponsiveContainer width="100%" height={200}>
                             <PieChart>
-                                <Pie data={dadosPieOp} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, value }) => `${name}: ${value}`} labelLine={false} style={{ fontSize: '11px' }}>
+                                <Pie data={dadosPieOp} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({ name, value }) => {
+                                    const totalPie = dadosPieOp.reduce((a, d) => a + d.value, 0);
+                                    const pct = totalPie > 0 ? ((value / totalPie) * 100).toFixed(0) + '%' : '';
+                                    return `${name}: ${value} (${pct})`;
+                                }} labelLine={false} style={{ fontSize: '11px' }}>
                                     {dadosPieOp.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
                                 </Pie>
                                 <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '10px', color: t.text }}
@@ -809,10 +839,10 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                 );
             })()}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     {/* GESTÃO VISUAL DE DOCAS - MORENO (DIVIDIDO) */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         {/* SESSÃO 1: PORCELANA */}
                         <div style={{ ...glassCard(t), padding: '16px' }}>
                             <h2 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: tema === 'light' ? '#334155' : '#f8fafc' }}>
@@ -836,30 +866,32 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         </div>
                     </div>
 
-                    <div style={{ ...glassCard(t), padding: '16px' }}>
-                        <h3 className="text-2xl font-black uppercase text-slate-800" style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc' }}>Status de Embarque</h3>
-                        <StatusBars dados={dadosStatus} t={t} />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e Moreno</div>
-                    {[
-                        { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'Cards "Liberado p/ CT-e"' },
-                        { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
-                        { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
-                    ].map(item => (
-                        <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out' }}>
-                            <div>
-                                <div style={{ fontSize: '13px', fontWeight: '700', color: t.text }}>{item.label}</div>
-                                <div style={{ fontSize: '10px', color: t.textDim }}>{item.desc}</div>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontSize: '32px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>
-                                <span style={{ fontSize: '12px', color: t.textMuted, marginLeft: '8px' }}>{pct(item.valor)}</span>
-                            </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div style={{ ...glassCard(t), padding: '16px' }}>
+                            <h3 className="text-2xl font-black uppercase text-slate-800" style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc' }}>Status de Embarque</h3>
+                            <StatusBars dados={dadosStatus} t={t} />
                         </div>
-                    ))}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e Moreno</div>
+                            {[
+                                { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'Cards "Liberado p/ CT-e"' },
+                                { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
+                                { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
+                            ].map(item => (
+                                <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out', flex: 1 }}>
+                                    <div>
+                                        <div style={{ fontSize: '13px', fontWeight: '700', color: t.text }}>{item.label}</div>
+                                        <div style={{ fontSize: '10px', color: t.textDim }}>{item.desc}</div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span style={{ fontSize: '32px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>
+                                        <span style={{ fontSize: '12px', color: t.textMuted, marginLeft: '8px' }}>{pct(item.valor)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

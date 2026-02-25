@@ -22,6 +22,7 @@ import PainelCadastro from './components/PainelCadastro';
 import PainelProgramacao from './components/PainelProgramacao';
 import { CheckCircle as CheckCircleIcon } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
+import PainelOcorrencias from './components/PainelOcorrencias';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -898,6 +899,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'programacao_diaria' && (
                     <PainelProgramacao />
+                )}
+
+                {abaAtiva === 'ocorrencias' && temAcesso('operacao') && (
+                    <PainelOcorrencias />
                 )}
 
                 {abaAtiva.startsWith('cte_') && temAcesso('cte') && (

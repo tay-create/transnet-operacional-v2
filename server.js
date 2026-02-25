@@ -241,6 +241,7 @@ const inicializarBanco = async () => {
             ['marcacoes_placas', 'viagens_realizadas', 'INTEGER DEFAULT 0'],
             ['marcacoes_placas', 'status_operacional', "TEXT DEFAULT 'DISPONIVEL'"],
             ['marcacoes_placas', 'is_frota', 'INTEGER DEFAULT 0'],
+            ['marcacoes_placas', 'data_contratacao', 'DATETIME'],
         ]) {
             try { await dbRun(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo}`); } catch (_) { }
         }
@@ -521,7 +522,7 @@ app.post('/api/marcacoes', async (req, res) => {
                     ja_carregou=?, rastreador=?, status_rastreador=?, latitude=?, longitude=?,
                     disponibilidade=?, comprovante_pdf=?,
                     anexo_cnh=?, anexo_doc_veiculo=?, anexo_crlv_carreta=?, anexo_antt=?, anexo_outros=?,
-                    data_marcacao=?, status_operacional='DISPONIVEL'
+                    data_marcacao=?, status_operacional='DISPONIVEL', data_contratacao=NULL
                 WHERE telefone=?`,
                 [
                     token_id, nome_motorista, placa1, placa2 || '',
@@ -543,8 +544,8 @@ app.post('/api/marcacoes', async (req, res) => {
                   ja_carregou, rastreador, status_rastreador, latitude, longitude,
                   disponibilidade, comprovante_pdf,
                   anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
-                  status_operacional)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DISPONIVEL')`,
+                  status_operacional, data_contratacao)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DISPONIVEL',NULL)`,
                 [
                     token_id, nome_motorista, telefoneLimpo, placa1, placa2 || '',
                     tipo_veiculo, altura || null, largura || null, comprimento || null,
@@ -585,7 +586,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, async (req, res) => {
     try {
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                   origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao,
+                   origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao, data_contratacao,
                    viagens_realizadas, status_operacional, is_frota,
                    chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
                    situacao_cad, num_liberacao_cad, data_liberacao_cad,
@@ -618,7 +619,16 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
         if (!['Disponível', 'Contratado', 'Indisponível'].includes(status)) {
             return res.status(400).json({ success: false, message: 'Status inválido.' });
         }
-        await dbRun("UPDATE marcacoes_placas SET disponibilidade = ? WHERE id = ?", [status, req.params.id]);
+
+        const timestampDataContratacao = status === 'Contratado' ? new Date().toISOString() : null;
+
+        await dbRun("UPDATE marcacoes_placas SET disponibilidade = ?, data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [status, timestampDataContratacao, req.params.id]);
+
+        // Se mudou para disponível, zera a data de contratação
+        if (status === 'Disponível') {
+            await dbRun("UPDATE marcacoes_placas SET data_contratacao = NULL WHERE id = ?", [req.params.id]);
+        }
+
         io.emit('marcacao_atualizada');
         res.json({ success: true });
     } catch (e) {
@@ -631,7 +641,7 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
     try {
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                   disponibilidade, data_marcacao,
+                   disponibilidade, data_marcacao, data_contratacao,
                    chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
                    seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
                    comprovante_pdf, anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
@@ -650,7 +660,7 @@ app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Encarr
     try {
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                   data_marcacao,
+                   data_marcacao, data_contratacao,
                    seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
                    is_frota
             FROM marcacoes_placas
@@ -1355,12 +1365,13 @@ app.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento', 
 
         const result = await dbRun(query, values);
 
-        // Atualizar status da marcação para 'Contratado' ou 'EM ROTA'
+        // Atualizar status da marcação para 'Contratado' ou 'EM ROTA' (congela tempo de espera informando data_contratacao)
+        const agora = new Date().toISOString();
         if (v.id_marcacao) {
-            await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA' WHERE id = ?", [v.id_marcacao]);
+            await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
             io.emit('marcacao_atualizada');
         } else if (telefoneMotorista) {
-            await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA' WHERE telefone = ?", [telefoneMotorista]);
+            await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
             io.emit('marcacao_atualizada');
         }
 
@@ -1783,6 +1794,32 @@ app.post('/api/veiculos/:id/ocorrencias', authMiddleware, async (req, res) => {
     }
 });
 
+// ── GET Todas as Ocorrências (com dados do veículo) ──
+app.get('/api/ocorrencias', authMiddleware, async (req, res) => {
+    try {
+        const ocorrencias = await dbAll(`
+            SELECT o.*, v.placa, v.operacao, v.coleta, v.unidade,
+                   v.coletaRecife, v.coletaMoreno
+            FROM operacao_ocorrencias o
+            LEFT JOIN veiculos v ON o.veiculo_id = v.id
+            ORDER BY o.data_criacao DESC
+        `);
+        res.json({ success: true, ocorrencias });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// ── DELETE Ocorrência ─────────────────────────────
+app.delete('/api/ocorrencias/:id', authMiddleware, async (req, res) => {
+    try {
+        await dbRun("DELETE FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 app.post('/login', validate(loginSchema), async (req, res) => {
     const { nome, senha } = req.body;
     let emailLogin = nome.trim().toLowerCase();
@@ -1962,11 +1999,12 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             `UPDATE marcacoes_placas
                              SET viagens_realizadas = viagens_realizadas + 1,
                                  status_operacional = 'EM VIAGEM',
+                                 data_contratacao = COALESCE(data_contratacao, ?),
                                  situacao_cad = 'ARQUIVADO',
                                  chk_cnh_cad = 0, chk_antt_cad = 0, chk_tacografo_cad = 0, chk_crlv_cad = 0,
                                  seguradora_cad = '', num_liberacao_cad = '', data_liberacao_cad = NULL
                              WHERE telefone = ?`,
-                            [telefoneMotorista]
+                            [new Date().toISOString(), telefoneMotorista]
                         );
                         console.log(`✅ Motorista ${veiculo.motorista} (tel: ${telefoneMotorista}): viagem registrada, status → EM VIAGEM, cadastro → ARQUIVADO`);
                     }

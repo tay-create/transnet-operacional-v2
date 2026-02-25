@@ -45,12 +45,13 @@ const s = {
     toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
-// ── Cálculo de tempo de espera (corrigido para fuso horário) ──────────────────
+// ── Cálculo de tempo de espera (corrigido para fuso horário e congelamento) ──────────────────
 // data_marcacao vem do banco como ISO (UTC). Forçamos 'Z' para garantir parse UTC.
-function calcularTempoEspera(dataMarcacao) {
+function calcularTempoEspera(dataMarcacao, dataContratacao) {
     if (!dataMarcacao) return null;
-    const dataStr = dataMarcacao.endsWith('Z') ? dataMarcacao : dataMarcacao + 'Z';
-    const diff = Math.floor((Date.now() - new Date(dataStr).getTime()) / 60000);
+    const dataInicioStr = dataMarcacao.endsWith('Z') ? dataMarcacao : dataMarcacao + 'Z';
+    const dataFimMs = dataContratacao ? new Date(dataContratacao.endsWith('Z') ? dataContratacao : dataContratacao + 'Z').getTime() : Date.now();
+    const diff = Math.floor((dataFimMs - new Date(dataInicioStr).getTime()) / 60000);
     return Math.max(0, diff); // nunca negativo
 }
 
@@ -398,7 +399,7 @@ export default function GestaoMarcacoes({ socket }) {
                                     {marcacoes.filter(m => !m.is_frota).map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
-                                        const tempoMin = calcularTempoEspera(m.data_marcacao);
+                                        const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
                                         return (
                                             <tr key={m.id}>
                                                 <td style={s.td}>{formatarData(m.data_marcacao)}</td>
@@ -475,9 +476,14 @@ export default function GestaoMarcacoes({ socket }) {
                                                             display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
                                                             background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
                                                         }}>Contratado</span>
+                                                    ) : m.status_operacional === 'EM VIAGEM' || m.status_operacional === 'EM ROTA' ? (
+                                                        <span style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                            background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
+                                                        }}>Contratado</span>
                                                     ) : (
                                                         <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
-                                                            {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : 'Em Viagem'}
+                                                            {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : m.status_operacional}
                                                         </span>
                                                     )}
                                                 </td>
@@ -592,14 +598,14 @@ export default function GestaoMarcacoes({ socket }) {
                                                     display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
                                                     background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)'
                                                 }}>Indisponível</span>
-                                            ) : m.disponibilidade === 'Contratado' ? (
+                                            ) : m.disponibilidade === 'Contratado' || m.status_operacional === 'EM VIAGEM' || m.status_operacional === 'EM ROTA' ? (
                                                 <span style={{
                                                     display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                    background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
-                                                }}>Contratado</span>
+                                                    background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)'
+                                                }}>Em Viagem</span>
                                             ) : (
                                                 <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
-                                                    {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : 'Em Viagem'}
+                                                    {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : m.status_operacional}
                                                 </span>
                                             )}
                                         </td>

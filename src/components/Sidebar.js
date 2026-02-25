@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Shield, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -228,6 +228,16 @@ export default function Sidebar({
                                 subItem
                                 aberto={aberto}
                                 onClick={() => setAbaAtiva('marcacao_placas')}
+                            />
+                        )}
+                        {(temAcesso('operacao') || ehCoordenador) && (
+                            <MenuItem
+                                icon={<AlertTriangle size={20} />}
+                                label="Ocorrências"
+                                color="#fbbf24"
+                                subItem
+                                aberto={aberto}
+                                onClick={() => setAbaAtiva('ocorrencias')}
                             />
                         )}
                     </>

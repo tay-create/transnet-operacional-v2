@@ -15,7 +15,10 @@
       "Bash(node test-login.js:*)",
       "Bash(node:*)",
       "Bash(dir:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(xargs grep -l \"btn-success\\\\|btn-danger\\\\|\\\\.spin\")",
+      "Bash(ls -la /c/transnet-operacional-final/src/*.css)",
+      "Bash(grep -n \"btn-success\\\\|btn-danger\\\\|\\\\.spin\" /c/transnet-operacional-final/src/*.css)"
     ]
   }
 }
