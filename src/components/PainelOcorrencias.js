@@ -8,6 +8,7 @@ export default function PainelOcorrencias() {
     const [termoBusca, setTermoBusca] = useState('');
     const [filtroOrigem, setFiltroOrigem] = useState('Todas');
     const [imagemAberta, setImagemAberta] = useState(null);
+    const [confirmandoExcluir, setConfirmandoExcluir] = useState(null);
 
     const carregarOcorrencias = useCallback(async () => {
         setCarregando(true);
@@ -28,7 +29,6 @@ export default function PainelOcorrencias() {
     }, [carregarOcorrencias]);
 
     const excluirOcorrencia = async (id) => {
-        if (!window.confirm('Deseja excluir esta ocorrência permanentemente?')) return;
         try {
             const res = await api.delete(`/api/ocorrencias/${id}`);
             if (res.data.success) {
@@ -36,7 +36,8 @@ export default function PainelOcorrencias() {
             }
         } catch (e) {
             console.error('Erro ao excluir ocorrência:', e);
-            alert('Erro ao excluir ocorrência.');
+        } finally {
+            setConfirmandoExcluir(null);
         }
     };
 
@@ -68,8 +69,11 @@ export default function PainelOcorrencias() {
                         Painel de Ocorrências
                     </h2>
                     <span style={{
-                        background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
-                        padding: '2px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold'
+                        background: 'rgba(251,191,36,0.3)', color: '#fbbf24',
+                        padding: '4px 14px', borderRadius: '14px', fontSize: '14px', fontWeight: 'bold',
+                        border: '1px solid rgba(251,191,36,0.5)',
+                        boxShadow: '0 0 8px rgba(251,191,36,0.2)',
+                        letterSpacing: '0.5px'
                     }}>
                         {ocorrenciasFiltradas.length}
                     </span>
@@ -179,17 +183,43 @@ export default function PainelOcorrencias() {
                                         <span style={{ color: '#64748b', fontSize: '11px' }}>
                                             {o.data_criacao ? new Date(o.data_criacao + 'Z').toLocaleString('pt-BR') : ''}
                                         </span>
-                                        <button
-                                            onClick={() => excluirOcorrencia(o.id)}
-                                            title="Excluir ocorrência"
-                                            style={{
-                                                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
-                                                color: '#f87171', borderRadius: '6px', padding: '4px 8px',
-                                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px'
-                                            }}
-                                        >
-                                            <Trash2 size={12} />
-                                        </button>
+                                        {confirmandoExcluir === o.id ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '11px', color: '#f87171' }}>Excluir?</span>
+                                                <button
+                                                    onClick={() => excluirOcorrencia(o.id)}
+                                                    style={{
+                                                        background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.4)',
+                                                        color: '#f87171', borderRadius: '6px', padding: '3px 10px',
+                                                        cursor: 'pointer', fontSize: '11px', fontWeight: '700'
+                                                    }}
+                                                >
+                                                    Sim
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmandoExcluir(null)}
+                                                    style={{
+                                                        background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.25)',
+                                                        color: '#94a3b8', borderRadius: '6px', padding: '3px 10px',
+                                                        cursor: 'pointer', fontSize: '11px', fontWeight: '700'
+                                                    }}
+                                                >
+                                                    Não
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setConfirmandoExcluir(o.id)}
+                                                title="Excluir ocorrência"
+                                                style={{
+                                                    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                                                    color: '#f87171', borderRadius: '6px', padding: '4px 8px',
+                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px'
+                                                }}
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 

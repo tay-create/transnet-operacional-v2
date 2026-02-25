@@ -918,8 +918,6 @@ function App({ socket }) {
                         setFiltroDataFimCte={setFiltroDataFimCte}
                         updateListCte={updateListCte}
                         podeEditar={podeEditar}
-                        openModal={openModal}
-                        setItemTempoAtivo={setItemTempoAtivo}
                         setToastCopiaMsg={setToastCopiaMsg}
                     />
                 )}

@@ -71,6 +71,12 @@ contextBridge.exposeInMainWorld('api', {
     putDocasInterditadas: (id, doca) => ipcRenderer.invoke('put-docas-interditadas', { id, doca }),
     deleteDocasInterditadas: (id) => ipcRenderer.invoke('delete-docas-interditadas', id),
 
+    // Ocorrências operacionais
+    getOcorrencias: () => ipcRenderer.invoke('get-ocorrencias'),
+    getOcorrenciasPorVeiculo: (id) => ipcRenderer.invoke('get-ocorrencias-veiculo', id),
+    postOcorrencia: (id, dados) => ipcRenderer.invoke('post-ocorrencia', { id, dados }),
+    deleteOcorrencia: (id) => ipcRenderer.invoke('delete-ocorrencia', id),
+
     // Utilitários
     getVersion: () => ipcRenderer.invoke('get-version'),
     platform: process.platform

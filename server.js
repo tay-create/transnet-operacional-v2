@@ -1074,18 +1074,34 @@ app.post('/api/checklists', authMiddleware, async (req, res) => {
         const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
 
         const created_at = new Date().toISOString();
+
+        // ── Auto-Aprovação ──
+        // A placa física confere com a informada acima? == SIM (placa_confere == true)
+        // 2. Condição do Baú == "Limpo e Intacto"
+        // 4. Estrutura (Vazamentos ou furos no teto) == NÃO (!foto_vazamento)
+        const isAprovadoAto = placa_confere === true &&
+            condicao_bau === 'Limpo e Intacto' &&
+            !foto_vazamento;
+
+        const statusChecklist = isAprovadoAto ? 'APROVADO' : 'PENDENTE';
+
         const result = await dbRun(
             `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, 'PENDENTE']
+            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, statusChecklist]
         );
 
-        // Emite alerta para Coordenador aprovar via socket
-        io.emit('receber_alerta', {
-            tipo: 'checklist_pendente',
-            mensagem: `Novo checklist aguardando aprovação: ${placa_carreta}`
-        });
+        if (statusChecklist === 'PENDENTE') {
+            // Emite alerta para Coordenador aprovar via socket apenas se ficou pendente
+            io.emit('receber_alerta', {
+                tipo: 'checklist_pendente',
+                mensagem: `Novo checklist aguardando aprovação: ${placa_carreta}`
+            });
+        } else {
+            // Se aprovado automaticamente, avisa a operação para atualizar a view de bloqueios
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: veiculo_id });
+        }
 
-        res.json({ success: true, id: result.lastID });
+        res.json({ success: true, id: result.lastID, status: statusChecklist });
     } catch (e) {
         console.error('Erro ao criar checklist:', e);
         res.status(500).json({ success: false, message: e.message });
@@ -1413,10 +1429,12 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
         const veiculoAntigo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
 
         // ── Trava de Segurança: bloquear avanço sem liberação do Ger. Risco ──
-        const STATUS_BLOQUEADOS = ['LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
+        // Bloqueia ao SAIR de "LIBERADO P/ DOCA" para o próximo status (EM CARREGAMENTO em diante)
+        const STATUS_BLOQUEADOS = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
         if (veiculoAntigo) {
             const dadosAntigos = (() => { try { return JSON.parse(veiculoAntigo.dados_json || '{}'); } catch { return {}; } })();
-            const situacao = dadosAntigos.situacao_cadastro || veiculoAntigo.situacao_cadastro || 'NÃO CONFERIDO';
+            // Coluna dedicada tem prioridade sobre dados_json (evita leitura de valor desatualizado)
+            const situacao = veiculoAntigo.situacao_cadastro || dadosAntigos.situacao_cadastro || 'NÃO CONFERIDO';
 
             const avancoRecife =
                 STATUS_BLOQUEADOS.includes(v.status_recife) &&
@@ -1468,8 +1486,11 @@ app.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
             const avancoDuploMoreno = STATUS_TRAVA_DUPLA.includes(v.status_moreno) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_moreno);
 
             if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota) {
-                const chk = await dbGet("SELECT status FROM checklists_carreta WHERE veiculo_id = ? ORDER BY id DESC LIMIT 1", [req.params.id]);
-                const checklistAprovado = chk && chk.status === 'APROVADO';
+                // Procura se existe ALGUM checklist aprovado para este veículo
+                const chk = await dbGet("SELECT id FROM checklists_carreta WHERE veiculo_id = ? AND status = 'APROVADO' LIMIT 1", [req.params.id]);
+
+                // Considera aprovado se encontrou pelo menos um registro com status APROVADO
+                const checklistAprovado = !!chk;
 
                 if (situacao !== 'LIBERADO' || !checklistAprovado) {
                     const motivos = [];
@@ -2105,13 +2126,27 @@ app.post('/api/checklists', authMiddleware, async (req, res) => {
         if (!veiculo_id || !placa_carreta || !assinatura) {
             return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando.' });
         }
+
+        // Auto-aprovação: condições perfeitas dispensam revisão manual do Coordenador
+        const autoAprovado =
+            placa_confere === true &&
+            condicao_bau === 'Limpo e Intacto' &&
+            !foto_vazamento;
+        const status = autoAprovado ? 'APROVADO' : 'PENDENTE';
+
         const created_at = obterDataHoraBrasilia();
         const result = await dbRun(
             `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDENTE')`,
-            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at]
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at, status]
         );
-        res.json({ success: true, id: result.lastID });
+
+        // Se auto-aprovado, dispara socket para atualizar a fila operacional sem precisar de refresh
+        if (autoAprovado) {
+            io.emit('receber_atualizacao');
+        }
+
+        res.json({ success: true, id: result.lastID, status });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }

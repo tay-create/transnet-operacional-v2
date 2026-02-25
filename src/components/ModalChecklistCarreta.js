@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
@@ -15,51 +15,69 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso }) {
     const [fotoVazamento, setFotoVazamento] = useState(null);
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState('');
+    const [placaCarreta, setPlacaCarreta] = useState('');
 
-    const extrairPlacaCarreta = () => {
+    const extrairPlacaLocal = () => {
         let p2 = veiculo.placa2Motorista?.trim();
         let p1 = veiculo.placa1Motorista?.trim();
         let p = veiculo.placa?.trim();
 
-        if (!p1 && !p2 && veiculo.dados_json) {
+        // Busca no dados_json caso os campos diretos estejam vazios
+        if (!p2 || !p1) {
             try {
-                const dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : veiculo.dados_json;
+                const dados = veiculo.dados_json
+                    ? (typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : veiculo.dados_json)
+                    : {};
                 if (!p2 && dados.placa2Motorista) p2 = dados.placa2Motorista.trim();
                 if (!p1 && dados.placa1Motorista) p1 = dados.placa1Motorista.trim();
             } catch (e) { }
         }
 
-        // Tenta achar placas reais nos campos nativos
-        if (p2 && p2 !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p2.replace(/\s/g, ''))) return p2.toUpperCase();
-        if (p1 && p1 !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p1.replace(/\s/g, ''))) return p1.toUpperCase();
-        if (p && p !== 'NÃO INFORMADA' && /^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$/i.test(p.replace(/\s/g, ''))) return p.toUpperCase();
+        const placaValida = (placa) => placa && placa !== '' && placa !== 'NÃO INFORMADA';
 
-        // Se não estava cravado nos campos originais ou estava sujo, fareja a placa em qualquer outro lugar do card:
-        const regexGeralPlaca = /[A-Z]{3}\s*-?[0-9][A-Z0-9][0-9]{2}/i;
+        // Prioridade: Placa 2 (carreta) → Placa 1 (cavalo) → placa genérica
+        if (placaValida(p2)) return p2.toUpperCase();
+        if (placaValida(p1)) return p1.toUpperCase();
+        if (placaValida(p)) return p.toUpperCase();
 
-        const camposParaProcurar = [
-            p2, p1, p, // Tenta caçar dentro de strings corrompidas nesses campos
-            veiculo.operacao,
-            veiculo.motorista,
-            veiculo.coleta,
-            veiculo.coletaRecife,
-            veiculo.coletaMoreno,
-            veiculo.observacao
-        ];
-
-        for (const texto of camposParaProcurar) {
-            if (texto && typeof texto === 'string') {
-                const match = texto.match(regexGeralPlaca);
-                if (match) {
-                    return match[0].toUpperCase().replace(/\s/g, ''); // Retorna placa limpa e extraída
-                }
-            }
-        }
-
-        return 'NÃO INFORMADA';
+        return '';
     };
 
-    const placaCarreta = extrairPlacaCarreta();
+    // Busca placa local primeiro; se vazio, consulta a marcação do motorista no servidor
+    useEffect(() => {
+        const local = extrairPlacaLocal();
+        if (local) {
+            setPlacaCarreta(local);
+            return;
+        }
+
+        // Fallback: buscar placa direto da marcação pelo telefone ou nome do motorista
+        const telefone = veiculo.telefoneMotorista || veiculo.telefone || '';
+        const motorista = veiculo.motorista || '';
+        if (!telefone && !motorista) {
+            setPlacaCarreta('NÃO INFORMADA');
+            return;
+        }
+
+        api.get('/api/marcacoes')
+            .then(r => {
+                if (!r.data.success) return;
+                const lista = r.data.marcacoes || [];
+                const telLimpo = telefone.replace(/\D/g, '');
+                const match = lista.find(m =>
+                    (telLimpo && m.telefone?.replace(/\D/g, '') === telLimpo) ||
+                    (motorista && m.nome_motorista?.toUpperCase() === motorista.toUpperCase())
+                );
+                if (match) {
+                    const p = (match.placa2 || match.placa1 || '').trim();
+                    setPlacaCarreta(p ? p.toUpperCase() : 'NÃO INFORMADA');
+                } else {
+                    setPlacaCarreta('NÃO INFORMADA');
+                }
+            })
+            .catch(() => setPlacaCarreta('NÃO INFORMADA'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleCapturePhoto = (e) => {
         const file = e.target.files[0];

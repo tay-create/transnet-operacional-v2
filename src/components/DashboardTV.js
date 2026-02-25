@@ -331,7 +331,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                         <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]}>
                             <LabelList dataKey="Recife" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
                                 const { x, y, width, height, value, payload } = props;
-                                if (!value || value <= 0) return null;
+                                if (!value || value <= 0 || !payload) return null;
                                 const total = (payload.Recife || 0) + (payload.Moreno || 0);
                                 const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
                                 return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;
@@ -340,7 +340,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                         <Bar dataKey="Moreno" fill="#f59e0b" radius={[3, 3, 0, 0]}>
                             <LabelList dataKey="Moreno" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
                                 const { x, y, width, height, value, payload } = props;
-                                if (!value || value <= 0) return null;
+                                if (!value || value <= 0 || !payload) return null;
                                 const total = (payload.Recife || 0) + (payload.Moreno || 0);
                                 const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
                                 return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;

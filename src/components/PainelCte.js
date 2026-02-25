@@ -14,8 +14,6 @@ export default function PainelCte({
     setFiltroDataFimCte,
     updateListCte,
     podeEditar,
-    openModal,
-    setItemTempoAtivo,
     setToastCopiaMsg
 }) {
     const isRecife = abaAtiva === 'cte_recife';
@@ -157,33 +155,54 @@ export default function PainelCte({
                                     <span style={{ fontSize: '11px', color: '#94a3b8', flex: 1 }}>
                                         NÚM. LIB: <strong style={{ color: '#e2e8f0' }}>{cte.numero_liberacao}</strong>
                                     </span>
-                                    <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(cte.numero_liberacao);
-                                            setToastCopiaMsg('Número de liberação copiado!');
-                                            setTimeout(() => setToastCopiaMsg(''), 3000);
-                                        }}
-                                        style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
-                                        title="Copiar número de liberação"
-                                    >
-                                        <Copy size={13} /> Copiar
-                                    </button>
+                                    {(() => {
+                                        // Verificar expiração de 24h
+                                        let expirado = false;
+                                        const dtLib = cte.data_liberacao || cte.data_liberacao_cad;
+                                        if (dtLib) {
+                                            const dataStr = dtLib.endsWith('Z') ? dtLib : dtLib + 'Z';
+                                            const diffMs = Date.now() - new Date(dataStr).getTime();
+                                            if (diffMs > 24 * 60 * 60 * 1000) {
+                                                expirado = true;
+                                            }
+                                        }
+
+                                        if (expirado) {
+                                            return (
+                                                <button
+                                                    disabled
+                                                    style={{ border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', borderRadius: '4px', padding: '4px 8px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 'bold' }}
+                                                    title="Liberação vencida (>24h). Solicite renovação."
+                                                >
+                                                    VENCIDA
+                                                </button>
+                                            );
+                                        }
+
+                                        return (
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(cte.numero_liberacao);
+                                                    setToastCopiaMsg('Número de liberação copiado!');
+                                                    setTimeout(() => setToastCopiaMsg(''), 3000);
+                                                }}
+                                                style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+                                                title="Copiar número de liberação"
+                                            >
+                                                <Copy size={13} /> Copiar
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>
 
                         {/* Rodapé do Card */}
                         <div style={{ marginTop: '15px', background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '6px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
                                 <span style={{ fontSize: '11px', color: '#94a3b8' }}>
                                     Início: <strong style={{ color: 'white' }}>{cte.timestamps?.inicio_emissao || '--:--'}</strong>
                                 </span>
-                                <button
-                                    onClick={() => { setItemTempoAtivo({ lista: listaCtes, setLista: setListaAtual, index, origem: isRecife ? 'Recife' : 'Moreno' }); openModal('tempo'); }}
-                                    style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'white', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}
-                                >
-                                    ⏱️ Cronômetro
-                                </button>
                             </div>
                             {cte.timestamps?.tempo_aguardando_emissao > 0 && (
                                 <div style={{ marginTop: '6px', fontSize: '11px', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>

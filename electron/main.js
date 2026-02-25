@@ -162,6 +162,57 @@ ipcMain.handle('delete-notificacao', async (_, id) => {
     }
 });
 
+// ── Ocorrências operacionais ──────────────────────────────────────────────────
+ipcMain.handle('get-ocorrencias', async () => {
+    try {
+        const ocorrencias = await dbAll(`
+            SELECT o.*, v.placa, v.operacao, v.coleta, v.unidade,
+                   v.coletaRecife, v.coletaMoreno
+            FROM operacao_ocorrencias o
+            LEFT JOIN veiculos v ON o.veiculo_id = v.id
+            ORDER BY o.data_criacao DESC
+        `);
+        return { success: true, ocorrencias };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('get-ocorrencias-veiculo', async (_, id) => {
+    try {
+        const ocorrencias = await dbAll(
+            'SELECT * FROM operacao_ocorrencias WHERE veiculo_id = ? ORDER BY data_criacao DESC',
+            [id]
+        );
+        return { success: true, ocorrencias };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('post-ocorrencia', async (_, { id, dados }) => {
+    try {
+        const { descricao, foto_base64, motorista } = dados;
+        if (!descricao) return { success: false, message: 'Descrição obrigatória.' };
+        await dbRun(
+            'INSERT INTO operacao_ocorrencias (veiculo_id, motorista, descricao, foto_base64) VALUES (?, ?, ?, ?)',
+            [id, motorista || 'N/A', descricao, foto_base64 || null]
+        );
+        return { success: true };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+ipcMain.handle('delete-ocorrencia', async (_, id) => {
+    try {
+        await dbRun('DELETE FROM operacao_ocorrencias WHERE id = ?', [id]);
+        return { success: true };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
 // ─── Cubagens ─────────────────────────────────────────────────────────────────
 ipcMain.handle('get-cubagens', async () => {
     try {

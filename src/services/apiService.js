@@ -250,6 +250,23 @@ function makeIpcAdapter() {
             data = await window.api.deleteDocasInterditadas(id);
         }
 
+        // ── Ocorrências operacionais ───────────────────────────────────────────
+        else if (method === 'get' && path === '/api/ocorrencias') {
+            data = await window.api.getOcorrencias();
+        }
+        else if (method === 'get' && path.match(/^\/api\/veiculos\/\d+\/ocorrencias$/)) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.getOcorrenciasPorVeiculo(id);
+        }
+        else if (method === 'post' && path.match(/^\/api\/veiculos\/\d+\/ocorrencias$/)) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.postOcorrencia(id, body);
+        }
+        else if (method === 'delete' && path.match(/^\/api\/ocorrencias\/\d+$/)) {
+            const id = Number(path.split('/')[3]);
+            data = await window.api.deleteOcorrencia(id);
+        }
+
         // ── Logs de Auditoria ──────────────────────────────────────────────────
         else if (method === 'get' && path === '/logs') {
             data = await window.api.getLogs(params);
