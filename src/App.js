@@ -881,7 +881,7 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'marcacao_placas' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') && (
-                    <GestaoMarcacoes />
+                    <GestaoMarcacoes socket={socket} />
                 )}
 
                 {abaAtiva === 'relatorio_op' && temAcesso('relatorios') && (

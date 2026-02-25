@@ -80,7 +80,7 @@ function corDisponibilidade(disp) {
 // ── Estado inicial do form de frota (apenas nome e telefone) ─────────────────
 const FORM_FROTA_INICIAL = { nome_motorista: '', telefone: '' };
 
-export default function GestaoMarcacoes() {
+export default function GestaoMarcacoes({ socket }) {
     const [aba, setAba] = useState('links');
     const [tokens, setTokens] = useState([]);
     const [marcacoes, setMarcacoes] = useState([]);
@@ -125,6 +125,17 @@ export default function GestaoMarcacoes() {
         if (aba === 'links') carregarTokens();
         else if (aba === 'placas' || aba === 'frota') carregarMarcacoes();
     }, [aba, carregarTokens, carregarMarcacoes]);
+
+    useEffect(() => {
+        if (!socket) return;
+        const atualizar = () => {
+            if (aba === 'placas' || aba === 'frota') carregarMarcacoes();
+        };
+        socket.on('marcacao_atualizada', atualizar);
+        return () => {
+            socket.off('marcacao_atualizada', atualizar);
+        };
+    }, [socket, aba, carregarMarcacoes]);
 
     async function gerarLink() {
         if (!tel.trim()) { mostrarToast('Informe o telefone.'); return; }

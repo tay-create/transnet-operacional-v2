@@ -942,6 +942,7 @@ app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Planejamento']
                 [nome_motorista, tel]
             );
         }
+        io.emit('marcacao_atualizada');
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

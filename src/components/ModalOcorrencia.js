@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, X, Save, FileText, Loader, AlertTriangle } from 'lucide-react';
+import { Camera, X, Save, Loader, AlertTriangle } from 'lucide-react';
 import api from '../services/apiService';
 import { converterImagemParaBase64 } from '../utils/helpers';
 

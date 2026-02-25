@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+
 import TagInput from './TagInput';
 import {
     Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone
 } from 'lucide-react';
-import { OPCOES_OPERACAO, OPCOES_VEICULO, API_URL } from '../constants';
+import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
