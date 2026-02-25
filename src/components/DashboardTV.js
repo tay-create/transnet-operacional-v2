@@ -48,7 +48,7 @@ const glassCard = (t, extraBorder) => ({
 
 const classificarOperacao = (op) => {
     if (!op) return null;
-    if (op === 'DELTA(RECIFE)') return 'delta';
+    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)') return 'delta';
     if (op === 'DELTA(RECIFE X MORENO)') return 'deltaRxM';
     if (op === 'PORCELANA') return 'porcelana';
     if (op === 'ELETRIK') return 'eletrik';
@@ -215,18 +215,12 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
     };
 
     const kpis = [
-        { label: 'Delta', valor: contadores.delta, cor: CORES_KPI.delta },
+        { label: 'Delta 100%', valor: contadores.delta, cor: CORES_KPI.delta },
         { label: 'Consolidado', valor: contadores.consolidado, cor: CORES_KPI.consolidado },
         { label: 'Delta (RxM)', valor: contadores.deltaRxM, cor: CORES_KPI.deltaRxM },
         { label: '100% Porcelana', valor: contadores.porcelana, cor: CORES_KPI.porcelana },
         { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik }
     ];
-
-    // Consolidados = veículos com status CARREGADO ou LIBERADO P/ CT-e em qualquer unidade
-    const totalConsolidados = veiculos.filter(v =>
-        v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e' ||
-        v.status_moreno === 'CARREGADO' || v.status_moreno === 'LIBERADO P/ CT-e'
-    ).length;
 
     const dataPieCte = [
         { name: 'Aguardando', value: statusCte.aguardando },
@@ -258,7 +252,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
             </div>
 
             {/* BENTO GRID principal */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
 
                 {/* KPI Cards — linha de cima (operação) */}
                 {kpis.map(kpi => (
@@ -268,14 +262,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                     </div>
                 ))}
 
-                {/* Card Consolidados — última coluna */}
-                <div style={{ ...glassCard(t, '#3b82f640'), padding: '16px 12px', textAlign: 'center', borderTop: '3px solid #3b82f6' }}>
-                    <div style={{ fontSize: '36px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 8px #3b82f660)' }}>{totalConsolidados}</div>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consolidados</div>
-                </div>
-
-                {/* CT-e status — linha de baixo (6 colunas) */}
-                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 7', display: 'flex', alignItems: 'center', gap: '24px' }}>
+                {/* CT-e status — linha de baixo (ocupando as 5 colunas agora) */}
+                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <span style={{ fontSize: '10px', letterSpacing: '2px', color: t.textDim, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Status CT-e</span>
                     {[
                         { label: 'Aguardando', valor: statusCte.aguardando, cor: '#f59e0b' },

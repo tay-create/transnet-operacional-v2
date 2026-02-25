@@ -624,16 +624,16 @@ function App({ socket }) {
                 await api.put(`/${endpoint}/${itemAtual.id}`, itemAtual);
             }
         } catch (e) {
-            // Reverter estado otimista e re-carregar dados frescos do banco
-            if (e.response && (e.response.status === 403 || e.response.status === 409)) {
-                const msg = e.response.data?.message || 'Operação bloqueada pelo servidor.';
-                console.warn(`[Trava] ${msg}`);
-                mostrarNotificacao(`⚠️ ${msg}`);
-                carregarVeiculos();
-            } else {
-                console.error("Erro ao salvar no banco:", e);
-                mostrarNotificacao("⚠️ Erro ao salvar no servidor.");
-            }
+            // Reverter estado otimista apenas do item afetado sem recarregar a tela toda
+            const erroMsg = e.response?.data?.message || 'Erro ao sincronizar com o servidor.';
+            mostrarNotificacao(`⚠️ ${erroMsg}`);
+            console.warn(`[API Update Erro] ${erroMsg}`);
+
+            setLista(prev => {
+                const stateRevertido = [...prev];
+                stateRevertido[index] = lista[index]; // restaura o backup do item antes da falha
+                return stateRevertido;
+            });
         }
     };
 
@@ -732,17 +732,28 @@ function App({ socket }) {
             try {
                 await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual });
             } catch (error) {
-                console.error('Erro ao persistir CT-e no banco:', error);
+                const erroMsg = error.response?.data?.message || 'Erro ao persistir CT-e no servidor.';
+                mostrarNotificacao(`⚠️ ${erroMsg}`);
+                console.error(`[API Update Erro] ${erroMsg}`);
+
+                setLista(prev => {
+                    const stateRevertido = [...prev];
+                    stateRevertido[index] = lista[index]; // restaura o backup do item antes da falha
+                    return stateRevertido;
+                });
             }
         }
     };
 
     const handleSortFila = async (_fila) => {
+        const backupFila = [...fila]; // Guardar backup local caso a API falhe
         setFila(_fila);
         try {
             await api.put('/fila/reordenar', { ordem: _fila });
         } catch (error) {
             console.error("Erro ao salvar ordem da fila:", error);
+            mostrarNotificacao("⚠️ Falha ao salvar a nova ordem da fila. Revertendo...");
+            setFila(backupFila);
         }
     };
 

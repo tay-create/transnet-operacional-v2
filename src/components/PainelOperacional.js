@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalOcorrencia from './ModalOcorrencia';
+import ModalImagem from './ModalImagem';
+import ModalColetas from './ModalColetas';
 import { OPCOES_STATUS, OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
@@ -941,116 +943,17 @@ export default function PainelOperacional({
             </div >
 
             {/* Modal de Visualização de Imagem Ampliada */}
-            {
-                imagemAmpliada && (
-                    <div
-                        className="modal-overlay"
-                        onClick={() => setImagemAmpliada(null)}
-                        style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                        <div
-                            style={{
-                                position: 'relative',
-                                maxWidth: '90%',
-                                maxHeight: '90vh',
-                                background: 'rgba(15, 23, 42, 0.95)',
-                                padding: '20px',
-                                borderRadius: '12px',
-                                border: '2px solid rgba(59, 130, 246, 0.3)'
-                            }}
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <button
-                                onClick={() => setImagemAmpliada(null)}
-                                style={{
-                                    position: 'absolute',
-                                    top: '10px',
-                                    right: '10px',
-                                    background: 'rgba(239, 68, 68, 0.8)',
-                                    border: 'none',
-                                    borderRadius: '50%',
-                                    width: '32px',
-                                    height: '32px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    cursor: 'pointer',
-                                    color: 'white',
-                                    zIndex: 10000
-                                }}
-                            >
-                                <X size={18} />
-                            </button>
-                            <img
-                                src={imagemAmpliada}
-                                alt="Ampliada"
-                                style={{
-                                    maxWidth: '100%',
-                                    maxHeight: '80vh',
-                                    objectFit: 'contain',
-                                    borderRadius: '8px'
-                                }}
-                            />
-                        </div>
-                    </div>
-                )
-            }
+            <ModalImagem imagemAmpliada={imagemAmpliada} setImagemAmpliada={setImagemAmpliada} />
 
             {/* Modal de Coletas Embutido */}
             {modalColetasAberto && veiculoSelecionado && (
-                <div
-                    className="modal-overlay"
-                    onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
-                    style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
-                >
-                    <div
-                        onClick={e => e.stopPropagation()}
-                        style={{ background: '#0f172a', padding: '24px', borderRadius: '12px', width: '300px', border: '1px solid rgba(96,165,250,0.3)', boxShadow: '0 10px 25px rgba(0,0,0,0.8)' }}
-                    >
-                        <h3 style={{ color: '#f1f5f9', marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
-                            <Package size={18} color="#60a5fa" />
-                            Status das Coletas
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div>
-                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>SOLICITADO</label>
-                                <input
-                                    type="time"
-                                    className="input-internal"
-                                    style={{ width: '100%', fontSize: '14px', padding: '10px' }}
-                                    value={veiculoSelecionado.item.status_coleta?.solicitado || ''}
-                                    disabled={!podeEditarNaUnidade('timer_solicitado')}
-                                    onChange={e => {
-                                        updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.solicitado', e.target.value, veiculoSelecionado.origem);
-                                        setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, solicitado: e.target.value } } }));
-                                    }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>LIBERADO</label>
-                                <input
-                                    type="time"
-                                    className="input-internal"
-                                    style={{ width: '100%', fontSize: '14px', padding: '10px' }}
-                                    value={veiculoSelecionado.item.status_coleta?.liberado || ''}
-                                    disabled={!podeEditarNaUnidade('timer_liberado')}
-                                    onChange={e => {
-                                        updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.liberado', e.target.value, veiculoSelecionado.origem);
-                                        setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, liberado: e.target.value } } }));
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
-                                style={{ padding: '8px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-                            >
-                                FECHAR
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ModalColetas
+                    veiculoSelecionado={veiculoSelecionado}
+                    setModalColetasAberto={setModalColetasAberto}
+                    setVeiculoSelecionado={setVeiculoSelecionado}
+                    updateList={updateList}
+                    podeEditarNaUnidade={podeEditarNaUnidade}
+                />
             )}
 
             {/* Modal de Checklist Embutido */}
