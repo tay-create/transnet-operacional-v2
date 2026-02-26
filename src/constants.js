@@ -13,7 +13,8 @@ export const MODULOS_SISTEMA = [
     { id: 'ver_unidade_moreno', label: 'Ver Unidade: MORENO' },
     { id: 'performance_cte', label: 'Performance CT-e' },
     { id: 'checklist_carreta', label: 'Checklist da Carreta' },
-    { id: 'cadastro', label: 'Cadastro / Ger. Risco' }
+    { id: 'cadastro', label: 'Cadastro / Ger. Risco' },
+    { id: 'historico_liberacoes', label: 'Histórico de Liberações' }
 ];
 
 export const MODULOS_EDICAO = [

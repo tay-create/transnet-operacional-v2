@@ -9,7 +9,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const cron = require('node-cron');
@@ -27,15 +26,12 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
 });
 
-const { dbRun, dbAll, dbGet } = require('./src/database/db');
+const { dbRun, dbAll, dbGet, dbTransaction } = require('./src/database/db');
 const { inicializarBanco } = require('./src/database/migrations');
 
 // --- BANCO DE DADOS ---
-app.use('/veiculos', require('./src/routes/veiculos'));
-app.use('/api/ocorrencias', require('./src/routes/ocorrencias')); // Ensure prefix if needed, or simply app.use('/', ...)
-app.use('/', require('./src/routes/veiculos')); // Keeping root for legacy /veiculos calls
+app.use('/api/ocorrencias', require('./src/routes/ocorrencias'));
 app.use('/', require('./src/routes/ocorrencias'));
-app.use('/', require('./src/routes/checklists'));
 inicializarBanco();
 
 // Função para obter data/hora no timezone de Brasília (America/Sao_Paulo)
@@ -68,22 +64,45 @@ async function registrarLog(acao, usuario, alvoId = null, alvoTipo = null, valor
     }
 }
 
+// Registrar rotas após io e registrarLog estarem definidos
+const veiculosRouter = require('./src/routes/veiculos')(io, registrarLog);
+app.use('/veiculos', veiculosRouter);
+app.use('/', veiculosRouter);
+
+const checklistsRouter = require('./src/routes/checklists')(io);
+app.use('/', checklistsRouter);
+
 // NOTA: PUT /usuarios/:id completo está mais abaixo com authMiddleware + authorize
 // Esta rota (cargo apenas) foi migrada para a versão protegida
 
 app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
     const { avatarUrl } = req.body;
+    const userId = Number(req.params.id);
+
+    console.log(`📸 [Avatar] Solicitado update para usuário ${userId}`);
+
     // Usuário só pode alterar o próprio avatar, ou Coordenador altera qualquer um
-    if (req.user.id !== Number(req.params.id) && req.user.cargo !== 'Coordenador') {
+    if (req.user.id !== userId && req.user.cargo !== 'Coordenador') {
+        console.warn(`🚫 [Avatar] Acesso negado para usuário ${req.user.id} tentando alterar o de ${userId}`);
         return res.status(403).json({ success: false, message: 'Acesso negado' });
     }
+
     try {
-        await dbRun("UPDATE usuarios SET avatarUrl = ? WHERE id = ?", [avatarUrl, req.params.id]);
-        io.emit('receber_atualizacao', { tipo: 'avatar_mudou', userId: Number(req.params.id), newUrl: avatarUrl });
+        // No PostgreSQL, avatarUrl se torna avatarurl se não for citado
+        await dbRun("UPDATE usuarios SET avatarUrl = ? WHERE id = ?", [avatarUrl, userId]);
+
+        console.log(`✅ [Avatar] Foto atualizada no banco para usuário ${userId}`);
+
+        io.emit('receber_atualizacao', {
+            tipo: 'avatar_mudou',
+            userId: userId,
+            newUrl: avatarUrl
+        });
+
         res.json({ success: true });
     } catch (e) {
-        console.error("Erro avatar:", e);
-        res.status(500).json({ success: false });
+        console.error("❌ [Avatar] Erro ao salvar foto:", e);
+        res.status(500).json({ success: false, message: 'Erro ao salvar foto no servidor' });
     }
 });
 
@@ -134,7 +153,12 @@ app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamen
     try {
         const { status, telefone } = req.body;
         if (status) {
-            await dbRun("UPDATE tokens_motoristas SET status = ? WHERE id = ?", [status, req.params.id]);
+            if (status === 'ativo') {
+                const novaExpiracao = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+                await dbRun("UPDATE tokens_motoristas SET status = ?, data_expiracao = ? WHERE id = ?", [status, novaExpiracao, req.params.id]);
+            } else {
+                await dbRun("UPDATE tokens_motoristas SET status = ? WHERE id = ?", [status, req.params.id]);
+            }
         }
         if (telefone) {
             let tel = telefone.replace(/\D/g, '');
@@ -189,7 +213,39 @@ app.post('/api/marcacoes', async (req, res) => {
         const telefoneLimpo = telefone.replace(/\D/g, '');
 
         const estadosJson = JSON.stringify(estados_destino || []);
-        const agora = new Date().toISOString();
+        const agora = obterDataHoraBrasilia();
+
+        // Validar token antes de prosseguir — previne race condition de duplo envio
+        if (token_id) {
+            const tokenAtual = await dbGet("SELECT status FROM tokens_motoristas WHERE id = ?", [token_id]);
+            if (!tokenAtual || tokenAtual.status === 'utilizado') {
+                return res.status(409).json({ success: false, message: 'Este link já foi utilizado. Solicite um novo link ao operador.' });
+            }
+        }
+
+        // ── Trava anti-duplicata por nome + dia ───────────────────────────────
+        // Impede que o mesmo motorista se cadastre duas vezes no mesmo dia via links diferentes,
+        // enquanto ainda está disponível/aguardando (antes de completar o ciclo e voltar).
+        const nomeNormalizado = (nome_motorista || '').trim().toUpperCase();
+        const duplicataNome = await dbGet(
+            `SELECT id, status_operacional FROM marcacoes_placas
+             WHERE UPPER(TRIM(nome_motorista)) = ?
+               AND telefone != ?
+               AND data_marcacao >= NOW() - INTERVAL '1 day'
+               AND status_operacional NOT IN ('EM ROTA', 'FINALIZADO')`,
+            [nomeNormalizado, telefoneLimpo]
+        );
+        if (duplicataNome) {
+            // Marca token como utilizado mesmo assim (evita reenvio)
+            if (token_id) {
+                await dbRun("UPDATE tokens_motoristas SET status = 'utilizado' WHERE id = ?", [token_id]);
+            }
+            return res.status(409).json({
+                success: false,
+                message: 'Já existe uma marcação ativa para este motorista hoje. Aguarde o operador ou realize nova marcação pelo link mais recente.'
+            });
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         // Verifica se já existe registro com este telefone
         const existente = await dbGet("SELECT id, disponibilidade FROM marcacoes_placas WHERE telefone = ?", [telefoneLimpo]);
@@ -276,7 +332,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, async (req, res) => {
                    situacao_cad, num_liberacao_cad, data_liberacao_cad,
                    estados_destino, destino_uf_cad
             FROM marcacoes_placas
-            WHERE data_marcacao >= datetime('now', '-7 days')
+            WHERE data_marcacao >= NOW() - INTERVAL '7 days'
               AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
             ORDER BY data_marcacao DESC
         `);
@@ -300,11 +356,12 @@ app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Plan
 app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         const { status } = req.body;
-        if (!['Disponível', 'Contratado', 'Indisponível'].includes(status)) {
+        const statusValidos = ['Disponível', 'Contratado', 'Indisponível', 'EM CASA', 'NO PÁTIO', 'NO POSTO'];
+        if (!statusValidos.includes(status)) {
             return res.status(400).json({ success: false, message: 'Status inválido.' });
         }
 
-        const timestampDataContratacao = status === 'Contratado' ? new Date().toISOString() : null;
+        const timestampDataContratacao = status === 'Contratado' ? obterDataHoraBrasilia() : null;
 
         await dbRun("UPDATE marcacoes_placas SET disponibilidade = ?, data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [status, timestampDataContratacao, req.params.id]);
 
@@ -449,7 +506,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
                 `UPDATE veiculos SET
                     situacao_cadastro=?, data_liberacao=?, numero_liberacao=?,
                     chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?
-                 WHERE json_extract(dados_json, '$.telefoneMotorista') = ?`,
+                 WHERE dados_json::jsonb->>'telefoneMotorista' = ?`,
                 [
                     situacao, novaDataLib, num_liberacao_cad || null,
                     chk_cnh_cad ? 1 : 0,
@@ -489,29 +546,37 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         const rows = await dbAll(`
-            SELECT id, motorista, dados_json,
-                   chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                   situacao_cadastro, numero_liberacao, data_liberacao,
-                   placa, operacao, unidade,
-                   status_recife, status_moreno
-            FROM veiculos
-            WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO'))
-              AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO'))
-            ORDER BY id DESC
+            SELECT v.id, v.motorista, v.dados_json,
+                   v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv,
+                   v.situacao_cadastro, v.numero_liberacao, v.data_liberacao,
+                   v.placa, v.operacao, v.unidade,
+                   v.status_recife, v.status_moreno,
+                   m.placa1 AS mp_placa1, m.placa2 AS mp_placa2,
+                   m.tipo_veiculo AS mp_tipo_veiculo,
+                   m.seguradora_cad, m.origem_cad, m.destino_uf_cad, m.destino_cidade_cad
+            FROM veiculos v
+            LEFT JOIN marcacoes_placas m ON LOWER(TRIM(m.nome_motorista)) = LOWER(TRIM(v.motorista))
+                AND v.motorista IS NOT NULL AND v.motorista != ''
+            WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
+              AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
+              AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
+            ORDER BY v.id DESC
         `);
         const veiculos = rows.map(r => {
             const dj = (() => { try { return JSON.parse(r.dados_json || '{}'); } catch { return {}; } })();
+            // Placas: prioridade dados_json > marcacoes_placas > fallback vazio
+            const placa1 = dj.placa1Motorista || r.mp_placa1 || '';
+            const placa2 = dj.placa2Motorista || r.mp_placa2 || '';
             return {
                 id: r.id,
                 nome_motorista: r.motorista || 'A DEFINIR',
-                placa1: dj.placa1Motorista || r.placa || '',
-                placa2: dj.placa2Motorista || '',
-                tipo_veiculo: dj.tipoVeiculo || '',
+                placa1,
+                placa2,
+                tipo_veiculo: dj.tipoVeiculo || r.mp_tipo_veiculo || '',
                 telefone: dj.telefoneMotorista || '',
                 operacao: r.operacao || '',
                 unidade: r.unidade || '',
                 isFrotaMotorista: String(dj.isFrotaMotorista) === 'true' || String(dj.isFrotaMotorista) === '1',
-                // Mapear campos de veiculos para o esquema de marcacoes_placas usado pelo frontend
                 chk_cnh_cad: r.chk_cnh ? 1 : 0,
                 chk_antt_cad: r.chk_antt ? 1 : 0,
                 chk_tacografo_cad: r.chk_tacografo ? 1 : 0,
@@ -519,10 +584,10 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
                 situacao_cad: r.situacao_cadastro || 'NÃO CONFERIDO',
                 num_liberacao_cad: r.numero_liberacao || '',
                 data_liberacao_cad: r.data_liberacao || null,
-                seguradora_cad: '',
-                origem_cad: '',
-                destino_uf_cad: '',
-                destino_cidade_cad: '',
+                seguradora_cad: r.seguradora_cad || '',
+                origem_cad: r.origem_cad || '',
+                destino_uf_cad: r.destino_uf_cad || '',
+                destino_cidade_cad: r.destino_cidade_cad || '',
                 _fonte: 'operacao',
             };
         });
@@ -642,6 +707,57 @@ app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Planejamento']
 });
 
 // ==================== FIM MARCAÇÃO DE PLACAS ====================
+
+// ==================== HISTÓRICO DE LIBERAÇÕES ====================
+
+// GET - Listar estrutura (letras → motoristas → registros)
+app.get('/api/historico-liberacoes', authMiddleware, async (req, res) => {
+    try {
+        const { letra, motorista } = req.query;
+        if (motorista) {
+            // Retorna todos os registros do motorista específico
+            const rows = await dbAll(
+                `SELECT * FROM historico_liberacoes WHERE motorista_nome = ? ORDER BY datetime_cte DESC`,
+                [motorista]
+            );
+            return res.json({ success: true, registros: rows });
+        }
+        if (letra) {
+            // Retorna lista de motoristas distintos para a letra
+            const rows = await dbAll(
+                `SELECT DISTINCT motorista_nome FROM historico_liberacoes WHERE primeira_letra = ? ORDER BY motorista_nome`,
+                [letra.toUpperCase()]
+            );
+            return res.json({ success: true, motoristas: rows.map(r => r.motorista_nome) });
+        }
+        // Retorna letras disponíveis com contagem
+        const rows = await dbAll(
+            `SELECT primeira_letra, COUNT(DISTINCT motorista_nome) as total_motoristas, COUNT(*) as total_liberacoes
+             FROM historico_liberacoes GROUP BY primeira_letra ORDER BY primeira_letra`
+        );
+        res.json({ success: true, letras: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST - Salvar registro de liberação usada
+app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
+    try {
+        const { motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id } = req.body;
+        if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
+
+        const nomeLimpo = (motorista_nome || '').trim().toUpperCase();
+        const primeira_letra = nomeLimpo[0] || '#';
+
+        await dbRun(
+            `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [primeira_letra, nomeLimpo, num_coleta || '', num_liberacao || '', datetime_cte || new Date().toISOString(), origem || '', destino_uf || '', destino_cidade || '', placa || '', operacao || '', veiculo_id || null]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
 app.get('/fila', authMiddleware, async (req, res) => { try { const rows = await dbAll("SELECT * FROM fila"); const fila = rows.map(row => ({ id: row.id, ...JSON.parse(row.dados_json) })); res.json({ success: true, fila }); } catch (e) { res.status(500).json({ success: false }); } });
 app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { try { const item = req.body; const result = await dbRun(`INSERT INTO fila (dados_json) VALUES (?)`, [JSON.stringify(item)]); const novo = { id: result.lastID, ...item }; io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo }); res.json({ success: true, id: result.lastID }); } catch (e) { res.status(500).json({ success: false }); } });
@@ -778,28 +894,28 @@ app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 
     try {
         const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total } = req.body;
 
-        const result = await dbRun(
-            `INSERT INTO cubagens (numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, metragem_total, valor_mix_total, valor_kit_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0]
-        );
+        const cubagemId = await dbTransaction(async ({ run }) => {
+            const result = await run(
+                `INSERT INTO cubagens (numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, metragem_total, valor_mix_total, valor_kit_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0]
+            );
 
-        const cubagemId = result.lastID;
+            const id = result.lastID;
 
-        // Inserir itens na tabela separada
-        if (itens && Array.isArray(itens)) {
-            for (const item of itens) {
-                if (item.numero_nf || item.metragem) {
+            // Batch INSERT dos itens em uma única query
+            const itensFiltrados = (itens || []).filter(item => item.numero_nf || item.metragem);
+            if (itensFiltrados.length > 0) {
+                const valores = itensFiltrados.map(item => {
                     const metro = parseFloat(item.metragem) || 0;
                     const base = metro + (metro * 0.10);
-                    const mix = (base / 2.5) / 1.3;
-                    const kit = (base / 2.5) / 1.9;
-                    await dbRun(
-                        `INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES (?, ?, ?, ?, ?)`,
-                        [cubagemId, item.numero_nf || '', metro, mix, kit]
-                    );
-                }
+                    return [id, item.numero_nf || '', metro, (base / 2.5) / 1.3, (base / 2.5) / 1.9];
+                });
+                const placeholders = valores.map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES ${placeholders}`, valores.flat());
             }
-        }
+
+            return id;
+        });
 
         res.json({ success: true, id: cubagemId });
     } catch (e) {
@@ -813,27 +929,25 @@ app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
         const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total } = req.body;
         const id = req.params.id;
 
-        await dbRun(
-            `UPDATE cubagens SET numero_coleta=?, motorista=?, cliente=?, redespacho=?, nome_redespacho=?, destino=?, volume=?, data=?, faturado=?, tipo=?, metragem_total=?, valor_mix_total=?, valor_kit_total=? WHERE id=?`,
-            [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0, id]
-        );
+        await dbTransaction(async ({ run }) => {
+            await run(
+                `UPDATE cubagens SET numero_coleta=?, motorista=?, cliente=?, redespacho=?, nome_redespacho=?, destino=?, volume=?, data=?, faturado=?, tipo=?, metragem_total=?, valor_mix_total=?, valor_kit_total=? WHERE id=?`,
+                [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0, id]
+            );
 
-        // Recriar itens
-        await dbRun("DELETE FROM cubagem_itens WHERE cubagem_id = ?", [id]);
-        if (itens && Array.isArray(itens)) {
-            for (const item of itens) {
-                if (item.numero_nf || item.metragem) {
+            // Recriar itens com batch INSERT
+            await run("DELETE FROM cubagem_itens WHERE cubagem_id = ?", [id]);
+            const itensFiltrados = (itens || []).filter(item => item.numero_nf || item.metragem);
+            if (itensFiltrados.length > 0) {
+                const valores = itensFiltrados.map(item => {
                     const metro = parseFloat(item.metragem) || 0;
                     const base = metro + (metro * 0.10);
-                    const mix = (base / 2.5) / 1.3;
-                    const kit = (base / 2.5) / 1.9;
-                    await dbRun(
-                        `INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES (?, ?, ?, ?, ?)`,
-                        [id, item.numero_nf || '', metro, mix, kit]
-                    );
-                }
+                    return [id, item.numero_nf || '', metro, (base / 2.5) / 1.3, (base / 2.5) / 1.9];
+                });
+                const placeholders = valores.map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES ${placeholders}`, valores.flat());
             }
-        }
+        });
 
         res.json({ success: true });
     } catch (e) {
@@ -902,21 +1016,50 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             telefoneMotorista = dj.telefoneMotorista || null;
                         } catch (_) { }
                     }
+                    // Busca pelo telefone primeiro, fallback pelo nome do motorista
+                    const agora = new Date().toISOString();
+                    let rowsAfetadas = 0;
+
                     if (telefoneMotorista) {
-                        await dbRun(
+                        const r = await dbRun(
                             `UPDATE marcacoes_placas
                              SET viagens_realizadas = viagens_realizadas + 1,
                                  status_operacional = 'EM VIAGEM',
                                  data_contratacao = COALESCE(data_contratacao, ?),
                                  situacao_cad = 'ARQUIVADO',
-                                 chk_cnh_cad = 0, chk_antt_cad = 0, chk_tacografo_cad = 0, chk_crlv_cad = 0,
-                                 seguradora_cad = '', num_liberacao_cad = '', data_liberacao_cad = NULL
+                                 chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
+                                 num_liberacao_cad = NULL, data_liberacao_cad = NULL
                              WHERE telefone = ?`,
-                            [new Date().toISOString(), telefoneMotorista]
+                            [agora, telefoneMotorista]
                         );
-                        console.log(`✅ Motorista ${veiculo.motorista} (tel: ${telefoneMotorista}): viagem registrada, status → EM VIAGEM, cadastro → ARQUIVADO`);
+                        rowsAfetadas = r.changes || 0;
+                    }
+
+                    // Fallback: buscar pelo nome do motorista se não achou pelo telefone
+                    if (rowsAfetadas === 0 && veiculo.motorista) {
+                        const r = await dbRun(
+                            `UPDATE marcacoes_placas
+                             SET viagens_realizadas = viagens_realizadas + 1,
+                                 status_operacional = 'EM VIAGEM',
+                                 data_contratacao = COALESCE(data_contratacao, ?),
+                                 situacao_cad = 'ARQUIVADO',
+                                 chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
+                                 num_liberacao_cad = NULL, data_liberacao_cad = NULL
+                             WHERE nome_motorista = ?`,
+                            [agora, veiculo.motorista]
+                        );
+                        rowsAfetadas = r.changes || 0;
+                    }
+
+                    if (rowsAfetadas > 0) {
+                        console.log(`✅ Motorista ${veiculo.motorista}: viagem registrada, status → EM VIAGEM, cadastro → ARQUIVADO`);
+                    } else {
+                        console.warn(`⚠️ Motorista ${veiculo.motorista}: marcação não encontrada para incrementar viagem`);
                     }
                 }
+
+                // Notificar painéis para sumir com o card (refresh geral)
+                io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
             } catch (errViagem) {
                 console.error('Erro ao incrementar viagem do motorista:', errViagem);
             }
@@ -956,7 +1099,7 @@ app.get('/logs', authMiddleware, authorize(['Coordenador', 'Planejamento']), asy
 
         // Buscar logs da página atual (ordenados do mais recente para o mais antigo)
         const logs = await dbAll(
-            "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, datetime(data_hora, 'localtime') as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
+            "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, data_hora AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo' as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
             [limit, offset]
         );
 
@@ -1140,6 +1283,101 @@ async function gerarProgramacaoDiaria(turno) {
 cron.schedule('0 10 * * 1-5', () => gerarProgramacaoDiaria('10h'), { scheduled: true, timezone: "America/Sao_Paulo" });
 cron.schedule('0 17 * * 1-5', () => gerarProgramacaoDiaria('17h'), { scheduled: true, timezone: "America/Sao_Paulo" });
 
+// ── VERIFICAÇÃO DE EXPIRAÇÃO DE LIBERAÇÕES (GR) ───────────────────────
+// Roda a cada 15 minutos para checar liberações que estão prestes a expirar (2h) ou já expiraram
+// Só alerta para motoristas em espera (marcacoes_placas com disponibilidade != Contratado)
+// Guarda controle de alertas já enviados para não duplicar
+const alertasJaEnviados = new Set(); // chave: `${id}_2h` ou `${id}_exp`
+
+async function verificarExpiracaoLiberacoes() {
+    try {
+        const agora = Date.now();
+        const LIMITE_24H = 24 * 60 * 60 * 1000;
+        const ALERTA_2H = 2 * 60 * 60 * 1000;
+
+        const motoristas = await dbAll(
+            `SELECT id, nome_motorista, placa1, num_liberacao_cad, data_liberacao_cad, disponibilidade
+             FROM marcacoes_placas
+             WHERE data_liberacao_cad IS NOT NULL
+               AND (disponibilidade IS NULL OR disponibilidade NOT IN ('Contratado', 'Indisponível'))
+               AND situacao_cad = 'LIBERADO'`
+        );
+
+        for (const m of motoristas) {
+            const dataStr = m.data_liberacao_cad.endsWith('Z') ? m.data_liberacao_cad : m.data_liberacao_cad + 'Z';
+            const diffMs = agora - new Date(dataStr).getTime();
+            const restanteMs = LIMITE_24H - diffMs;
+            const placa = m.placa1 || 'S/Placa';
+            const nome = m.nome_motorista;
+
+            if (restanteMs <= 0) {
+                // EXPIRADO
+                const chave = `${m.id}_exp`;
+                if (!alertasJaEnviados.has(chave)) {
+                    alertasJaEnviados.add(chave);
+                    // Remove o alerta de "2h" da memória para reenviar no próximo ciclo se necessário
+                    alertasJaEnviados.delete(`${m.id}_2h`);
+
+                    const msg = `⛔ LIBERAÇÃO EXPIRADA — ${nome} (${placa}) — Lib. Nº ${m.num_liberacao_cad || 'S/N'}. Solicite renovação!`;
+                    console.log(`[CRON-LIB] ${msg}`);
+
+                    await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify({
+                        tipo: 'liberacao_expirada',
+                        mensagem: msg,
+                        motorista: nome,
+                        placa,
+                        num_liberacao: m.num_liberacao_cad,
+                        data_criacao: new Date().toISOString(),
+                    })]);
+
+                    io.emit('notificacao_direcionada', {
+                        mensagem: msg,
+                        tipo: 'liberacao_expirada',
+                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
+                    });
+                }
+            } else if (restanteMs <= ALERTA_2H) {
+                // FALTAM MENOS DE 2 HORAS
+                const chave = `${m.id}_2h`;
+                if (!alertasJaEnviados.has(chave)) {
+                    alertasJaEnviados.add(chave);
+
+                    const hRestante = Math.floor(restanteMs / 3600000);
+                    const mRestante = Math.floor((restanteMs % 3600000) / 60000);
+                    const tempoStr = hRestante > 0 ? `${hRestante}h${String(mRestante).padStart(2, '0')}min` : `${mRestante}min`;
+
+                    const msg = `⚠️ LIBERAÇÃO VENCENDO — ${nome} (${placa}) — ${tempoStr} restantes. Lib. Nº ${m.num_liberacao_cad || 'S/N'}`;
+                    console.log(`[CRON-LIB] ${msg}`);
+
+                    await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify({
+                        tipo: 'liberacao_vencendo',
+                        mensagem: msg,
+                        motorista: nome,
+                        placa,
+                        num_liberacao: m.num_liberacao_cad,
+                        data_criacao: new Date().toISOString(),
+                    })]);
+
+                    io.emit('notificacao_direcionada', {
+                        mensagem: msg,
+                        tipo: 'liberacao_vencendo',
+                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
+                    });
+                }
+            } else {
+                // Liberação ainda válida e fora da janela de alerta — limpar estado
+                alertasJaEnviados.delete(`${m.id}_2h`);
+                alertasJaEnviados.delete(`${m.id}_exp`);
+            }
+        }
+    } catch (e) {
+        console.error('[CRON-LIB] Erro ao verificar expiração de liberações:', e);
+    }
+}
+
+// Rodar a cada 15 minutos, todos os dias
+cron.schedule('*/15 * * * *', verificarExpiracaoLiberacoes, { scheduled: true, timezone: "America/Sao_Paulo" });
+
 // ── ROLLOVER AUTOMÁTICO DE DIA (Fecho do Dia) ─────────────────────────
 // Roda todos os dias de semana (1-5) às 23:59 no horário de Brasília
 cron.schedule('59 23 * * 1-5', async () => {
@@ -1154,27 +1392,21 @@ cron.schedule('59 23 * * 1-5', async () => {
         const amanhaStr = amanha.toLocaleString("en-CA", { timeZone: "America/Sao_Paulo" }).split(',')[0];
 
         // Atualiza a data_prevista apenas de quem não foi finalizado/não tem CTE Emitido
-        const resultado = await new Promise((resolve, reject) => {
-            const query = `
-                UPDATE veiculos
-                SET data_prevista = ?
-                WHERE 
-                    (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
-                    AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
-                    AND (
-                        id NOT IN (
-                            SELECT v.id FROM veiculos v WHERE v.status_cte = 'Emitido' 
-                            OR v.dados_json LIKE '%"status_cte":"Emitido"%'
-                        )
-                    )
-            `;
-            db.run(query, [amanhaStr], function (err) {
-                if (err) reject(err);
-                else resolve(this.changes);
-            });
-        });
+        const query = `
+            UPDATE veiculos
+            SET data_prevista = ?
+            WHERE
+                (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
+                AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
+                AND NOT EXISTS (
+                    SELECT 1 FROM veiculos v2
+                    WHERE v2.id = veiculos.id
+                    AND (v2.status_cte = 'Emitido' OR v2.dados_json::jsonb->>'status_cte' = 'Emitido')
+                )
+        `;
+        const resultado = await dbRun(query, [amanhaStr]);
 
-        console.log(`[CRON] Fecho do Dia concluído. ${resultado} veículos transferidos para ${amanhaStr}.`);
+        console.log(`[CRON] Fecho do Dia concluído. ${resultado.changes} veículos transferidos para ${amanhaStr}.`);
         io.emit('receber_atualizacao', { tipo: 'refresh_geral' }); // Força atualização dos painéis na virada
     } catch (e) {
         console.error(`[CRON] Erro ao processar Rollover Automático:`, e);

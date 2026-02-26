@@ -1,28 +1,57 @@
 const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let mainWindow;
 let serverProcess;
 
 // --- Banco de dados direto (modo desktop sem servidor HTTP) ---
-const DB_PATH = path.join(__dirname, '..', 'tnetlog.db');
-const db = new sqlite3.Database(DB_PATH, (err) => {
-    if (err) console.error('[IPC DB] Erro SQLite:', err.message);
+const db = new Pool({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
 });
+db.on('error', (err) => console.error('[IPC DB] Erro PostgreSQL:', err.message));
 
-const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => { err ? reject(err) : resolve(rows); });
-});
-const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => { err ? reject(err) : resolve(row); });
-});
-const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) { err ? reject(err) : resolve(this); });
-});
+const convertSql = (sql) => {
+    let index = 1;
+    let pgSql = sql.replace(/\?/g, () => `$${index++}`);
+    const upperSql = pgSql.trim().toUpperCase();
+    if (upperSql.startsWith('INSERT') && !upperSql.includes('RETURNING')) {
+        pgSql += ' RETURNING id';
+    }
+    return pgSql;
+};
+
+const dbAll = async (sql, params = []) => {
+    const pgSql = convertSql(sql);
+    const client = await db.connect();
+    try { return (await client.query(pgSql, params)).rows; } finally { client.release(); }
+};
+const dbGet = async (sql, params = []) => {
+    const pgSql = convertSql(sql);
+    const client = await db.connect();
+    try { const res = await client.query(pgSql, params); return res.rows.length ? res.rows[0] : null; } finally { client.release(); }
+};
+const dbRun = async (sql, params = []) => {
+    const pgSql = convertSql(sql);
+    const client = await db.connect();
+    try {
+        const res = await client.query(pgSql, params);
+        return { lastID: res.rows && res.rows.length > 0 ? res.rows[0].id : null, changes: res.rowCount };
+    } finally { client.release(); }
+};
+
+// Função centralizada de data/hora no timezone de Brasília (America/Sao_Paulo)
+function obterDataHoraBrasilia() {
+    return new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+}
 
 // --- IPC Handlers ---
 
@@ -399,7 +428,7 @@ ipcMain.handle('post-solicitacao', async (_, dados) => {
     try {
         const { nome, emailPrefix, unidade, senha } = dados;
         const senhaHash = await bcrypt.hash(senha || '123456', 10);
-        const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const agora = obterDataHoraBrasilia();
         await dbRun(
             "INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
             ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, agora]
@@ -448,6 +477,46 @@ ipcMain.handle('put-cte-status', async (_, { cteId, statusAntigo, statusNovo, or
         } else if (statusNovo === 'Emitido') {
             acao = 'EMISSAO_CTE';
             detalhes = `CT-e finalizado e emitido | ${detalhes}`;
+
+            // Incrementar viagens_realizadas da marcação do motorista
+            try {
+                const veiculo = await dbGet('SELECT motorista, dados_json FROM veiculos WHERE id = ?', [cteId]);
+                if (veiculo) {
+                    let telefoneMotorista = null;
+                    try {
+                        const dj = JSON.parse(veiculo.dados_json || '{}');
+                        telefoneMotorista = dj.telefoneMotorista || null;
+                    } catch (_) {}
+
+                    const agora = new Date().toISOString();
+                    const updateSql = `UPDATE marcacoes_placas
+                        SET viagens_realizadas = viagens_realizadas + 1,
+                            status_operacional = 'EM VIAGEM',
+                            data_contratacao = COALESCE(data_contratacao, ?),
+                            situacao_cad = 'ARQUIVADO',
+                            chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
+                            num_liberacao_cad = NULL, data_liberacao_cad = NULL
+                        WHERE `;
+
+                    let rowsAfetadas = 0;
+                    if (telefoneMotorista) {
+                        const r = await dbRun(updateSql + 'telefone = ?', [agora, telefoneMotorista]);
+                        rowsAfetadas = r.changes || 0;
+                    }
+                    if (rowsAfetadas === 0 && veiculo.motorista) {
+                        const r = await dbRun(updateSql + 'nome_motorista = ?', [agora, veiculo.motorista]);
+                        rowsAfetadas = r.changes || 0;
+                    }
+
+                    if (rowsAfetadas > 0) {
+                        console.log(`✅ [IPC] Motorista ${veiculo.motorista}: viagem incrementada`);
+                    } else {
+                        console.warn(`⚠️ [IPC] Motorista ${veiculo.motorista}: marcação não encontrada para incrementar viagem`);
+                    }
+                }
+            } catch (errViagem) {
+                console.error('[IPC] Erro ao incrementar viagem:', errViagem);
+            }
         } else if (statusAntigo === 'Emitido' || statusAntigo === 'Em Emissão') {
             acao = 'ESTORNO_CTE';
             detalhes = `⚠️ CT-e retrocedido: ${statusAntigo} → ${statusNovo} | ${origem} | Coleta: ${coleta}`;
@@ -588,7 +657,7 @@ ipcMain.handle('get-marcacoes-disponiveis', async () => {
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao
             FROM marcacoes_placas
-            WHERE data_marcacao >= datetime('now', '-7 days')
+            WHERE data_marcacao >= NOW() - INTERVAL '7 days'
             ORDER BY data_marcacao DESC
         `);
         const motoristas = rows.map(r => ({
@@ -629,7 +698,7 @@ ipcMain.handle('get-logs', async (_, { page = 1, limit = 100 } = {}) => {
         const countResult = await dbGet('SELECT COUNT(*) as total FROM logs');
         const totalLogs = countResult.total;
         const logs = await dbAll(
-            "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, datetime(data_hora, 'localtime') as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
+            "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, data_hora AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo' as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
             [limit, offset]
         );
         return {
@@ -643,7 +712,7 @@ ipcMain.handle('get-logs', async (_, { page = 1, limit = 100 } = {}) => {
 
 ipcMain.handle('post-log', async (_, { usuario, acao, detalhes }) => {
     try {
-        const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const agora = obterDataHoraBrasilia();
         await dbRun(
             'INSERT INTO logs (usuario, acao, detalhes, data_hora) VALUES (?, ?, ?, ?)',
             [usuario, acao, detalhes || '', agora]
@@ -690,6 +759,34 @@ ipcMain.handle('delete-docas-interditadas', async (_, id) => {
         await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
         const rows = await dbAll('SELECT * FROM docas_interditadas');
         return { success: true, docas: rows };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+});
+
+// ─── Histórico de Liberações (GR) ─────────────────────────────────────────────
+ipcMain.handle('get-historico-liberacoes', async (_, params = {}) => {
+    try {
+        const { letra, motorista } = params;
+        if (motorista) {
+            const rows = await dbAll(
+                `SELECT * FROM historico_liberacoes WHERE motorista_nome = ? ORDER BY datetime_cte DESC`,
+                [motorista]
+            );
+            return { success: true, registros: rows };
+        }
+        if (letra) {
+            const rows = await dbAll(
+                `SELECT DISTINCT motorista_nome FROM historico_liberacoes WHERE primeira_letra = ? ORDER BY motorista_nome`,
+                [letra.toUpperCase()]
+            );
+            return { success: true, motoristas: rows.map(r => r.motorista_nome) };
+        }
+        const rows = await dbAll(
+            `SELECT primeira_letra, COUNT(DISTINCT motorista_nome) as total_motoristas, COUNT(*) as total_liberacoes
+             FROM historico_liberacoes GROUP BY primeira_letra ORDER BY primeira_letra`
+        );
+        return { success: true, letras: rows };
     } catch (e) {
         return { success: false, message: e.message };
     }

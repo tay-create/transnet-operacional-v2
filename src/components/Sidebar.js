@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Shield, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -203,6 +203,7 @@ export default function Sidebar({
                     <>
                         <Divider label="Ger. de Risco" aberto={aberto} />
                         <MenuItem icon={<ShieldCheck size={20} />} label="Ger. Risco / Liberação" aberto={aberto} onClick={() => { setAbaAtiva('cadastro'); }} />
+                        <MenuItem icon={<FolderOpen size={20} />} label="Histórico de Liberações" subItem aberto={aberto} onClick={() => { setAbaAtiva('historico_liberacoes'); }} />
                     </>
                 )}
 

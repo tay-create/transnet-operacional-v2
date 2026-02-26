@@ -3,6 +3,7 @@ const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { validate, novoLancamentoSchema } = require('../../middleware/validationMiddleware');
 
+module.exports = function createChecklistsRouter(io) {
 const router = express.Router();
 
 router.get('/api/checklists', authMiddleware, async (req, res) => {
@@ -75,5 +76,5 @@ router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador
 
 // --- ROTAS DE CUBAGEM ---
 
-
-module.exports = router;
+return router;
+};

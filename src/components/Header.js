@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
     Bell, User, Check, X,
-    Calendar, LogOut, ClipboardList, FileText
+    Calendar, LogOut, ClipboardList, FileText,
+    AlertTriangle, ShieldOff
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
+import logoImg from '../assets/logo.png';
 
 export default function Header({
     onLogout,
@@ -19,7 +21,6 @@ export default function Header({
         removerNotificacao,
         openModal
     } = useUIStore();
-
 
     const [time, setTime] = useState(new Date());
 
@@ -41,16 +42,30 @@ export default function Header({
 
     return (
         <header className="header-glass">
-
-            <div style={{ display: 'flex', flexDirection: 'column', marginLeft: '10px' }}>
-                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '900', color: 'white', letterSpacing: '1px', lineHeight: '1' }}>
-                    TRANSNET <span style={{ color: '#3b82f6' }}>LOG</span>
-                </h1>
+            {/* LOGOTIPO - USANDO NOVO ASSET logo.png */}
+            <div style={{ padding: '2px 0', marginLeft: '10px' }}>
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'default',
+                    userSelect: 'none',
+                    transition: 'transform 0.3s ease'
+                }} className="logo-group">
+                    <img
+                        src={logoImg}
+                        alt="TRANSNET"
+                        className="animate-wind"
+                        style={{
+                            height: '90px', /* Aumentado conforme solicitado */
+                            width: 'auto',
+                            objectFit: 'contain',
+                            filter: 'drop-shadow(0 0 10px rgba(59,130,246,0.2))'
+                        }}
+                    />
+                </div>
             </div>
 
-
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <div style={{ fontSize: '24px', fontWeight: '800', color: 'white', lineHeight: '1', textShadow: '0 0 10px rgba(59,130,246,0.5)' }}>
                         {timeString}
@@ -62,7 +77,6 @@ export default function Header({
 
                 <div style={{ width: '1px', height: '30px', background: 'rgba(255,255,255,0.1)' }}></div>
 
-                {/* --- AQUI A MUDANÇA: BOTÃO FILA NO LUGAR DO SHIELD --- */}
                 {temAcesso('fila') && (
                     <button
                         onClick={() => openModal('fila')}
@@ -74,7 +88,6 @@ export default function Header({
                     </button>
                 )}
 
-                {/* Botão de Logs e Auditoria */}
                 {(user.cargo === 'Coordenador' || user.cargo === 'Planejamento') && (
                     <button
                         onClick={() => openModal('logs')}
@@ -107,8 +120,17 @@ export default function Header({
                                     <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>Nenhum alerta recente.</div>
                                 ) : (
                                     (Array.isArray(notificacoes) ? notificacoes : []).map((notif, index) => (
-                                        <div key={index} className="notif-item">
-                                            <div className="notif-icon">{notif.tipo === 'aceite_cte_pendente' ? <Check size={16} color="#22c55e" /> : <Bell size={16} />}</div>
+                                        <div key={index} className="notif-item" style={{
+                                            borderLeft: notif.tipo === 'liberacao_expirada' ? '3px solid #ef4444'
+                                                : notif.tipo === 'liberacao_vencendo' ? '3px solid #f59e0b'
+                                                    : undefined
+                                        }}>
+                                            <div className="notif-icon">
+                                                {notif.tipo === 'aceite_cte_pendente' && <Check size={16} color="#22c55e" />}
+                                                {notif.tipo === 'liberacao_expirada' && <ShieldOff size={16} color="#ef4444" />}
+                                                {notif.tipo === 'liberacao_vencendo' && <AlertTriangle size={16} color="#f59e0b" />}
+                                                {!['aceite_cte_pendente', 'liberacao_expirada', 'liberacao_vencendo'].includes(notif.tipo) && <Bell size={16} />}
+                                            </div>
                                             <div style={{ flex: 1 }}>
                                                 <p style={{ margin: '0 0 5px 0', lineHeight: '1.4' }}>{notif.mensagem}</p>
                                                 {notif.tipo === 'aceite_cte_pendente' && (

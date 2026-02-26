@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
     X, Clock, BarChart3, Search, FileDown,
     ClipboardList, GripVertical, Plus, Trash2,
@@ -378,6 +380,146 @@ function CardEfetividade({ titulo, cor, dados }) {
     );
 }
 
+// ── Gerador de PDF Performance CT-e ──────────────────────────────────────────
+function gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, filtroData }) {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const mL = 14, mR = 196;
+    let y = 14;
+
+    const dataLabel = filtroData
+        ? new Date(filtroData + 'T12:00:00').toLocaleDateString('pt-BR')
+        : new Date().toLocaleDateString('pt-BR');
+    const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+
+    // ── Cabeçalho ──
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 28, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(252, 211, 77);
+    doc.text('PERFORMANCE CT-e', mL, y + 3);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Data: ${dataLabel}   |   Gerado em: ${geradoEm}`, mL, y + 10);
+    y = 36;
+
+    // ── Resumo Geral ──
+    const totalTrab = (dadosRec?.trabalhados || 0) + (dadosMor?.trabalhados || 0);
+    const totalExp = (dadosRec?.expediente || 0) + (dadosMor?.expediente || 0);
+    const totalOc = (dadosRec?.ociosos || 0) + (dadosMor?.ociosos || 0);
+    const efetGeral = totalExp > 0 ? Math.min(100, Math.round(totalTrab / totalExp * 100)) : 0;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text('RESUMO GERAL', mL, y);
+    y += 5;
+
+    const corEfet = efetGeral >= 70 ? [34, 197, 94] : efetGeral >= 40 ? [234, 179, 8] : [239, 68, 68];
+    autoTable(doc, {
+        startY: y,
+        margin: { left: mL, right: 14 },
+        head: [['EFETIVIDADE GERAL', 'TOTAL TRABALHADO', 'TOTAL OCIOSO', 'CT-es no período']],
+        body: [[
+            { content: `${efetGeral}%`, styles: { textColor: corEfet, fontStyle: 'bold', fontSize: 13 } },
+            { content: fmtMinCte(totalTrab), styles: { textColor: [34, 197, 94], fontStyle: 'bold', fontSize: 13 } },
+            { content: fmtMinCte(totalOc), styles: { textColor: totalOc > 60 ? [239, 68, 68] : [100, 116, 139], fontStyle: 'bold', fontSize: 13 } },
+            { content: String(listaRec.length + listaMor.length), styles: { fontStyle: 'bold', fontSize: 13 } },
+        ]],
+        styles: { halign: 'center', fontSize: 10, cellPadding: 5 },
+        headStyles: { fillColor: [15, 23, 42], textColor: [148, 163, 184], fontStyle: 'bold', fontSize: 9 },
+        theme: 'grid',
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ── Detalhamento por unidade ──
+    const renderUnidade = (titulo, cor, dados, lista) => {
+        if (y > 240) { doc.addPage(); y = 14; }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(cor[0], cor[1], cor[2]);
+        doc.text(`\u258c ${titulo}`, mL, y);
+        y += 5;
+
+        if (!dados) {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139);
+            doc.text('Nenhum CT-e emitido com tempo registrado.', mL + 4, y);
+            y += 8;
+            return;
+        }
+
+        const { expediente, trabalhados, ociosos, efetPct, ultimoHorario, totalCards, cardsComTempo } = dados;
+        const corEf = efetPct >= 70 ? [34, 197, 94] : efetPct >= 40 ? [234, 179, 8] : [239, 68, 68];
+        autoTable(doc, {
+            startY: y,
+            margin: { left: mL, right: 14 },
+            head: [['EFETIVIDADE', 'TRABALHADO', 'OCIOSO', 'EXPEDIENTE', 'ÚLTIMO CT-e', 'CARDS']],
+            body: [[
+                { content: `${efetPct}%`, styles: { textColor: corEf, fontStyle: 'bold' } },
+                { content: fmtMinCte(trabalhados), styles: { textColor: [34, 197, 94], fontStyle: 'bold' } },
+                { content: fmtMinCte(ociosos), styles: { textColor: ociosos > 30 ? [239, 68, 68] : [100, 116, 139] } },
+                { content: fmtMinCte(expediente), styles: { textColor: cor } },
+                ultimoHorario || '—',
+                `${cardsComTempo}/${totalCards}`,
+            ]],
+            styles: { halign: 'center', fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [15, 23, 42], textColor: [148, 163, 184], fontStyle: 'bold', fontSize: 8 },
+            theme: 'grid',
+        });
+        y = doc.lastAutoTable.finalY + 5;
+
+        // Tabela individual de CT-es
+        if (lista.length > 0) {
+            if (y > 230) { doc.addPage(); y = 14; }
+            const rows = lista.map(c => [
+                c.motorista || '—',
+                c.coleta || c.coletaRecife || c.coletaMoreno || '—',
+                c.status || '—',
+                c.t_fim_liberado_cte || '—',
+                c.minutos_cte != null ? fmtMinCte(c.minutos_cte) : '—',
+                c.timestamps?.inicio_emissao || '—',
+                c.timestamps?.fim_emissao || '—',
+            ]);
+            autoTable(doc, {
+                startY: y,
+                margin: { left: mL, right: 14 },
+                head: [['Motorista', 'Coleta', 'Status', 'Lib. CT-e', 'Tempo', 'Início Emissão', 'Fim Emissão']],
+                body: rows,
+                styles: { fontSize: 7.5, cellPadding: 2 },
+                headStyles: { fillColor: cor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5 },
+                didParseCell: (data) => {
+                    if (data.section === 'body' && data.column.index === 2) {
+                        const st = data.cell.raw;
+                        if (st === 'Emitido') data.cell.styles.textColor = [34, 197, 94];
+                        else if (st === 'Em Emissão') data.cell.styles.textColor = [234, 179, 8];
+                        else data.cell.styles.textColor = [148, 163, 184];
+                    }
+                },
+                theme: 'striped',
+            });
+            y = doc.lastAutoTable.finalY + 10;
+        }
+    };
+
+    renderUnidade('RECIFE', [59, 130, 246], dadosRec, listaRec);
+    renderUnidade('MORENO', [245, 158, 11], dadosMor, listaMor);
+
+    // ── Rodapé em todas as páginas ──
+    const totalPags = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPags; i++) {
+        doc.setPage(i);
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Transnet Logística — Performance CT-e — ${dataLabel}`, mL, 290);
+        doc.text(`Pág. ${i}/${totalPags}`, mR, 290, { align: 'right' });
+    }
+
+    doc.save(`performance-cte-${filtroData || new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
 // ── Modal Performance CT-e ────────────────────────────────────────────────────
 export const ModalRelatorioCte = ({ isOpen, onClose, ctesRecife, ctesMoreno }) => {
     const [filtroData, setFiltroData] = useState('');
@@ -409,7 +551,21 @@ export const ModalRelatorioCte = ({ isOpen, onClose, ctesRecife, ctesMoreno }) =
                     <h3 style={{ margin: 0, color: '#fcd34d', display: 'flex', alignItems: 'center', gap: '10px', textShadow: '0 0 10px rgba(252,211,77,0.3)' }}>
                         <PieChart size={20} /> Performance CT-e
                     </h3>
-                    <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                            onClick={() => gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, filtroData })}
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                padding: '7px 14px', borderRadius: '8px', cursor: 'pointer',
+                                background: 'rgba(252,211,77,0.12)', border: '1px solid rgba(252,211,77,0.3)',
+                                color: '#fcd34d', fontSize: '12px', fontWeight: '700'
+                            }}
+                            title="Exportar PDF"
+                        >
+                            <FileDown size={14} /> PDF
+                        </button>
+                        <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
+                    </div>
                 </div>
 
                 {/* Filtro de data */}

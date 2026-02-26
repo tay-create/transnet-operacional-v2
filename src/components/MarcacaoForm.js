@@ -50,6 +50,8 @@ export default function MarcacaoForm() {
     });
 
     const [modalRast, setModalRast] = useState(false);
+    const [temDocumento, setTemDocumento] = useState('');
+    const [modalDocs, setModalDocs] = useState(false);
     const [anexos, setAnexos] = useState({ cnh: null, doc_veiculo: null, crlv_carreta: null, antt: null, outros: null });
     const latRef = useRef('');
     const lngRef = useRef('');
@@ -107,6 +109,18 @@ export default function MarcacaoForm() {
         if (!form.rastreador || !form.status_rastreador) { setErroMsg('Preencha os dados do rastreador.'); return; }
         setErroMsg('');
         setModalRast(false);
+    }
+
+    function handleRadioDocumento(val) {
+        setTemDocumento(val);
+        if (val === 'Sim') setModalDocs(true);
+        else {
+            setAnexos({ cnh: null, doc_veiculo: null, crlv_carreta: null, antt: null, outros: null });
+        }
+    }
+
+    function confirmarModalDocs() {
+        setModalDocs(false);
     }
 
     async function handleSubmit(e) {
@@ -243,6 +257,16 @@ export default function MarcacaoForm() {
                                 </label>
                             ))}
                         </div>
+                        {form.ja_carregou === 'Sim' && (
+                            <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                👋 Bem-vindo de volta!
+                            </div>
+                        )}
+                        {form.ja_carregou === 'Nao' && (
+                            <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                🚛 Seja bem-vindo à TRANSNET!
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -338,6 +362,33 @@ export default function MarcacaoForm() {
                     )}
                 </div>
 
+                {/* DOCUMENTOS / ANEXOS (Perguntar) */}
+                <div style={s.card}>
+                    <div style={s.sectionTitle}>Documentação (Opcional)</div>
+                    <div style={s.field}>
+                        <label style={s.label}>Deseja Adicionar Sua documentação?</label>
+                        <div style={s.radioGroup}>
+                            {['Sim', 'Nao'].map(v => (
+                                <label key={v} style={s.radioLabel}>
+                                    <input type="radio" name="tem_documento" value={v}
+                                        checked={temDocumento === v}
+                                        onChange={() => handleRadioDocumento(v)} />
+                                    {v === 'Nao' ? 'Não' : v}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    {temDocumento === 'Sim' && (
+                        <div style={{ fontSize: '13px', color: '#4ade80', marginTop: '-8px' }}>
+                            Documentação será anexada.
+                            <button type="button" onClick={() => setModalDocs(true)}
+                                style={{ ...s.btnSecondary, padding: '4px 12px', marginLeft: '10px', fontSize: '12px' }}>
+                                Adicionar / Alterar
+                            </button>
+                        </div>
+                    )}
+                </div>
+
                 {/* TERMO */}
                 <div style={s.card}>
                     <div style={s.termoBox}>
@@ -353,50 +404,7 @@ export default function MarcacaoForm() {
                     </label>
                 </div>
 
-                {/* DOCUMENTOS / ANEXOS (opcional) */}
-                <div style={{ ...s.card }}>
-                    <div style={s.sectionTitle}>DOCUMENTOS / ANEXOS (Opcional)</div>
-                    {[
-                        { key: 'cnh', label: 'CNH' },
-                        { key: 'doc_veiculo', label: 'Documentação do Veículo (Cavalo / Caminhão)' },
-                        { key: 'crlv_carreta', label: 'CRLV da Carreta (Reboque)' },
-                        { key: 'antt', label: 'ANTT' },
-                        { key: 'outros', label: 'Outros / Opcional' },
-                    ].map(({ key, label }) => (
-                        <div key={key} style={{ marginBottom: '14px' }}>
-                            <label style={s.label}>{label}</label>
-                            {!anexos[key] ? (
-                                <label style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                                    padding: '13px', borderRadius: '10px', border: '2px dashed rgba(255,255,255,0.15)',
-                                    background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
-                                    color: '#94a3b8', fontSize: '13px', fontWeight: '600',
-                                }}>
-                                    📎 Selecionar arquivo
-                                    <input
-                                        type="file"
-                                        accept=".pdf,application/pdf"
-                                        style={{ display: 'none' }}
-                                        onChange={e => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => setAnexos(prev => ({ ...prev, [key]: reader.result }));
-                                            reader.readAsDataURL(file);
-                                        }}
-                                    />
-                                </label>
-                            ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}>
-                                    <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: '600' }}>✓ Arquivo anexado</span>
-                                    <button type="button" onClick={() => setAnexos(prev => ({ ...prev, [key]: null }))} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>
-                                        Remover
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+
 
                 {erroMsg && (
                     <div style={{ maxWidth: '520px', margin: '0 auto 8px', padding: '12px 16px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#fca5a5', fontSize: '14px' }}>
@@ -444,6 +452,64 @@ export default function MarcacaoForm() {
                                 style={{ ...s.btnSecondary, flex: 1 }}>Cancelar</button>
                             <button type="button" onClick={confirmarModal}
                                 style={{ ...s.btnPrimary, flex: 1, marginTop: 0 }}>Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL DOCUMENTOS */}
+            {modalDocs && (
+                <div style={s.overlay}>
+                    <div style={{ ...s.modal, maxWidth: '480px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: '#f1f5f9' }}>Adicionar Documentação (PDF)</div>
+                            <button type="button" onClick={() => setModalDocs(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', lineHeight: '1' }}>&times;</button>
+                        </div>
+
+                        {[
+                            { key: 'cnh', label: 'CNH' },
+                            { key: 'doc_veiculo', label: 'Documentação do Veículo (Cavalo / Caminhão)' },
+                            { key: 'crlv_carreta', label: 'CRLV da Carreta (Reboque)' },
+                            { key: 'antt', label: 'ANTT' },
+                            { key: 'outros', label: 'Outros / Opcional' },
+                        ].map(({ key, label }) => (
+                            <div key={key} style={{ marginBottom: '14px' }}>
+                                <label style={s.label}>{label}</label>
+                                {!anexos[key] ? (
+                                    <label style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                        padding: '13px', borderRadius: '10px', border: '2px dashed rgba(255,255,255,0.15)',
+                                        background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
+                                        color: '#94a3b8', fontSize: '13px', fontWeight: '600',
+                                    }}>
+                                        📎 Selecionar PDF
+                                        <input
+                                            type="file"
+                                            accept=".pdf,application/pdf"
+                                            style={{ display: 'none' }}
+                                            onChange={e => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => setAnexos(prev => ({ ...prev, [key]: reader.result }));
+                                                reader.readAsDataURL(file);
+                                            }}
+                                        />
+                                    </label>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '10px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                                        <span style={{ color: '#4ade80', fontSize: '13px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>✓ PDF Anexado</span>
+                                        <button type="button" onClick={() => setAnexos(prev => ({ ...prev, [key]: null }))} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline', marginLeft: '10px' }}>
+                                            Remover
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                            <button type="button" onClick={confirmarModalDocs}
+                                style={{ ...s.btnPrimary, flex: 1, marginTop: 0 }}>Concluído</button>
                         </div>
                     </div>
                 </div>

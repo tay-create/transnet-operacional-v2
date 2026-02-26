@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-    PieChart, Pie, Legend
+    PieChart, Pie, Legend, CartesianGrid
 } from 'recharts';
 import { Filter, Calendar, MapPin, Truck, ChevronDown, ChevronRight, Clock, BarChart3, FileDown } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
@@ -264,31 +264,78 @@ export default function RelatorioOperacional({ listaVeiculos }) {
 
     function exportarPDF() {
         if (dadosFiltrados.length === 0) return;
-        const doc = new jsPDF({ orientation: 'landscape' });
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+
+        // ── Cabeçalho colorido ──
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, 297, 22, 'F');
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(13);
-        doc.text('Relatório Operacional', 14, 15);
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`Período: ${dataInicio} → ${dataFim}  |  Unidade: ${filtroUnidade}  |  Tipo: ${filtroTipo}`, 14, 22);
+        doc.setTextColor(56, 189, 248);
+        doc.text('RELATÓRIO OPERACIONAL', 14, 10);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Período: ${dataInicio} → ${dataFim}  |  Unidade: ${filtroUnidade}  |  Tipo: ${filtroTipo}  |  ${contTipos.total} embarques  |  Gerado: ${geradoEm}`, 14, 17);
+
+        // ── Tabela ── (fundo branco, legível em qualquer leitor)
         autoTable(doc, {
             head: [CABECALHO_EXPORT],
             body: linhasParaExportar(),
-            startY: 27,
-            styles: { fontSize: 8, cellPadding: 3 },
-            headStyles: { fillColor: [15, 23, 42], textColor: [148, 163, 184], fontStyle: 'bold' },
-            alternateRowStyles: { fillColor: [30, 41, 59] },
-            bodyStyles: { fillColor: [15, 23, 42], textColor: [241, 245, 249] },
+            startY: 26,
+            styles: { fontSize: 7.5, cellPadding: 2.5, textColor: [30, 41, 59] },
+            headStyles: { fillColor: [15, 23, 42], textColor: [148, 163, 184], fontStyle: 'bold', fontSize: 7.5 },
+            alternateRowStyles: { fillColor: [241, 245, 249] },
+            bodyStyles: { fillColor: [255, 255, 255] },
+            didParseCell: (data) => {
+                if (data.section !== 'body') return;
+                // Colorir coluna Status
+                if (data.column.index === 5) {
+                    const v = data.cell.raw;
+                    if (v === 'LIBERADO P/ CT-e') data.cell.styles.textColor = [168, 85, 247];
+                    else if (v === 'CARREGADO') data.cell.styles.textColor = [34, 197, 94];
+                    else if (v === 'EM CARREGAMENTO') data.cell.styles.textColor = [249, 115, 22];
+                    else if (v === 'LIBERADO P/ DOCA') data.cell.styles.textColor = [59, 130, 246];
+                    else if (v === 'EM SEPARAÇÃO') data.cell.styles.textColor = [202, 138, 4];
+                }
+                // Colorir coluna Duração
+                if (data.column.index === 12 && data.cell.raw !== '—') {
+                    data.cell.styles.textColor = [34, 197, 94];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            },
         });
+
+        // ── Rodapé paginado ──
+        const totalPags = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPags; i++) {
+            doc.setPage(i);
+            doc.setFontSize(7);
+            doc.setTextColor(148, 163, 184);
+            doc.text(`Transnet Logística — Relatório Operacional — ${dataInicio} a ${dataFim}`, 14, 207);
+            doc.text(`Pág. ${i}/${totalPags}`, 283, 207, { align: 'right' });
+        }
+
         doc.save(`relatorio-operacional-${dataInicio}-${dataFim}.pdf`);
     }
 
     function exportarXLSX() {
         if (dadosFiltrados.length === 0) return;
-        const ws = XLSX.utils.aoa_to_sheet([CABECALHO_EXPORT, ...linhasParaExportar()]);
+        const linhas = linhasParaExportar();
+        const ws = XLSX.utils.aoa_to_sheet([CABECALHO_EXPORT, ...linhas]);
         ws['!cols'] = [22, 10, 18, 12, 28, 22, 12, 10, 12, 10, 12, 12, 10].map(w => ({ wch: w }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
-        XLSX.writeFile(wb, `relatorio-operacional-${dataInicio}-${dataFim}.xlsx`);
+        // Usar write + Blob para compatibilidade garantida com browsers
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relatorio-operacional-${dataInicio}-${dataFim}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     return (
@@ -375,9 +422,10 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                         {dadosBarras.length > 0 ? (
                             <ResponsiveContainer width="100%" height={200}>
                                 <BarChart data={dadosBarras} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
+                                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                                     <XAxis dataKey="status" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
                                     <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                                    <Tooltip content={<TooltipCustom />} />
+                                    <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<TooltipCustom />} />
                                     <Bar dataKey="total" radius={[4, 4, 0, 0]}>
                                         {dadosBarras.map((entry, idx) => (
                                             <Cell key={idx} fill={CORES_STATUS_BAR[entry.statusReal] || '#64748b'} />

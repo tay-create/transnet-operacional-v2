@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock } from 'lucide-react';
+import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star } from 'lucide-react';
 import api from '../services/apiService';
 
 const s = {
@@ -45,14 +45,23 @@ const s = {
     toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
-// ── Cálculo de tempo de espera (corrigido para fuso horário e congelamento) ──────────────────
-// data_marcacao vem do banco como ISO (UTC). Forçamos 'Z' para garantir parse UTC.
+// ── Cálculo de tempo de espera ───────────────────────────────────────────────
+// data_marcacao e data_contratacao são gravadas no timezone de Brasília (sem Z).
+// Parseamos como hora local sem adicionar 'Z' para evitar deslocamento de 3h.
+function parseDateLocal(str) {
+    if (!str) return null;
+    // Se já vier com Z ou +offset, usa diretamente; caso contrário trata como local
+    if (str.endsWith('Z') || str.includes('+')) return new Date(str);
+    // Formato "YYYY-MM-DD HH:MM:SS" → substitui espaço por T para o parser JS
+    return new Date(str.replace(' ', 'T'));
+}
 function calcularTempoEspera(dataMarcacao, dataContratacao) {
     if (!dataMarcacao) return null;
-    const dataInicioStr = dataMarcacao.endsWith('Z') ? dataMarcacao : dataMarcacao + 'Z';
-    const dataFimMs = dataContratacao ? new Date(dataContratacao.endsWith('Z') ? dataContratacao : dataContratacao + 'Z').getTime() : Date.now();
-    const diff = Math.floor((dataFimMs - new Date(dataInicioStr).getTime()) / 60000);
-    return Math.max(0, diff); // nunca negativo
+    const inicio = parseDateLocal(dataMarcacao);
+    const fim = dataContratacao ? parseDateLocal(dataContratacao) : new Date();
+    if (!inicio || isNaN(inicio)) return null;
+    const diff = Math.floor((fim - inicio) / 60000);
+    return Math.max(0, diff);
 }
 
 function formatarTempo(minutos) {
@@ -189,6 +198,17 @@ export default function GestaoMarcacoes({ socket }) {
         } catch (e) { mostrarToast('Erro ao atualizar status.'); }
     }
 
+    async function handleAtualizarLocalizacao(id, novaLocalizacao) {
+        try {
+            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novaLocalizacao });
+            if (r.data.success) {
+                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novaLocalizacao } : m));
+            } else {
+                mostrarToast('Erro ao atualizar localização.');
+            }
+        } catch (e) { mostrarToast('Erro ao atualizar localização.'); }
+    }
+
     // Frota: apenas nome e telefone — placas inseridas depois no despacho
     async function cadastrarFrota() {
         const { nome_motorista, telefone } = formFrota;
@@ -253,7 +273,7 @@ export default function GestaoMarcacoes({ socket }) {
                     Gerar Links
                 </button>
                 <button style={s.tab(aba === 'placas')} onClick={() => setAba('placas')}>
-                    Fila de Placas
+                    Lista de Marcações
                 </button>
                 <button style={s.tab(aba === 'frota')} onClick={() => setAba('frota')}>
                     Frota Própria
@@ -404,11 +424,23 @@ export default function GestaoMarcacoes({ socket }) {
                                             <tr key={m.id}>
                                                 <td style={s.td}>{formatarData(m.data_marcacao)}</td>
                                                 <td style={s.td}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                         {m.nome_motorista}
                                                         {m.is_frota ? (
                                                             <span style={s.badgeFreota}>
                                                                 <Truck size={10} /> FROTA
+                                                            </span>
+                                                        ) : null}
+                                                        {!m.is_frota && (m.viagens_realizadas ?? 0) < 5 && (m.ja_carregou === 'Não' || m.ja_carregou === 'Nao' || (!m.ja_carregou && (m.viagens_realizadas ?? 0) === 0)) ? (
+                                                            <span style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                fontSize: '10px', fontWeight: '700',
+                                                                color: '#fb923c',
+                                                                background: 'rgba(251,146,60,0.12)',
+                                                                border: '1px solid rgba(251,146,60,0.3)',
+                                                                borderRadius: '4px', padding: '1px 6px'
+                                                            }}>
+                                                                <Star size={9} /> NOVATO
                                                             </span>
                                                         ) : null}
                                                     </div>
@@ -419,13 +451,23 @@ export default function GestaoMarcacoes({ socket }) {
                                                 <td style={s.td}>{m.tipo_veiculo}</td>
                                                 {/* Disponibilidade (localização: NO PÁTIO / NO POSTO / EM CASA) */}
                                                 <td style={s.td}>
-                                                    {m.disponibilidade && !['Indisponível', 'Contratado', 'Disponível'].includes(m.disponibilidade) ? (
-                                                        <span style={{ fontSize: '12px', fontWeight: '700', color: corDisponibilidade(m.disponibilidade) }}>
-                                                            {m.disponibilidade}
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
-                                                    )}
+                                                    <select
+                                                        value={['EM CASA', 'NO PÁTIO', 'NO POSTO'].includes(m.disponibilidade) ? m.disponibilidade : ''}
+                                                        onChange={e => e.target.value && handleAtualizarLocalizacao(m.id, e.target.value)}
+                                                        style={{
+                                                            background: 'rgba(255,255,255,0.06)',
+                                                            border: '1px solid rgba(255,255,255,0.1)',
+                                                            borderRadius: '6px', padding: '4px 8px',
+                                                            color: corDisponibilidade(m.disponibilidade),
+                                                            fontSize: '11px', fontWeight: '700',
+                                                            cursor: 'pointer', outline: 'none'
+                                                        }}
+                                                    >
+                                                        <option value="" style={{ color: '#475569' }}>— localização —</option>
+                                                        <option value="EM CASA" style={{ color: 'black' }}>EM CASA</option>
+                                                        <option value="NO PÁTIO" style={{ color: 'black' }}>NO PÁTIO</option>
+                                                        <option value="NO POSTO" style={{ color: 'black' }}>NO POSTO</option>
+                                                    </select>
                                                 </td>
                                                 {/* Checkbox Indisponível */}
                                                 <td style={s.td}>
@@ -584,13 +626,23 @@ export default function GestaoMarcacoes({ socket }) {
                                             {m.placa1 ? `${m.placa1}${m.placa2 ? ' / ' + m.placa2 : ''}` : '—'}
                                         </td>
                                         <td style={s.td}>
-                                            {m.disponibilidade && !['Indisponível', 'Contratado', 'Disponível'].includes(m.disponibilidade) ? (
-                                                <span style={{ fontSize: '12px', fontWeight: '700', color: corDisponibilidade(m.disponibilidade) }}>
-                                                    {m.disponibilidade}
-                                                </span>
-                                            ) : (
-                                                <span style={{ color: '#475569', fontSize: '12px' }}>—</span>
-                                            )}
+                                            <select
+                                                value={['EM CASA', 'NO PÁTIO', 'NO POSTO'].includes(m.disponibilidade) ? m.disponibilidade : ''}
+                                                onChange={e => e.target.value && handleAtualizarLocalizacao(m.id, e.target.value)}
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.06)',
+                                                    border: '1px solid rgba(255,255,255,0.1)',
+                                                    borderRadius: '6px', padding: '4px 8px',
+                                                    color: corDisponibilidade(m.disponibilidade),
+                                                    fontSize: '11px', fontWeight: '700',
+                                                    cursor: 'pointer', outline: 'none'
+                                                }}
+                                            >
+                                                <option value="" style={{ color: '#475569' }}>— localização —</option>
+                                                <option value="EM CASA" style={{ color: 'black' }}>EM CASA</option>
+                                                <option value="NO PÁTIO" style={{ color: 'black' }}>NO PÁTIO</option>
+                                                <option value="NO POSTO" style={{ color: 'black' }}>NO POSTO</option>
+                                            </select>
                                         </td>
                                         <td style={s.td}>
                                             {m.disponibilidade === 'Indisponível' ? (

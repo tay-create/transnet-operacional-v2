@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import TagInput from './TagInput';
 import {
-    Package, Anchor, Timer, X, Search, Box, Calendar, ArrowRight,
+    Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
     CheckCircle, Clock, FileText, Warehouse, ClipboardCheck, Truck
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalOcorrencia from './ModalOcorrencia';
 import ModalImagem from './ModalImagem';
 import ModalColetas from './ModalColetas';
+import SLATimeline from './SLATimeline';
 import { OPCOES_STATUS, OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
@@ -18,6 +19,7 @@ import { obterDataBrasilia } from '../utils/helpers';
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
+
 
 // Ao mudar a operacao, limpar campos de unidades removidas e aplicar regras de parada
 const handleOperacaoChange = (item, novaOperacao, updateList, lista, setLista, realIndex, api) => {
@@ -75,7 +77,7 @@ const handleOperacaoChange = (item, novaOperacao, updateList, lista, setLista, r
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
     termoBusca, setTermoBusca, user,
-    funcoes: { podeEditar, updateList, setItemTempoAtivo, setModalTempoAberto, socket, temAcesso, removerVeiculo }
+    funcoes: { podeEditar, updateList, socket, removerVeiculo }
 }) {
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
@@ -254,7 +256,7 @@ export default function PainelOperacional({
     });
 
     return (
-        <div style={{ display: 'flex', gap: '12px', height: 'calc(100vh - 100px)', padding: '0 10px 20px 20px' }}>
+        <div style={{ display: 'flex', gap: '12px', height: 'calc(100vh - 124px)', padding: '0 10px 20px 20px' }}>
             <style>{`
 @keyframes slideIn { from{ opacity: 0; transform: translateX(30px) } to{ opacity: 1; transform: translateX(0) } }
                 .motorista - hover - wrapper: hover.motorista - hover - card { display: block!important; }
@@ -868,6 +870,12 @@ export default function PainelOperacional({
 
                                         {/* Footer / Timers e Ações */}
                                         < div style={{ background: 'rgba(0,0,0,0.4)', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+
+                                                {/* SLA Timeline */}
+                                                <div style={{ marginBottom: '8px' }}>
+                                                    <SLATimeline item={item} unidade={origem === 'Recife' ? 'recife' : 'moreno'} />
+                                                </div>
+
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 
                                                 {/* Bloco Timers */}
@@ -921,11 +929,6 @@ export default function PainelOperacional({
                                                             <ClipboardCheck size={16} />
                                                         </button>
                                                     ) : null}
-                                                    {podeEditarNaUnidade('gestao_tempo') && (
-                                                        <button onClick={() => { setItemTempoAtivo({ lista, setLista, index: realIndex, origem: origem }); setModalTempoAberto(true); }} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Cronômetro">
-                                                            <Timer size={16} />
-                                                        </button>
-                                                    )}
                                                     {isMista && souPrimeira && user.cidade === origem && (
                                                         <button onClick={() => socket.emit('enviar_alerta', { tipo: 'aviso', origem: origem, mensagem: `Veículo ${item.motorista} saindo!` })} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', border: 'none', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Avisar Saída">
                                                             <Truck size={16} />

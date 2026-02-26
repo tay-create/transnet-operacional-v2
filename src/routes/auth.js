@@ -35,15 +35,16 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         const token = generateToken(usuario);
 
         // Preparar dados do usuário (sem senha)
+        // PostgreSQL retorna campos em minúsculo (avatarurl, permissoesacesso, etc)
         const usuarioSemSenha = {
             id: usuario.id,
             nome: usuario.nome,
             email: usuario.email,
             cidade: usuario.cidade,
             cargo: usuario.cargo,
-            avatarUrl: usuario.avatarUrl,
-            permissoesAcesso: usuario.permissoesAcesso ? JSON.parse(usuario.permissoesAcesso) : [],
-            permissoesEdicao: usuario.permissoesEdicao ? JSON.parse(usuario.permissoesEdicao) : []
+            avatarUrl: usuario.avatarurl || usuario.avatarUrl,
+            permissoesAcesso: JSON.parse(usuario.permissoesacesso || usuario.permissoesAcesso || '[]'),
+            permissoesEdicao: JSON.parse(usuario.permissoesedicao || usuario.permissoesEdicao || '[]')
         };
 
         res.json({
@@ -56,13 +57,15 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno do servidor' });
     }
 });
+
 router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM usuarios");
         const usuarios = rows.map(u => ({
             ...u,
-            permissoesAcesso: JSON.parse(u.permissoesAcesso || '[]'),
-            permissoesEdicao: JSON.parse(u.permissoesEdicao || '[]')
+            avatarUrl: u.avatarurl || u.avatarUrl,
+            permissoesAcesso: JSON.parse(u.permissoesacesso || u.permissoesAcesso || '[]'),
+            permissoesEdicao: JSON.parse(u.permissoesedicao || u.permissoesEdicao || '[]')
         }));
         res.json({ success: true, usuarios });
     } catch (e) {
@@ -70,6 +73,7 @@ router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento'
         res.status(500).json({ success: false });
     }
 });
+
 router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(cadastroUsuarioSchema), async (req, res) => {
     const { nome, email, senha, cidade, cargo } = req.body;
 
@@ -79,10 +83,8 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
             return res.status(400).json({ success: false, message: "Este email já está em uso!" });
         }
 
-        // Hash da senha com bcrypt (pula se já vier hashada da solicitação)
-        const hashedPassword = senha.startsWith('$2b$') || senha.startsWith('$2a$')
-            ? senha
-            : await bcrypt.hash(senha, 10);
+        // Hash da senha com bcrypt
+        const hashedPassword = await bcrypt.hash(senha, 10);
 
         await dbRun("INSERT INTO usuarios (nome, email, senha, cidade, cargo) VALUES (?, ?, ?, ?, ?)",
             [nome, email, hashedPassword, cidade, cargo]);
@@ -93,22 +95,21 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
         res.status(500).json({ success: false, message: "Erro interno do servidor." });
     }
 });
+
 router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome } = req.body;
     try {
-        // Buscar dados atuais para não sobrescrever campos não enviados
         const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=?", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
-        // Apenas Coordenador pode alterar cargo
         const cargoFinal = req.user.cargo === 'Coordenador' ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
 
         await dbRun(
             `UPDATE usuarios SET usaPermissaoIndividual=?, permissoesAcesso=?, permissoesEdicao=?, cargo=?, cidade=?, nome=? WHERE id=?`,
             [
-                usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usaPermissaoIndividual,
-                JSON.stringify(permissoesAcesso ?? JSON.parse(usuarioAtual.permissoesAcesso || '[]')),
-                JSON.stringify(permissoesEdicao ?? JSON.parse(usuarioAtual.permissoesEdicao || '[]')),
+                usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usapermissoaindividual,
+                JSON.stringify(permissoesAcesso ?? JSON.parse(usuarioAtual.permissoesacesso || '[]')),
+                JSON.stringify(permissoesEdicao ?? JSON.parse(usuarioAtual.permissoesedicao || '[]')),
                 cargoFinal,
                 cidade ?? usuarioAtual.cidade,
                 nome ?? usuarioAtual.nome,
@@ -121,6 +122,7 @@ router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         res.status(500).json({ success: false });
     }
 });
+
 router.delete('/usuarios/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
     try {
         await dbRun("DELETE FROM usuarios WHERE id=?", [req.params.id]);

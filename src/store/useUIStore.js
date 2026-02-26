@@ -27,7 +27,7 @@ const useUIStore = create((set) => ({
     // === MENU SIDEBAR ===
     menuAberto: false,
     menuNotificacaoAberto: false,
-    abaAtiva: 'op_recife',
+    abaAtiva: sessionStorage.getItem('abaAtiva') || 'op_recife',
 
     // === AÇÕES ===
 
@@ -36,6 +36,7 @@ const useUIStore = create((set) => ({
      * @param {string} aba - Nome da aba
      */
     setAbaAtiva: (aba) => {
+        sessionStorage.setItem('abaAtiva', aba);
         set({ abaAtiva: aba });
     },
 

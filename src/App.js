@@ -10,7 +10,7 @@ import {
 import PainelOperacional from './components/PainelOperacional';
 import MainLayout from './components/layout/MainLayout';
 import PainelCte from './components/PainelCte';
-import { ModalTempos, ModalRelatorio, ModalFila, ModalRelatorioCte } from './components/Modals';
+import { ModalRelatorio, ModalFila, ModalRelatorioCte } from './components/Modals';
 import ModuloCubagem from './components/ModuloCubagem';
 import NovoLancamento from './components/NovoLancamento';
 import LogsAuditoria from './components/LogsAuditoria';
@@ -19,6 +19,7 @@ import DashboardTV from './components/DashboardTV';
 import GestaoMarcacoes from './components/GestaoMarcacoes';
 import RelatorioOperacional from './components/RelatorioOperacional';
 import PainelCadastro from './components/PainelCadastro';
+import HistoricoLiberacoes from './components/HistoricoLiberacoes';
 import PainelProgramacao from './components/PainelProgramacao';
 import { CheckCircle as CheckCircleIcon } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
@@ -53,7 +54,6 @@ function App({ socket }) {
     const [ctesMoreno, setCtesMoreno] = useState([]);
     const [termoBusca, setTermoBusca] = useState('');
     const [fila, setFila] = useState([]);
-    const [itemTempoAtivo, setItemTempoAtivo] = useState(null);
     const [relatorioDados, setRelatorioDados] = useState([]);
     const [filtroOrigem, setFiltroOrigem] = useState('Todas');
     const [filtroTipoOperacao, setFiltroTipoOperacao] = useState('Todas');
@@ -521,7 +521,14 @@ function App({ socket }) {
 
     const updateList = async (lista, setLista, index, campo, valor, origem = '') => {
         const novaLista = [...lista];
-        const itemAtual = { ...novaLista[index] };
+        // Clone profundo dos objetos aninhados para não mutar o item original
+        // (necessário para que o revert no catch funcione corretamente)
+        const itemAtual = {
+            ...novaLista[index],
+            timestamps_status: { ...(novaLista[index].timestamps_status || {}) },
+            tempos_recife: { ...(novaLista[index].tempos_recife || {}) },
+            tempos_moreno: { ...(novaLista[index].tempos_moreno || {}) },
+        };
 
         // Identifica se a lista sendo editada é a Fila ou o Painel de Veículos
         const ehFila = lista === fila;
@@ -537,43 +544,57 @@ function App({ socket }) {
         // Capturar timestamps de mudanças de status para temporizadores automáticos
         if (campo.includes('status')) {
             const agora = new Date().toISOString();
+            const unidade = campo === 'status_recife' ? 'recife' : 'moreno';
 
-            // Inicializar timestamps_status se não existir
-            if (!itemAtual.timestamps_status) {
-                itemAtual.timestamps_status = {};
+            const ts = itemAtual.timestamps_status;
+            const setIfNull = (campo, val) => { if (!ts[campo]) ts[campo] = val; };
+
+            // Gravar ISO para cada status (por unidade) — inícios com setIfNull, fins sempre sobrescrevem
+            if (valor === 'EM SEPARAÇÃO') setIfNull(`separacao_${unidade}_at`, agora);
+            if (valor === 'LIBERADO P/ DOCA') {
+                setIfNull(`lib_doca_${unidade}_at`, agora);
+                // Fim da separação = quando entra na doca
+                setIfNull(`fim_separacao_${unidade}_at`, agora);
             }
-
-            // Quando status muda para CARREGADO
+            if (valor === 'EM CARREGAMENTO') {
+                setIfNull(`carregamento_${unidade}_at`, agora);
+                // Também registra fim da separação se ainda não tiver
+                setIfNull(`fim_separacao_${unidade}_at`, agora);
+            }
             if (valor === 'CARREGADO') {
-                itemAtual.timestamps_status.carregado_em = agora;
+                ts[`carregado_${unidade}_at`] = agora;
+                // Fim do carregamento = quando marca CARREGADO
+                ts[`fim_carregamento_${unidade}_at`] = agora;
             }
+            if (valor === 'LIBERADO P/ CT-e') ts[`cte_${unidade}_at`] = agora;
 
-            // Quando status muda para LIBERADO P/ CT-e
+            // Calcular tempo carregado→CT-e (mantido para compatibilidade)
             if (valor === 'LIBERADO P/ CT-e') {
-                const carregadoEm = itemAtual.timestamps_status?.carregado_em;
+                const carregadoEm = ts[`carregado_${unidade}_at`];
                 if (carregadoEm) {
                     const tempoDecorrido = Math.floor((new Date() - new Date(carregadoEm)) / 1000 / 60);
-                    itemAtual.timestamps_status.liberado_cte_em = agora;
-                    itemAtual.timestamps_status.tempo_carregado_ate_cte = tempoDecorrido;
-
+                    ts.tempo_carregado_ate_cte = tempoDecorrido;
                     mostrarNotificacao(`⏱️ Tempo de carregamento: ${tempoDecorrido} min`);
                 }
             }
 
-            // ── Auto-preencher tempos operacionais para Performance CT-e ──
+            // ── Auto-preencher tempos HH:MM (mantido para Performance CT-e / Relatório) ──
             const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const temposKey = campo === 'status_recife' ? 'tempos_recife' : 'tempos_moreno';
-            if (!itemAtual[temposKey] || typeof itemAtual[temposKey] !== 'object') {
-                itemAtual[temposKey] = {};
-            }
             if (valor === 'EM SEPARAÇÃO' && !itemAtual[temposKey].t_inicio_separacao) {
                 itemAtual[temposKey].t_inicio_separacao = agoraHHMM;
+            }
+            if (valor === 'LIBERADO P/ DOCA' || valor === 'EM CARREGAMENTO') {
+                if (!itemAtual[temposKey].fim_separacao) {
+                    itemAtual[temposKey].fim_separacao = agoraHHMM;
+                }
             }
             if (valor === 'EM CARREGAMENTO' && !itemAtual[temposKey].t_inicio_carregamento) {
                 itemAtual[temposKey].t_inicio_carregamento = agoraHHMM;
             }
             if (valor === 'CARREGADO') {
                 itemAtual[temposKey].t_inicio_carregado = agoraHHMM;
+                itemAtual[temposKey].fim_carregamento = agoraHHMM;
             }
             if (valor === 'LIBERADO P/ CT-e') {
                 itemAtual[temposKey].t_fim_liberado_cte = agoraHHMM;
@@ -860,7 +881,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ temAcesso, podeEditar, updateList, setItemTempoAtivo, setModalTempoAberto: (val) => openModal('tempo'), removerVeiculo, socket }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket }}
                     />
                 )}
 
@@ -873,7 +894,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ temAcesso, podeEditar, updateList, setItemTempoAtivo, setModalTempoAberto: (val) => openModal('tempo'), removerVeiculo, socket }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket }}
                     />
                 )}
 
@@ -901,7 +922,11 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'cadastro' && temAcesso('cadastro') && (
-                    <PainelCadastro user={user} />
+                    <PainelCadastro user={user} socket={socket} />
+                )}
+
+                {abaAtiva === 'historico_liberacoes' && temAcesso('cadastro') && (
+                    <HistoricoLiberacoes />
                 )}
 
                 {abaAtiva === 'checklist_carreta' && temAcesso('checklist_carreta') && (
@@ -934,15 +959,6 @@ function App({ socket }) {
                 )}
 
                 {/* --- MODAIS --- */}
-                <ModalTempos
-                    item={itemTempoAtivo}
-                    onClose={() => closeModal('tempo')}
-                    isOpen={modals.tempo}
-                    atualizarTempo={(chave, valor) => {
-                        const campo = itemTempoAtivo.origem === 'Recife' ? 'tempos_recife' : 'tempos_moreno';
-                        updateList(itemTempoAtivo.lista, itemTempoAtivo.setLista, itemTempoAtivo.index, `${campo}.${chave}`, valor);
-                    }}
-                />
 
                 <ModalRelatorio
                     isOpen={modals.relatorio}

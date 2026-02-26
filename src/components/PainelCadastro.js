@@ -43,7 +43,7 @@ function corSituacao(sit) {
     return { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', text: '#f87171' };
 }
 
-export default function PainelCadastro({ user }) {
+export default function PainelCadastro({ user, socket }) {
     // ── Blindagem de Acesso ──
     const cargo = (user?.cargo || '').toUpperCase();
     const podeEditar = ['COORDENADOR', 'CADASTRO', 'ENCARREGADO'].includes(cargo);
@@ -55,7 +55,7 @@ export default function PainelCadastro({ user }) {
     const [, setTick] = useState(0);
 
     // Novo estado para a aba "Na Operação"
-    const [abaAtiva, setAbaAtiva] = useState('fila');
+    const [abaAtiva, setAbaAtiva] = useState('espera');
     const [motoristasOperacao, setMotoristasOperacao] = useState([]);
     const [edicoesOp, setEdicoesOp] = useState({});
     const [salvandoOp, setSalvandoOp] = useState(null);
@@ -122,6 +122,9 @@ export default function PainelCadastro({ user }) {
                         situacao_cad: m.situacao_cad || 'NÃO CONFERIDO',
                         data_liberacao_cad: m.data_liberacao_cad || null,
                         data_liberacao_manual: '',
+                        origem_cad: m.origem_cad || '',
+                        destino_uf_cad: m.destino_uf_cad || '',
+                        destino_cidade_cad: m.destino_cidade_cad || '',
                     };
                 });
                 setEdicoesOp(inicial);
@@ -162,10 +165,24 @@ export default function PainelCadastro({ user }) {
         carregarMotoristas();
         carregarMotoristasOperacao();
         carregarMotoristasFrota();
+
+        // Listener para atualizações em tempo real (ex: CT-e emitido)
+        if (socket) {
+            const handleRefresh = (data) => {
+                if (data?.tipo === 'refresh_geral') {
+                    carregarMotoristas();
+                    carregarMotoristasOperacao();
+                    carregarMotoristasFrota();
+                }
+            };
+            socket.on('receber_atualizacao', handleRefresh);
+            return () => socket.off('receber_atualizacao', handleRefresh);
+        }
+
         // Atualiza timers a cada 30s
         const interval = setInterval(() => setTick(t => t + 1), 30000);
         return () => clearInterval(interval);
-    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota]);
+    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]);
 
     function atualizarEdicao(id, campo, valor) {
         setEdicoes(prev => {
@@ -234,6 +251,9 @@ export default function PainelCadastro({ user }) {
             const dados = edicoesOp[id] || {};
             const r = await api.put(`/api/cadastro/veiculos-em-operacao/${id}`, {
                 ...dados,
+                origem_cad: dados.origem_cad || '',
+                destino_uf_cad: dados.destino_uf_cad || '',
+                destino_cidade_cad: dados.destino_cidade_cad || '',
                 data_liberacao_manual: dados.data_liberacao_manual ? new Date(dados.data_liberacao_manual).toISOString() : '',
             });
             if (r.data.success) {
@@ -296,7 +316,7 @@ export default function PainelCadastro({ user }) {
     }
 
     return (
-        <div style={{ padding: '20px 25px', height: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 25px', height: 'calc(100vh - 124px)', overflowY: 'auto' }}>
             <style>{`
                 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
                 @keyframes slideIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
@@ -311,17 +331,17 @@ export default function PainelCadastro({ user }) {
                     </h2>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <button
-                            onClick={() => setAbaAtiva('fila')}
+                            onClick={() => setAbaAtiva('espera')}
                             style={{
-                                background: abaAtiva === 'fila' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
+                                background: abaAtiva === 'espera' ? '#3b82f6' : 'rgba(255,255,255,0.06)',
                                 border: '1px solid rgba(255,255,255,0.1)',
-                                color: abaAtiva === 'fila' ? '#ffffff' : '#94a3b8',
+                                color: abaAtiva === 'espera' ? '#ffffff' : '#94a3b8',
                                 borderRadius: '8px', padding: '6px 14px',
                                 cursor: 'pointer', fontSize: '12px', fontWeight: 'bold',
                                 transition: 'all 0.2s'
                             }}
                         >
-                            Na Fila <span className="badge-neon-pill" style={{ marginLeft: '6px', background: 'rgba(255,255,255,0.2)', color: 'white' }}>{motoristas.length}</span>
+                            Em Espera <span className="badge-neon-pill" style={{ marginLeft: '6px', background: 'rgba(255,255,255,0.2)', color: 'white' }}>{motoristas.length}</span>
                         </button>
                         <button
                             onClick={() => setAbaAtiva('operacao')}
@@ -367,8 +387,8 @@ export default function PainelCadastro({ user }) {
                 </button>
             </div>
 
-            {/* ABA: NA FILA */}
-            {abaAtiva === 'fila' && (
+            {/* ABA: EM ESPERA */}
+            {abaAtiva === 'espera' && (
                 <>
                     {motoristas.length === 0 ? (
                         <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
@@ -730,6 +750,48 @@ export default function PainelCadastro({ user }) {
                                                         );
                                                     })}
                                                 </div>
+                                            </div>
+
+                                            {/* Origem e Destino */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '8px' }}>
+                                                <div>
+                                                    <label className="label-tech-sm">ORIGEM</label>
+                                                    <select
+                                                        className="input-internal"
+                                                        style={{ fontSize: '12px' }}
+                                                        value={ed.origem_cad || ''}
+                                                        disabled={!podeEditar}
+                                                        onChange={e => atualizarEdicaoOp(m.id, 'origem_cad', e.target.value)}
+                                                    >
+                                                        <option value="" style={{ color: 'black' }}>-- Selecione --</option>
+                                                        <option value="Recife" style={{ color: 'black' }}>Recife</option>
+                                                        <option value="Moreno" style={{ color: 'black' }}>Moreno</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="label-tech-sm">UF DESTINO</label>
+                                                    <select
+                                                        className="input-internal"
+                                                        style={{ fontSize: '12px' }}
+                                                        value={ed.destino_uf_cad || ''}
+                                                        disabled={!podeEditar}
+                                                        onChange={e => atualizarEdicaoOp(m.id, 'destino_uf_cad', e.target.value)}
+                                                    >
+                                                        <option value="" style={{ color: 'black' }}>--</option>
+                                                        {UFS_BRASIL.map(uf => <option key={uf} style={{ color: 'black' }}>{uf}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="label-tech-sm">CIDADE DESTINO</label>
+                                                <input
+                                                    className="input-internal"
+                                                    style={{ fontSize: '12px' }}
+                                                    value={ed.destino_cidade_cad || ''}
+                                                    disabled={!podeEditar}
+                                                    onChange={e => atualizarEdicaoOp(m.id, 'destino_cidade_cad', e.target.value)}
+                                                    placeholder="Ex: São Paulo"
+                                                />
                                             </div>
 
                                             {/* Número de Liberação */}

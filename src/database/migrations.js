@@ -23,16 +23,17 @@ const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
 
 const inicializarBanco = async () => {
     try {
-        await dbRun('PRAGMA journal_mode = WAL;');
+        // PostgreSQL initialization doesn't require WAL mode setup here
 
-        await dbRun(`CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, email TEXT, senha TEXT, cidade TEXT, cargo TEXT, avatarUrl TEXT, usaPermissaoIndividual INTEGER DEFAULT 0, permissoesAcesso TEXT, permissoesEdicao TEXT)`);
 
-        await dbRun(`CREATE TABLE IF NOT EXISTS solicitacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT, nome TEXT, email TEXT, unidade TEXT, senha TEXT, data_criacao TEXT)`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS historico (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS historico_cte (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS usuarios (id SERIAL PRIMARY KEY, nome TEXT, email TEXT, senha TEXT, cidade TEXT, cargo TEXT, avatarUrl TEXT, usaPermissaoIndividual INTEGER DEFAULT 0, permissoesAcesso TEXT, permissoesEdicao TEXT)`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS solicitacoes (id SERIAL PRIMARY KEY, tipo TEXT, nome TEXT, email TEXT, unidade TEXT, senha TEXT, data_criacao TEXT)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS historico (id SERIAL PRIMARY KEY, dados_json TEXT)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS historico_cte (id SERIAL PRIMARY KEY, dados_json TEXT)`);
         await dbRun(`CREATE TABLE IF NOT EXISTS configuracoes (chave TEXT PRIMARY KEY, valor TEXT)`);
         await dbRun(`CREATE TABLE IF NOT EXISTS veiculos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT,
+            id SERIAL PRIMARY KEY, dados_json TEXT,
             placa TEXT, modelo TEXT, motorista TEXT,
             status_recife TEXT, status_moreno TEXT,
             doca_recife TEXT, doca_moreno TEXT,
@@ -46,10 +47,10 @@ const inicializarBanco = async () => {
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_veiculos_status ON veiculos (status_recife, status_moreno)`);
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_veiculos_data ON veiculos (data_criacao)`);
 
-        await dbRun(`CREATE TABLE IF NOT EXISTS notificacoes (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT, data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP)`);
-        await dbRun(`CREATE TABLE IF NOT EXISTS fila (id INTEGER PRIMARY KEY AUTOINCREMENT, dados_json TEXT)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS notificacoes (id SERIAL PRIMARY KEY, dados_json TEXT, data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS fila (id SERIAL PRIMARY KEY, dados_json TEXT)`);
         await dbRun(`CREATE TABLE IF NOT EXISTS checklists_carreta (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             veiculo_id INTEGER,
             motorista_nome TEXT,
             placa_carreta TEXT,
@@ -63,7 +64,7 @@ const inicializarBanco = async () => {
             created_at TEXT
         )`);
         await dbRun(`CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             acao TEXT NOT NULL,
             usuario TEXT NOT NULL,
             alvo_id INTEGER,
@@ -71,10 +72,10 @@ const inicializarBanco = async () => {
             valor_antigo TEXT,
             valor_novo TEXT,
             detalhes TEXT,
-            data_hora DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
         await dbRun(`CREATE TABLE IF NOT EXISTS cubagens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             numero_coleta TEXT,
             motorista TEXT,
             cliente TEXT,
@@ -88,7 +89,14 @@ const inicializarBanco = async () => {
             metragem_total REAL DEFAULT 0,
             valor_mix_total REAL DEFAULT 0,
             valor_kit_total REAL DEFAULT 0,
-            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS frota_programacao_diaria (
+            id SERIAL PRIMARY KEY,
+            data_referencia TEXT NOT NULL,
+            turno TEXT NOT NULL,
+            dados_json TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
         // Adicionar colunas faltantes em tabelas existentes (ALTER TABLE é seguro - ignora se já existe)
@@ -149,41 +157,40 @@ const inicializarBanco = async () => {
 
         // Tabela de CT-es Ativos (persistencia entre reloads)
         await dbRun(`CREATE TABLE IF NOT EXISTS ctes_ativos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             origem TEXT NOT NULL,
             status TEXT DEFAULT 'Aguardando Emissão',
             dados_json TEXT,
-            data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
         await dbRun(`CREATE TABLE IF NOT EXISTS docas_interditadas(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 unidade TEXT,
                 doca TEXT,
                 nome TEXT
             )`);
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
             try {
-                await dbRun(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo} `);
-                console.log(`✅ Coluna ${coluna} adicionada em ${tabela} `);
+                await dbRun(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS ${coluna} ${tipo} `);
             } catch (e) {
-                // Coluna já existe - ignorar
+                // Coluna já existe - ignorar silenciosamente no log do pg
             }
         }
 
         // Marcação de Placas
         await dbRun(`CREATE TABLE IF NOT EXISTS tokens_motoristas(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 telefone TEXT NOT NULL,
                 token TEXT NOT NULL UNIQUE,
                 status TEXT NOT NULL DEFAULT 'ativo',
-                data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
-                data_expiracao DATETIME
+                data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                data_expiracao TIMESTAMP
             )`);
         // Migração: adiciona coluna em banco existente sem ela
-        try { await dbRun(`ALTER TABLE tokens_motoristas ADD COLUMN data_expiracao DATETIME`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE tokens_motoristas ADD COLUMN IF NOT EXISTS data_expiracao TIMESTAMP`); } catch (_) { }
         await dbRun(`CREATE TABLE IF NOT EXISTS marcacoes_placas(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 token_id INTEGER,
                 nome_motorista TEXT NOT NULL,
                 telefone TEXT NOT NULL,
@@ -203,7 +210,7 @@ const inicializarBanco = async () => {
                 origem_cidade_uf TEXT,
                 destino_desejado TEXT,
                 disponibilidade TEXT,
-                data_marcacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                data_marcacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(token_id) REFERENCES tokens_motoristas(id)
             )`);
         for (const [tabela, coluna, tipo] of [
@@ -213,9 +220,17 @@ const inicializarBanco = async () => {
             ['marcacoes_placas', 'viagens_realizadas', 'INTEGER DEFAULT 0'],
             ['marcacoes_placas', 'status_operacional', "TEXT DEFAULT 'DISPONIVEL'"],
             ['marcacoes_placas', 'is_frota', 'INTEGER DEFAULT 0'],
-            ['marcacoes_placas', 'data_contratacao', 'DATETIME'],
+            ['marcacoes_placas', 'data_contratacao', 'TIMESTAMP'],
+            ['marcacoes_placas', 'chk_cnh_cad', "TEXT DEFAULT 'N/A'"],
+            ['marcacoes_placas', 'chk_antt_cad', "TEXT DEFAULT 'N/A'"],
+            ['marcacoes_placas', 'chk_tacografo_cad', "TEXT DEFAULT 'N/A'"],
+            ['marcacoes_placas', 'chk_crlv_cad', "TEXT DEFAULT 'N/A'"],
+            ['marcacoes_placas', 'situacao_cad', "TEXT DEFAULT 'Pendente'"],
+            ['marcacoes_placas', 'num_liberacao_cad', 'TEXT'],
+            ['marcacoes_placas', 'data_liberacao_cad', 'TEXT'],
+            ['marcacoes_placas', 'destino_uf_cad', 'TEXT'],
         ]) {
-            try { await dbRun(`ALTER TABLE ${tabela} ADD COLUMN ${coluna} ${tipo} `); } catch (_) { }
+            try { await dbRun(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS ${coluna} ${tipo} `); } catch (e) { console.error(`Erro ao adicionar ${coluna} em ${tabela}`, e); }
         }
         // Garantir UNIQUE no telefone (cria índice único se não existir)
         try {
@@ -229,18 +244,18 @@ const inicializarBanco = async () => {
 
         // Tabela para Ocorrências das Operações 
         await dbRun(`CREATE TABLE IF NOT EXISTS operacao_ocorrencias(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 veiculo_id INTEGER NOT NULL,
                 motorista TEXT NOT NULL,
                 descricao TEXT NOT NULL,
                 foto_base64 TEXT,
-                data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+                data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(veiculo_id) REFERENCES veiculos(id) ON DELETE CASCADE
             )`);
 
         // Tabela separada para itens de cubagem (relação N:1)
         await dbRun(`CREATE TABLE IF NOT EXISTS cubagem_itens(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 cubagem_id INTEGER NOT NULL,
                 numero_nf TEXT,
                 metragem REAL DEFAULT 0,
@@ -249,9 +264,32 @@ const inicializarBanco = async () => {
                 FOREIGN KEY(cubagem_id) REFERENCES cubagens(id) ON DELETE CASCADE
             )`);
 
+        // ── Histórico de Liberações (GR) ───────────────────────────────────────
+        await dbRun(`CREATE TABLE IF NOT EXISTS historico_liberacoes (
+            id SERIAL PRIMARY KEY,
+            primeira_letra TEXT NOT NULL,
+            motorista_nome TEXT NOT NULL,
+            num_coleta TEXT,
+            num_liberacao TEXT,
+            datetime_cte TEXT NOT NULL,
+            origem TEXT,
+            destino_uf TEXT,
+            destino_cidade TEXT,
+            placa TEXT,
+            operacao TEXT,
+            veiculo_id INTEGER,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_histlib_motorista ON historico_liberacoes (primeira_letra, motorista_nome)`); } catch (_) { }
+
+        // Indexes para colunas frequentemente consultadas
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_data ON marcacoes_placas (data_marcacao DESC)`); } catch (_) { }
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_cubagens_coleta ON cubagens (numero_coleta)`); } catch (_) { }
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens_motoristas (status)`); } catch (_) { }
+
         // ── Módulo de Frota e Telemetria ────────────────────────────────────────
         await dbRun(`CREATE TABLE IF NOT EXISTS frota_checklists(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 motorista_id INTEGER,
                 motorista_nome TEXT,
                 placa_carreta TEXT,
@@ -260,7 +298,7 @@ const inicializarBanco = async () => {
                 cordas INTEGER NOT NULL DEFAULT 0,
                 foto_vazamento TEXT,
                 assinatura TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`);
 
         const admin = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['julio@tnetlog.com.br']);

@@ -18,7 +18,7 @@ O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida
 
 ### Backend
 - **Node.js & Express**: API REST escalável.
-- **SQLite3**: Banco de dados relacional local para alta performance.
+- **PostgreSQL**: Banco de dados relacional robusto para produção.
 - **Socket.io**: Motor de eventos em tempo real para alertas e atualizações.
 - **JWT & Bcrypt**: Autenticação segura e criptografia de senhas.
 - **Node-cron**: Agendamento de tarefas e automações.
@@ -46,17 +46,18 @@ O **Transnet Operacional** é uma solução robusta (Web & Desktop) desenvolvida
 ├── src/               # Código fonte React
 │   ├── assets/        # Imagens e logotipos
 │   ├── components/    # Componentes modulares (Painéis, Modais, UI)
+│   ├── database/      # Configuração e migrations PostgreSQL
 │   ├── store/         # Estados globais (Zustand)
 │   ├── services/      # Integração com API (Axios)
 │   └── utils/         # Helpers e funções de utilidade
-├── server.js          # Servidor Express & Configuração SQLite
-└── tnetlog.db         # Banco de dados SQLite
+├── server.js          # Servidor Express & API REST
 ```
 
 ## ⚙️ Instalação e Configuração
 
 ### Pré-requisitos
 - [Node.js](https://nodejs.org/) (versão 18+)
+- [PostgreSQL](https://www.postgresql.org/) (Base de dados configurada)
 - npm ou yarn
 
 ### Passo a Passo

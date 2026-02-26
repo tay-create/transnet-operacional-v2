@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logoImg from '../assets/logo.png';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import { Warehouse } from 'lucide-react';
 import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
@@ -139,9 +140,20 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
             {/* Barra de controle */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px', background: t.bgBar, backdropFilter: 'blur(16px)', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <strong style={{ fontSize: '16px', letterSpacing: '2px', color: t.accent }}>TRANSNET</strong>
-                    <span style={{ fontSize: '12px', color: t.textDim }}>Dashboard TV</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', transform: 'scale(0.8)', transformOrigin: 'left center' }}>
+                    {/* Logotipo Asset */}
+                    <div style={{ padding: '0 5px' }}>
+                        <img
+                            src={logoImg}
+                            alt="TRANSNET"
+                            className="animate-wind"
+                            style={{
+                                height: '100px',
+                                width: 'auto',
+                                objectFit: 'contain'
+                            }}
+                        />
+                    </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -448,11 +460,21 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                     return (
                                         <div key={doca} style={{
                                             padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
-                                            background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444',
-                                            boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)', transition: 'all 0.5s ease-in-out'
+                                            background: tema === 'light' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.2)',
+                                            border: `1px solid ${tema === 'light' ? '#dc2626' : '#ef4444'}`,
+                                            boxShadow: tema === 'light' ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 0 12px rgba(239, 68, 68, 0.4)',
+                                            transition: 'all 0.5s ease-in-out'
                                         }}>
-                                            <div style={{ fontSize: '11px', fontWeight: '900', color: '#fca5a5', filter: 'drop-shadow(0 0 4px #ef4444)' }}>{doca}</div>
-                                            <div style={{ fontSize: '8px', color: '#ef4444', marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px' }}>CONTAINER</div>
+                                            <div style={{
+                                                fontSize: '11px', fontWeight: '900',
+                                                color: tema === 'light' ? '#991b1b' : '#fca5a5',
+                                                filter: tema === 'light' ? 'none' : 'drop-shadow(0 0 4px #ef4444)'
+                                            }}>{doca}</div>
+                                            <div style={{
+                                                fontSize: '8px',
+                                                color: tema === 'light' ? '#dc2626' : '#ef4444',
+                                                marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
+                                            }}>CONTAINER</div>
                                         </div>
                                     );
                                 }
@@ -460,12 +482,19 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                 return (
                                     <div key={doca} style={{
                                         padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
-                                        background: bgCor, border: `1px solid ${borderCor}50`,
+                                        background: bgCor, border: `1px solid ${borderCor}${tema === 'light' ? '80' : '50'}`,
                                         transition: 'all 0.5s ease-in-out',
-                                        boxShadow: livre ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
+                                        boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
                                     }}>
-                                        <div style={{ fontSize: '12px', fontWeight: '700', color: textCor, ...(livre ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}) }}>{doca}</div>
-                                        <div style={{ fontSize: '8px', color: livre ? '#34d399' : t.textDim, marginTop: '2px', fontWeight: livre ? '700' : 'normal' }}>{statusDoca || 'Livre'}</div>
+                                        <div style={{
+                                            fontSize: '12px', fontWeight: '700', color: textCor,
+                                            ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
+                                        }}>{doca}</div>
+                                        <div style={{
+                                            fontSize: '8px',
+                                            color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
+                                            marginTop: '2px', fontWeight: livre ? '700' : 'normal'
+                                        }}>{statusDoca || 'Livre'}</div>
                                     </div>
                                 );
                             })}
@@ -767,11 +796,21 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
             return (
                 <div key={doca} style={{
                     padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
-                    background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444',
-                    boxShadow: '0 0 12px rgba(239, 68, 68, 0.4)', transition: 'all 0.5s ease-in-out'
+                    background: tema === 'light' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.2)',
+                    border: `1px solid ${tema === 'light' ? '#dc2626' : '#ef4444'}`,
+                    boxShadow: tema === 'light' ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 0 12px rgba(239, 68, 68, 0.4)',
+                    transition: 'all 0.5s ease-in-out'
                 }}>
-                    <div style={{ fontSize: '11px', fontWeight: '900', color: '#fca5a5', filter: 'drop-shadow(0 0 4px #ef4444)' }}>{doca}</div>
-                    <div style={{ fontSize: '8px', color: '#ef4444', marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px' }}>CONTAINER</div>
+                    <div style={{
+                        fontSize: '11px', fontWeight: '900',
+                        color: tema === 'light' ? '#991b1b' : '#fca5a5',
+                        filter: tema === 'light' ? 'none' : 'drop-shadow(0 0 4px #ef4444)'
+                    }}>{doca}</div>
+                    <div style={{
+                        fontSize: '8px',
+                        color: tema === 'light' ? '#dc2626' : '#ef4444',
+                        marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
+                    }}>CONTAINER</div>
                 </div>
             );
         }
@@ -779,12 +818,19 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         return (
             <div key={doca} style={{
                 padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
-                background: bgCor, border: `1px solid ${borderCor}50`,
+                background: bgCor, border: `1px solid ${borderCor}${tema === 'light' ? '80' : '50'}`,
                 transition: 'all 0.5s ease-in-out',
-                boxShadow: livre ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
+                boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
             }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: textCor, ...(livre ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {}) }}>{doca}</div>
-                <div style={{ fontSize: '8px', color: livre ? '#34d399' : t.textDim, marginTop: '2px', fontWeight: livre ? '700' : 'normal' }}>{statusDoca || 'Livre'}</div>
+                <div style={{
+                    fontSize: '11px', fontWeight: '700', color: textCor,
+                    ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
+                }}>{doca}</div>
+                <div style={{
+                    fontSize: '8px',
+                    color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
+                    marginTop: '2px', fontWeight: livre ? '700' : 'normal'
+                }}>{statusDoca || 'Livre'}</div>
             </div>
         );
     };

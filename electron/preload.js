@@ -77,6 +77,9 @@ contextBridge.exposeInMainWorld('api', {
     postOcorrencia: (id, dados) => ipcRenderer.invoke('post-ocorrencia', { id, dados }),
     deleteOcorrencia: (id) => ipcRenderer.invoke('delete-ocorrencia', id),
 
+    // Histórico de Liberações (GR)
+    getHistoricoLiberacoes: (params) => ipcRenderer.invoke('get-historico-liberacoes', params),
+
     // Utilitários
     getVersion: () => ipcRenderer.invoke('get-version'),
     platform: process.platform

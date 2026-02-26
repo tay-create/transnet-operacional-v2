@@ -20,7 +20,7 @@ const novoLancamentoSchema = z.object({
     rotaMoreno: z.string().optional().transform(val => val || ''),
     observacao: z.string().optional().transform(val => val || ''),
     imagens: z.array(z.string()).optional().default([])
-});
+}).passthrough();
 
 const cubagemSchema = z.object({
     numero_coleta: z.string().min(1, 'Número da coleta é obrigatório'),

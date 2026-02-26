@@ -3,6 +3,11 @@ const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { validate, novoLancamentoSchema } = require('../../middleware/validationMiddleware');
 
+// Função centralizada de data/hora no timezone de Brasília
+const obterDataHoraBrasilia = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+
+// Factory: recebe io e registrarLog do server.js
+module.exports = function createVeiculosRouter(io, registrarLog) {
 const router = express.Router();
 
 router.get('/veiculos', authMiddleware, async (req, res) => {
@@ -29,36 +34,37 @@ router.get('/veiculos', authMiddleware, async (req, res) => {
                 dados_json = JSON.parse(row.dados_json || '{}');
             } catch (e) { }
 
+            // Spreada toda a row (SELECT v.* já traz todos os campos do banco)
+            // e sobrescreve apenas os que precisam de tratamento especial
             return {
-                id: row.id,
-                placa: row.placa,
-                modelo: row.modelo,
-                motorista: row.motorista,
-                status_recife: row.status_recife, status_moreno: row.status_moreno,
-                doca_recife: row.doca_recife, doca_moreno: row.doca_moreno,
-                coleta: row.coleta, coletaRecife: row.coletaRecife, coletaMoreno: row.coletaMoreno,
+                ...row,
+                // Campos renomeados no banco (snake_case → camelCase do frontend)
                 rotaRecife: row.rota_recife,
                 rotaMoreno: row.rota_moreno,
-                unidade: row.unidade, operacao: row.operacao,
-                inicio_rota: row.inicio_rota, origem_criacao: row.origem_criacao,
-                data_prevista: row.data_prevista,
-                tempos_recife: JSON.parse(row.tempos_recife || '{}'),
-                tempos_moreno: JSON.parse(row.tempos_moreno || '{}'),
-                status_coleta: JSON.parse(row.status_coleta || '{}'),
+                // Campos JSON que precisam de parse
+                tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
+                tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
+                status_coleta: (() => { try { return JSON.parse(row.status_coleta || '{}'); } catch { return {}; } })(),
+                imagens: (() => { try { return JSON.parse(row.imagens || '[]'); } catch { return []; } })(),
+                timestamps_status: (() => { try { return JSON.parse(row.timestamps_status || '{}'); } catch { return {}; } })(),
+                // Defaults para campos que podem ser null
                 observacao: row.observacao || '',
-                imagens: JSON.parse(row.imagens || '[]'),
+                numero_coleta: row.numero_coleta || '',
+                numero_cte: row.numero_cte || '',
+                chave_cte: row.chave_cte || '',
+                situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
+                numero_liberacao: row.numero_liberacao || '',
+                data_liberacao: row.data_liberacao || null,
                 chk_cnh: row.chk_cnh ? 1 : 0,
                 chk_antt: row.chk_antt ? 1 : 0,
                 chk_tacografo: row.chk_tacografo ? 1 : 0,
                 chk_crlv: row.chk_crlv ? 1 : 0,
-                situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
-                numero_liberacao: row.numero_liberacao || '',
-                data_liberacao: row.data_liberacao || null,
+                // Campos derivados do dados_json e de marcacoes_placas
                 tipoVeiculo: dados_json.tipoVeiculo || '',
                 placa1Motorista: dados_json.placa1Motorista || '',
                 placa2Motorista: dados_json.placa2Motorista || '',
                 telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
-                telefone: row.telefone_bd || dados_json.telefoneMotorista || '', // Adicionado conforme solicitado
+                telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
                 isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
                 dados_json: row.dados_json || '{}'
             };
@@ -150,7 +156,7 @@ router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento
         const result = await dbRun(query, values);
 
         // Atualizar status da marcação para 'Contratado' ou 'EM ROTA' (congela tempo de espera informando data_contratacao)
-        const agora = new Date().toISOString();
+        const agora = obterDataHoraBrasilia();
         if (v.id_marcacao) {
             await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
             io.emit('marcacao_atualizada');
@@ -291,8 +297,7 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
             v.doca_moreno = 'SELECIONE';
         }
 
-        // ── Gatilhos automáticos de tempo ──────────────────────────────────────
-        // Registrar o horário atual (Recife/Brasília) na primeira transição de cada fase
+        // ── Gatilhos automáticos de tempo (HH:MM — mantidos para compatibilidade) ──
         {
             const agora = new Date().toLocaleTimeString('pt-BR', {
                 hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife'
@@ -321,6 +326,41 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
             v.tempos_recife = tr;
             v.tempos_moreno = tm;
         }
+
+        // ── Timestamps ISO completos para SLA (autoritativo) ──────────────────
+        {
+            const agora = new Date().toISOString();
+            const setIfNull = (obj, campo, valor) => { if (!obj[campo]) obj[campo] = valor; };
+
+            const ts = v.timestamps_status && typeof v.timestamps_status === 'object'
+                ? { ...v.timestamps_status }
+                : (() => { try { return JSON.parse(veiculoAntigo?.timestamps_status || '{}'); } catch { return {}; } })();
+
+            const srAntigo = veiculoAntigo ? veiculoAntigo.status_recife : null;
+            const smAntigo = veiculoAntigo ? veiculoAntigo.status_moreno : null;
+
+            // Entrada no pátio = data_criacao do veículo (já existe, não sobrescrever)
+
+            // Recife
+            if (v.status_recife !== srAntigo) {
+                if (v.status_recife === 'EM SEPARAÇÃO')       setIfNull(ts, 'separacao_recife_at', agora);
+                if (v.status_recife === 'LIBERADO P/ DOCA')   setIfNull(ts, 'lib_doca_recife_at', agora);
+                if (v.status_recife === 'EM CARREGAMENTO')    setIfNull(ts, 'carregamento_recife_at', agora);
+                if (v.status_recife === 'CARREGADO')          ts.carregado_recife_at = agora;
+                if (v.status_recife === 'LIBERADO P/ CT-e')   ts.cte_recife_at = agora;
+            }
+
+            // Moreno
+            if (v.status_moreno !== smAntigo) {
+                if (v.status_moreno === 'EM SEPARAÇÃO')       setIfNull(ts, 'separacao_moreno_at', agora);
+                if (v.status_moreno === 'LIBERADO P/ DOCA')   setIfNull(ts, 'lib_doca_moreno_at', agora);
+                if (v.status_moreno === 'EM CARREGAMENTO')    setIfNull(ts, 'carregamento_moreno_at', agora);
+                if (v.status_moreno === 'CARREGADO')          ts.carregado_moreno_at = agora;
+                if (v.status_moreno === 'LIBERADO P/ CT-e')   ts.cte_moreno_at = agora;
+            }
+
+            v.timestamps_status = ts;
+        }
         // ───────────────────────────────────────────────────────────────────────
 
         const query = `UPDATE veiculos SET
@@ -332,7 +372,7 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
             observacao=?, imagens=?, numero_cte=?, chave_cte=?,
             chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?,
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
-            data_liberacao=?,
+            data_liberacao=?, timestamps_status=?,
             dados_json=?
             WHERE id = ?`;
 
@@ -362,6 +402,7 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
                 if (v.numero_liberacao && !anterior) return new Date().toISOString();
                 return v.data_liberacao || anterior;
             })(),
+            JSON.stringify(v.timestamps_status || {}),
             JSON.stringify({
                 ...(() => { try { return JSON.parse(veiculoAntigo?.dados_json || '{}'); } catch { return {}; } })(),
                 ...v,
@@ -373,6 +414,45 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         ];
 
         await dbRun(query, values);
+
+        // ── Salvar histórico de liberação quando status muda para LIBERADO P/ CT-e ──
+        if (veiculoAntigo) {
+            const mudouCteRecife = v.status_recife === 'LIBERADO P/ CT-e' && veiculoAntigo.status_recife !== 'LIBERADO P/ CT-e';
+            const mudouCteMoreno = v.status_moreno === 'LIBERADO P/ CT-e' && veiculoAntigo.status_moreno !== 'LIBERADO P/ CT-e';
+            if (mudouCteRecife || mudouCteMoreno) {
+                try {
+                    const motoristaNome = (v.motorista || '').trim().toUpperCase();
+                    const primeiraLetra = motoristaNome[0] || '#';
+                    const numColeta = v.coletaRecife || v.coletaMoreno || v.coleta || '';
+
+                    // Buscar dados de origem/destino do cadastro do motorista
+                    let origem = '', destino_uf = '', destino_cidade = '';
+                    if (v.motorista) {
+                        const cadMotorista = await dbGet(
+                            `SELECT origem_cad, destino_uf_cad, destino_cidade_cad FROM marcacoes_placas WHERE nome_motorista = ? ORDER BY data_marcacao DESC LIMIT 1`,
+                            [v.motorista]
+                        );
+                        if (cadMotorista) {
+                            origem = cadMotorista.origem_cad || '';
+                            destino_uf = cadMotorista.destino_uf_cad || '';
+                            destino_cidade = cadMotorista.destino_cidade_cad || '';
+                        }
+                    }
+
+                    const numLiberacao = v.numero_liberacao || veiculoAntigo.numero_liberacao || '';
+                    const placa = v.placa || veiculoAntigo.placa || '';
+
+                    await dbRun(
+                        `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [primeiraLetra, motoristaNome, numColeta, numLiberacao, new Date().toISOString(), origem, destino_uf, destino_cidade, placa, v.operacao || '', req.params.id]
+                    );
+                } catch (errHist) {
+                    console.error('⚠️ Erro ao salvar histórico de liberação:', errHist);
+                }
+            }
+        }
+        // ───────────────────────────────────────────────────────────────────────
 
         // Registrar logs de alterações
         if (veiculoAntigo) {
@@ -554,4 +634,5 @@ router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planej
 
 // ── GET Ocorrências da Operação ──────────────────
 
-module.exports = router;
+return router;
+};

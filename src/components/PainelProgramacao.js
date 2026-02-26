@@ -65,7 +65,7 @@ export default function PainelProgramacao() {
     });
 
     return (
-        <div style={{ padding: '20px 25px', height: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+        <div style={{ padding: '20px 25px', height: 'calc(100vh - 124px)', overflowY: 'auto' }}>
             {/* Header */}
             <div className="glass-panel-internal" style={{ padding: '15px 25px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>

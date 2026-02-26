@@ -275,6 +275,11 @@ function makeIpcAdapter() {
             data = await window.api.postLog(body.usuario, body.acao, body.detalhes);
         }
 
+        // ── Histórico de Liberações ────────────────────────────────────────────
+        else if (method === 'get' && path === '/api/historico-liberacoes') {
+            data = await window.api.getHistoricoLiberacoes(params);
+        }
+
         // ── Fallback ───────────────────────────────────────────────────────────
         else {
             throw new Error(`[IPC] Rota não mapeada: ${method.toUpperCase()} ${url}`);
@@ -284,7 +289,14 @@ function makeIpcAdapter() {
     };
 
     return {
-        get: (url) => invoke('get', url, null),
+        get: (url, config) => {
+            // Serializar params de config como query string na URL
+            if (config?.params) {
+                const qs = new URLSearchParams(Object.entries(config.params).filter(([, v]) => v !== undefined && v !== null)).toString();
+                if (qs) url = `${url}?${qs}`;
+            }
+            return invoke('get', url, null);
+        },
         post: (url, body) => invoke('post', url, body),
         put: (url, body) => invoke('put', url, body),
         delete: (url) => invoke('delete', url, null),

@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
 
 :root {
-  --bg-midnight: #020617; 
+  --bg-midnight: #020617;
   --card-glass: rgba(15, 23, 42, 0.7);
   --neon-cyan: #22d3ee;
   --neon-purple: #818cf8;
@@ -12,8 +12,13 @@
 }
 
 @keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(1000%); }
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(1000%);
+  }
 }
 
 .animate-scan {
@@ -23,9 +28,9 @@
 
 .bg-grid {
   background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
 .text-neon {
@@ -163,8 +168,15 @@ body {
 }
 
 @keyframes slideUp {
-  from { transform: translateY(100px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .btn-ghost {
@@ -196,8 +208,10 @@ body {
   text-transform: uppercase;
 }
 
-body, .full-screen {
-  background-color: #020617; /* Preto azulado profundo */
+body,
+.full-screen {
+  background-color: #020617;
+  /* Preto azulado profundo */
   margin: 0;
   padding: 0;
   font-family: 'Inter', sans-serif;
@@ -218,8 +232,10 @@ body, .full-screen {
 /* O Cartão de Login (Igual a referência) */
 .login-card-compact {
   width: 100%;
-  max-width: 380px; /* Largura fixa para não esticar */
-  background: rgba(15, 23, 42, 0.6); /* Vidro escuro */
+  max-width: 380px;
+  /* Largura fixa para não esticar */
+  background: rgba(15, 23, 42, 0.6);
+  /* Vidro escuro */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -230,8 +246,8 @@ body, .full-screen {
   gap: 20px;
   position: relative;
   z-index: 10;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 
-              0 20px 50px -10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 20px 50px -10px rgba(0, 0, 0, 0.5);
 }
 
 /* Efeito de brilho azul atrás do cartão */
@@ -243,7 +259,8 @@ body, .full-screen {
   transform: translateX(-50%);
   width: 200px;
   height: 200px;
-  background: #3b82f6; /* Azul Transnet */
+  background: #3b82f6;
+  /* Azul Transnet */
   filter: blur(100px);
   opacity: 0.3;
   z-index: -1;
@@ -256,7 +273,8 @@ body, .full-screen {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: white;
-  padding: 14px 16px 14px 45px; /* Padding extra na esquerda para o ícone */
+  padding: 14px 16px 14px 45px;
+  /* Padding extra na esquerda para o ícone */
   border-radius: 12px;
   font-size: 14px;
   outline: none;
@@ -264,7 +282,8 @@ body, .full-screen {
 }
 
 .input-dark:focus {
-  border-color: #3b82f6; /* Azul neon ao focar */
+  border-color: #3b82f6;
+  /* Azul neon ao focar */
   background: rgba(0, 0, 0, 0.6);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
 }
@@ -302,12 +321,14 @@ body, .full-screen {
   letter-spacing: 1px;
   margin: 0;
   text-align: center;
-  font-style: italic; /* Estilo rápido */
+  font-style: italic;
+  /* Estilo rápido */
 }
 
 .brand-subtitle {
   font-size: 11px;
-  color: #3b82f6; /* Azul neon */
+  color: #3b82f6;
+  /* Azul neon */
   font-weight: 800;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -320,8 +341,10 @@ body, .full-screen {
 .dashboard-container {
   display: flex;
   gap: 24px;
-  height: calc(100vh - 100px); /* Desconta a altura do Header */
-  padding: 0 20px 20px 20px;
+  height: calc(100vh - 80px);
+  /* Ajustado para a altura real do header */
+  padding: 20px;
+  /* 20px em todos os lados para melhor espaçamento do header */
   overflow: hidden;
 }
 
@@ -335,13 +358,14 @@ body, .full-screen {
   border-radius: 20px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto; /* Permite rolar se a tela for pequena */
+  overflow-y: auto;
+  /* Permite rolar se a tela for pequena */
 }
 
 .sidebar-header {
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
 }
 
 .sidebar-content {
@@ -357,7 +381,8 @@ body, .full-screen {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  overflow: hidden; /* O scroll fica dentro do grid, não na página */
+  overflow: hidden;
+  /* O scroll fica dentro do grid, não na página */
 }
 
 .content-header {
@@ -374,14 +399,16 @@ body, .full-screen {
 .grid-scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding-right: 10px; /* Espaço para scrollbar */
+  padding-right: 10px;
+  /* Espaço para scrollbar */
 }
 
 /* Labels Estilizados */
 .label-tech {
   font-size: 10px;
   font-weight: 800;
-  color: #64748b; /* Slate 500 */
+  color: #64748b;
+  /* Slate 500 */
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -402,25 +429,33 @@ body, .full-screen {
 }
 
 .modal-overlay {
-  position: fixed; 
-  top: 0; left: 0; right: 0; bottom: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.7);
   background-color: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
   display: flex;
-  align-items: center; /* Centraliza verticalmente */
-  justify-content: center; /* Centraliza horizontalmente */
-  z-index: 9999; 
+  align-items: center;
+  /* Centraliza verticalmente */
+  justify-content: center;
+  /* Centraliza horizontalmente */
+  z-index: 9999;
   opacity: 0;
   animation: fadeIn 0.3s forwards;
 }
 
 .modal-neon-panel {
-  background: #0f172a; /* Azul muito escuro (Slate 900) */
-  border: 1px solid #38bdf8; /* Azul Claro (Sky 400) */
-  box-shadow: 0 0 30px rgba(56, 189, 248, 0.25); /* Glow Azul Claro */
+  background: #0f172a;
+  /* Azul muito escuro (Slate 900) */
+  border: 1px solid #38bdf8;
+  /* Azul Claro (Sky 400) */
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.25);
+  /* Glow Azul Claro */
   border-radius: 12px;
   padding: 24px;
   color: white;
@@ -429,12 +464,13 @@ body, .full-screen {
   flex-direction: column;
 }
 
-.input-neon, 
-.modal-neon-panel input, 
+.input-neon,
+.modal-neon-panel input,
 .modal-neon-panel select {
   background: rgba(15, 23, 42, 0.6) !important;
   border: 1px solid rgba(56, 189, 248, 0.3) !important;
-  color: #e0f2fe !important; /* Texto branco azulado */
+  color: #e0f2fe !important;
+  /* Texto branco azulado */
   padding: 10px;
   border-radius: 6px;
   width: 100%;
@@ -443,7 +479,7 @@ body, .full-screen {
 }
 
 .input-neon:focus,
-.modal-neon-panel input:focus, 
+.modal-neon-panel input:focus,
 .modal-neon-panel select:focus {
   border-color: #38bdf8 !important;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
@@ -457,7 +493,8 @@ body, .full-screen {
 .modal-neon-panel th {
   text-align: left;
   padding: 12px;
-  color: #38bdf8; /* Azul Claro no cabeçalho */
+  color: #38bdf8;
+  /* Azul Claro no cabeçalho */
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -467,7 +504,7 @@ body, .full-screen {
   border-radius: 12px;
   padding: 20px;
   width: 90%;
-  max-width: 420px; 
+  max-width: 420px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   position: relative;
   transform: translateY(20px);
@@ -476,8 +513,10 @@ body, .full-screen {
 }
 
 .modal-content {
-  background: #0f172a !important; /* Azul muito escuro (quase preto) */
-  border: 1px solid rgba(59, 130, 246, 0.3); /* Borda Neon sutil */
+  background: #0f172a !important;
+  /* Azul muito escuro (quase preto) */
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  /* Borda Neon sutil */
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   border-radius: 12px;
   color: white;
@@ -487,23 +526,27 @@ body, .full-screen {
 .modal-neon-panel td {
   padding: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: transparent !important; /* Garante que não fique branco */
+  background: transparent !important;
+  /* Garante que não fique branco */
   color: #cbd5e1;
 }
 
 .modal-neon-panel tr:hover td {
-  background: rgba(56, 189, 248, 0.05) !important; /* Efeito hover sutil */
+  background: rgba(56, 189, 248, 0.05) !important;
+  /* Efeito hover sutil */
 }
 
 /* Botões fantasmas (fechar) */
 .btn-ghost {
   background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.5); /* Vermelho sutil */
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  /* Vermelho sutil */
   color: #fca5a5;
   cursor: pointer;
   border-radius: 6px;
   transition: 0.2s;
 }
+
 .btn-ghost:hover {
   background: rgba(239, 68, 68, 0.2);
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
@@ -511,16 +554,18 @@ body, .full-screen {
 
 /* Botão Neon Principal */
 .btn-neon {
-  background: #0ea5e9; /* Sky 500 */
+  background: #0ea5e9;
+  /* Sky 500 */
   color: white;
   border: none;
   font-weight: bold;
   cursor: pointer;
   border-radius: 6px;
   padding: 10px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   transition: 0.2s;
 }
+
 .btn-neon:hover {
   background: #38bdf8;
   box-shadow: 0 0 15px #38bdf8;
@@ -533,11 +578,14 @@ body, .full-screen {
 }
 
 .card-neon-hover:hover {
-  transform: translateY(-4px); /* Levanta levemente */
+  transform: translateY(-4px);
+  /* Levanta levemente */
   background: rgba(15, 23, 42, 0.8);
-  border-color: rgba(59, 130, 246, 0.5); /* Borda acende em azul */
+  border-color: rgba(59, 130, 246, 0.5);
+  /* Borda acende em azul */
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5),
-              0 0 15px rgba(59, 130, 246, 0.1); /* Glow externo */
+    0 0 15px rgba(59, 130, 246, 0.1);
+  /* Glow externo */
 }
 
 .date-range-container {
@@ -568,11 +616,15 @@ body, .full-screen {
 
 /* Animações de entrada */
 @keyframes fadeIn {
-  to { opacity: 1; }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  to { transform: translateY(0); }
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* Títulos dos Modais */
@@ -598,7 +650,8 @@ body, .full-screen {
 /* Títulos com Neon (Para "NOVO LANÇAMENTO" e "PAINEL RECIFE") */
 .title-neon-blue {
   color: #fff;
-  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); /* Brilho azul suave */
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  /* Brilho azul suave */
   font-weight: 800;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -610,15 +663,20 @@ body, .full-screen {
 
 /* O Badge que você gostou (Estilo Pílula Brilhante) */
 .badge-neon-pill {
-  background: rgba(37, 99, 235, 0.15); /* Fundo translúcido */
-  border: 1px solid rgba(59, 130, 246, 0.4); /* Borda fina */
-  color: #60a5fa; /* Texto azul claro */
+  background: rgba(37, 99, 235, 0.15);
+  /* Fundo translúcido */
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  /* Borda fina */
+  color: #60a5fa;
+  /* Texto azul claro */
   padding: 6px 16px;
-  border-radius: 999px; /* Formato pílula completa */
+  border-radius: 999px;
+  /* Formato pílula completa */
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.5px;
-  box-shadow: 0 0 15px rgba(37, 99, 235, 0.1); /* Glow sutil */
+  box-shadow: 0 0 15px rgba(37, 99, 235, 0.1);
+  /* Glow sutil */
   transition: all 0.3s ease;
 }
 
@@ -630,7 +688,8 @@ body, .full-screen {
 
 /* Container de Vidro da Sidebar e Header */
 .glass-panel-internal {
-  background: rgba(10, 15, 30, 0.75); /* Mais escuro que o login para contraste */
+  background: rgba(10, 15, 30, 0.75);
+  /* Mais escuro que o login para contraste */
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -655,7 +714,8 @@ body, .full-screen {
 }
 
 .input-internal:focus {
-  border-color: #3b82f6; /* Azul foco */
+  border-color: #3b82f6;
+  /* Azul foco */
   background: rgba(0, 0, 0, 0.5);
 }
 
@@ -672,7 +732,8 @@ body, .full-screen {
   font-size: 12px;
   letter-spacing: 1px;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3); /* Sombra azul */
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+  /* Sombra azul */
   transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
@@ -701,7 +762,8 @@ body, .full-screen {
 
 .header-glass {
   height: 80px;
-  background: rgba(2, 6, 23, 0.85); /* Fundo escuro semi-transparente */
+  background: rgba(2, 6, 23, 0.85);
+  /* Fundo escuro semi-transparente */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -750,7 +812,8 @@ body, .full-screen {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 6px 8px 6px 16px;
-  border-radius: 50px; /* Formato pílula */
+  border-radius: 50px;
+  /* Formato pílula */
 }
 
 .user-info {
@@ -787,7 +850,8 @@ body, .full-screen {
 
 /* Área do Relógio */
 .clock-display {
-  font-family: 'Courier New', monospace; /* Fonte mono para parecer digital */
+  font-family: 'Courier New', monospace;
+  /* Fonte mono para parecer digital */
   font-size: 14px;
   color: #60a5fa;
   background: rgba(37, 99, 235, 0.1);
@@ -828,12 +892,15 @@ body, .full-screen {
   height: 8px;
   background: #ef4444;
   border-radius: 50%;
-  border: 2px solid #020617; /* Borda da cor do fundo para destacar */
+  border: 2px solid #020617;
+  /* Borda da cor do fundo para destacar */
 }
 
 .badge-coleta {
-  background: rgba(59, 130, 246, 0.15) !important; /* Fundo transparente azulado */
-  color: #60a5fa !important; /* Texto azul claro */
+  background: rgba(59, 130, 246, 0.15) !important;
+  /* Fundo transparente azulado */
+  color: #60a5fa !important;
+  /* Texto azul claro */
   border: 1px solid rgba(59, 130, 246, 0.3) !important;
   text-shadow: none !important;
 }
@@ -875,23 +942,28 @@ body, .full-screen {
 }
 
 ::-webkit-scrollbar {
-  width: 8px;   
-  height: 8px;  
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent; 
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(30, 41, 59, 0.8); /* Um azul bem escuro, quase preto */
-  border-radius: 10px; /* Bordas redondinhas */
-  border: 1px solid rgba(255, 255, 255, 0.1); /* Borda sutil */
+  background: rgba(30, 41, 59, 0.8);
+  /* Um azul bem escuro, quase preto */
+  border-radius: 10px;
+  /* Bordas redondinhas */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* Borda sutil */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6; /* Azul Neon brilhante */
-  box-shadow: 0 0 10px #3b82f6; /* Glow neon */
+  background: #3b82f6;
+  /* Azul Neon brilhante */
+  box-shadow: 0 0 10px #3b82f6;
+  /* Glow neon */
 }
 
 ::-webkit-scrollbar-corner {
@@ -899,11 +971,18 @@ body, .full-screen {
 }
 
 * {
-  scrollbar-width: thin; /* Barra fininha */
-  scrollbar-color: rgba(59, 130, 246, 0.5) transparent; /* Cor da barra / Cor do fundo */
+  scrollbar-width: thin;
+  /* Barra fininha */
+  scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+  /* Cor da barra / Cor do fundo */
 }
 
-h1, h2, h3, h4, span, label {
+h1,
+h2,
+h3,
+h4,
+span,
+label {
   background-color: transparent !important;
 }
 
@@ -919,10 +998,12 @@ input[type="file"]::file-selector-button {
 
 /* === TÍTULOS DE ABA NEON (ESTILO CYBERPUNK) === */
 .neon-tab-title {
-  background: rgba(15, 23, 42, 0.95); /* Fundo bem escuro */
+  background: rgba(15, 23, 42, 0.95);
+  /* Fundo bem escuro */
   padding: 20px;
   border-radius: 12px;
-  border: 1px solid rgba(59, 130, 246, 0.3); /* Borda sutil */
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  /* Borda sutil */
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.15), inset 0 0 10px rgba(59, 130, 246, 0.05);
   margin-bottom: 25px;
   display: flex;
@@ -937,7 +1018,7 @@ input[type="file"]::file-selector-button {
   color: #fff;
   text-transform: uppercase;
   /* O BRILHO FORTE AQUI: */
-  text-shadow: 
+  text-shadow:
     0 0 5px #3b82f6,
     0 0 10px #3b82f6,
     0 0 20px rgba(59, 130, 246, 0.5);
@@ -957,14 +1038,16 @@ input[type="file"]::file-selector-button {
 }
 
 .card-cte-glass:hover {
-  transform: translateY(-5px); /* Levanta levemente */
+  transform: translateY(-5px);
+  /* Levanta levemente */
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Labels e Inputs dentro do Card Escuro */
 .card-cte-glass label {
-  color: #94a3b8 !important; /* Cinza azulado */
+  color: #94a3b8 !important;
+  /* Cinza azulado */
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -972,7 +1055,7 @@ input[type="file"]::file-selector-button {
   display: block;
 }
 
-.card-cte-glass input, 
+.card-cte-glass input,
 .card-cte-glass select {
   background: rgba(0, 0, 0, 0.3) !important;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -983,7 +1066,7 @@ input[type="file"]::file-selector-button {
   font-size: 13px;
 }
 
-.card-cte-glass input:focus, 
+.card-cte-glass input:focus,
 .card-cte-glass select:focus {
   outline: none;
   border-color: #3b82f6;
@@ -1002,7 +1085,7 @@ input[type="file"]::file-selector-button {
 /* === CORREÇÕES FINAIS PARA MODAIS E TABELAS === */
 
 /* Tabelas dentro de modais devem ser transparentes */
-.modal-content table, 
+.modal-content table,
 .modal-glass table {
   width: 100%;
   border-collapse: collapse;
@@ -1010,16 +1093,21 @@ input[type="file"]::file-selector-button {
   background-color: transparent !important;
 }
 
-.modal-content th, .modal-glass th,
-.modal-content td, .modal-glass td {
+.modal-content th,
+.modal-glass th,
+.modal-content td,
+.modal-glass td {
   padding: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: transparent !important; /* Força transparência */
+  background-color: transparent !important;
+  /* Força transparência */
 }
 
 /* Inputs e Selects dentro dos modais */
-.modal-content input, .modal-glass input,
-.modal-content select, .modal-glass select {
+.modal-content input,
+.modal-glass input,
+.modal-content select,
+.modal-glass select {
   background: rgba(0, 0, 0, 0.3) !important;
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   color: white !important;
@@ -1036,7 +1124,8 @@ input[type="file"]::file-selector-button {
 }
 
 /* Scrollbar interna dos modais se tiver muito conteúdo */
-.modal-content, .modal-glass {
+.modal-content,
+.modal-glass {
   max-height: 90vh;
   overflow-y: auto;
 }
@@ -1045,9 +1134,12 @@ input[type="file"]::file-selector-button {
   background: transparent !important;
   border: none !important;
   color: #94a3b8 !important;
-  width: 32px !important;       /* Tamanho fixo */
-  height: 32px !important;      /* Tamanho fixo */
-  min-width: 32px !important;   /* Impede de esticar */
+  width: 32px !important;
+  /* Tamanho fixo */
+  height: 32px !important;
+  /* Tamanho fixo */
+  min-width: 32px !important;
+  /* Impede de esticar */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1061,8 +1153,10 @@ input[type="file"]::file-selector-button {
 
 .btn-close-header:hover {
   background: rgba(255, 255, 255, 0.1) !important;
-  color: #ef4444 !important; /* Vermelho ao passar o mouse */
-  transform: rotate(90deg); /* Efeito giratório charmoso */
+  color: #ef4444 !important;
+  /* Vermelho ao passar o mouse */
+  transform: rotate(90deg);
+  /* Efeito giratório charmoso */
 }
 
 /* Área de Ações (Rodapé do Modal) */
@@ -1071,7 +1165,8 @@ input[type="file"]::file-selector-button {
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  justify-content: flex-end; /* Alinha à direita */
+  justify-content: flex-end;
+  /* Alinha à direita */
   gap: 12px;
 }
 
@@ -1097,10 +1192,14 @@ input[type="file"]::file-selector-button {
   transform: translateY(-2px);
 }
 
+.main-content {
+  padding-top: 24px;
+}
+
 .container-central {
   width: 100%;
-  max-width: 1400px; 
-  margin: 0 auto;    
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1118,10 +1217,12 @@ input[type="file"]::file-selector-button {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
   }
+
   70% {
     transform: scale(1);
     box-shadow: 0 0 0 6px rgba(255, 82, 82, 0);
   }
+
   100% {
     transform: scale(0.95);
     box-shadow: 0 0 0 0 rgba(255, 82, 82, 0);
@@ -1133,10 +1234,12 @@ input[type="file"]::file-selector-button {
   position: absolute;
   top: -5px;
   right: -5px;
-  background-color: #ff5252; /* Vermelho alerta */
+  background-color: #ff5252;
+  /* Vermelho alerta */
   color: white;
   border-radius: 50%;
-  padding: 2px 4px; /* Ajuste fino do tamanho */
+  padding: 2px 4px;
+  /* Ajuste fino do tamanho */
   font-size: 10px;
   font-weight: bold;
   border: 1px solid #fff;
@@ -1145,7 +1248,7 @@ input[type="file"]::file-selector-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   /* Aqui aplicamos a animação */
   animation: pulse-red 2s infinite;
   z-index: 10;
