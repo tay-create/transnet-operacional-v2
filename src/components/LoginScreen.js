@@ -113,7 +113,7 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                     <span className="brand-subtitle">LOGISTICA INTEGRADA</span>
                 </div>
 
-                {aviso && (
+                {aviso && !modalCadastro && !modalEsqueci && (
                     <div style={{ background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)', color: aviso.startsWith('✅') ? '#86efac' : '#fde047', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}` }}>
                         {aviso}
                     </div>
@@ -183,6 +183,21 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                             Novo Registro
                         </h3>
                         <p className="modal-desc">Preencha seus dados para solicitar acesso ao sistema.</p>
+
+                        {aviso && (
+                            <div style={{
+                                background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
+                                color: aviso.startsWith('✅') ? '#86efac' : '#fde047',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                textAlign: 'center',
+                                border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                                marginBottom: '15px'
+                            }}>
+                                {aviso}
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
@@ -296,6 +311,22 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
 
                         <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white' }}>Recuperar Acesso</h3>
                         <p className="modal-desc">Informe seu nome de usuário. O administrador receberá um alerta para resetar sua senha.</p>
+
+                        {/* AVISO DENTRO DO MODAL DE ESQUECI SENHA */}
+                        {aviso && (
+                            <div style={{
+                                background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
+                                color: aviso.startsWith('✅') ? '#86efac' : '#fde047',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                textAlign: 'center',
+                                border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                                marginBottom: '15px'
+                            }}>
+                                {aviso}
+                            </div>
+                        )}
 
                         <div style={{ textAlign: 'left', marginBottom: '20px' }}>
                             <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Seu Usuário</label>

@@ -8,6 +8,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const bodyParser = require('body-parser');
 const path = require('path');
 const bcrypt = require('bcryptjs');
@@ -16,6 +18,42 @@ const { authMiddleware, authorize, generateToken } = require('./middleware/authM
 const { validate, loginSchema, novoLancamentoSchema, cubagemSchema, cadastroUsuarioSchema } = require('./middleware/validationMiddleware');
 
 const app = express();
+
+// ── Segurança: headers HTTP ───────────────────────────────────────────────────
+app.use(helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval opcional dependendo do build
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "blob:", "https:"],
+            connectSrc: ["'self'", "ws:", "wss:"],
+            fontSrc: ["'self'", "https:", "data:"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: [],
+        },
+    },
+}));
+
+// ── Rate limiting: login (10 tentativas / 15 min por IP) ─────────────────────
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+});
+
+// ── Rate limiting: rotas públicas de marcação (30 req / 5 min por IP) ────────
+const marcacaoPublicaLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Limite de requisições atingido. Aguarde alguns minutos.' }
+});
+
 // Aumenta o limite para aceitar imagens em Base64 grandes
 const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '10mb';
 app.use(bodyParser.json({ limit: MAX_FILE_SIZE }));
@@ -30,8 +68,6 @@ const { dbRun, dbAll, dbGet, dbTransaction } = require('./src/database/db');
 const { inicializarBanco } = require('./src/database/migrations');
 
 // --- BANCO DE DADOS ---
-app.use('/api/ocorrencias', require('./src/routes/ocorrencias'));
-app.use('/', require('./src/routes/ocorrencias'));
 inicializarBanco();
 
 // Função para obter data/hora no timezone de Brasília (America/Sao_Paulo)
@@ -64,6 +100,21 @@ async function registrarLog(acao, usuario, alvoId = null, alvoTipo = null, valor
     }
 }
 
+// Helper para enviar e persistir notificações
+async function enviarNotificacao(evento, dados) {
+    try {
+        const result = await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify(dados)]);
+        const notificacaoFinal = { ...dados, idInterno: result.lastID };
+        io.emit(evento, notificacaoFinal);
+        console.log(`🔔 [enviarNotificacao] Evento: ${evento} | ID: ${result.lastID}`);
+        return notificacaoFinal;
+    } catch (e) {
+        console.error("❌ [enviarNotificacao] Erro ao persistir notificação:", e);
+        // Fallback: emite sem persistir se o banco falhar
+        io.emit(evento, dados);
+    }
+}
+
 // Registrar rotas após io e registrarLog estarem definidos
 const veiculosRouter = require('./src/routes/veiculos')(io, registrarLog);
 app.use('/veiculos', veiculosRouter);
@@ -71,6 +122,9 @@ app.use('/', veiculosRouter);
 
 const checklistsRouter = require('./src/routes/checklists')(io);
 app.use('/', checklistsRouter);
+
+const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog);
+app.use('/', ocorrenciasRouter);
 
 // NOTA: PUT /usuarios/:id completo está mais abaixo com authMiddleware + authorize
 // Esta rota (cargo apenas) foi migrada para a versão protegida
@@ -195,7 +249,7 @@ app.get('/api/marcacoes/validar/:token', async (req, res) => {
 });
 
 // Submissão pública do formulário (sem auth) — UPSERT por telefone
-app.post('/api/marcacoes', async (req, res) => {
+app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
     try {
         const {
             token_id, nome_motorista, telefone, placa1, placa2,
@@ -322,7 +376,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 });
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, async (req, res) => {
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
@@ -531,10 +585,11 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 
             // Notificação direcionada por cargo
             const placaDesc = [marcacao.placa1, marcacao.placa2].filter(Boolean).join('/');
-            io.emit('notificacao_direcionada', {
+            enviarNotificacao('notificacao_direcionada', {
                 mensagem: `Checklist de ${placaDesc} atualizado — ${situacao}`,
                 situacao,
                 cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado'],
+                data_criacao: new Date().toISOString()
             });
         }
 
@@ -652,6 +707,16 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             chk_tacografo: chk_tacografo_cad ? 1 : 0,
             chk_crlv: chk_crlv_cad ? 1 : 0,
         });
+
+        // Notificação persistente
+        const motoristaNome = atual.motorista || dj.motorista || 'Motorista';
+        enviarNotificacao('notificacao_direcionada', {
+            mensagem: `Checklist de ${motoristaNome} atualizado — ${situacao}`,
+            situacao,
+            cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado'],
+            veiculoId: Number(req.params.id),
+            data_criacao: new Date().toISOString()
+        });
         if (dj.telefoneMotorista) {
             // Sincronizar de volta em marcacoes_placas (para manter consistência caso haja nova viagem)
             await dbRun(
@@ -759,9 +824,9 @@ app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
 
 // ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
-app.get('/fila', authMiddleware, async (req, res) => { try { const rows = await dbAll("SELECT * FROM fila"); const fila = rows.map(row => ({ id: row.id, ...JSON.parse(row.dados_json) })); res.json({ success: true, fila }); } catch (e) { res.status(500).json({ success: false }); } });
+app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional']), async (req, res) => { try { const rows = await dbAll("SELECT * FROM fila"); const fila = rows.map(row => ({ id: row.id, ...JSON.parse(row.dados_json) })); res.json({ success: true, fila }); } catch (e) { res.status(500).json({ success: false }); } });
 app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { try { const item = req.body; const result = await dbRun(`INSERT INTO fila (dados_json) VALUES (?)`, [JSON.stringify(item)]); const novo = { id: result.lastID, ...item }; io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo }); res.json({ success: true, id: result.lastID }); } catch (e) { res.status(500).json({ success: false }); } });
-app.put('/fila/:id', authMiddleware, async (req, res) => { try { await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]); io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body }); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional']), async (req, res) => { try { await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]); io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body }); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
 app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const { ordem } = req.body; // [{ id, coleta, motorista }, ...]
@@ -789,12 +854,12 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
         res.json({ success: true, notificacoes: [] }); // Retorna sucesso vazio para não quebrar o front
     }
 });
-app.delete('/notificacoes/:id', authMiddleware, async (req, res) => { try { await dbRun("DELETE FROM notificacoes WHERE id = ?", [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento']), async (req, res) => { try { await dbRun("DELETE FROM notificacoes WHERE id = ?", [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
 
 // --- ROTAS DE CT-E ATIVOS ---
 
 // Listar todos os CT-es ativos
-app.get('/ctes', authMiddleware, async (req, res) => {
+app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM ctes_ativos ORDER BY id ASC");
         const lista = rows.map(row => {
@@ -812,7 +877,7 @@ app.get('/ctes', authMiddleware, async (req, res) => {
 });
 
 // Criar novo CT-e ativo
-app.post('/ctes', authMiddleware, async (req, res) => {
+app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         const { origem, dados } = req.body;
         const status = dados.status || 'Aguardando Emissão';
@@ -828,7 +893,7 @@ app.post('/ctes', authMiddleware, async (req, res) => {
 });
 
 // Atualizar CT-e ativo
-app.put('/ctes/:id', authMiddleware, async (req, res) => {
+app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         const { dados } = req.body;
         const status = dados.status || 'Aguardando Emissão';
@@ -844,7 +909,7 @@ app.put('/ctes/:id', authMiddleware, async (req, res) => {
 });
 
 // Remover CT-e ativo (apos arquivar no historico)
-app.delete('/ctes/:id', authMiddleware, async (req, res) => {
+app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
     try {
         await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
         res.json({ success: true });
@@ -854,7 +919,7 @@ app.delete('/ctes/:id', authMiddleware, async (req, res) => {
     }
 });
 // --- ROTAS DE CHECKLIST DA CARRETA ---
-app.get('/cubagens', authMiddleware, async (req, res) => {
+app.get('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         const cubagens = await dbAll("SELECT * FROM cubagens ORDER BY data_criacao DESC");
         if (cubagens.length === 0) return res.json({ success: true, cubagens: [] });
@@ -877,7 +942,7 @@ app.get('/cubagens', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/cubagens/coleta/:numero', authMiddleware, async (req, res) => {
+app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         const cubagem = await dbGet("SELECT * FROM cubagens WHERE numero_coleta = ?", [req.params.numero]);
         if (cubagem) {
@@ -965,14 +1030,30 @@ app.delete('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         res.status(500).json({ success: false });
     }
 });
+app.use('/login', loginLimiter);
 app.use('/', require('./src/routes/auth'));
-app.get('/configuracoes', authMiddleware, async (req, res) => { try { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); io.emit('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas' }); res.json({ success: true }); });
+app.get('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { try { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); } catch (e) { res.status(500).json({ success: false }); } });
+app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); enviarNotificacao('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas', data_criacao: new Date().toISOString() }); res.json({ success: true }); });
 app.get('/solicitacoes', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { try { const s = await dbAll("SELECT * FROM solicitacoes"); res.json({ success: true, solicitacoes: s }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/solicitacoes', async (req, res) => { const { nome, emailPrefix, unidade, senha } = req.body; const senhaHash = await bcrypt.hash(senha || '123456', 10); await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)", ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, obterDataHoraBrasilia()]); io.emit('receber_alerta', { tipo: 'admin_cadastro', mensagem: `Novo cadastro: ${nome}` }); res.json({ success: true }); });
+app.post('/solicitacoes', async (req, res) => {
+    try {
+        const { nome, emailPrefix, unidade, senha } = req.body;
+        if (!nome || !emailPrefix || !senha) {
+            return res.status(400).json({ success: false, message: 'Campos obrigatórios faltando.' });
+        }
+        const senhaHash = await bcrypt.hash(senha || '123456', 10);
+        await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
+            ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, obterDataHoraBrasilia()]);
+        enviarNotificacao('receber_alerta', { tipo: 'admin_cadastro', mensagem: `Novo cadastro: ${nome}`, data_criacao: new Date().toISOString() });
+        res.json({ success: true });
+    } catch (e) {
+        console.error("❌ [/solicitacoes] Erro ao processar cadastro:", e);
+        res.status(500).json({ success: false, message: 'Erro interno ao processar cadastro. Verifique a conexão com o banco.' });
+    }
+});
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
 app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); });
-app.post('/historico_cte', authMiddleware, async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); });
+app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); });
 app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), async (req, res) => {
     try {
         const { dataInicio, dataFim } = req.query;
@@ -1016,6 +1097,14 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             telefoneMotorista = dj.telefoneMotorista || null;
                         } catch (_) { }
                     }
+
+                    // Buscar contador ANTES para logar a progressão
+                    const marcacaoAntes = telefoneMotorista
+                        ? await dbGet("SELECT viagens_realizadas FROM marcacoes_placas WHERE telefone = ?", [telefoneMotorista])
+                        : await dbGet("SELECT viagens_realizadas FROM marcacoes_placas WHERE nome_motorista = ?", [veiculo.motorista]);
+                    const viagensAntes = marcacaoAntes?.viagens_realizadas ?? '?';
+                    console.log(`🚛 [CT-e Emitido] Motorista: "${veiculo.motorista}" | Tel: ${telefoneMotorista || 'não registrado'} | Viagens antes: ${viagensAntes}`);
+
                     // Busca pelo telefone primeiro, fallback pelo nome do motorista
                     const agora = new Date().toISOString();
                     let rowsAfetadas = 0;
@@ -1033,6 +1122,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             [agora, telefoneMotorista]
                         );
                         rowsAfetadas = r.changes || 0;
+                        if (rowsAfetadas > 0) console.log(`   ✅ Encontrado por telefone (${telefoneMotorista})`);
                     }
 
                     // Fallback: buscar pelo nome do motorista se não achou pelo telefone
@@ -1049,12 +1139,19 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             [agora, veiculo.motorista]
                         );
                         rowsAfetadas = r.changes || 0;
+                        if (rowsAfetadas > 0) console.log(`   ✅ Encontrado por nome ("${veiculo.motorista}")`);
                     }
 
                     if (rowsAfetadas > 0) {
-                        console.log(`✅ Motorista ${veiculo.motorista}: viagem registrada, status → EM VIAGEM, cadastro → ARQUIVADO`);
+                        const marcacaoDepois = telefoneMotorista
+                            ? await dbGet("SELECT viagens_realizadas FROM marcacoes_placas WHERE telefone = ?", [telefoneMotorista])
+                            : await dbGet("SELECT viagens_realizadas FROM marcacoes_placas WHERE nome_motorista = ?", [veiculo.motorista]);
+                        const viagensDepois = marcacaoDepois?.viagens_realizadas ?? '?';
+                        console.log(`✅ [CT-e] Viagem registrada: "${veiculo.motorista}" | ${viagensAntes} → ${viagensDepois} viagens | status → EM VIAGEM | cadastro → ARQUIVADO`);
                     } else {
-                        console.warn(`⚠️ Motorista ${veiculo.motorista}: marcação não encontrada para incrementar viagem`);
+                        console.warn(`⚠️ [CT-e] Motorista "${veiculo.motorista}" NÃO encontrado em marcacoes_placas`);
+                        console.warn(`   Buscou por telefone: ${telefoneMotorista || 'N/A'} | por nome: "${veiculo.motorista}"`);
+                        console.warn(`   Veículo ID: ${cteId} | Coleta: ${coleta} — contador de viagens NÃO incrementado`);
                     }
                 }
 
@@ -1150,7 +1247,7 @@ function verificarBloqueioFimDeSemana(modePlantao) {
 }
 
 // ── Nova Rota de Checklist (Operacional / Doca) ───────────────────
-app.post('/api/checklists', authMiddleware, async (req, res) => {
+app.post('/api/checklists', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
     try {
         const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
         if (!veiculo_id || !placa_carreta || !assinatura) {
@@ -1215,11 +1312,7 @@ app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 
 // Socket.io
 io.on('connection', (socket) => {
     socket.on('enviar_alerta', async (dados) => {
-        try {
-            const result = await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify(dados)]);
-            const notificacaoFinal = { ...dados, idInterno: result.lastID };
-            io.emit('receber_alerta', notificacaoFinal);
-        } catch (e) { console.error("Erro ao salvar notificação:", e); }
+        await enviarNotificacao('receber_alerta', { ...dados, data_criacao: dados.data_criacao || new Date().toISOString() });
     });
     socket.on('nova_atualizacao', (dados) => { io.emit('receber_atualizacao', dados); });
     socket.on('update_user_avatar', (dados) => { io.emit('receber_atualizacao', { tipo: 'avatar_mudou', ...dados }); });
@@ -1272,7 +1365,7 @@ async function gerarProgramacaoDiaria(turno) {
             [hojeStr, turno, dados_json]
         );
 
-        io.emit('programacao_gerada', { turno, data_referencia: hojeStr });
+        enviarNotificacao('programacao_gerada', { turno, data_referencia: hojeStr, data_criacao: new Date().toISOString() });
         console.log(`[CRON] Programação Diária (${turno}) concluída.`);
     } catch (e) {
         console.error(`[CRON] Erro ao gerar programação diária:`, e);
@@ -1321,19 +1414,14 @@ async function verificarExpiracaoLiberacoes() {
                     const msg = `⛔ LIBERAÇÃO EXPIRADA — ${nome} (${placa}) — Lib. Nº ${m.num_liberacao_cad || 'S/N'}. Solicite renovação!`;
                     console.log(`[CRON-LIB] ${msg}`);
 
-                    await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify({
-                        tipo: 'liberacao_expirada',
+                    await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
+                        tipo: 'liberacao_expirada',
+                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
                         data_criacao: new Date().toISOString(),
-                    })]);
-
-                    io.emit('notificacao_direcionada', {
-                        mensagem: msg,
-                        tipo: 'liberacao_expirada',
-                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
                     });
                 }
             } else if (restanteMs <= ALERTA_2H) {
@@ -1349,19 +1437,14 @@ async function verificarExpiracaoLiberacoes() {
                     const msg = `⚠️ LIBERAÇÃO VENCENDO — ${nome} (${placa}) — ${tempoStr} restantes. Lib. Nº ${m.num_liberacao_cad || 'S/N'}`;
                     console.log(`[CRON-LIB] ${msg}`);
 
-                    await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify({
-                        tipo: 'liberacao_vencendo',
+                    await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
+                        tipo: 'liberacao_vencendo',
+                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
                         data_criacao: new Date().toISOString(),
-                    })]);
-
-                    io.emit('notificacao_direcionada', {
-                        mensagem: msg,
-                        tipo: 'liberacao_vencendo',
-                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
                     });
                 }
             } else {
@@ -1413,6 +1496,30 @@ cron.schedule('59 23 * * 1-5', async () => {
     }
 }, { scheduled: true, timezone: "America/Sao_Paulo" });
 
+// ── AUDITORIA DE DEPENDÊNCIAS (A cada 15 dias) ───────────────────────
+// Roda no dia 1 e 15 de cada mês às 03:00 da manhã
+cron.schedule('0 3 1,15 * *', () => {
+    const { exec } = require('child_process');
+    console.log('[CRON-AUDIT] Iniciando auditoria de segurança (npm audit)...');
+
+    exec('npm audit --json', (error, stdout, stderr) => {
+        try {
+            const results = JSON.parse(stdout);
+            const vulns = results.metadata.vulnerabilities;
+            const total = vulns.low + vulns.moderate + vulns.high + vulns.critical;
+
+            if (total > 0) {
+                console.warn(`⚠️ [CRON-AUDIT] Encontradas ${total} vulnerabilidades! (High: ${vulns.high}, Critical: ${vulns.critical})`);
+                // Aqui você poderia enviar um email ou notificação interna
+            } else {
+                console.log('✅ [CRON-AUDIT] Nenhuma vulnerabilidade encontrada.');
+            }
+        } catch (e) {
+            console.error('[CRON-AUDIT] Erro ao processar resultado do npm audit');
+        }
+    });
+}, { scheduled: true, timezone: "America/Sao_Paulo" });
+
 // Rota GET para o front-end consultar o histórico
 app.get('/api/programacao-diaria', authMiddleware, async (req, res) => {
     try {
@@ -1431,7 +1538,7 @@ app.get('/api/programacao-diaria', authMiddleware, async (req, res) => {
 // ────────────────────────────────────────────────────────────
 
 // Endpoints para containers bloqueando docas (Persistente no Banco)
-app.get('/api/docas-interditadas', async (req, res) => {
+app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const rows = await dbAll('SELECT * FROM docas_interditadas');
         res.json({ success: true, docas: rows });
@@ -1440,7 +1547,7 @@ app.get('/api/docas-interditadas', async (req, res) => {
     }
 });
 
-app.post('/api/docas-interditadas', async (req, res) => {
+app.post('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const { unidade } = req.body;
         const result = await dbRun('INSERT INTO docas_interditadas (unidade, doca, nome) VALUES (?, ?, ?)', [unidade, 'SELECIONE', 'CONTAINER']);
@@ -1454,7 +1561,7 @@ app.post('/api/docas-interditadas', async (req, res) => {
     }
 });
 
-app.put('/api/docas-interditadas/:id', async (req, res) => {
+app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const id = Number(req.params.id);
         const { doca } = req.body;
@@ -1468,7 +1575,7 @@ app.put('/api/docas-interditadas/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/docas-interditadas/:id', async (req, res) => {
+app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const id = Number(req.params.id);
         await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
@@ -1483,6 +1590,16 @@ app.delete('/api/docas-interditadas/:id', async (req, res) => {
 
 // Porta configurável via .env
 const PORT = process.env.PORT || 3001;
+
+// ── ERRO GLOBAL (FALLBACK DE SEGURANÇA) ──────────────────────────────
+// Deve ser o último middleware a ser definido
+app.use((err, req, res, next) => {
+    console.error('❌ [ERRO CRÍTICO NÃO TRATADO]:', err.stack);
+    res.status(500).json({
+        success: false,
+        message: 'Ocorreu um erro interno no servidor. A equipe técnica foi notificada.'
+    });
+});
 
 server.listen(PORT, () => {
     console.log(`\n🚀 SERVIDOR RODANDO NA PORTA ${PORT}`);

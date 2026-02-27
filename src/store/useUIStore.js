@@ -98,9 +98,14 @@ const useUIStore = create((set) => ({
      * @param {Object} notificacao - Objeto da notificação
      */
     adicionarNotificacao: (notificacao) => {
-        set((state) => ({
-            notificacoes: [notificacao, ...state.notificacoes]
-        }));
+        set((state) => {
+            // Evitar duplicidade pelo idInterno
+            const existe = state.notificacoes.find(n => n.idInterno === notificacao.idInterno);
+            if (existe) return state;
+            return {
+                notificacoes: [notificacao, ...state.notificacoes]
+            };
+        });
     },
 
     /**

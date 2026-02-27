@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, ClipboardCheck, List, LogOut, User } from 'lucide-react';
+import logoImg from '../assets/logo.png';
 import useAuthStore from '../store/useAuthStore';
 import useConferenteStore from './useConferenteStore';
 
@@ -41,7 +42,7 @@ export default function ConferenteHeader() {
         }}>
             {/* Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ color: 'white', fontWeight: 800, fontSize: '16px', letterSpacing: '1px' }}>TRANSNET</span>
+                <img src={logoImg} alt="Transnet" style={{ height: '32px', width: 'auto', objectFit: 'contain' }} />
                 <span style={{
                     background: 'rgba(59, 130, 246, 0.2)',
                     color: '#60a5fa',

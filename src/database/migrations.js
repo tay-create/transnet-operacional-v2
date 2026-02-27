@@ -63,8 +63,16 @@ const inicializarBanco = async () => {
             assinatura TEXT,
             conferente_nome TEXT,
             status TEXT DEFAULT 'PENDENTE',
-            created_at TEXT
+            created_at TEXT,
+            is_paletizado TEXT,
+            tipo_palete TEXT,
+            qtd_paletes INTEGER
         )`);
+        // Migrações seguras para colunas novas
+        try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS is_paletizado TEXT`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS tipo_palete TEXT`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS qtd_paletes INTEGER`); } catch (_) { }
+
         await dbRun(`CREATE TABLE IF NOT EXISTS logs (
             id SERIAL PRIMARY KEY,
             acao TEXT NOT NULL,

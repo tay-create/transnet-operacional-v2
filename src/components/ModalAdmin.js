@@ -98,7 +98,7 @@ const ModalAdmin = ({ isOpen, onClose }) => {
                                     <div key={p.id} style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '15px', borderRadius: '8px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <span style={{ color: '#fef08a', fontWeight: 'bold' }}>{p.nome}</span>
-                                            <span style={{ color: '#94a3b8', fontSize: '11px' }}>{p.unidade} - {p.identificador}</span>
+                                            <span style={{ color: '#94a3b8', fontSize: '11px' }}>{p.unidade} - {p.email}</span>
                                         </div>
                                         <div style={{ display: 'flex', gap: '10px' }}>
                                             <select

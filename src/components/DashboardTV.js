@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import logoImg from '../assets/logo.png';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
-import { Warehouse } from 'lucide-react';
+import { Warehouse, AlertTriangle } from 'lucide-react';
 import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
@@ -72,6 +72,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     const [tempoRotacao, setTempoRotacao] = useState(20);
     const [tema, setTema] = useState('dark');
     const [docasInterditadas, setDocasInterditadas] = useState([]);
+    const [ocorrenciasHoje, setOcorrenciasHoje] = useState([]);
     const totalTelas = 4;
     const t = TEMAS[tema];
 
@@ -92,6 +93,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
     useEffect(() => {
         let unmounted = false;
+        const hoje = obterDataBrasilia();
         const fetchDocas = () => {
             api.get('/api/docas-interditadas').then(r => {
                 if (!unmounted && r.data && r.data.success) {
@@ -99,8 +101,19 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 }
             }).catch(() => { });
         };
+        const fetchOcorrencias = () => {
+            api.get('/api/ocorrencias').then(r => {
+                if (!unmounted && r.data?.success) {
+                    const hoje_ = hoje;
+                    setOcorrenciasHoje((r.data.ocorrencias || []).filter(o =>
+                        (o.data_criacao || '').substring(0, 10) === hoje_
+                    ));
+                }
+            }).catch(() => { });
+        };
         fetchDocas();
-        const pollTimer = setInterval(fetchDocas, 10000);
+        fetchOcorrencias();
+        const pollTimer = setInterval(() => { fetchDocas(); fetchOcorrencias(); }, 10000);
         return () => { unmounted = true; clearInterval(pollTimer); };
     }, []);
 
@@ -189,7 +202,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
             {/* Conteudo */}
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-                {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} />}
+                {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
                 {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} />}
@@ -211,7 +224,7 @@ const btnS = (t) => ({ padding: '4px 10px', borderRadius: '4px', border: `1px so
 // ================================================================
 // TELA 1: VISAO GERAL
 // ================================================================
-function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje }) {
+function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, ocorrenciasHoje = [] }) {
     const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
     veiculos.forEach(v => {
         const cat = classificarOperacao(v.operacao);
@@ -273,6 +286,37 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje })
                         <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
                     </div>
                 ))}
+
+                {/* Ocorrências do dia */}
+                {ocorrenciasHoje.length > 0 && (
+                    <div style={{ ...glassCard(t, 'rgba(245,158,11,0.35)'), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: '4px solid #f59e0b' }}>
+                        <AlertTriangle size={18} color="#fbbf24" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#fbbf24', textTransform: 'uppercase', whiteSpace: 'nowrap', fontWeight: '700' }}>Ocorrências Hoje</span>
+                        <span style={{ fontSize: '36px', fontWeight: '900', color: '#fbbf24', filter: 'drop-shadow(0 0 8px #f59e0b80)', lineHeight: 1 }}>{ocorrenciasHoje.length}</span>
+                        <div style={{ height: '32px', width: '1px', background: 'rgba(245,158,11,0.3)' }} />
+                        {[
+                            { label: 'Recife', count: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#60a5fa' },
+                            { label: 'Moreno', count: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#fb923c' }
+                        ].map(u => u.count > 0 && (
+                            <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '24px', fontWeight: '800', color: u.cor }}>{u.count}</span>
+                                <span style={{ fontSize: '11px', color: t.textMuted }}>{u.label}</span>
+                            </div>
+                        ))}
+                        <div style={{ flex: 1 }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '280px' }}>
+                            {ocorrenciasHoje.slice(0, 2).map(o => (
+                                <div key={o.id} style={{ fontSize: '10px', color: t.textMuted, display: 'flex', gap: '6px', overflow: 'hidden' }}>
+                                    <span style={{ color: '#fbbf24', fontWeight: '700', flexShrink: 0 }}>{o.motorista}</span>
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.descricao}</span>
+                                </div>
+                            ))}
+                            {ocorrenciasHoje.length > 2 && (
+                                <span style={{ fontSize: '10px', color: t.textDim }}>+{ocorrenciasHoje.length - 2} mais...</span>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* CT-e status — linha de baixo (ocupando as 5 colunas agora) */}
                 <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '24px' }}>

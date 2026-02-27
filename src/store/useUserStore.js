@@ -69,10 +69,10 @@ const useUserStore = create((set, get) => ({
             } else {
                 const novoUser = {
                     nome: item.nome,
-                    identificador: item.identificador,
+                    email: item.email || item.identificador,
                     senha: item.senha,
                     cargo: cargoEscolhido,
-                    unidade: item.unidade
+                    cidade: item.unidade || 'Recife'
                 };
 
                 const response = await api.post('/usuarios', novoUser);
@@ -109,9 +109,9 @@ const useUserStore = create((set, get) => ({
             await api.delete(`/usuarios/${id}`);
             get().carregarUsuarios();
             return { success: true };
-        } catch (error) {
-            console.error("Erro ao remover usuário:", error);
-            return { success: false, error };
+        } catch (e) {
+            console.error("Erro ao remover usuário:", e);
+            return { success: false, error: e };
         }
     },
 

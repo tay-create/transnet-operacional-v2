@@ -15,7 +15,7 @@ const socket = io(API_URL);
  * Gerencia rotas públicas, privadas e estado de autenticação global.
  */
 function AppRouter() {
-    const { isAuthenticated, user, login } = useAuthStore();
+    const { isAuthenticated, user } = useAuthStore();
     const path = window.location.pathname;
 
     // 1. Rota de Marcação/Cadastro (Pública/Específica)
@@ -28,7 +28,7 @@ function AppRouter() {
         if (!isAuthenticated || user?.cargo !== 'Conferente') {
             return (
                 <ConferenteLogin
-                    onLoginSuccess={(userData) => login(userData, null)}
+                    onLoginSuccess={() => { }}
                 />
             );
         }
@@ -39,7 +39,7 @@ function AppRouter() {
     if (!isAuthenticated) {
         return (
             <LoginScreen
-                onLoginSuccess={(userData) => login(userData, null)}
+                onLoginSuccess={() => { }}
                 socket={socket}
             />
         );

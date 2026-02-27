@@ -3,14 +3,13 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, ClipboardCheck, Truck
+    CheckCircle, Clock, FileText, Warehouse, Truck
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
-import ModalOcorrencia from './ModalOcorrencia';
 import ModalImagem from './ModalImagem';
 import ModalColetas from './ModalColetas';
 import SLATimeline from './SLATimeline';
-import { OPCOES_STATUS, OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
+import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
@@ -98,7 +97,6 @@ export default function PainelOperacional({
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
     const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
     const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
-    const [modalOcorrencia, setModalOcorrencia] = useState(null);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const qtdMotoristasPrev = useRef(null);
 
@@ -689,56 +687,26 @@ export default function PainelOperacional({
                                             </div >
 
 
-                                            {/* Doca e Status */}
-                                            < div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                                                <div>
-                                                    <label className="label-tech-sm"><Anchor size={10} style={{ display: 'inline', marginRight: '2px' }} /> DOCA</label>
-                                                    {(() => {
-                                                        const campoDocaAlvo = origem === 'Recife' ? 'doca_recife' : 'doca_moreno';
-                                                        const docaAtual = item[campoDocaAlvo];
-                                                        return (
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                <select className="input-internal" value={docaAtual || 'SELECIONE'} onChange={e => updateList(lista, setLista, realIndex, campoDocaAlvo, e.target.value)} disabled={!podeEditarNaUnidade('operacao')} style={{ flex: 1 }}>
-                                                                    {opcoesDocas.map(d => <option key={d} style={{ color: 'black' }}>{d}</option>)}
-                                                                </select>
-                                                                {/* Removido o botão de doca daqui, foi para o card de título no modo visualização */}
-                                                            </div>
-                                                        );
-                                                    })()}
+                                            {/* Doca e Status — somente leitura; conferente controla */}
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                {/* Badge da Doca */}
+                                                {(() => {
+                                                    const campoDocaAlvo = origem === 'Recife' ? 'doca_recife' : 'doca_moreno';
+                                                    const docaAtual = item[campoDocaAlvo];
+                                                    if (!docaAtual || docaAtual === 'SELECIONE') return null;
+                                                    return (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px' }}>
+                                                            <Anchor size={11} color="#60a5fa" />
+                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{docaAtual}</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {/* Badge de Status */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px' }}>
+                                                    <Circle size={8} fill={corStatus.border} color={corStatus.border} />
+                                                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: corStatus.text }}>{valorStatusAtual}</span>
                                                 </div>
-                                                <div>
-                                                    {(() => {
-                                                        const STATUS_BLOQUEADOS_TRAVA = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
-                                                        const cadastroBloqueado = !item.isFrotaMotorista && item.situacao_cadastro !== 'LIBERADO' && STATUS_BLOQUEADOS_TRAVA.includes(valorStatusAtual);
-                                                        return (
-                                                            <>
-                                                                <label className="label-tech-sm" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                    STATUS
-                                                                    {!item.isFrotaMotorista && item.situacao_cadastro !== 'LIBERADO' && (
-                                                                        <Lock size={10} color="#ef4444" title={cadastroBloqueado ? 'Ação bloqueada: O Gerenciamento de Risco revogou a liberação deste veículo.' : 'Checklist incompleto — não é possível avançar status.'} />
-                                                                    )}
-                                                                </label>
-                                                                <select
-                                                                    className="input-internal"
-                                                                    style={{ color: cadastroBloqueado ? '#ef4444' : corStatus.text, borderColor: cadastroBloqueado ? '#ef4444' : corStatus.border, fontWeight: 'bold' }}
-                                                                    value={valorStatusAtual}
-                                                                    onChange={e => {
-                                                                        if (cadastroBloqueado) {
-                                                                            adicionarToast('O Gerenciamento de Risco revogou a liberação deste veículo.', 'erro');
-                                                                            return;
-                                                                        }
-                                                                        const novoStatus = e.target.value;
-                                                                        updateList(lista, setLista, realIndex, campoStatusAlvo, novoStatus, origem);
-                                                                    }}
-                                                                    disabled={cadastroBloqueado || !podeEditarNaUnidade('operacao')}
-                                                                >
-                                                                    {OPCOES_STATUS.map(s => <option key={s} style={{ color: 'black' }}>{s}</option>)}
-                                                                </select>
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </div>
-                                            </div >
+                                            </div>
 
                                             {/* Campo de Observação */}
                                             < div >
@@ -907,31 +875,29 @@ export default function PainelOperacional({
                                                 </div>
 
                                                 {/* Botões de Ação */}
-                                                <div style={{ display: 'flex', gap: '8px', marginLeft: '10px' }}>
-                                                    {/* Botão de Ocorrência (Movido do Título) */}
-                                                    <button
-                                                        onClick={(e) => { e.preventDefault(); setModalOcorrencia(item); }}
-                                                        style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(245,158,11,0.2)', border: 'none', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                                        title="Adicionar Ocorrência"
-                                                    >
-                                                        <AlertTriangle size={16} />
-                                                    </button>
-
-                                                    {OPCOES_STATUS.indexOf(valorStatusAtual) >= OPCOES_STATUS.indexOf('LIBERADO P/ DOCA') ? (
-                                                        <button
-                                                            onClick={() => {
-                                                                setVeiculoSelecionado({ item, realIndex, lista, setLista, origem });
-                                                                setModalChecklistAberto(true);
-                                                            }}
-                                                            style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(249, 115, 22, 0.2)', border: 'none', color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                                                            title="Checklist da Carreta"
-                                                        >
-                                                            <ClipboardCheck size={16} />
-                                                        </button>
-                                                    ) : null}
+                                                <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', alignItems: 'center' }}>
                                                     {isMista && souPrimeira && user.cidade === origem && (
                                                         <button onClick={() => socket.emit('enviar_alerta', { tipo: 'aviso', origem: origem, mensagem: `Veículo ${item.motorista} saindo!` })} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', border: 'none', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Avisar Saída">
                                                             <Truck size={16} />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Botão Liberado p/ CTE — só aparece quando conferente finalizou (CARREGADO) */}
+                                                    {valorStatusAtual === 'CARREGADO' && (
+                                                        <button
+                                                            onClick={() => updateList(lista, setLista, realIndex, campoStatusAlvo, 'LIBERADO P/ CT-e', origem)}
+                                                            style={{
+                                                                padding: '6px 14px', borderRadius: '8px',
+                                                                background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
+                                                                border: 'none', color: 'white',
+                                                                fontSize: '11px', fontWeight: '700',
+                                                                cursor: 'pointer', letterSpacing: '0.5px',
+                                                                boxShadow: '0 2px 10px rgba(168,85,247,0.4)',
+                                                                display: 'flex', alignItems: 'center', gap: '5px'
+                                                            }}
+                                                            title="Liberar para emissão do CT-e"
+                                                        >
+                                                            <CheckCircle size={13} /> LIBERADO P/ CT-e
                                                         </button>
                                                     )}
                                                 </div>
@@ -968,13 +934,6 @@ export default function PainelOperacional({
                 />
             )}
 
-            {/* Modal de Ocorrência */}
-            {modalOcorrencia && (
-                <ModalOcorrencia
-                    veiculo={modalOcorrencia}
-                    onClose={() => setModalOcorrencia(null)}
-                />
-            )}
 
 
         </div >

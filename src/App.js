@@ -191,8 +191,11 @@ function App({ socket }) {
         if (dados.tipo === 'admin_cadastro' && userRef.current.cargo !== 'Coordenador') return;
         if (dados.tipo === 'admin_senha' && userRef.current.cargo !== 'Coordenador') return;
         if (dados.tipo === 'admin_config_mudou' && userRef.current.cargo !== 'Coordenador') return;
-        // Usa o idInterno do servidor se existir, senão cria um temporário
-        const notificacaoComId = { ...dados, idInterno: dados.idInterno || Date.now() + Math.random() };
+        // Usa o idInterno do servidor se existir, senão cria um temporário consistente
+        const notificacaoComId = {
+            ...dados,
+            idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
+        };
         adicionarNotificacao(notificacaoComId);
 
         if (dados.tipo === 'admin_config_mudou') {
@@ -259,11 +262,11 @@ function App({ socket }) {
             const meuCargo = userRef.current?.cargo || '';
             if (d.cargos_alvo && d.cargos_alvo.includes(meuCargo)) {
                 mostrarNotificacaoRef.current(`🔔 ${d.mensagem}`);
-                // Adicionar ao sininho também
+                // Adicionar ao sininho também respeitando o ID do servidor
                 adicionarNotificacao({
                     ...d,
-                    idInterno: Date.now() + Math.random(),
-                    data_criacao: new Date().toISOString()
+                    idInterno: d.idInterno || ('dir_' + Date.now()),
+                    data_criacao: d.data_criacao || new Date().toISOString()
                 });
             }
         });
@@ -305,6 +308,13 @@ function App({ socket }) {
             const meuCargo = userRef.current?.cargo || '';
             if (meuCargo === 'Coordenador' || meuCargo === 'Planejamento') {
                 mostrarNotificacaoRef.current(`📊 Programação das ${dados.turno} consolidada com sucesso! Clique em H. de Programação.`);
+                adicionarNotificacao({
+                    ...dados,
+                    tipo: 'programacao_gerada',
+                    mensagem: `📊 Programação das ${dados.turno} consolidada com sucesso!`,
+                    idInterno: dados.idInterno || ('prog_' + Date.now()),
+                    data_criacao: dados.data_criacao || new Date().toISOString()
+                });
             }
         });
 

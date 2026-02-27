@@ -3,13 +3,12 @@ const jwt = require('jsonwebtoken');
 // Carregar variáveis de ambiente
 require('dotenv').config();
 
-// Chave secreta para assinar tokens (usar variável de ambiente)
-const JWT_SECRET = process.env.JWT_SECRET || 'transnet-secret-key-2024-ultra-secure';
-
-// Avisar se está usando chave padrão (inseguro)
+// Chave secreta para assinar tokens — obrigatória via variável de ambiente
 if (!process.env.JWT_SECRET) {
-    console.warn('⚠️ AVISO: JWT_SECRET não definido no .env! Usando chave padrão (INSEGURO EM PRODUÇÃO)');
+    console.error('❌ FATAL: JWT_SECRET não definido no .env! O servidor não pode iniciar sem ele.');
+    process.exit(1);
 }
+const JWT_SECRET = process.env.JWT_SECRET;
 
 /**
  * Middleware de autenticação JWT

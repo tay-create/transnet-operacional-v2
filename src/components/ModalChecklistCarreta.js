@@ -17,6 +17,11 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     const [erro, setErro] = useState('');
     const [placaCarreta, setPlacaCarreta] = useState('');
 
+    // Paletização
+    const [isPaletizado, setIsPaletizado] = useState(''); // 'NÃO', 'SIM', 'BATIDA_PALETIZADA'
+    const [tipoPalete, setTipoPalete] = useState(''); // 'PBR', 'DESCARTAVEL'
+    const [qtdPaletes, setQtdPaletes] = useState('');
+
     const extrairPlacaLocal = () => {
         let p2 = veiculo.placa2Motorista?.trim();
         let p1 = veiculo.placa1Motorista?.trim();
@@ -76,7 +81,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                 }
             })
             .catch(() => setPlacaCarreta('NÃO INFORMADA'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleCapturePhoto = (e) => {
@@ -100,6 +105,20 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             setErro('Foto da avaria é obrigatória quando há vazamento/furo.');
             return;
         }
+        if (!isPaletizado) {
+            setErro('Informe se a carga é paletizada.');
+            return;
+        }
+        if ((isPaletizado === 'SIM' || isPaletizado === 'BATIDA_PALETIZADA')) {
+            if (!tipoPalete) {
+                setErro('Informe o tipo do palete.');
+                return;
+            }
+            if (!qtdPaletes || parseInt(qtdPaletes) <= 0) {
+                setErro('Informe a quantidade de paletes.');
+                return;
+            }
+        }
 
         const assinaturaBase = `Carregamento Autorizado por ${user?.nome || 'Conferente'}`;
 
@@ -112,7 +131,10 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             cordas: temCordas ? parseInt(qtdCordas) : 0,
             foto_vazamento: temVazamento ? fotoVazamento : null,
             assinatura: assinaturaBase,
-            conferente_nome: user?.nome || 'Desconhecido'
+            conferente_nome: user?.nome || 'Desconhecido',
+            is_paletizado: isPaletizado,
+            tipo_palete: tipoPalete,
+            qtd_paletes: (isPaletizado === 'SIM' || isPaletizado === 'BATIDA_PALETIZADA') ? parseInt(qtdPaletes) : 0
         };
 
         setLoading(true);
@@ -137,6 +159,15 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
         padding: '16px',
         marginBottom: '14px',
     };
+
+    const toggleBtn = (active, color) => ({
+        flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', fontSize: '11px', fontWeight: '700',
+        background: active ? `rgba(${color},0.2)` : 'rgba(255,255,255,0.05)',
+        color: active ? `rgb(${color})` : '#64748b',
+        border: `1px solid ${active ? `rgba(${color},0.5)` : 'rgba(255,255,255,0.08)'}`,
+        transition: 'all 0.2s',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px'
+    });
 
     const label = {
         fontSize: '10px', fontWeight: '700', color: '#64748b',
@@ -252,9 +283,45 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                     )}
                 </div>
 
+                {/* 3.1 Paletização (NOVO) */}
+                <div style={card}>
+                    <span style={label}>4. Paletização</span>
+                    <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px' }}>É paletizado?</p>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="button" onClick={() => { setIsPaletizado('NÃO'); setTipoPalete(''); setQtdPaletes(''); }}
+                            style={toggleBtn(isPaletizado === 'NÃO', '248,113,113')}>NÃO</button>
+                        <button type="button" onClick={() => setIsPaletizado('SIM')}
+                            style={toggleBtn(isPaletizado === 'SIM', '74,222,128')}>SIM</button>
+                        <button type="button" onClick={() => setIsPaletizado('BATIDA_PALETIZADA')}
+                            style={toggleBtn(isPaletizado === 'BATIDA_PALETIZADA', '59,130,246')}>BATIDA E PALETIZADA</button>
+                    </div>
+
+                    {(isPaletizado === 'SIM' || isPaletizado === 'BATIDA_PALETIZADA') && (
+                        <div style={{ marginTop: '16px', animation: 'fadeIn 0.3s ease' }}>
+                            <label style={label}>Qual o tipo do Palete?</label>
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                                <button type="button" onClick={() => setTipoPalete('PBR')}
+                                    style={toggleBtn(tipoPalete === 'PBR', '249,115,22')}>PBR</button>
+                                <button type="button" onClick={() => setTipoPalete('DESCARTAVEL')}
+                                    style={toggleBtn(tipoPalete === 'DESCARTAVEL', '249,115,22')}>DESCARTÁVEL</button>
+                            </div>
+
+                            {tipoPalete && (
+                                <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                                    <label style={label}>Quantidade de Paletes</label>
+                                    <input
+                                        type="number" min="1" placeholder="Quantidade..." value={qtdPaletes} onChange={(e) => setQtdPaletes(e.target.value)} required
+                                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                 {/* 4. Vazamento */}
                 <div style={card}>
-                    <span style={label}>4. Estrutura</span>
+                    <span style={label}>5. Estrutura</span>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: temVazamento ? '14px' : '0' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>Há vazamentos ou furos no teto?</span>
                         <button type="button" onClick={() => { setTemVazamento(!temVazamento); if (temVazamento) setFotoVazamento(null); }}
@@ -297,7 +364,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                 {/* 5. Ciente e Assinatura */}
                 <div style={card}>
                     <span style={{ ...label, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                        <PenTool size={13} /> 5. Declaração do Conferente
+                        <PenTool size={13} /> 6. Declaração do Conferente
                     </span>
                     <p style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '12px', lineHeight: 1.5 }}>
                         Eu, <strong>{user?.nome || 'Conferente'}</strong>, atesto que as condições registradas acima são condizentes com o veículo vistoriado.

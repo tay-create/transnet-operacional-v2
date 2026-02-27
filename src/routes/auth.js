@@ -83,16 +83,18 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
             return res.status(400).json({ success: false, message: "Este email já está em uso!" });
         }
 
-        // Hash da senha com bcrypt
-        const hashedPassword = await bcrypt.hash(senha, 10);
+        // Hash da senha com bcrypt (evita double-hash se já vier pré-hashado de solicitações)
+        const hashedPassword = (senha.startsWith('$2b$') || senha.startsWith('$2a$'))
+            ? senha
+            : await bcrypt.hash(senha, 10);
 
         await dbRun("INSERT INTO usuarios (nome, email, senha, cidade, cargo) VALUES (?, ?, ?, ?, ?)",
             [nome, email, hashedPassword, cidade, cargo]);
 
         res.json({ success: true, message: "Usuário criado com sucesso!" });
     } catch (e) {
-        console.error("Erro ao criar usuário:", e);
-        res.status(500).json({ success: false, message: "Erro interno do servidor." });
+        console.error("❌ [POST /usuarios] Erro ao criar usuário:", e);
+        res.status(500).json({ success: false, message: "Erro interno do servidor ao criar usuário." });
     }
 });
 
