@@ -43,8 +43,10 @@ axiosApi.interceptors.response.use(
             // Sincronizar logout com Zustand para refletir na interface e desmontar componentes
             useAuthStore.getState().logout();
 
-            if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-                window.location.href = '/';
+            const isConferente = window.location.pathname.startsWith('/conferente');
+            const target = isConferente ? '/conferente' : '/';
+            if (window.location.pathname !== '/login' && window.location.pathname !== target) {
+                window.location.href = target;
             }
         }
         console.error('Erro na requisição:', {

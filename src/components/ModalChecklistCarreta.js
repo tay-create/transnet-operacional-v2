@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader } from 'lucide-react';
+import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 
-export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso }) {
+export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, backMode = false }) {
     const user = useAuthStore(state => state.user);
 
     const [placaConfere, setPlacaConfere] = useState(null);
@@ -117,9 +117,12 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso }) {
 
         setLoading(true);
         try {
-            await api.post('/api/checklists', payload);
-            if (onSucesso) onSucesso('Checklist enviado e pendente de aprovação!');
-            if (onClose) onClose();
+            const res = await api.post('/api/checklists', payload);
+            const msg = res.data?.status === 'APROVADO'
+                ? 'Checklist aprovado automaticamente!'
+                : 'Checklist enviado e pendente de aprovação!';
+            if (onSucesso) onSucesso(msg);
+            if (!backMode && onClose) onClose();
         } catch (err) {
             setErro(err.response?.data?.message || 'Erro ao enviar checklist. Tente novamente.');
         } finally {
@@ -160,7 +163,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso }) {
                 </div>
                 {onClose && (
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
-                        <X size={22} />
+                        {backMode ? <ArrowLeft size={22} /> : <X size={22} />}
                     </button>
                 )}
             </div>

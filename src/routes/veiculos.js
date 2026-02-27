@@ -584,6 +584,23 @@ router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         }
 
         io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), ...v });
+
+        // ── Notificar conferente quando veículo chega em "LIBERADO P/ DOCA" ──
+        if (veiculoAntigo) {
+            const mudouParaDocaRecife = v.status_recife === 'LIBERADO P/ DOCA' && veiculoAntigo.status_recife !== 'LIBERADO P/ DOCA';
+            const mudouParaDocaMoreno = v.status_moreno === 'LIBERADO P/ DOCA' && veiculoAntigo.status_moreno !== 'LIBERADO P/ DOCA';
+            if (mudouParaDocaRecife || mudouParaDocaMoreno) {
+                io.emit('conferente_novo_veiculo', {
+                    veiculoId: Number(req.params.id),
+                    motorista: v.motorista || veiculoAntigo.motorista || 'A DEFINIR',
+                    placa: v.placa || veiculoAntigo.placa || '',
+                    doca: mudouParaDocaRecife ? v.doca_recife : v.doca_moreno,
+                    coleta: mudouParaDocaRecife ? v.coletaRecife : v.coletaMoreno,
+                    cidade: mudouParaDocaRecife ? 'Recife' : 'Moreno'
+                });
+            }
+        }
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });

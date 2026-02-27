@@ -9,7 +9,8 @@ const PERMISSOES_PADRAO = JSON.stringify({
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno'],
     'Conhecimento': ['cte', 'operacao', 'ver_unidade_recife', 'ver_unidade_moreno'],
     'Cadastro': ['operacao', 'cadastro', 'ver_unidade_recife', 'ver_unidade_moreno'],
-    'Dashboard Viewer': ['dashboard_tv']
+    'Dashboard Viewer': ['dashboard_tv'],
+    'Conferente': ['ver_unidade_recife', 'ver_unidade_moreno']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
@@ -18,7 +19,8 @@ const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
     'Encarregado': ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
     'Aux. Operacional': ['operacao', 'editar_operacao_card', 'coleta_card', 'timer_solicitado', 'timer_liberado'],
     'Conhecimento': ['cte'],
-    'Cadastro': []
+    'Cadastro': [],
+    'Conferente': []
 });
 
 const inicializarBanco = async () => {
