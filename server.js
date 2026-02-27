@@ -652,7 +652,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
 
 app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
-        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual } = req.body;
+        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual, origem_cad, destino_uf_cad, destino_cidade_cad } = req.body;
 
         // Calcular situação automaticamente
         const todosChk = !!(chk_cnh_cad && chk_antt_cad && chk_tacografo_cad && chk_crlv_cad);
@@ -661,7 +661,7 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             : (todosChk || num_liberacao_cad) ? 'PENDENTE'
                 : 'NÃO CONFERIDO';
 
-        const atual = await dbGet("SELECT numero_liberacao, data_liberacao, dados_json FROM veiculos WHERE id = ?", [req.params.id]);
+        const atual = await dbGet("SELECT numero_liberacao, data_liberacao, dados_json, motorista FROM veiculos WHERE id = ?", [req.params.id]);
         if (!atual) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
 
         // Usar data manual informada pelo operador, ou calcular automaticamente
@@ -722,14 +722,24 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             await dbRun(
                 `UPDATE marcacoes_placas SET
                     chk_cnh_cad=?, chk_antt_cad=?, chk_tacografo_cad=?, chk_crlv_cad=?,
-                    num_liberacao_cad=?, situacao_cad=?, data_liberacao_cad=?
+                    num_liberacao_cad=?, situacao_cad=?, data_liberacao_cad=?,
+                    origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
                  WHERE telefone = ? OR REPLACE(REPLACE(telefone,'+55',''),' ','') = ?`,
                 [
                     chk_cnh_cad ? 1 : 0, chk_antt_cad ? 1 : 0,
                     chk_tacografo_cad ? 1 : 0, chk_crlv_cad ? 1 : 0,
                     num_liberacao_cad || null, situacao, novaDataLib,
+                    origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '',
                     dj.telefoneMotorista, dj.telefoneMotorista
                 ]
+            );
+        } else if (atual.motorista) {
+            // Fallback: sincronizar pelo nome do motorista quando não há telefone
+            await dbRun(
+                `UPDATE marcacoes_placas SET
+                    origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
+                 WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?))`,
+                [origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '', atual.motorista]
             );
         }
 

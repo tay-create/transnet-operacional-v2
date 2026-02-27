@@ -79,7 +79,7 @@ function PainelGerRisco({ v }) {
 }
 
 // Card individual de um veículo no conferente
-function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist }) {
+function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, cidade }) {
     const [expandido, setExpandido] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -165,7 +165,7 @@ function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist })
                             </span>
                         )}
                         <span style={{ fontSize: '10px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            <Hash size={9} /> {v.coleta || 'S/N'}
+                            <Hash size={9} /> {(cidade === 'Moreno' ? v.coletaMoreno : v.coletaRecife) || v.coleta || 'S/N'}
                         </span>
                     </div>
                 </div>
@@ -438,6 +438,7 @@ export default function ConferenteChecklist({ socket }) {
                                             opcoesDocas={opcoesDocas}
                                             onAtualizarStatus={handleAtualizarStatus}
                                             onAbrirChecklist={openChecklistForm}
+                                            cidade={cidade}
                                         />
                                     ))}
                                 </div>

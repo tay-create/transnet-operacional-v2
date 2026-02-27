@@ -119,6 +119,21 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
+            // Auto-extrair numero_coleta na criação
+            const primeiroTagIns = (tags) => {
+                if (!tags || !tags.trim()) return '';
+                return tags.split(',').map(t => t.trim()).filter(Boolean)[0] || '';
+            };
+            const tagRecIns = primeiroTagIns(v.coletaRecife);
+            const tagMorIns = primeiroTagIns(v.coletaMoreno);
+            if (tagRecIns && tagMorIns) {
+                v.numero_coleta = `REC: ${tagRecIns} | MOR: ${tagMorIns}`;
+            } else if (tagRecIns) {
+                v.numero_coleta = tagRecIns;
+            } else if (tagMorIns) {
+                v.numero_coleta = tagMorIns;
+            }
+
             const query = `INSERT INTO veiculos (
             placa, modelo, motorista, status_recife, status_moreno,
             doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno,
@@ -363,6 +378,28 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
             // ───────────────────────────────────────────────────────────────────────
 
+            // Auto-extrair numero_coleta a partir das tags coletaRecife/coletaMoreno
+            const primeiroTag = (tags) => {
+                if (!tags || !tags.trim()) return '';
+                return tags.split(',').map(t => t.trim()).filter(Boolean)[0] || '';
+            };
+            const tagRec = primeiroTag(v.coletaRecife);
+            const tagMor = primeiroTag(v.coletaMoreno);
+            if (tagRec && tagMor) {
+                v.numero_coleta = `REC: ${tagRec} | MOR: ${tagMor}`;
+            } else if (tagRec) {
+                v.numero_coleta = tagRec;
+            } else if (tagMor) {
+                v.numero_coleta = tagMor;
+            } else {
+                v.numero_coleta = v.numero_coleta || '';
+            }
+
+            // Manter campo genérico 'coleta' sincronizado (usado por views legadas)
+            if (!v.coleta && (v.coletaRecife || v.coletaMoreno)) {
+                v.coleta = v.coletaRecife || v.coletaMoreno;
+            }
+
             const query = `UPDATE veiculos SET
             placa=?, modelo=?, motorista=?, status_recife=?, status_moreno=?,
             doca_recife=?, doca_moreno=?, coleta=?, coletaRecife=?, coletaMoreno=?, numero_coleta=?,
@@ -378,7 +415,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const values = [
                 v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno,
-                v.doca_recife, v.doca_moreno, v.coleta, v.coletaRecife, v.coletaMoreno, v.numero_coleta || '',
+                v.doca_recife, v.doca_moreno, v.coleta || '', v.coletaRecife || '', v.coletaMoreno || '', v.numero_coleta || '',
                 v.rotaRecife || '', v.rotaMoreno || '',
                 v.operacao || '', v.inicio_rota || '', v.origem_criacao || '',
                 v.data_prevista,
@@ -623,6 +660,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             } catch (e) { }
 
             console.log(`✅ Veículo encontrado: Placa ${identificador}`);
+
+            // Deletar dados associados em cascata
+            await dbRun("DELETE FROM checklists_carreta WHERE veiculo_id = ?", [req.params.id]);
+            await dbRun("DELETE FROM operacao_ocorrencias WHERE veiculo_id = ?", [req.params.id]);
 
             // Deletar do banco
             await dbRun("DELETE FROM veiculos WHERE id = ?", [req.params.id]);

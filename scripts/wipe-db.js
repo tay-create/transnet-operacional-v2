@@ -25,6 +25,7 @@ const TABELAS_PARA_LIMPAR = [
     'tokens_motoristas',
     'frota_checklists',
     'frota_programacao_diaria',
+    'ctes_ativos',
     'logs'
 ];
 
