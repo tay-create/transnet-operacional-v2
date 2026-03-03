@@ -110,7 +110,7 @@ module.exports = function createChecklistsRouter(io) {
 
             const veiculos = await dbAll(
                 `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
-                    coleta, coletaRecife, coletaMoreno, data_prevista, situacao_cadastro,
+                    coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
                     ${temposField} as tempos, timestamps_status,
                     chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                     numero_liberacao, gerenciadora_risco, data_liberacao
@@ -125,12 +125,14 @@ module.exports = function createChecklistsRouter(io) {
                 try { dados = typeof v.dados_json === 'string' ? JSON.parse(v.dados_json) : (v.dados_json || {}); } catch { }
                 let ts = {};
                 try { ts = typeof v.timestamps_status === 'string' ? JSON.parse(v.timestamps_status || '{}') : (v.timestamps_status || {}); } catch { }
+                const coletaRecife = v.coletarecife || '';
+                const coletaMoreno = v.coletamoreno || '';
                 return {
                     id: v.id,
                     motorista: v.motorista || 'A DEFINIR',
                     placa1Motorista: dados.placa1Motorista || v.placa || '',
                     placa2Motorista: dados.placa2Motorista || '',
-                    coleta: cidade === 'Moreno' ? v.coletaMoreno : v.coletaRecife,
+                    coleta: cidade === 'Moreno' ? coletaMoreno : coletaRecife,
                     doca: v.doca,
                     status: v.status,
                     data_prevista: v.data_prevista,
@@ -157,7 +159,7 @@ module.exports = function createChecklistsRouter(io) {
     });
 
     // ── Conferente: Atualizar status e/ou doca ──
-    router.post('/api/conferente/atualizar-status', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
+    router.post('/api/conferente/atualizar-status', authMiddleware, authorize(['Conferente', 'Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
         try {
             const { veiculoId, novoStatus, novaDoca } = req.body;
             const cidade = req.user.cidade;
@@ -262,29 +264,59 @@ module.exports = function createChecklistsRouter(io) {
             await dbRun(`UPDATE veiculos SET ${sets.join(', ')} WHERE id = ?`, vals);
             console.log(`✅ [Conferente/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || 'S/motorista'}) atualizado para "${novoStatus}" por ${req.user?.nome || 'conferente'}`);
 
+            // Buscar o veículo atualizado do banco para emitir dados completos
+            const veiculoAtualizado = await dbGet('SELECT * FROM veiculos WHERE id = ?', [veiculoId]);
+            let dadosJson = {};
+            try { dadosJson = JSON.parse(veiculoAtualizado?.dados_json || '{}'); } catch { }
+            const socketPayload = {
+                tipo: 'atualiza_veiculo',
+                id: Number(veiculoId),
+                ...(veiculoAtualizado || {}),
+                rotaRecife: veiculoAtualizado?.rota_recife || '',
+                rotaMoreno: veiculoAtualizado?.rota_moreno || '',
+                coletaRecife: veiculoAtualizado?.coletarecife || '',
+                coletaMoreno: veiculoAtualizado?.coletamoreno || '',
+                tempos_recife: (() => { try { return JSON.parse(veiculoAtualizado?.tempos_recife || '{}'); } catch { return {}; } })(),
+                tempos_moreno: (() => { try { return JSON.parse(veiculoAtualizado?.tempos_moreno || '{}'); } catch { return {}; } })(),
+                status_coleta: (() => { try { return JSON.parse(veiculoAtualizado?.status_coleta || '{}'); } catch { return {}; } })(),
+                imagens: (() => { try { return JSON.parse(veiculoAtualizado?.imagens || '[]'); } catch { return []; } })(),
+                timestamps_status: (() => { try { return JSON.parse(veiculoAtualizado?.timestamps_status || '{}'); } catch { return {}; } })(),
+                placa1Motorista: dadosJson.placa1Motorista || '',
+                placa2Motorista: dadosJson.placa2Motorista || '',
+                telefoneMotorista: dadosJson.telefoneMotorista || '',
+            };
+
             // ── Notificações ──
-            // Notificar conferente quando muda para LIBERADO P/ DOCA (agora é o próprio conferente que faz isso)
-            if (novoStatus === 'LIBERADO P/ DOCA' && statusAtual !== 'LIBERADO P/ DOCA') {
-                const docaAtual = novaDoca || veiculo[docaField];
-                io.emit('conferente_novo_veiculo', {
-                    veiculoId,
-                    motorista: veiculo.motorista,
-                    placa: veiculo.placa,
-                    doca: docaAtual,
-                    coleta: cidade === 'Moreno' ? veiculo.coletaMoreno : veiculo.coletaRecife,
-                    cidade
+            if (statusAtual !== novoStatus) {
+                const docaAtual = novaDoca || veiculo[docaField] || 'N/A';
+                const motoristaNome = veiculo.motorista || 'Motorista';
+                const coletaNum = cidade === 'Moreno' ? (veiculo.coletamoreno || '') : (veiculo.coletarecife || '');
+                const coletaInfo = coletaNum ? ` | Coleta: ${coletaNum}` : '';
+
+                // Todos os status → notifica Auxiliar Operacional e Coordenador
+                const cargosAlvo = ['Auxiliar Operacional', 'Coordenador'];
+
+                // LIBERADO P/ DOCA → também notifica Cadastro
+                if (novoStatus === 'LIBERADO P/ DOCA') {
+                    cargosAlvo.push('Cadastro');
+                    io.emit('conferente_novo_veiculo', {
+                        veiculoId,
+                        motorista: motoristaNome,
+                        placa: veiculo.placa,
+                        doca: docaAtual,
+                        coleta: coletaNum,
+                        cidade
+                    });
+                }
+
+                io.emit('notificacao_direcionada', {
+                    tipo: 'status_conferente',
+                    mensagem: `[${cidade}] ${motoristaNome} → ${novoStatus} | Doca: ${docaAtual}${coletaInfo}`,
+                    cargos_alvo: cargosAlvo
                 });
             }
 
-            if (novoStatus === 'EM CARREGAMENTO' && statusAtual !== 'EM CARREGAMENTO') {
-                io.emit('enviar_alerta', {
-                    tipo: 'aviso',
-                    origem: cidade,
-                    mensagem: `Conferente iniciou carregamento: ${veiculo.motorista || 'Motorista'} - Doca ${novaDoca || veiculo[docaField] || 'N/A'}`
-                });
-            }
-
-            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculoId) });
+            io.emit('receber_atualizacao', socketPayload);
 
             res.json({ success: true });
         } catch (e) {
@@ -308,7 +340,7 @@ module.exports = function createChecklistsRouter(io) {
 
             const veiculos = await dbAll(
                 `SELECT id, motorista, placa, dados_json, ${statusField} as status,
-                    ${docaField} as doca, coleta, coletaRecife, coletaMoreno, data_prevista
+                    ${docaField} as doca, coleta, coletarecife, coletamoreno, data_prevista
              FROM veiculos WHERE ${where} ORDER BY id DESC LIMIT 200`,
                 params
             );
@@ -321,7 +353,7 @@ module.exports = function createChecklistsRouter(io) {
                     motorista: v.motorista || 'A DEFINIR',
                     placa1Motorista: dados.placa1Motorista || v.placa || '',
                     placa2Motorista: dados.placa2Motorista || '',
-                    coleta: cidade === 'Moreno' ? v.coletaMoreno : v.coletaRecife,
+                    coleta: cidade === 'Moreno' ? (v.coletamoreno || '') : (v.coletarecife || ''),
                     status: v.status,
                     doca: v.doca,
                     data: v.data_prevista

@@ -180,13 +180,6 @@ const inicializarBanco = async () => {
                 doca TEXT,
                 nome TEXT
             )`);
-        for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
-            try {
-                await dbRun(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS ${coluna} ${tipo} `);
-            } catch (e) {
-                // Coluna já existe - ignorar silenciosamente no log do pg
-            }
-        }
 
         // Marcação de Placas
         await dbRun(`CREATE TABLE IF NOT EXISTS tokens_motoristas(
@@ -231,10 +224,10 @@ const inicializarBanco = async () => {
             ['marcacoes_placas', 'status_operacional', "TEXT DEFAULT 'DISPONIVEL'"],
             ['marcacoes_placas', 'is_frota', 'INTEGER DEFAULT 0'],
             ['marcacoes_placas', 'data_contratacao', 'TIMESTAMP'],
-            ['marcacoes_placas', 'chk_cnh_cad', "TEXT DEFAULT 'N/A'"],
-            ['marcacoes_placas', 'chk_antt_cad', "TEXT DEFAULT 'N/A'"],
-            ['marcacoes_placas', 'chk_tacografo_cad', "TEXT DEFAULT 'N/A'"],
-            ['marcacoes_placas', 'chk_crlv_cad', "TEXT DEFAULT 'N/A'"],
+            ['marcacoes_placas', 'chk_cnh_cad', 'INTEGER DEFAULT 0'],
+            ['marcacoes_placas', 'chk_antt_cad', 'INTEGER DEFAULT 0'],
+            ['marcacoes_placas', 'chk_tacografo_cad', 'INTEGER DEFAULT 0'],
+            ['marcacoes_placas', 'chk_crlv_cad', 'INTEGER DEFAULT 0'],
             ['marcacoes_placas', 'situacao_cad', "TEXT DEFAULT 'Pendente'"],
             ['marcacoes_placas', 'num_liberacao_cad', 'TEXT'],
             ['marcacoes_placas', 'data_liberacao_cad', 'TEXT'],
@@ -311,6 +304,15 @@ const inicializarBanco = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )`);
 
+        // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)
+        for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
+            try {
+                await dbRun(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS ${coluna} ${tipo} `);
+            } catch (e) {
+                // Coluna já existe - ignorar silenciosamente no log do pg
+            }
+        }
+
         const admin = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['julio@tnetlog.com.br']);
         if (!admin) {
             const hashedPassword = await bcrypt.hash('123', 10);
@@ -325,6 +327,14 @@ const inicializarBanco = async () => {
             await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
                 ['will.teste', 'teste@tnetlog.com.br', hashedPassword, 'Moreno', 'Planejamento']);
             console.log("✅ Usuário de teste (Planejamento) criado com senha hasheada");
+        }
+
+        const testeConferente = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['testeconferencia@tnetlog.com.br']);
+        if (!testeConferente) {
+            const hashedPassword = await bcrypt.hash('123', 10);
+            await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
+                ['Teste Conferente', 'testeconferencia@tnetlog.com.br', hashedPassword, 'Recife', 'Conferente']);
+            console.log("✅ Usuário de teste (Conferente) criado com senha hasheada");
         }
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR

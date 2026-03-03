@@ -24,6 +24,8 @@ export const MODULOS_EDICAO = [
     { id: 'coleta_card', label: '↳ Editar Nº Coleta/Rota' },
     { id: 'adiar_dia', label: '↳ Alterar Data Prevista' },
 
+    { id: 'alterar_status_operacao', label: '↳ Alterar Status/Doca (Operação)' },
+
     { id: 'timer_solicitado', label: 'Gestão Tempo - Solicitado' },
     { id: 'timer_liberado', label: 'Gestão Tempo - Liberado' },
     { id: 'gestao_tempo', label: 'Acesso ao Cronômetro Manual' },

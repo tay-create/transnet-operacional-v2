@@ -126,8 +126,19 @@ app.use('/', checklistsRouter);
 const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog);
 app.use('/', ocorrenciasRouter);
 
-// NOTA: PUT /usuarios/:id completo está mais abaixo com authMiddleware + authorize
-// Esta rota (cargo apenas) foi migrada para a versão protegida
+// Reset de senha por Coordenador (gera senha padrão "123" e força troca)
+app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+    try {
+        const usuario = await dbGet("SELECT id, nome, email FROM usuarios WHERE id = ?", [req.params.id]);
+        if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        const hashedPassword = await bcrypt.hash('123', 10);
+        await dbRun("UPDATE usuarios SET senha = ? WHERE id = ?", [hashedPassword, req.params.id]);
+        console.log(`🔑 Senha resetada para: ${usuario.email} (ID ${req.params.id})`);
+        res.json({ success: true, message: `Senha de ${usuario.nome} resetada para "123".` });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
 
 app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
     const { avatarUrl } = req.body;
@@ -316,7 +327,9 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
                     ja_carregou=?, rastreador=?, status_rastreador=?, latitude=?, longitude=?,
                     disponibilidade=?, comprovante_pdf=?,
                     anexo_cnh=?, anexo_doc_veiculo=?, anexo_crlv_carreta=?, anexo_antt=?, anexo_outros=?,
-                    data_marcacao=?, status_operacional='DISPONIVEL', data_contratacao=NULL
+                    data_marcacao=?, status_operacional='DISPONIVEL', data_contratacao=NULL,
+                    chk_cnh_cad=0, chk_antt_cad=0, chk_tacografo_cad=0, chk_crlv_cad=0,
+                    situacao_cad='PENDENTE', num_liberacao_cad=NULL, data_liberacao_cad=NULL
                 WHERE telefone=?`,
                 [
                     token_id, nome_motorista, placa1, placa2 || '',
@@ -378,6 +391,11 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
 app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
+        const isCoordenador = req.user.cargo === 'Coordenador';
+        const cidade = req.user.cidade;
+        const cidadeFilter = (!isCoordenador && cidade)
+            ? `AND (origem_cidade_uf ILIKE '%${cidade}%' OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')`
+            : '';
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao, data_contratacao,
@@ -388,6 +406,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
             FROM marcacoes_placas
             WHERE data_marcacao >= NOW() - INTERVAL '7 days'
               AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+              ${cidadeFilter}
             ORDER BY data_marcacao DESC
         `);
         const motoristas = rows.map(r => ({
@@ -434,16 +453,22 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
 app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
+        const isCoordenador = req.user.cargo === 'Coordenador';
+        const cidade = req.user.cidade;
+        const cidadeFilter = (!isCoordenador && cidade)
+            ? `AND (origem_cidade_uf ILIKE '%${cidade}%' OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')`
+            : '';
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    disponibilidade, data_marcacao, data_contratacao,
                    chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
                    seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
                    comprovante_pdf, anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
-                   origem_cad, destino_uf_cad, destino_cidade_cad
+                   origem_cad, destino_uf_cad, destino_cidade_cad, origem_cidade_uf
             FROM marcacoes_placas
             WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
               AND (is_frota IS NULL OR is_frota = 0)
+              ${cidadeFilter}
             ORDER BY data_marcacao DESC
         `);
         res.json({ success: true, motoristas: rows });
@@ -615,6 +640,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
               AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
+              AND (v.dados_json IS NULL OR v.dados_json::jsonb->>'status_cte' IS DISTINCT FROM 'Emitido')
             ORDER BY v.id DESC
         `);
         const veiculos = rows.map(r => {
@@ -1062,6 +1088,19 @@ app.post('/solicitacoes', async (req, res) => {
     }
 });
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
+
+// Endpoint público para buscar usuário por nome (usado no fluxo de recuperação de senha)
+app.get('/usuarios/buscar', async (req, res) => {
+    try {
+        const { nome } = req.query;
+        if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
+        const usuario = await dbGet("SELECT id, nome, email, cargo FROM usuarios WHERE LOWER(nome) LIKE LOWER(?)", [`%${nome.trim()}%`]);
+        if (!usuario) return res.json({ success: false, message: 'Usuário não encontrado.' });
+        res.json({ success: true, id: usuario.id, nome: usuario.nome, email: usuario.email });
+    } catch (e) {
+        res.status(500).json({ success: false });
+    }
+});
 app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); });
 app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); });
 app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), async (req, res) => {

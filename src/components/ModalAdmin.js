@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    X, Users, AlertTriangle, CheckCircle, XCircle, Key, Trash2, Eye, Pencil, Save
+    X, Users, AlertTriangle, CheckCircle, XCircle, Key, Trash2, Eye, Pencil, Save, RotateCcw
 } from 'lucide-react';
 import { MODULOS_SISTEMA, MODULOS_EDICAO, CARGOS_DISPONIVEIS } from '../constants';
 import useUserStore from '../store/useUserStore';
@@ -76,6 +76,20 @@ const ModalAdmin = ({ isOpen, onClose }) => {
         }
     };
 
+    const handleResetSenha = async (u) => {
+        if (!window.confirm(`Resetar a senha de "${u.nome}" para "123"?`)) return;
+        try {
+            const r = await import('../services/apiService').then(m => m.default.post(`/usuarios/${u.id}/reset-senha`));
+            if (r.data.success) {
+                mostrarNotificacao(`🔑 Senha de ${u.nome} resetada para "123".`);
+            } else {
+                mostrarNotificacao(`❌ ${r.data.message || 'Erro ao resetar senha.'}`);
+            }
+        } catch {
+            mostrarNotificacao('❌ Erro ao resetar senha.');
+        }
+    };
+
     return (
         <div className="modal-overlay">
             <div className="modal-neon-panel" style={{ width: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -141,6 +155,9 @@ const ModalAdmin = ({ isOpen, onClose }) => {
                                             <td style={{ textAlign: 'right', padding: '12px' }}>
                                                 <button onClick={() => setUsuarioEditando(u, permissoes, permissoesEdicao)} style={{ marginRight: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#38bdf8', fontWeight: 'bold', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                                                     <Key size={14} /> REGRAS
+                                                </button>
+                                                <button onClick={() => handleResetSenha(u)} title="Resetar senha para 123" style={{ marginRight: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                                                    <RotateCcw size={14} /> SENHA
                                                 </button>
                                                 <button onClick={() => handleRemover(u.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'inline-flex', alignItems: 'center' }}>
                                                     <Trash2 size={16} />

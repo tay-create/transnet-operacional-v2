@@ -181,7 +181,7 @@ export default function PainelChecklist() {
 
                                         {/* Detalhes de Paletização (NOVO) */}
                                         <div style={{ padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>EMBALAGEM / PALETIZAÇÃO</span>
+                                            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>PALETIZAÇÃO</span>
                                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px' }}>
                                                 <div>
                                                     <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{chk.is_paletizado === 'BATIDA_PALETIZADA' ? 'BATIDA E PALETIZADA' : (chk.is_paletizado || 'N/I')}</div>

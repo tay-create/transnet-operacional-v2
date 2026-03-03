@@ -38,9 +38,11 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 // e sobrescreve apenas os que precisam de tratamento especial
                 return {
                     ...row,
-                    // Campos renomeados no banco (snake_case → camelCase do frontend)
+                    // Campos renomeados no banco (snake_case / lowercase → camelCase do frontend)
                     rotaRecife: row.rota_recife,
                     rotaMoreno: row.rota_moreno,
+                    coletaRecife: row.coletarecife || row.coletaRecife || '',
+                    coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
                     // Campos JSON que precisam de parse
                     tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
                     tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star } from 'lucide-react';
+import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X } from 'lucide-react';
 import api from '../services/apiService';
 
 const s = {
@@ -102,6 +102,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [salvandoFrota, setSalvandoFrota] = useState(false);
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
+    const [modalMarcacao, setModalMarcacao] = useState(null);
 
     useEffect(() => {
         const id = setInterval(() => setTick(t => t + 1), 60000);
@@ -257,6 +258,83 @@ export default function GestaoMarcacoes({ socket }) {
     }
 
     const ff = (campo) => (e) => setFormFrota(prev => ({ ...prev, [campo]: e.target.value }));
+
+    function ModalDetalhes({ m, onClose }) {
+        const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
+        return (
+            <div onClick={onClose} style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+                zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+            }}>
+                <div onClick={e => e.stopPropagation()} style={{
+                    background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '560px',
+                    maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.7)'
+                }}>
+                    {/* Cabeçalho */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                        <div>
+                            <div style={{ fontSize: '17px', fontWeight: '700', color: '#f1f5f9' }}>{m.nome_motorista}</div>
+                            <div style={{ fontSize: '13px', color: '#60a5fa', marginTop: '2px' }}>{formatarTelefone(m.telefone)}</div>
+                        </div>
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
+                            <X size={20} />
+                        </button>
+                    </div>
+
+                    {/* Grade de informações */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {[
+                            { label: 'Placa 1', valor: m.placa1 || '—', destaque: true },
+                            { label: 'Placa 2', valor: m.placa2 || '—', destaque: true },
+                            { label: 'Tipo de Veículo', valor: m.tipo_veiculo || '—' },
+                            { label: 'Já carregou aqui?', valor: m.ja_carregou || '—' },
+                            { label: 'Estados de Destino', valor: Array.isArray(m.estados_destino) ? m.estados_destino.join(', ') : '—' },
+                            { label: 'Rastreador', valor: m.rastreador || '—' },
+                            { label: 'Status Rastreador', valor: m.status_rastreador || '—' },
+                            { label: 'Dimensões (A×L×C)', valor: dim.length ? `${m.altura || '?'}m × ${m.largura || '?'}m × ${m.comprimento || '?'}m` : '—' },
+                            { label: 'Data da Marcação', valor: formatarData(m.data_marcacao) },
+                            { label: 'Viagens Realizadas', valor: m.viagens_realizadas ?? 0 },
+                        ].map(({ label, valor, destaque }) => (
+                            <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px 14px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>{label}</div>
+                                <div style={{ fontSize: '13px', fontWeight: destaque ? '700' : '500', color: destaque ? '#60a5fa' : '#e2e8f0' }}>{String(valor)}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Localização GPS */}
+                    {m.latitude && m.longitude && (
+                        <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Localização GPS</div>
+                                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{m.latitude}, {m.longitude}</div>
+                            </div>
+                            <a href={`https://www.google.com/maps?q=${m.latitude},${m.longitude}`} target="_blank" rel="noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#60a5fa', fontWeight: '600', textDecoration: 'none', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '6px', padding: '5px 10px' }}>
+                                <MapPin size={13} /> Ver no Mapa
+                            </a>
+                        </div>
+                    )}
+
+                    {/* Anexos */}
+                    {[m.comprovante_pdf, m.anexo_cnh, m.anexo_doc_veiculo, m.anexo_crlv_carreta, m.anexo_antt, m.anexo_outros].some(Boolean) && (
+                        <div style={{ marginTop: '12px' }}>
+                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Anexos</div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {m.comprovante_pdf && <a href={m.comprovante_pdf} download={`PDF_ORIG_${m.placa1}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)' }}>PDF Orig.</a>}
+                                {m.anexo_cnh && <a href={m.anexo_cnh} download={`CNH_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)' }}>CNH</a>}
+                                {m.anexo_doc_veiculo && <a href={m.anexo_doc_veiculo} download={`CRLV_CAV_${m.placa1}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)' }}>CRLV Cav.</a>}
+                                {m.anexo_crlv_carreta && <a href={m.anexo_crlv_carreta} download={`CRLV_CAR_${m.placa2 || 'CARRETA'}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#fb923c', textDecoration: 'none', background: 'rgba(251,146,60,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(251,146,60,0.3)' }}>CRLV Car.</a>}
+                                {m.anexo_antt && <a href={m.anexo_antt} download={`ANTT_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)' }}>ANTT</a>}
+                                {m.anexo_outros && <a href={m.anexo_outros} download={`OUTROS_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)' }}>Outros</a>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={s.wrap}>
@@ -546,9 +624,14 @@ export default function GestaoMarcacoes({ socket }) {
                                                     </div>
                                                 </td>
                                                 <td style={s.td}>
-                                                    <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                        <button style={{ ...s.btn('blue'), padding: '6px 8px' }} onClick={() => setModalMarcacao(m)} title="Ver detalhes da marcação">
+                                                            <Eye size={14} />
+                                                        </button>
+                                                        <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -681,6 +764,7 @@ export default function GestaoMarcacoes({ socket }) {
                 </>
             )}
 
+            {modalMarcacao && <ModalDetalhes m={modalMarcacao} onClose={() => setModalMarcacao(null)} />}
             {toast && <div style={s.toast}>{toast}</div>}
         </div>
     );

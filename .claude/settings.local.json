@@ -18,7 +18,8 @@
       "Bash(npx eslint:*)",
       "Bash(xargs grep -l \"btn-success\\\\|btn-danger\\\\|\\\\.spin\")",
       "Bash(ls -la /c/transnet-operacional-final/src/*.css)",
-      "Bash(grep -n \"btn-success\\\\|btn-danger\\\\|\\\\.spin\" /c/transnet-operacional-final/src/*.css)"
+      "Bash(grep -n \"btn-success\\\\|btn-danger\\\\|\\\\.spin\" /c/transnet-operacional-final/src/*.css)",
+      "Bash(PGPASSWORD=postgres psql -U postgres -d transnet -c \"SELECT id, motorista, status_recife, status_moreno, status_cte FROM veiculos WHERE LOWER\\(motorista\\) LIKE ''%sidinei%'' ORDER BY id DESC LIMIT 5;\")"
     ]
   }
 }

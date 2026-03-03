@@ -15,20 +15,18 @@ const axiosApi = axios.create({
 
 axiosApi.interceptors.request.use(
     (config) => {
-        const authStorage = localStorage.getItem('auth-storage');
-        let token = null;
-        if (authStorage) {
-            try {
-                const parsed = JSON.parse(authStorage);
-                token = parsed.state?.token || null;
-            } catch (e) {
-                // parse inválido
-            }
-        }
-        // Fallback to legacy auth_token key
+        // Prioridade: auth_token (escrito de forma síncrona no login) > auth-storage (escrito pelo Zustand persist, pode ter delay)
+        let token = localStorage.getItem('auth_token') || null;
         if (!token) {
-            const legacyToken = localStorage.getItem('auth_token');
-            if (legacyToken) token = legacyToken;
+            const authStorage = localStorage.getItem('auth-storage');
+            if (authStorage) {
+                try {
+                    const parsed = JSON.parse(authStorage);
+                    token = parsed.state?.token || null;
+                } catch (e) {
+                    // parse inválido
+                }
+            }
         }
         if (token) config.headers.Authorization = `Bearer ${token}`;
         return config;
@@ -40,13 +38,20 @@ axiosApi.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Sincronizar logout com Zustand para refletir na interface e desmontar componentes
-            useAuthStore.getState().logout();
-
             const isConferente = window.location.pathname.startsWith('/conferente');
-            const target = isConferente ? '/conferente' : '/';
-            if (window.location.pathname !== '/login' && window.location.pathname !== target) {
-                window.location.href = target;
+            if (isConferente) {
+                // No contexto do conferente, só fazer logout se não for a rota de login
+                // (evita loop quando token expira durante uso)
+                const url = error.config?.url || '';
+                if (!url.includes('/login')) {
+                    useAuthStore.getState().logout();
+                }
+            } else {
+                // Sistema principal: logout e redirecionar
+                useAuthStore.getState().logout();
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/';
+                }
             }
         }
         console.error('Erro na requisição:', {

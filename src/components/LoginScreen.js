@@ -71,11 +71,26 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
         } catch (e) { mostrarNotificacao("Erro ao enviar solicitação. Tente novamente."); }
     };
 
-    const solicitarRecuperacao = () => {
+    const solicitarRecuperacao = async () => {
         if (!formRecuperacao.nome) return mostrarNotificacao("Digite seu nome de usuário.");
-        socket.emit('enviar_alerta', { tipo: 'admin_senha', origem: 'SISTEMA', nome: formRecuperacao.nome, mensagem: `Recuperação de senha para ${formRecuperacao.nome}` });
-        setModalEsqueci(false);
-        mostrarNotificacao("✅ Solicitação enviada ao administrador!");
+        try {
+            const r = await api.get(`/usuarios/buscar?nome=${encodeURIComponent(formRecuperacao.nome)}`);
+            if (!r.data.success) {
+                return mostrarNotificacao("Usuário não encontrado. Verifique o nome digitado.");
+            }
+            const { id, nome, email } = r.data;
+            socket.emit('enviar_alerta', {
+                tipo: 'admin_senha',
+                origem: 'SISTEMA',
+                usuarioId: id,
+                nome,
+                mensagem: `🔑 Recuperação de senha: ${nome} (${email})`
+            });
+            setModalEsqueci(false);
+            mostrarNotificacao("✅ Solicitação enviada ao administrador!");
+        } catch {
+            mostrarNotificacao("Erro ao enviar solicitação. Tente novamente.");
+        }
     };
 
     const mostrarNotificacao = (msg) => {

@@ -9,7 +9,7 @@ import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalImagem from './ModalImagem';
 import ModalColetas from './ModalColetas';
 import SLATimeline from './SLATimeline';
-import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS } from '../constants';
+import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS, OPCOES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
@@ -687,26 +687,82 @@ export default function PainelOperacional({
                                             </div >
 
 
-                                            {/* Doca e Status — somente leitura; conferente controla */}
-                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                {/* Badge da Doca */}
-                                                {(() => {
-                                                    const campoDocaAlvo = origem === 'Recife' ? 'doca_recife' : 'doca_moreno';
-                                                    const docaAtual = item[campoDocaAlvo];
-                                                    if (!docaAtual || docaAtual === 'SELECIONE') return null;
-                                                    return (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px' }}>
-                                                            <Anchor size={11} color="#60a5fa" />
-                                                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{docaAtual}</span>
-                                                        </div>
-                                                    );
-                                                })()}
-                                                {/* Badge de Status */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px' }}>
-                                                    <Circle size={8} fill={corStatus.border} color={corStatus.border} />
-                                                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: corStatus.text }}>{valorStatusAtual}</span>
+                                            {/* Doca e Status */}
+                                            {podeEditarNaUnidade('alterar_status_operacao') ? (
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    {/* Select Doca */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Anchor size={11} color="#60a5fa" />
+                                                        <select
+                                                            value={item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'}
+                                                            onChange={async (e) => {
+                                                                const novaDoca = e.target.value;
+                                                                try {
+                                                                    await api.post('/api/conferente/atualizar-status', {
+                                                                        veiculoId: item.id,
+                                                                        novoStatus: valorStatusAtual,
+                                                                        novaDoca
+                                                                    });
+                                                                    updateList(lista, setLista, realIndex, origem === 'Recife' ? 'doca_recife' : 'doca_moreno', novaDoca);
+                                                                } catch (err) {
+                                                                    const msg = err.response?.data?.message || 'Erro ao atualizar doca.';
+                                                                    setToasts(t => [...t, { id: Date.now(), msg }]);
+                                                                }
+                                                            }}
+                                                            style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', color: '#60a5fa', fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
+                                                        >
+                                                            {(origem === 'Recife' ? DOCAS_RECIFE_LISTA : DOCAS_MORENO_LISTA).map(d => (
+                                                                <option key={d} value={d} style={{ color: 'black' }}>{d}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    {/* Select Status */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Circle size={8} fill={corStatus.border} color={corStatus.border} />
+                                                        <select
+                                                            value={valorStatusAtual}
+                                                            onChange={async (e) => {
+                                                                const novoStatus = e.target.value;
+                                                                try {
+                                                                    await api.post('/api/conferente/atualizar-status', {
+                                                                        veiculoId: item.id,
+                                                                        novoStatus,
+                                                                        novaDoca: item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno']
+                                                                    });
+                                                                    updateList(lista, setLista, realIndex, campoStatusAlvo, novoStatus);
+                                                                } catch (err) {
+                                                                    const msg = err.response?.data?.message || 'Erro ao atualizar status.';
+                                                                    setToasts(t => [...t, { id: Date.now(), msg }]);
+                                                                }
+                                                            }}
+                                                            style={{ background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px', color: corStatus.text, fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
+                                                        >
+                                                            {OPCOES_STATUS.map(s => (
+                                                                <option key={s} value={s} style={{ color: 'black' }}>{s}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    {/* Badge da Doca (read-only) */}
+                                                    {(() => {
+                                                        const docaAtual = item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'];
+                                                        if (!docaAtual || docaAtual === 'SELECIONE') return null;
+                                                        return (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px' }}>
+                                                                <Anchor size={11} color="#60a5fa" />
+                                                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>{docaAtual}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    {/* Badge de Status (read-only) */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px' }}>
+                                                        <Circle size={8} fill={corStatus.border} color={corStatus.border} />
+                                                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: corStatus.text }}>{valorStatusAtual}</span>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Campo de Observação */}
                                             < div >

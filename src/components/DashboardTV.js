@@ -203,9 +203,9 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
             {/* Conteudo */}
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
                 {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
-                {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} />}
-                {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} />}
+                {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
             {/* Rodape */}
@@ -287,36 +287,22 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     </div>
                 ))}
 
-                {/* Ocorrências do dia */}
-                {ocorrenciasHoje.length > 0 && (
-                    <div style={{ ...glassCard(t, 'rgba(245,158,11,0.35)'), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: '4px solid #f59e0b' }}>
-                        <AlertTriangle size={18} color="#fbbf24" style={{ flexShrink: 0 }} />
-                        <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#fbbf24', textTransform: 'uppercase', whiteSpace: 'nowrap', fontWeight: '700' }}>Ocorrências Hoje</span>
-                        <span style={{ fontSize: '36px', fontWeight: '900', color: '#fbbf24', filter: 'drop-shadow(0 0 8px #f59e0b80)', lineHeight: 1 }}>{ocorrenciasHoje.length}</span>
-                        <div style={{ height: '32px', width: '1px', background: 'rgba(245,158,11,0.3)' }} />
-                        {[
-                            { label: 'Recife', count: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#60a5fa' },
-                            { label: 'Moreno', count: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#fb923c' }
-                        ].map(u => u.count > 0 && (
-                            <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                                <span style={{ fontSize: '24px', fontWeight: '800', color: u.cor }}>{u.count}</span>
-                                <span style={{ fontSize: '11px', color: t.textMuted }}>{u.label}</span>
-                            </div>
-                        ))}
-                        <div style={{ flex: 1 }} />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '280px' }}>
-                            {ocorrenciasHoje.slice(0, 2).map(o => (
-                                <div key={o.id} style={{ fontSize: '10px', color: t.textMuted, display: 'flex', gap: '6px', overflow: 'hidden' }}>
-                                    <span style={{ color: '#fbbf24', fontWeight: '700', flexShrink: 0 }}>{o.motorista}</span>
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.descricao}</span>
-                                </div>
-                            ))}
-                            {ocorrenciasHoje.length > 2 && (
-                                <span style={{ fontSize: '10px', color: t.textDim }}>+{ocorrenciasHoje.length - 2} mais...</span>
-                            )}
+                {/* Ocorrências do dia — sempre visível */}
+                <div style={{ ...glassCard(t, 'rgba(245,158,11,0.35)'), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: '4px solid #f59e0b' }}>
+                    <AlertTriangle size={18} color="#fbbf24" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#fbbf24', textTransform: 'uppercase', whiteSpace: 'nowrap', fontWeight: '700' }}>Ocorrências Hoje</span>
+                    <span style={{ fontSize: '36px', fontWeight: '900', color: '#fbbf24', filter: 'drop-shadow(0 0 8px #f59e0b80)', lineHeight: 1 }}>{ocorrenciasHoje.length}</span>
+                    <div style={{ height: '32px', width: '1px', background: 'rgba(245,158,11,0.3)' }} />
+                    {[
+                        { label: 'Recife', count: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#60a5fa' },
+                        { label: 'Moreno', count: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#fb923c' }
+                    ].map(u => (
+                        <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '24px', fontWeight: '800', color: u.cor }}>{u.count}</span>
+                            <span style={{ fontSize: '11px', color: t.textMuted }}>{u.label}</span>
                         </div>
-                    </div>
-                )}
+                    ))}
+                </div>
 
                 {/* CT-e status — linha de baixo (ocupando as 5 colunas agora) */}
                 <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -400,7 +386,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
 // ================================================================
 // TELA 2: OPERACAO RECIFE DETALHADA
 // ================================================================
-function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, tema }) {
+function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, tema, ocorrenciasHoje = [] }) {
     const veiculosRecife = veiculos.filter(v => ehOperacaoRecife(v.operacao));
     const totalRecife = veiculosRecife.length;
 
@@ -473,15 +459,18 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
             </div>
 
             {/* GRID DOS SUB-CONTADORES */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                 {[
                     { label: 'Delta 100%', valor: contOp.delta, cor: '#2563eb' },
                     { label: 'Consolidado', valor: contOp.consolidado, cor: '#3b82f6' },
-                    { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#60a5fa' }
+                    { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#60a5fa' },
+                    { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#f59e0b', icon: true }
                 ].map(c => (
                     <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                         <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
-                        <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                        <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                            {c.icon && <AlertTriangle size={10} color="#f59e0b" />}{c.label}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -580,7 +569,9 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
 // ================================================================
 // TELA 4: FLUXO MENSAL
 // ================================================================
-function TelaFluxoMensal({ veiculos, t, tema }) {
+function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
+    const [ocorrenciasMes, setOcorrenciasMes] = useState([]);
+
     // Filtrar apenas veículos do mês atual usando horário de Brasília
     const agora = new Date();
     const dataBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -596,6 +587,17 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
 
     const primeiroDiaMesStr = formatarData(primeiroDiaMes);
     const ultimoDiaMesStr = formatarData(ultimoDiaMes);
+
+    useEffect(() => {
+        api.get('/api/ocorrencias').then(r => {
+            if (r.data?.success) {
+                setOcorrenciasMes((r.data.ocorrencias || []).filter(o =>
+                    (o.data_criacao || '').substring(0, 10) >= primeiroDiaMesStr &&
+                    (o.data_criacao || '').substring(0, 10) <= ultimoDiaMesStr
+                ));
+            }
+        }).catch(() => { });
+    }, [primeiroDiaMesStr, ultimoDiaMesStr]);
 
     const veiculosMesAtual = veiculos.filter(v => {
         const dataCard = v.data_prevista || v.data_criacao || '';
@@ -640,13 +642,30 @@ function TelaFluxoMensal({ veiculos, t, tema }) {
                 Fluxo Mensal · {mesNome}
             </h2>
 
-            {/* CONTADOR GERAL (TOTAL) CENTRALIZADO E MAIOR */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', width: '100%', maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+            {/* CONTADOR GERAL + OCORRÊNCIAS */}
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginBottom: '24px' }}>
+                <div style={{ ...glassCard(t, '#3b82f660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #3b82f6', flex: 1, maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
                     <div style={{ fontSize: '72px', fontWeight: '900', color: '#3b82f6', lineHeight: 1, filter: 'drop-shadow(0 0 16px #3b82f680)' }}>{totalMes}</div>
                     <div style={{ fontSize: '11px', color: '#60a5fa', marginTop: '8px', letterSpacing: '2px', textTransform: 'uppercase' }}>Embarques do Mês</div>
                     <div style={{ fontSize: '10px', color: t.textDim, marginTop: '4px' }}>
                         {new Date(primeiroDiaMes).toLocaleDateString('pt-BR')} – {new Date(ultimoDiaMes).toLocaleDateString('pt-BR')}
+                    </div>
+                </div>
+                <div style={{ ...glassCard(t, 'rgba(245,158,11,0.4)'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f59e0b', flex: 1, maxWidth: '400px', transition: 'all 0.5s ease-in-out' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#f59e0b', lineHeight: 1, filter: 'drop-shadow(0 0 16px #f59e0b80)' }}>{ocorrenciasMes.length}</div>
+                    <div style={{ fontSize: '11px', color: '#fbbf24', marginTop: '8px', letterSpacing: '2px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        <AlertTriangle size={12} color="#fbbf24" /> Ocorrências do Mês
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '8px' }}>
+                        {[
+                            { label: 'Recife', count: ocorrenciasMes.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#60a5fa' },
+                            { label: 'Moreno', count: ocorrenciasMes.filter(o => o.unidade === 'Moreno').length, cor: '#fb923c' }
+                        ].map(u => (
+                            <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                <span style={{ fontSize: '20px', fontWeight: '800', color: u.cor }}>{u.count}</span>
+                                <span style={{ fontSize: '10px', color: t.textMuted }}>{u.label}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -770,7 +789,7 @@ function StatusBars({ dados, t }) {
 // ================================================================
 // TELA 3: OPERACAO MORENO DETALHADA
 // ================================================================
-function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, tema }) {
+function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, tema, ocorrenciasHoje = [] }) {
     const veiculosMoreno = veiculos.filter(v => ehOperacaoMoreno(v.operacao));
     const totalMoreno = veiculosMoreno.length;
 
@@ -899,17 +918,20 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         </div>
 
                         {/* GRID DOS SUB-CONTADORES (Abaixo do Total) */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '14px', marginBottom: '16px' }}>
                             {[
                                 { label: '100% Porcelana', valor: contOp.porcelana, cor: '#1d4ed8' },
                                 { label: 'Eletrik', valor: contOp.eletrik, cor: '#2563eb' },
                                 { label: 'Delta Moreno', valor: contOp.deltaMoreno, cor: '#3b82f6' },
                                 { label: 'Delta R/M', valor: contOp.deltaRxM, cor: '#60a5fa' },
-                                { label: 'Consolidados', valor: consolidadosMoreno, cor: '#93c5fd' }
+                                { label: 'Consolidados', valor: consolidadosMoreno, cor: '#93c5fd' },
+                                { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#f59e0b', icon: true }
                             ].map(c => (
                                 <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                                     <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
-                                    <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                                    <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                        {c.icon && <AlertTriangle size={10} color="#f59e0b" />}{c.label}
+                                    </div>
                                 </div>
                             ))}
                         </div>
