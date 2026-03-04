@@ -428,7 +428,7 @@ export default function PainelOperacional({
                                 const precisaCampoRecife = origem === 'Moreno' && ehOperacaoRecife(item.operacao);
 
                                 return (
-                                    <div key={item.id} className="glass-panel-internal card-neon-hover" style={{ borderLeft: `4px solid ${corStatus.border} `, borderRadius: '12px', overflow: 'hidden' }}>
+                                    <div key={item.id} className="glass-panel-internal card-neon-hover" style={{ borderLeft: `4px solid ${corStatus.border}`, borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
                                         {/* Header do Card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between' }}>
@@ -478,7 +478,7 @@ export default function PainelOperacional({
                                         </div>
 
                                         {/* Corpo do Card */}
-                                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
 
                                             {/* Coletas e Flags */}
                                             {/* BLOCO COLETA PRINCIPAL */}

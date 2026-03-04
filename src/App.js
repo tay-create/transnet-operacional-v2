@@ -578,11 +578,18 @@ function App({ socket }) {
             }
             if (valor === 'LIBERADO P/ CT-e') ts[`cte_${unidade}_at`] = agora;
 
-            // Calcular tempo carregado→CT-e (mantido para compatibilidade)
+            // Calcular tempo carregado→CT-e
+            // Para card misto, usa o carregado_at mais recente entre as duas unidades
             if (valor === 'LIBERADO P/ CT-e') {
                 const carregadoEm = ts[`carregado_${unidade}_at`];
-                if (carregadoEm) {
-                    const tempoDecorrido = Math.floor((new Date() - new Date(carregadoEm)) / 1000 / 60);
+                const outraUnidade = unidade === 'recife' ? 'moreno' : 'recife';
+                const carregadoOutraEm = ts[`carregado_${outraUnidade}_at`];
+                // Referência: o último carregamento concluído (ambas as unidades)
+                const referencia = carregadoOutraEm && carregadoOutraEm > (carregadoEm || '')
+                    ? carregadoOutraEm
+                    : carregadoEm;
+                if (referencia) {
+                    const tempoDecorrido = Math.floor((new Date() - new Date(referencia)) / 1000 / 60);
                     ts.tempo_carregado_ate_cte = tempoDecorrido;
                     mostrarNotificacao(`⏱️ Tempo de carregamento: ${tempoDecorrido} min`);
                 }

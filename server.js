@@ -890,7 +890,7 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
         res.json({ success: true, notificacoes: [] }); // Retorna sucesso vazio para não quebrar o front
     }
 });
-app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento']), async (req, res) => { try { await dbRun("DELETE FROM notificacoes WHERE id = ?", [req.params.id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento']), async (req, res) => { try { const id = Number(req.params.id); if (!isNaN(id)) await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
 
 // --- ROTAS DE CT-E ATIVOS ---
 
@@ -1202,6 +1202,14 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                         console.warn(`   Buscou por telefone: ${telefoneMotorista || 'N/A'} | por nome: "${veiculo.motorista}"`);
                         console.warn(`   Veículo ID: ${cteId} | Coleta: ${coleta} — contador de viagens NÃO incrementado`);
                     }
+                }
+
+                // Marcar status_cte no veículo para sumir da aba "Na operação"
+                try {
+                    await dbRun("UPDATE veiculos SET status_cte = 'Emitido' WHERE id = ?", [cteId]);
+                    console.log(`✅ [CT-e] status_cte = 'Emitido' gravado no veículo id=${cteId}`);
+                } catch (errStatus) {
+                    console.error('Erro ao gravar status_cte no veículo:', errStatus);
                 }
 
                 // Notificar painéis para sumir com o card (refresh geral)

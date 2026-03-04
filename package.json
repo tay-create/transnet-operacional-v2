@@ -51,7 +51,8 @@
     "eject": "react-scripts eject",
     "electron": "electron electron/main.js",
     "electron:build": "react-scripts build && electron-builder",
-    "db:wipe": "node scripts/wipe-db.js"
+    "db:wipe": "node scripts/wipe-db.js",
+    "db:wipe-op": "node scripts/wipe-operacional.js"
   },
   "homepage": "./",
   "build": {

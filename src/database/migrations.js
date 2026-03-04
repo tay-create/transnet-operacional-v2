@@ -333,8 +333,11 @@ const inicializarBanco = async () => {
         if (!testeConferente) {
             const hashedPassword = await bcrypt.hash('123', 10);
             await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
-                ['Teste Conferente', 'testeconferencia@tnetlog.com.br', hashedPassword, 'Recife', 'Conferente']);
+                ['Teste Conferente', 'testeconferencia@tnetlog.com.br', hashedPassword, 'Ambas', 'Conferente']);
             console.log("✅ Usuário de teste (Conferente) criado com senha hasheada");
+        } else if (testeConferente.cidade !== 'Ambas') {
+            await dbRun(`UPDATE usuarios SET cidade = 'Ambas' WHERE email = ?`, ['testeconferencia@tnetlog.com.br']);
+            console.log("✅ Usuário testeconferencia atualizado para cidade=Ambas");
         }
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR

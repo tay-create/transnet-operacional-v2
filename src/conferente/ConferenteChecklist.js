@@ -79,8 +79,7 @@ function PainelGerRisco({ v }) {
 }
 
 // Card individual de um veículo no conferente
-function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, cidade }) {
-    const [expandido, setExpandido] = useState(false);
+function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtualizarStatus, onAbrirChecklist, cidade }) {
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
     const [docaSelecionada, setDocaSelecionada] = useState(v.doca || 'SELECIONE');
@@ -107,7 +106,8 @@ function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, c
             const res = await api.post('/api/conferente/atualizar-status', {
                 veiculoId: v.id,
                 novoStatus: proximo,
-                novaDoca: docaSelecionada !== 'SELECIONE' ? docaSelecionada : undefined
+                novaDoca: docaSelecionada !== 'SELECIONE' ? docaSelecionada : undefined,
+                unidade: v.unidade
             });
             if (res.data.success) {
                 onAtualizarStatus(v.id, proximo, docaSelecionada);
@@ -125,14 +125,23 @@ function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, c
             await api.post('/api/conferente/atualizar-status', {
                 veiculoId: v.id,
                 novoStatus: v.status,
-                novaDoca: novaDoca !== 'SELECIONE' ? novaDoca : ''
+                novaDoca: novaDoca !== 'SELECIONE' ? novaDoca : '',
+                unidade: v.unidade
             });
             onAtualizarStatus(v.id, v.status, novaDoca);
         } catch { /* silencioso */ }
     };
 
     const proximoStatus = STATUS_CONFERENTE[idxAtual + 1];
-    const precisaChecklist = v.status === 'LIBERADO P/ DOCA' && !v.isFrotaMotorista;
+    // Checklist da carreta:
+    // - Mista com checklist já aprovado → não exige de novo em nenhuma unidade
+    // - Mista sem checklist → exige apenas na unidade de inicio_rota
+    // - Operação única → regra normal (inicio_rota = própria unidade)
+    const unidadeCard = v.unidade || 'Recife';
+    const ehUnidadeInicioRota = !v.inicio_rota || v.inicio_rota === unidadeCard;
+    const precisaChecklist = v.status === 'LIBERADO P/ DOCA' && !v.isFrotaMotorista
+        && !(v.isMista && v.checklistAprovado)
+        && ehUnidadeInicioRota;
 
     return (
         <div style={{
@@ -145,7 +154,7 @@ function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, c
         }}>
             {/* Header do card — sempre visível */}
             <div
-                onClick={() => setExpandido(e => !e)}
+                onClick={e => { e.stopPropagation(); onToggleExpandido(); }}
                 style={{ padding: '14px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}
             >
                 <Truck size={14} color="#60a5fa" style={{ flexShrink: 0 }} />
@@ -307,17 +316,20 @@ function CardConferente({ v, opcoesDocas, onAtualizarStatus, onAbrirChecklist, c
 export default function ConferenteChecklist({ socket }) {
     const [veiculos, setVeiculos] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [expandidos, setExpandidos] = useState(new Set());
     const { openChecklistForm } = useConferenteStore();
     const user = useAuthStore(state => state.user);
 
     const cidade = user?.cidade || 'Recife';
-    const opcoesDocas = cidade === 'Moreno' ? DOCAS_MORENO_LISTA : DOCAS_RECIFE_LISTA;
 
     const carregarVeiculos = useCallback(async () => {
         try {
             const res = await api.get('/api/conferente/veiculos');
             if (res.data.success) {
-                setVeiculos(res.data.veiculos);
+                // Adiciona _key único e estável por posição no array original
+                const comKeys = res.data.veiculos.map((v, i) => ({ ...v, _key: `${v.id}-${v.unidade || 'R'}-${i}` }));
+                console.log('[Conferente] veículos carregados:', comKeys.map(v => ({ _key: v._key, id: v.id, unidade: v.unidade, coleta: v.coleta, status: v.status })));
+                setVeiculos(comKeys);
             }
         } catch (e) {
             console.error('Erro ao carregar veículos:', e);
@@ -431,16 +443,27 @@ export default function ConferenteChecklist({ socket }) {
 
                                 {/* Cards do grupo */}
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '10px' }}>
-                                    {grupo.itens.map(v => (
-                                        <CardConferente
-                                            key={v.id}
-                                            v={v}
-                                            opcoesDocas={opcoesDocas}
-                                            onAtualizarStatus={handleAtualizarStatus}
-                                            onAbrirChecklist={openChecklistForm}
-                                            cidade={cidade}
-                                        />
-                                    ))}
+                                    {grupo.itens.map(v => {
+                                        const cardKey = v._key;
+                                        const docasCard = (v.unidade || cidade) === 'Moreno' ? DOCAS_MORENO_LISTA : DOCAS_RECIFE_LISTA;
+                                        return (
+                                            <CardConferente
+                                                key={cardKey}
+                                                cardKey={cardKey}
+                                                v={v}
+                                                expandido={expandidos.has(cardKey)}
+                                                onToggleExpandido={() => setExpandidos(prev => {
+                                                    const next = new Set(prev);
+                                                    next.has(cardKey) ? next.delete(cardKey) : next.add(cardKey);
+                                                    return next;
+                                                })}
+                                                opcoesDocas={docasCard}
+                                                onAtualizarStatus={handleAtualizarStatus}
+                                                onAbrirChecklist={openChecklistForm}
+                                                cidade={cidade}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
