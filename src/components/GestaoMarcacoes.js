@@ -245,9 +245,19 @@ export default function GestaoMarcacoes({ socket }) {
     }
 
     function formatarTelefone(tel) {
-        const d = tel.replace(/\D/g, '').replace(/^55/, '');
+        if (!tel) return '—';
+        let d = tel.replace(/\D/g, '');
+        // Se tem 12 ou 13 dígitos e começa com 55, remove o 55 para formatar o resto
+        if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+            d = d.slice(2);
+        }
         if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
         if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+
+        // Se ainda assim for longo (como os 12 dígitos do print sem o 55), tenta formatar o que der
+        if (d.length > 11) {
+            return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+        }
         return tel;
     }
 

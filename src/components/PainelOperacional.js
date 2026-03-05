@@ -627,7 +627,7 @@ export default function PainelOperacional({
 
                                                         {/* Botao 1: SEMPRE VISIVEL */}
                                                         <a
-                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').startsWith('55') ? ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent('Prezado motorista, comparecer a portaria para a conferencia da sua documentação')}`}
+                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').length <= 11 ? '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent('Prezado motorista, comparecer a portaria para a conferencia da sua documentação')}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             title="WhatsApp: Documentação na portaria"
@@ -653,7 +653,7 @@ export default function PainelOperacional({
                                                                 if (valorStatusAtual === 'LIBERADO P/ DOCA' && docaAtual && docaAtual !== 'SELECIONE') {
                                                                     return (
                                                                         <a
-                                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').startsWith('55') ? ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent(`Prezado motorista, por gentileza encostar na doca ${docaAtual} da unidade ${item.unidade || origem} o mais breve possivel.`)}`}
+                                                                            href={`https://wa.me/${((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '').length <= 11 ? '55' + ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '') : ((item?.telefone || item?.telefoneMotorista) || '').replace(/\D/g, '')}?text=${encodeURIComponent(`Prezado motorista, por gentileza encostar na doca ${docaAtual} da unidade ${item.unidade || origem} o mais breve possivel.`)}`}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             title="WhatsApp: Avisar liberação da doca"
@@ -895,10 +895,10 @@ export default function PainelOperacional({
                                         {/* Footer / Timers e Ações */}
                                         < div style={{ background: 'rgba(0,0,0,0.4)', padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
 
-                                                {/* SLA Timeline */}
-                                                <div style={{ marginBottom: '8px' }}>
-                                                    <SLATimeline item={item} unidade={origem === 'Recife' ? 'recife' : 'moreno'} />
-                                                </div>
+                                            {/* SLA Timeline */}
+                                            <div style={{ marginBottom: '8px' }}>
+                                                <SLATimeline item={item} unidade={origem === 'Recife' ? 'recife' : 'moreno'} />
+                                            </div>
 
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
 

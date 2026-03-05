@@ -486,7 +486,7 @@ ipcMain.handle('put-cte-status', async (_, { cteId, statusAntigo, statusNovo, or
                     try {
                         const dj = JSON.parse(veiculo.dados_json || '{}');
                         telefoneMotorista = dj.telefoneMotorista || null;
-                    } catch (_) {}
+                    } catch (_) { }
 
                     const agora = new Date().toISOString();
                     const updateSql = `UPDATE marcacoes_placas
@@ -544,7 +544,7 @@ ipcMain.handle('get-tokens', async () => {
 ipcMain.handle('post-token', async (_, telefone) => {
     try {
         let tel = (telefone || '').replace(/\D/g, '');
-        if (!tel.startsWith('55')) tel = '55' + tel;
+        if (tel.length <= 11) tel = '55' + tel;
         if (tel.length < 12 || tel.length > 13) {
             return { success: false, message: 'Telefone inválido.' };
         }

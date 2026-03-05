@@ -184,7 +184,7 @@ app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento']
 app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         let telefone = (req.body.telefone || '').replace(/\D/g, '');
-        if (!telefone.startsWith('55')) telefone = '55' + telefone;
+        if (telefone.length <= 11) telefone = '55' + telefone;
         if (telefone.length < 12 || telefone.length > 13) {
             return res.status(400).json({ success: false, message: 'Telefone inválido.' });
         }
@@ -1643,6 +1643,62 @@ app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenado
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }
+});
+
+// ==================== SALDO DE PALETES ====================
+
+app.get('/api/saldo-paletes', authMiddleware, async (req, res) => {
+    try {
+        const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
+        res.json({ success: true, registros: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+    try {
+        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade } = req.body;
+        if (!motorista || !tipo_palete) {
+            return res.status(400).json({ success: false, message: 'Motorista e tipo de palete são obrigatórios.' });
+        }
+        if ((tipo_palete === 'PBR' || tipo_palete === 'MISTO') && !fornecedor_pbr) {
+            return res.status(400).json({ success: false, message: 'Fornecedor é obrigatório para paletes PBR.' });
+        }
+        const result = await dbRun(
+            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '']
+        );
+        res.json({ success: true, id: result.lastID || result.id });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const { qtd_devolvida_pbr, qtd_devolvida_desc, total } = req.body;
+        const registro = await dbGet("SELECT * FROM saldo_paletes WHERE id = ?", [id]);
+        if (!registro) return res.status(404).json({ success: false, message: 'Registro não encontrado.' });
+
+        let devPbr = qtd_devolvida_pbr || 0;
+        let devDesc = qtd_devolvida_desc || 0;
+        if (total) {
+            devPbr = registro.qtd_pbr;
+            devDesc = registro.qtd_descartavel;
+        }
+        const todosDevolvidos = (devPbr >= registro.qtd_pbr) && (devDesc >= registro.qtd_descartavel);
+        await dbRun(
+            `UPDATE saldo_paletes SET qtd_devolvida_pbr = ?, qtd_devolvida_desc = ?, devolvido = ?, data_devolucao = CURRENT_TIMESTAMP WHERE id = ?`,
+            [devPbr, devDesc, todosDevolvidos, id]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+    try {
+        await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
 // Porta configurável via .env

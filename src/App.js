@@ -24,6 +24,7 @@ import PainelProgramacao from './components/PainelProgramacao';
 import { CheckCircle as CheckCircleIcon } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
 import PainelOcorrencias from './components/PainelOcorrencias';
+import PainelSaldoPaletes from './components/PainelSaldoPaletes';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -932,6 +933,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'marcacao_placas' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') && (
                     <GestaoMarcacoes socket={socket} />
+                )}
+
+                {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado') && (
+                    <PainelSaldoPaletes />
                 )}
 
                 {abaAtiva === 'relatorio_op' && temAcesso('relatorios') && (

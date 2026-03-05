@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Shield, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -222,14 +222,24 @@ export default function Sidebar({
                             />
                         )}
                         {(ehCoordenador || cargo === 'PLANEJAMENTO') && (
-                            <MenuItem
-                                icon={<MapPin size={20} />}
-                                label="Marcação de Placas"
+                            <>
+                                <MenuItem
+                                    icon={<MapPin size={20} />}
+                                    label="Marcação de Placas"
 
-                                subItem
-                                aberto={aberto}
-                                onClick={() => setAbaAtiva('marcacao_placas')}
-                            />
+                                    subItem
+                                    aberto={aberto}
+                                    onClick={() => setAbaAtiva('marcacao_placas')}
+                                />
+                                <MenuItem
+                                    icon={<Package size={20} />}
+                                    label="Saldo de Paletes"
+                                    color="#fb923c"
+                                    subItem
+                                    aberto={aberto}
+                                    onClick={() => setAbaAtiva('saldo_paletes')}
+                                />
+                            </>
                         )}
                         {(temAcesso('operacao') || ehCoordenador) && (
                             <MenuItem

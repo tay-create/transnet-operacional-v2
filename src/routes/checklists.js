@@ -3,6 +3,44 @@ const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { validate, novoLancamentoSchema } = require('../../middleware/validationMiddleware');
 
+// Cria entrada em saldo_paletes quando checklist é aprovado com paletização
+async function criarSaldoPaletesDoChecklist({ veiculo_id, motorista_nome, placa_carreta, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr }) {
+    if (!is_paletizado || is_paletizado === 'NÃO' || !qtd_paletes || qtd_paletes <= 0) return;
+
+    // Buscar placa do cavalo e unidade no veículo
+    const veiculo = await dbGet("SELECT dados_json, inicio_rota FROM veiculos WHERE id = ?", [veiculo_id]).catch(() => null);
+    let placaCavalo = '';
+    let unidade = '';
+    if (veiculo) {
+        try {
+            const dj = JSON.parse(veiculo.dados_json || '{}');
+            placaCavalo = dj.placa1Motorista || '';
+        } catch (_) {}
+        unidade = veiculo.inicio_rota || '';
+    }
+
+    const qtdPbr = tipo_palete === 'PBR' ? (qtd_paletes || 0) : 0;
+    const qtdDesc = tipo_palete === 'DESCARTAVEL' ? (qtd_paletes || 0) : 0;
+    const tipoPaleteSaldo = tipo_palete || 'DESCARTAVEL';
+
+    try {
+        await dbRun(
+            `INSERT INTO saldo_paletes
+                (motorista, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, unidade, observacao)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                motorista_nome, placaCavalo, placa_carreta,
+                tipoPaleteSaldo, qtdPbr, qtdDesc,
+                fornecedor_pbr || null, unidade,
+                `Gerado automaticamente pelo checklist da carreta (veículo #${veiculo_id})`
+            ]
+        );
+        console.log(`📦 [Saldo Paletes] Entrada criada automaticamente: ${motorista_nome} | ${tipoPaleteSaldo} x${qtd_paletes}`);
+    } catch (e) {
+        console.error('Erro ao criar saldo_paletes automaticamente:', e.message);
+    }
+}
+
 module.exports = function createChecklistsRouter(io) {
     const router = express.Router();
 
@@ -26,7 +64,7 @@ module.exports = function createChecklistsRouter(io) {
             const {
                 veiculo_id, motorista_nome, placa_carreta, placa_confere,
                 condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
-                is_paletizado, tipo_palete, qtd_paletes
+                is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
             } = req.body;
 
             const created_at = new Date().toISOString();
@@ -40,14 +78,15 @@ module.exports = function createChecklistsRouter(io) {
 
             const result = await dbRun(
                 `INSERT INTO checklists_carreta (
-                    veiculo_id, motorista_nome, placa_carreta, placa_confere, 
-                    condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, 
-                    created_at, status, is_paletizado, tipo_palete, qtd_paletes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    veiculo_id, motorista_nome, placa_carreta, placa_confere,
+                    condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+                    created_at, status, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0,
                     condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
-                    created_at, statusChecklist, is_paletizado, tipo_palete, qtd_paletes
+                    created_at, statusChecklist, is_paletizado, tipo_palete, qtd_paletes,
+                    fornecedor_pbr || null
                 ]
             );
 
@@ -58,7 +97,12 @@ module.exports = function createChecklistsRouter(io) {
                     mensagem: `Novo checklist aguardando aprovação: ${placa_carreta}`
                 });
             } else {
-                // Se aprovado automaticamente, avisa a operação para atualizar a view de bloqueios
+                // Se aprovado automaticamente, registrar saldo de paletes se houver paletização
+                await criarSaldoPaletesDoChecklist({
+                    veiculo_id, motorista_nome, placa_carreta,
+                    is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
+                });
+                // Avisa a operação para atualizar a view de bloqueios
                 io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: veiculo_id });
             }
 
@@ -78,8 +122,15 @@ module.exports = function createChecklistsRouter(io) {
             await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
 
             // Notificar conferente sobre resultado do checklist
-            const checklist = await dbGet("SELECT veiculo_id, motorista_nome FROM checklists_carreta WHERE id = ?", [req.params.id]);
+            const checklist = await dbGet(
+                "SELECT veiculo_id, motorista_nome, placa_carreta, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr FROM checklists_carreta WHERE id = ?",
+                [req.params.id]
+            );
             if (checklist) {
+                if (status === 'APROVADO') {
+                    // Registrar saldo de paletes ao aprovar manualmente
+                    await criarSaldoPaletesDoChecklist(checklist);
+                }
                 io.emit('conferente_checklist_resultado', {
                     veiculoId: checklist.veiculo_id,
                     motorista: checklist.motorista_nome,

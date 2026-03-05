@@ -72,6 +72,7 @@ const inicializarBanco = async () => {
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS is_paletizado TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS tipo_palete TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS qtd_paletes INTEGER`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS fornecedor_pbr TEXT`); } catch (_) { }
 
         await dbRun(`CREATE TABLE IF NOT EXISTS logs (
             id SERIAL PRIMARY KEY,
@@ -302,6 +303,26 @@ const inicializarBanco = async () => {
                 foto_vazamento TEXT,
                 assinatura TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`);
+
+        // ── Módulo de Saldo de Paletes ──────────────────────────────────────────
+        await dbRun(`CREATE TABLE IF NOT EXISTS saldo_paletes(
+                id SERIAL PRIMARY KEY,
+                motorista TEXT NOT NULL,
+                telefone TEXT,
+                placa_cavalo TEXT,
+                placa_carreta TEXT,
+                tipo_palete TEXT NOT NULL,
+                qtd_pbr INTEGER DEFAULT 0,
+                qtd_descartavel INTEGER DEFAULT 0,
+                fornecedor_pbr TEXT,
+                devolvido BOOLEAN DEFAULT FALSE,
+                qtd_devolvida_pbr INTEGER DEFAULT 0,
+                qtd_devolvida_desc INTEGER DEFAULT 0,
+                data_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                data_devolucao TIMESTAMP,
+                observacao TEXT,
+                unidade TEXT
             )`);
 
         // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)

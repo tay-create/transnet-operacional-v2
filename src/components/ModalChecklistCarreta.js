@@ -21,6 +21,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     const [isPaletizado, setIsPaletizado] = useState(''); // 'NÃO', 'SIM', 'BATIDA_PALETIZADA'
     const [tipoPalete, setTipoPalete] = useState(''); // 'PBR', 'DESCARTAVEL'
     const [qtdPaletes, setQtdPaletes] = useState('');
+    const [fornecedorPbr, setFornecedorPbr] = useState('');
 
     const extrairPlacaLocal = () => {
         let p2 = veiculo.placa2Motorista?.trim();
@@ -118,6 +119,10 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                 setErro('Informe a quantidade de paletes.');
                 return;
             }
+            if (tipoPalete === 'PBR' && !fornecedorPbr.trim()) {
+                setErro('Informe o fornecedor dos paletes PBR.');
+                return;
+            }
         }
 
         const assinaturaBase = `Carregamento Autorizado por ${user?.nome || 'Conferente'}`;
@@ -134,7 +139,8 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             conferente_nome: user?.nome || 'Desconhecido',
             is_paletizado: isPaletizado,
             tipo_palete: tipoPalete,
-            qtd_paletes: (isPaletizado === 'SIM' || isPaletizado === 'BATIDA_PALETIZADA') ? parseInt(qtdPaletes) : 0
+            qtd_paletes: (isPaletizado === 'SIM' || isPaletizado === 'BATIDA_PALETIZADA') ? parseInt(qtdPaletes) : 0,
+            fornecedor_pbr: tipoPalete === 'PBR' ? fornecedorPbr.trim() : ''
         };
 
         setLoading(true);
@@ -288,7 +294,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                     <span style={label}>4. Paletização</span>
                     <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px' }}>É paletizado?</p>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                        <button type="button" onClick={() => { setIsPaletizado('NÃO'); setTipoPalete(''); setQtdPaletes(''); }}
+                        <button type="button" onClick={() => { setIsPaletizado('NÃO'); setTipoPalete(''); setQtdPaletes(''); setFornecedorPbr(''); }}
                             style={toggleBtn(isPaletizado === 'NÃO', '248,113,113')}>NÃO</button>
                         <button type="button" onClick={() => setIsPaletizado('SIM')}
                             style={toggleBtn(isPaletizado === 'SIM', '74,222,128')}>SIM</button>
@@ -307,12 +313,23 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                             </div>
 
                             {tipoPalete && (
-                                <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                    <label style={label}>Quantidade de Paletes</label>
-                                    <input
-                                        type="number" min="1" placeholder="Quantidade..." value={qtdPaletes} onChange={(e) => setQtdPaletes(e.target.value)} required
-                                        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
-                                    />
+                                <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div>
+                                        <label style={label}>Quantidade de Paletes</label>
+                                        <input
+                                            type="number" min="1" placeholder="Quantidade..." value={qtdPaletes} onChange={(e) => setQtdPaletes(e.target.value)} required
+                                            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
+                                        />
+                                    </div>
+                                    {tipoPalete === 'PBR' && (
+                                        <div>
+                                            <label style={label}>Fornecedor PBR *</label>
+                                            <input
+                                                type="text" placeholder="Nome do fornecedor..." value={fornecedorPbr} onChange={(e) => setFornecedorPbr(e.target.value)} required
+                                                style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
