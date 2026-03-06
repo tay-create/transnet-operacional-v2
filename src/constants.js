@@ -58,4 +58,4 @@ export const CORES_STATUS = {
     'LIBERADO P/ CT-e': { border: '#a855f7', text: '#c084fc' },
 };
 
-export const CARGOS_DISPONIVEIS = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro', 'Dashboard Viewer', 'Conferente'];
+export const CARGOS_DISPONIVEIS = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro', 'Dashboard Viewer', 'Conferente', 'Pos Embarque'];

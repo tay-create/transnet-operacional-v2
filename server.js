@@ -131,10 +131,11 @@ app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador'])
     try {
         const usuario = await dbGet("SELECT id, nome, email FROM usuarios WHERE id = ?", [req.params.id]);
         if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        const hashedPassword = await bcrypt.hash('123', 10);
+        const senhaTemp = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+        const hashedPassword = await bcrypt.hash(senhaTemp, 10);
         await dbRun("UPDATE usuarios SET senha = ? WHERE id = ?", [hashedPassword, req.params.id]);
         console.log(`🔑 Senha resetada para: ${usuario.email} (ID ${req.params.id})`);
-        res.json({ success: true, message: `Senha de ${usuario.nome} resetada para "123".` });
+        res.json({ success: true, message: `Senha de ${usuario.nome} resetada.`, senhaTemp });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }
@@ -375,7 +376,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
 });
 
 // Leitura de todas as marcações (autenticado)
-app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
     try {
         const rows = await dbAll(
             "SELECT * FROM marcacoes_placas ORDER BY data_marcacao DESC"
@@ -389,13 +390,14 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 });
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
     try {
         const isCoordenador = req.user.cargo === 'Coordenador';
         const cidade = req.user.cidade;
         const cidadeFilter = (!isCoordenador && cidade)
-            ? `AND (origem_cidade_uf ILIKE '%${cidade}%' OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')`
+            ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
             : '';
+        const params = (!isCoordenador && cidade) ? [`%${cidade}%`] : [];
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao, data_contratacao,
@@ -408,7 +410,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
               AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
               ${cidadeFilter}
             ORDER BY data_marcacao DESC
-        `);
+        `, params);
         const motoristas = rows.map(r => ({
             ...r,
             telefone: r.telefone.replace(/\D/g, ''),
@@ -418,7 +420,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
         res.json({ success: true });
@@ -426,7 +428,7 @@ app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Plan
 });
 
 // ── PUT: Alterar Status de Disponibilidade (Fila) ────────────────
-app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
         const { status } = req.body;
         const statusValidos = ['Disponível', 'Contratado', 'Indisponível', 'EM CASA', 'NO PÁTIO', 'NO POSTO'];
@@ -456,8 +458,9 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
         const isCoordenador = req.user.cargo === 'Coordenador';
         const cidade = req.user.cidade;
         const cidadeFilter = (!isCoordenador && cidade)
-            ? `AND (origem_cidade_uf ILIKE '%${cidade}%' OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')`
+            ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
             : '';
+        const params = (!isCoordenador && cidade) ? [`%${cidade}%`] : [];
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    disponibilidade, data_marcacao, data_contratacao,
@@ -470,7 +473,7 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
               AND (is_frota IS NULL OR is_frota = 0)
               ${cidadeFilter}
             ORDER BY data_marcacao DESC
-        `);
+        `, params);
         res.json({ success: true, motoristas: rows });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -812,7 +815,7 @@ app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Planejamento']
 // ==================== HISTÓRICO DE LIBERAÇÕES ====================
 
 // GET - Listar estrutura (letras → motoristas → registros)
-app.get('/api/historico-liberacoes', authMiddleware, async (req, res) => {
+app.get('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
         const { letra, motorista } = req.query;
         if (motorista) {
@@ -860,15 +863,44 @@ app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
 
 // ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
-app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional']), async (req, res) => { try { const rows = await dbAll("SELECT * FROM fila"); const fila = rows.map(row => ({ id: row.id, ...JSON.parse(row.dados_json) })); res.json({ success: true, fila }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { try { const item = req.body; const result = await dbRun(`INSERT INTO fila (dados_json) VALUES (?)`, [JSON.stringify(item)]); const novo = { id: result.lastID, ...item }; io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo }); res.json({ success: true, id: result.lastID }); } catch (e) { res.status(500).json({ success: false }); } });
-app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional']), async (req, res) => { try { await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]); io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body }); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+    try {
+        const isCoordenador = req.user.cargo === 'Coordenador';
+        const cidade = req.user.cidade;
+        let rows;
+        if (isCoordenador) {
+            rows = await dbAll("SELECT * FROM fila ORDER BY id ASC");
+        } else {
+            rows = await dbAll("SELECT * FROM fila WHERE unidade = ? OR unidade IS NULL ORDER BY id ASC", [cidade]);
+        }
+        const fila = rows.map(row => ({ id: row.id, unidade: row.unidade, ...JSON.parse(row.dados_json) }));
+        res.json({ success: true, fila });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+    try {
+        const item = req.body;
+        const unidade = item.unidade || req.user.cidade || 'Recife';
+        const result = await dbRun(`INSERT INTO fila (dados_json, unidade) VALUES (?, ?)`, [JSON.stringify(item), unidade]);
+        const novo = { id: result.lastID, unidade, ...item };
+        io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo });
+        res.json({ success: true, id: result.lastID });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+// ATENÇÃO: /fila/reordenar deve vir ANTES de /fila/:id para evitar conflito de rota
 app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
-        const { ordem } = req.body; // [{ id, coleta, motorista }, ...]
+        const { ordem } = req.body;
         if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
         await Promise.all(ordem.map(item => dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(item), item.id])));
         io.emit('receber_atualizacao', { tipo: 'reordenar_fila', ordem });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+    try {
+        await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]);
+        io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
@@ -1089,8 +1121,8 @@ app.post('/solicitacoes', async (req, res) => {
 });
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
 
-// Endpoint público para buscar usuário por nome (usado no fluxo de recuperação de senha)
-app.get('/usuarios/buscar', async (req, res) => {
+// Buscar usuário por nome (usado no fluxo de recuperação de senha — requer login)
+app.get('/usuarios/buscar', authMiddleware, async (req, res) => {
     try {
         const { nome } = req.query;
         if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
@@ -1647,7 +1679,7 @@ app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenado
 
 // ==================== SALDO DE PALETES ====================
 
-app.get('/api/saldo-paletes', authMiddleware, async (req, res) => {
+app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
         res.json({ success: true, registros: rows });

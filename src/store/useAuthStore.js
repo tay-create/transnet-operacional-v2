@@ -79,8 +79,8 @@ const useAuthStore = create(
                     return user.permissoesAcesso.includes(modulo);
                 }
 
-                // Usar permissões padrão do cargo (fallback)
-                return true; // Lógica será refinada conforme necessário
+                // Fallback: Coordenador tem acesso a tudo, demais cargos negado por padrão
+                return user?.cargo === 'Coordenador';
             },
 
             /**
@@ -105,7 +105,7 @@ const useAuthStore = create(
              */
             isAdmin: () => {
                 const { user } = get();
-                return user?.cargo === 'Coordenador' || user?.nome?.toLowerCase() === 'julio';
+                return user?.cargo === 'Coordenador';
             },
 
             /**

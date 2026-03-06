@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Package, RefreshCw, RotateCcw, Trash2, X, Filter } from 'lucide-react';
 import api from '../services/apiService';
 
@@ -63,13 +63,12 @@ function KpiCard({ label, valor, cor, icone }) {
 function ModalDevolucao({ registro, onClose, onConfirm }) {
     const [modo, setModo] = useState('total'); // 'total' ou 'parcial'
     const [qtdPbr, setQtdPbr] = useState(0);
-    const [qtdDesc, setQtdDesc] = useState(0);
 
     const confirmar = () => {
         if (modo === 'total') {
             onConfirm({ total: true });
         } else {
-            onConfirm({ qtd_devolvida_pbr: qtdPbr, qtd_devolvida_desc: qtdDesc });
+            onConfirm({ qtd_devolvida_pbr: qtdPbr });
         }
     };
 
@@ -95,8 +94,7 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
                 <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
                     <div style={{ fontSize: '12px', color: '#94a3b8' }}>Motorista: <strong style={{ color: '#f1f5f9' }}>{registro.motorista}</strong></div>
                     <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                        {registro.qtd_pbr > 0 && <span>PBR: <strong style={{ color: '#60a5fa' }}>{registro.qtd_pbr}</strong> </span>}
-                        {registro.qtd_descartavel > 0 && <span>Desc.: <strong style={{ color: '#c084fc' }}>{registro.qtd_descartavel}</strong></span>}
+                        PBR: <strong style={{ color: '#60a5fa' }}>{registro.qtd_pbr}</strong>
                     </div>
                 </div>
 
@@ -113,23 +111,11 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
                 </div>
 
                 {modo === 'parcial' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                        {registro.qtd_pbr > 0 && (
-                            <div>
-                                <label style={s.label}>Qtd PBR devolvidos (max: {registro.qtd_pbr})</label>
-                                <input type="number" min="0" max={registro.qtd_pbr} value={qtdPbr}
-                                    onChange={e => setQtdPbr(Math.min(Number(e.target.value), registro.qtd_pbr))}
-                                    style={s.input} />
-                            </div>
-                        )}
-                        {registro.qtd_descartavel > 0 && (
-                            <div>
-                                <label style={s.label}>Qtd Descartável devolvidos (max: {registro.qtd_descartavel})</label>
-                                <input type="number" min="0" max={registro.qtd_descartavel} value={qtdDesc}
-                                    onChange={e => setQtdDesc(Math.min(Number(e.target.value), registro.qtd_descartavel))}
-                                    style={s.input} />
-                            </div>
-                        )}
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={s.label}>Qtd PBR devolvidos (max: {registro.qtd_pbr})</label>
+                        <input type="number" min="0" max={registro.qtd_pbr} value={qtdPbr}
+                            onChange={e => setQtdPbr(Math.min(Number(e.target.value), registro.qtd_pbr))}
+                            style={s.input} />
                     </div>
                 )}
 
@@ -149,7 +135,6 @@ export default function PainelSaldoPaletes() {
     const [registros, setRegistros] = useState([]);
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState('');
-    const [filtroTipo, setFiltroTipo] = useState('TODOS');
     const [filtroStatus, setFiltroStatus] = useState('TODOS');
     const [modalDevolucao, setModalDevolucao] = useState(null);
 
@@ -189,7 +174,6 @@ export default function PainelSaldoPaletes() {
 
     // ── Filtros ──
     const filtrados = registros.filter(r => {
-        if (filtroTipo !== 'TODOS' && r.tipo_palete !== filtroTipo) return false;
         if (filtroStatus === 'PENDENTE' && r.devolvido) return false;
         if (filtroStatus === 'DEVOLVIDO' && !r.devolvido) return false;
         return true;
@@ -197,11 +181,8 @@ export default function PainelSaldoPaletes() {
 
     // ── KPIs ──
     const totalPbr = registros.reduce((acc, r) => acc + (r.qtd_pbr || 0), 0);
-    const totalDesc = registros.reduce((acc, r) => acc + (r.qtd_descartavel || 0), 0);
     const totalDevPbr = registros.reduce((acc, r) => acc + (r.qtd_devolvida_pbr || 0), 0);
-    const totalDevDesc = registros.reduce((acc, r) => acc + (r.qtd_devolvida_desc || 0), 0);
     const saldoPbr = totalPbr - totalDevPbr;
-    const saldoDesc = totalDesc - totalDevDesc;
     const pendentes = registros.filter(r => !r.devolvido).length;
 
     function formatarData(dt) {
@@ -229,20 +210,13 @@ export default function PainelSaldoPaletes() {
             {/* KPI Cards */}
             <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <KpiCard label="Saldo PBR" valor={saldoPbr} cor="#60a5fa" icone={<Package size={16} color="#60a5fa" />} />
-                <KpiCard label="Saldo Descartável" valor={saldoDesc} cor="#c084fc" icone={<Package size={16} color="#c084fc" />} />
                 <KpiCard label="Pendentes" valor={pendentes} cor="#fbbf24" icone={<RotateCcw size={16} color="#fbbf24" />} />
-                <KpiCard label="Total Devolvido" valor={totalDevPbr + totalDevDesc} cor="#4ade80" icone={<RotateCcw size={16} color="#4ade80" />} />
+                <KpiCard label="Total Devolvido" valor={totalDevPbr} cor="#4ade80" icone={<RotateCcw size={16} color="#4ade80" />} />
             </div>
 
             {/* Filtros */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
                 <Filter size={14} color="#64748b" />
-                <select style={{ ...s.select, width: 'auto', minWidth: '140px', fontSize: '12px', padding: '6px 10px' }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-                    <option value="TODOS">Todos os tipos</option>
-                    <option value="PBR">PBR</option>
-                    <option value="DESCARTAVEL">Descartável</option>
-                    <option value="MISTO">Misto</option>
-                </select>
                 <select style={{ ...s.select, width: 'auto', minWidth: '140px', fontSize: '12px', padding: '6px 10px' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
                     <option value="TODOS">Todos os status</option>
                     <option value="PENDENTE">Pendente</option>
@@ -265,7 +239,6 @@ export default function PainelSaldoPaletes() {
                                 <th style={s.th}>Placas</th>
                                 <th style={s.th}>Tipo</th>
                                 <th style={s.th}>Qtd PBR</th>
-                                <th style={s.th}>Qtd Desc.</th>
                                 <th style={s.th}>Fornecedor</th>
                                 <th style={s.th}>Status</th>
                                 <th style={s.th}>Data</th>
@@ -275,7 +248,6 @@ export default function PainelSaldoPaletes() {
                         <tbody>
                             {filtrados.map(r => {
                                 const saldoPbrRow = (r.qtd_pbr || 0) - (r.qtd_devolvida_pbr || 0);
-                                const saldoDescRow = (r.qtd_descartavel || 0) - (r.qtd_devolvida_desc || 0);
                                 return (
                                     <tr key={r.id}>
                                         <td style={s.td}>
@@ -292,14 +264,6 @@ export default function PainelSaldoPaletes() {
                                                 <div>
                                                     <span style={{ fontWeight: '700', color: '#60a5fa' }}>{saldoPbrRow}</span>
                                                     <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
-                                                </div>
-                                            ) : '—'}
-                                        </td>
-                                        <td style={s.td}>
-                                            {r.qtd_descartavel > 0 ? (
-                                                <div>
-                                                    <span style={{ fontWeight: '700', color: '#c084fc' }}>{saldoDescRow}</span>
-                                                    <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_descartavel}</span>
                                                 </div>
                                             ) : '—'}
                                         </td>

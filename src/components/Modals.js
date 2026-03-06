@@ -145,7 +145,7 @@ export const ModalRelatorio = ({
 };
 
 // --- MODAL DE FILA ---
-export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateList, onAdd, onRemove, onPromote }) => {
+export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateList, onAdd, onRemove, onPromote, unidadeUsuario }) => {
     const dragItem = React.useRef(null);
     const dragOverItem = React.useRef(null);
 
@@ -178,6 +178,14 @@ export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateLi
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3 style={{ color: '#38bdf8', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <ClipboardList size={20} /> Ordem de Separação
+                        {unidadeUsuario && (
+                            <span style={{
+                                fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '10px',
+                                background: unidadeUsuario === 'Moreno' ? 'rgba(167,139,250,0.15)' : 'rgba(56,189,248,0.15)',
+                                color: unidadeUsuario === 'Moreno' ? '#a78bfa' : '#38bdf8',
+                                border: `1px solid ${unidadeUsuario === 'Moreno' ? 'rgba(167,139,250,0.3)' : 'rgba(56,189,248,0.3)'}`
+                            }}>{unidadeUsuario}</span>
+                        )}
                     </h3>
                     <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
                 </div>
@@ -200,7 +208,7 @@ export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateLi
                                 background: 'rgba(0,0,0,0.3)',
                                 padding: '10px',
                                 borderRadius: '8px',
-                                border: '1px solid rgba(255,255,255,0.05)',
+                                border: `1px solid ${item.unidade === 'Moreno' ? 'rgba(167,139,250,0.25)' : 'rgba(255,255,255,0.05)'}`,
                                 cursor: 'grab',
                                 transition: 'all 0.2s'
                             }}
@@ -208,6 +216,14 @@ export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateLi
                             <span style={{ color: '#64748b', display: 'flex', alignItems: 'center' }} title="Arraste para organizar">
                                 <GripVertical size={20} />
                             </span>
+                            {item.unidade && (
+                                <span style={{
+                                    fontSize: '10px', fontWeight: '700', padding: '2px 7px', borderRadius: '10px', whiteSpace: 'nowrap',
+                                    background: item.unidade === 'Moreno' ? 'rgba(167,139,250,0.15)' : 'rgba(56,189,248,0.15)',
+                                    color: item.unidade === 'Moreno' ? '#a78bfa' : '#38bdf8',
+                                    border: `1px solid ${item.unidade === 'Moreno' ? 'rgba(167,139,250,0.3)' : 'rgba(56,189,248,0.3)'}`
+                                }}>{item.unidade}</span>
+                            )}
                             <input
                                 placeholder="Coleta"
                                 value={item.coleta || ''}

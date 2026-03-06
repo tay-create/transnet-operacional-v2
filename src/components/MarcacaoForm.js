@@ -53,8 +53,28 @@ export default function MarcacaoForm() {
     const [temDocumento, setTemDocumento] = useState('');
     const [modalDocs, setModalDocs] = useState(false);
     const [anexos, setAnexos] = useState({ cnh: null, doc_veiculo: null, crlv_carreta: null, antt: null, outros: null });
+    const [geoStatus, setGeoStatus] = useState('pending'); // 'pending' | 'ok' | 'negado' | 'indisponivel'
     const latRef = useRef('');
     const lngRef = useRef('');
+
+    function solicitarGeolocalizacao() {
+        if (!navigator.geolocation) {
+            setGeoStatus('indisponivel');
+            return;
+        }
+        setGeoStatus('pending');
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                latRef.current = pos.coords.latitude;
+                lngRef.current = pos.coords.longitude;
+                setGeoStatus('ok');
+            },
+            () => {
+                setGeoStatus('negado');
+            },
+            { timeout: 10000 }
+        );
+    }
 
     useEffect(() => {
         if (!token) { setBloqueado(true); setLoading(false); return; }
@@ -72,13 +92,7 @@ export default function MarcacaoForm() {
             .catch(() => { setBloqueadoMsg('Erro de conexão. Tente novamente mais tarde.'); setBloqueado(true); })
             .finally(() => setLoading(false));
 
-        // Geolocalização silenciosa
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                pos => { latRef.current = pos.coords.latitude; lngRef.current = pos.coords.longitude; },
-                () => { }
-            );
-        }
+        solicitarGeolocalizacao();
     }, [token]);
 
     function formatarTelefone(tel) {
@@ -206,6 +220,41 @@ export default function MarcacaoForm() {
         <div style={s.page}>
             <div style={s.header}>Marcação de Placas — Transnet</div>
 
+            {/* AVISO DE GEOLOCALIZAÇÃO */}
+            {geoStatus === 'negado' && (
+                <div style={{ maxWidth: '520px', margin: '16px auto 0', padding: '0 16px' }}>
+                    <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                            <span style={{ fontSize: '22px', lineHeight: 1 }}>📍</span>
+                            <div>
+                                <div style={{ fontWeight: '700', color: '#fca5a5', fontSize: '14px', marginBottom: '4px' }}>
+                                    Localização necessária
+                                </div>
+                                <div style={{ color: '#fda4af', fontSize: '13px', lineHeight: '1.5' }}>
+                                    A sua localização é obrigatória para o funcionamento do processo operacional.
+                                    Por favor, permita o acesso à localização nas configurações do seu celular e tente novamente.
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={solicitarGeolocalizacao}
+                            style={{ alignSelf: 'flex-end', padding: '8px 18px', background: '#dc2626', border: 'none', borderRadius: '8px', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                        >
+                            Tentar novamente
+                        </button>
+                    </div>
+                </div>
+            )}
+            {geoStatus === 'indisponivel' && (
+                <div style={{ maxWidth: '520px', margin: '16px auto 0', padding: '0 16px' }}>
+                    <div style={{ background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.4)', borderRadius: '10px', padding: '14px 16px', color: '#fde047', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '20px' }}>⚠️</span>
+                        <span>Geolocalização não disponível neste dispositivo. O cadastro poderá ser enviado, mas a localização não será registrada.</span>
+                    </div>
+                </div>
+            )}
+
             <form onSubmit={handleSubmit}>
 
                 {/* DADOS PRINCIPAIS */}
@@ -324,13 +373,14 @@ export default function MarcacaoForm() {
                     </div>
 
                     <div style={s.field}>
-                        <label style={s.label}>Onde você está aguardando? *</label>
+                        <label style={s.label}>Qual a sua localização? *</label>
                         <select style={s.select} value={form.disponibilidade}
                             onChange={e => set('disponibilidade', e.target.value)} required>
                             <option value="">Selecione</option>
                             <option value="EM CASA">EM CASA</option>
                             <option value="NO PÁTIO">NO PÁTIO</option>
                             <option value="NO POSTO">NO POSTO</option>
+                            <option value="NA ESTRADA">NA ESTRADA</option>
                         </select>
                     </div>
                 </div>
@@ -412,8 +462,19 @@ export default function MarcacaoForm() {
                     </div>
                 )}
 
+                {geoStatus === 'negado' && (
+                    <div style={{ maxWidth: '520px', margin: '0 auto 8px', padding: '0 16px' }}>
+                        <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#fca5a5', fontSize: '13px', textAlign: 'center' }}>
+                            ⚠️ Permita o acesso à localização para continuar.
+                        </div>
+                    </div>
+                )}
                 <div style={{ maxWidth: '520px', margin: '0 auto', padding: '0 16px' }}>
-                    <button type="submit" style={{ ...s.btnPrimary, opacity: enviando ? 0.7 : 1 }} disabled={enviando}>
+                    <button
+                        type="submit"
+                        style={{ ...s.btnPrimary, opacity: (enviando || geoStatus === 'negado') ? 0.5 : 1, cursor: geoStatus === 'negado' ? 'not-allowed' : 'pointer' }}
+                        disabled={enviando || geoStatus === 'negado'}
+                    >
                         {enviando ? 'Enviando...' : 'Confirmar Cadastro'}
                     </button>
                 </div>

@@ -208,7 +208,7 @@ export default function Sidebar({
                 )}
 
                 {/* FROTA */}
-                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO') && (
+                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE') && (
                     <>
                         <Divider label="Checklist" aberto={aberto} />
                         {(temAcesso('checklist_carreta') || ehCoordenador) && (
@@ -221,31 +221,30 @@ export default function Sidebar({
                                 onClick={() => setAbaAtiva('checklist_carreta')}
                             />
                         )}
-                        {(ehCoordenador || cargo === 'PLANEJAMENTO') && (
+                        {(ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE') && (
                             <>
                                 <MenuItem
                                     icon={<MapPin size={20} />}
                                     label="Marcação de Placas"
-
                                     subItem
                                     aberto={aberto}
                                     onClick={() => setAbaAtiva('marcacao_placas')}
                                 />
-                                <MenuItem
-                                    icon={<Package size={20} />}
-                                    label="Saldo de Paletes"
-                                    color="#fb923c"
-                                    subItem
-                                    aberto={aberto}
-                                    onClick={() => setAbaAtiva('saldo_paletes')}
-                                />
                             </>
                         )}
-                        {(temAcesso('operacao') || ehCoordenador) && (
+                        {(ehCoordenador || cargo === 'PLANEJAMENTO') && (
+                            <MenuItem
+                                icon={<Package size={20} />}
+                                label="Saldo de Paletes"
+                                subItem
+                                aberto={aberto}
+                                onClick={() => setAbaAtiva('saldo_paletes')}
+                            />
+                        )}
+                        {(temAcesso('operacao') || ehCoordenador || cargo === 'POS EMBARQUE') && (
                             <MenuItem
                                 icon={<AlertTriangle size={20} />}
                                 label="Ocorrências"
-                                color="#fbbf24"
                                 subItem
                                 aberto={aberto}
                                 onClick={() => setAbaAtiva('ocorrencias')}

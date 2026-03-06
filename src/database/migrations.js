@@ -10,7 +10,8 @@ const PERMISSOES_PADRAO = JSON.stringify({
     'Conhecimento': ['cte', 'operacao', 'ver_unidade_recife', 'ver_unidade_moreno'],
     'Cadastro': ['operacao', 'cadastro', 'ver_unidade_recife', 'ver_unidade_moreno'],
     'Dashboard Viewer': ['dashboard_tv'],
-    'Conferente': ['ver_unidade_recife', 'ver_unidade_moreno']
+    'Conferente': ['ver_unidade_recife', 'ver_unidade_moreno'],
+    'Pos Embarque': ['marcacao_placas', 'operacao', 'ver_unidade_recife', 'ver_unidade_moreno']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
@@ -20,7 +21,8 @@ const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
     'Aux. Operacional': ['operacao', 'editar_operacao_card', 'coleta_card', 'timer_solicitado', 'timer_liberado'],
     'Conhecimento': ['cte'],
     'Cadastro': [],
-    'Conferente': []
+    'Conferente': [],
+    'Pos Embarque': ['marcacao_placas']
 });
 
 const inicializarBanco = async () => {
@@ -69,6 +71,7 @@ const inicializarBanco = async () => {
             qtd_paletes INTEGER
         )`);
         // Migrações seguras para colunas novas
+        try { await dbRun(`ALTER TABLE fila ADD COLUMN IF NOT EXISTS unidade TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS is_paletizado TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS tipo_palete TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS qtd_paletes INTEGER`); } catch (_) { }

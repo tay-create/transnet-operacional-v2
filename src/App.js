@@ -143,7 +143,7 @@ function App({ socket }) {
 
     const adicionarNaFila = async (novoItem) => {
         try {
-            await api.post('/fila', novoItem);
+            await api.post('/fila', { ...novoItem, unidade: user?.cidade || 'Recife' });
             mostrarNotificacao("✅ Adicionado à Fila!")
         } catch (e) {
             console.error(e);
@@ -1009,6 +1009,7 @@ function App({ socket }) {
                     onAdd={(item) => adicionarNaFila(item)}
                     onRemove={(id) => removerDaFila(id)}
                     onPromote={promoverFilaOperacao}
+                    unidadeUsuario={user?.cargo !== 'Coordenador' ? user?.cidade : null}
                 />
 
 
