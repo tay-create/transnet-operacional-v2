@@ -199,3 +199,109 @@ export const gerarPDFCompacto = (item) => {
     // Download automático
     doc.save(nomeArquivo);
 };
+
+/**
+ * Gera PDF do relatório de Saldo de Paletes PBR
+ * @param {Array} registros - Lista de registros do saldo
+ * @param {Object} kpis - { totalPbr, saldoPbr, totalDevPbr, pendentes }
+ */
+export const gerarPDFPaletes = (registros, kpis) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const dataArquivo = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+
+    const W = 210;
+    const ML = 14;
+    const MR = W - ML;
+    let y = 14;
+
+    // ── Cabeçalho ──
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, W, 28, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(96, 165, 250);
+    doc.text('TRANSNET', ML, y + 4);
+    doc.setFontSize(11);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Relatório de Saldo de Paletes PBR', ML, y + 11);
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Gerado em: ${hoje}`, MR, y + 11, { align: 'right' });
+    y = 36;
+
+    // ── KPI Summary ──
+    const kpiItems = [
+        { label: 'SALDO PBR', valor: String(kpis.saldoPbr ?? 0), cor: [59, 130, 246] },
+        { label: 'TOTAL SAÍDAS', valor: String(kpis.totalPbr ?? 0), cor: [100, 116, 139] },
+        { label: 'DEVOLVIDOS', valor: String(kpis.totalDevPbr ?? 0), cor: [34, 197, 94] },
+        { label: 'PENDENTES', valor: String(kpis.pendentes ?? 0), cor: [245, 158, 11] },
+    ];
+    const kpiW = (MR - ML) / 4;
+    kpiItems.forEach((k, i) => {
+        const x = ML + i * kpiW;
+        doc.setFillColor(15, 23, 42);
+        doc.roundedRect(x, y, kpiW - 3, 22, 2, 2, 'F');
+        doc.setFillColor(...k.cor);
+        doc.rect(x, y, kpiW - 3, 1.5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(71, 85, 105);
+        doc.text(k.label, x + (kpiW - 3) / 2, y + 8, { align: 'center' });
+        doc.setFontSize(18);
+        doc.setTextColor(...k.cor);
+        doc.text(k.valor, x + (kpiW - 3) / 2, y + 18, { align: 'center' });
+    });
+    y += 30;
+
+    // ── Tabela ──
+    const cabecalhos = ['Motorista', 'Placa Cavalo', 'Placa Carreta', 'Fornecedor', 'Qtd PBR', 'Saldo', 'Status', 'Data Entrada'];
+    const linhas = (registros || []).map(r => {
+        const saldo = (r.qtd_pbr || 0) - (r.qtd_devolvida_pbr || 0);
+        const dtEntrada = r.data_entrada ? new Date(r.data_entrada.endsWith('Z') ? r.data_entrada : r.data_entrada + 'Z').toLocaleDateString('pt-BR') : '—';
+        return [
+            r.motorista || '—',
+            r.placa_cavalo || '—',
+            r.placa_carreta || '—',
+            r.fornecedor_pbr || '—',
+            String(r.qtd_pbr || 0),
+            String(saldo),
+            r.devolvido ? 'Devolvido' : 'Pendente',
+            dtEntrada
+        ];
+    });
+
+    doc.autoTable({
+        startY: y,
+        head: [cabecalhos],
+        body: linhas,
+        margin: { left: ML, right: ML },
+        styles: { fontSize: 8, cellPadding: 3, textColor: [226, 232, 240], fillColor: [15, 23, 42], lineColor: [30, 41, 59], lineWidth: 0.3 },
+        headStyles: { fillColor: [30, 58, 138], textColor: [147, 197, 253], fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: [20, 30, 50] },
+        columnStyles: {
+            4: { halign: 'center' },
+            5: { halign: 'center' },
+            6: { halign: 'center' },
+        },
+        didParseCell: (data) => {
+            if (data.column.index === 6 && data.section === 'body') {
+                const val = data.cell.raw;
+                data.cell.styles.textColor = val === 'Devolvido' ? [74, 222, 128] : [251, 191, 36];
+            }
+        }
+    });
+
+    // ── Rodapé ──
+    const totalPags = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPags; p++) {
+        doc.setPage(p);
+        const yFoot = doc.internal.pageSize.height - 8;
+        doc.setFontSize(7);
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Transnet Logística — ${hoje}`, ML, yFoot);
+        doc.text(`Página ${p} / ${totalPags}`, MR, yFoot, { align: 'right' });
+    }
+
+    doc.save(`saldo-paletes-${dataArquivo}.pdf`);
+};

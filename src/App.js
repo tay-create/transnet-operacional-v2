@@ -244,15 +244,20 @@ function App({ socket }) {
         }
     }, [updateUser]);
 
-    // --- USE EFFECT (Com Filtro de Permissões) ---
+    // --- USE EFFECT: carregamento inicial de dados (só na montagem / logout) ---
     useEffect(() => {
-        if (!logado) return; // TRAVA DE EXECUÇÃO: não buscar dados se não estiver logado
-
+        if (!logado) return;
         carregarPermissoes();
         carregarVeiculos();
         carregarNotificacoes();
         carregarFila();
         carregarCtes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [logado]);
+
+    // --- USE EFFECT: registro de listeners Socket.IO ---
+    useEffect(() => {
+        if (!logado) return;
 
         socket.on('connect', () => console.log("🟢 Socket Conectado:", socket.id));
         socket.on('disconnect', () => console.log("🔴 Socket Desconectado"));
@@ -263,7 +268,6 @@ function App({ socket }) {
             const meuCargo = userRef.current?.cargo || '';
             if (d.cargos_alvo && d.cargos_alvo.includes(meuCargo)) {
                 mostrarNotificacaoRef.current(`🔔 ${d.mensagem}`);
-                // Adicionar ao sininho também respeitando o ID do servidor
                 adicionarNotificacao({
                     ...d,
                     idInterno: d.idInterno || ('dir_' + Date.now()),
@@ -326,7 +330,7 @@ function App({ socket }) {
             socket.off('cadastro_situacao_atualizada');
             socket.off('programacao_gerada');
         };
-    }, [handleReceberAlerta, handleReceberAtualizacao, carregarNotificacoes, carregarPermissoes, adicionarNotificacao, socket, logado]);
+    }, [handleReceberAlerta, handleReceberAtualizacao, adicionarNotificacao, socket, logado]);
 
     // Busca veiculos do banco SQLite
     const carregarVeiculos = async () => {
@@ -490,6 +494,7 @@ function App({ socket }) {
             data_entrada_cte: new Date().toLocaleDateString('pt-BR'),
             t_fim_liberado_cte: temposVeic.t_fim_liberado_cte || null,
             numero_liberacao: dadosVeiculo.numero_liberacao || '',
+            data_liberacao: dadosVeiculo.data_liberacao || null,
             timestamps: { criado_em: new Date().toISOString(), inicio_emissao: '', fim_emissao: '' }
         };
 

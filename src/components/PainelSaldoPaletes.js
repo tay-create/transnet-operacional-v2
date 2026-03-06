@@ -1,67 +1,89 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Package, RefreshCw, RotateCcw, Trash2, X, Filter } from 'lucide-react';
+import { Package, RefreshCw, RotateCcw, Trash2, X, Filter, FileDown, TrendingUp, Clock } from 'lucide-react';
 import api from '../services/apiService';
+import { gerarPDFPaletes } from '../utils/pdfGenerator';
 
-// ── Estilos reutilizados do padrão GestaoMarcacoes ──────────────────────────
+// ── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
-    wrap: { padding: '10px 0' },
-    card: { background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '20px', marginBottom: '16px' },
+    wrap: { padding: '0 0 40px 0', minHeight: '100vh', background: 'linear-gradient(180deg, #0a0f1e 0%, #0f172a 100%)' },
+    header: {
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        borderBottom: '1px solid rgba(59,130,246,0.2)',
+        padding: '24px 28px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+    },
+    body: { padding: '24px 28px' },
+    kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' },
+    kpiCard: (cor) => ({
+        background: 'rgba(255,255,255,0.03)',
+        backdropFilter: 'blur(8px)',
+        border: `1px solid ${cor}33`,
+        borderTop: `3px solid ${cor}`,
+        borderRadius: '14px',
+        padding: '18px 20px',
+        position: 'relative',
+        overflow: 'hidden'
+    }),
+    tableWrap: {
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: '14px',
+        overflow: 'hidden'
+    },
+    tableHeader: {
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '16px 20px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)'
+    },
     label: { fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' },
     input: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none', boxSizing: 'border-box', width: '100%' },
-    select: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none', boxSizing: 'border-box', width: '100%', cursor: 'pointer' },
+    select: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 12px', color: '#f1f5f9', fontSize: '13px', outline: 'none', cursor: 'pointer' },
     btn: (color) => ({
         display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
         borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
-        background: color === 'blue' ? '#2563eb' : color === 'red' ? 'rgba(239,68,68,0.15)' : color === 'green' ? 'rgba(34,197,94,0.15)' : color === 'amber' ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.07)',
-        color: color === 'blue' ? '#fff' : color === 'red' ? '#f87171' : color === 'green' ? '#4ade80' : color === 'amber' ? '#fbbf24' : '#94a3b8',
-        border: color === 'red' ? '1px solid rgba(239,68,68,0.25)' : color === 'green' ? '1px solid rgba(34,197,94,0.25)' : color === 'amber' ? '1px solid rgba(251,191,36,0.25)' : '1px solid rgba(255,255,255,0.08)',
+        background: color === 'blue' ? '#2563eb' : color === 'red' ? 'rgba(239,68,68,0.15)' : color === 'green' ? 'rgba(34,197,94,0.15)' : color === 'amber' ? 'rgba(251,191,36,0.15)' : color === 'indigo' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.07)',
+        color: color === 'blue' ? '#fff' : color === 'red' ? '#f87171' : color === 'green' ? '#4ade80' : color === 'amber' ? '#fbbf24' : color === 'indigo' ? '#a5b4fc' : '#94a3b8',
+        border: color === 'red' ? '1px solid rgba(239,68,68,0.25)' : color === 'green' ? '1px solid rgba(34,197,94,0.25)' : color === 'amber' ? '1px solid rgba(251,191,36,0.25)' : color === 'indigo' ? '1px solid rgba(99,102,241,0.25)' : '1px solid rgba(255,255,255,0.08)',
         transition: 'all 0.2s'
     }),
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-    th: { padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.07)', color: '#64748b', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' },
-    td: { padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', verticalAlign: 'middle' },
+    th: { padding: '10px 16px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.07)', color: '#475569', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', background: 'rgba(0,0,0,0.2)' },
+    td: { padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', verticalAlign: 'middle' },
     badge: (devolvido) => ({
         display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
         background: devolvido ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.12)',
         color: devolvido ? '#4ade80' : '#fbbf24',
         border: `1px solid ${devolvido ? 'rgba(34,197,94,0.25)' : 'rgba(251,191,36,0.25)'}`
     }),
-    badgeTipo: (tipo) => ({
+    badgeTipo: () => ({
         display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-        background: tipo === 'PBR' ? 'rgba(59,130,246,0.12)' : tipo === 'DESCARTAVEL' ? 'rgba(168,85,247,0.12)' : 'rgba(251,146,60,0.12)',
-        color: tipo === 'PBR' ? '#60a5fa' : tipo === 'DESCARTAVEL' ? '#c084fc' : '#fb923c',
-        border: `1px solid ${tipo === 'PBR' ? 'rgba(59,130,246,0.25)' : tipo === 'DESCARTAVEL' ? 'rgba(168,85,247,0.25)' : 'rgba(251,146,60,0.25)'}`
+        background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)'
     }),
-    empty: { textAlign: 'center', padding: '40px', color: '#475569', fontSize: '14px' },
+    empty: { textAlign: 'center', padding: '60px 20px', color: '#475569', fontSize: '14px' },
     toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, valor, cor, icone }) {
+function KpiCard({ label, valor, cor, sub, icone }) {
     return (
-        <div style={{
-            background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)',
-            borderRadius: '12px', padding: '16px 20px', flex: 1, minWidth: '160px',
-            position: 'relative', overflow: 'hidden'
-        }}>
-            <div style={{
-                position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px',
-                borderRadius: '50%', background: cor, opacity: 0.06
-            }} />
-            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+        <div style={s.kpiCard(cor)}>
+            <div style={{ position: 'absolute', bottom: '-12px', right: '-12px', opacity: 0.08 }}>
+                {icone && <div style={{ transform: 'scale(3)', color: cor }}>{icone}</div>}
+            </div>
+            <div style={{ fontSize: '10px', color: '#475569', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
                 {label}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '28px', fontWeight: '800', color: cor, fontFamily: "'Courier New', monospace" }}>{valor}</span>
-                {icone}
+            <div style={{ fontSize: '36px', fontWeight: '900', color: cor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {valor}
             </div>
+            {sub && <div style={{ fontSize: '11px', color: '#475569', marginTop: '6px' }}>{sub}</div>}
         </div>
     );
 }
 
 // ── Modal de Devolução ──────────────────────────────────────────────────────
 function ModalDevolucao({ registro, onClose, onConfirm }) {
-    const [modo, setModo] = useState('total'); // 'total' ou 'parcial'
+    const [modo, setModo] = useState('total');
     const [qtdPbr, setQtdPbr] = useState(0);
 
     const confirmar = () => {
@@ -74,7 +96,7 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
 
     return (
         <div onClick={onClose} style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
             zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
         }}>
             <div onClick={e => e.stopPropagation()} style={{
@@ -98,16 +120,9 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
                     </div>
                 </div>
 
-                {/* Opções */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                    <button
-                        style={{ ...s.btn(modo === 'total' ? 'green' : undefined), flex: 1 }}
-                        onClick={() => setModo('total')}
-                    >Total</button>
-                    <button
-                        style={{ ...s.btn(modo === 'parcial' ? 'amber' : undefined), flex: 1 }}
-                        onClick={() => setModo('parcial')}
-                    >Quantos?</button>
+                    <button style={{ ...s.btn(modo === 'total' ? 'green' : undefined), flex: 1 }} onClick={() => setModo('total')}>Total</button>
+                    <button style={{ ...s.btn(modo === 'parcial' ? 'amber' : undefined), flex: 1 }} onClick={() => setModo('parcial')}>Quantos?</button>
                 </div>
 
                 {modo === 'parcial' && (
@@ -191,107 +206,160 @@ export default function PainelSaldoPaletes() {
         return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
+    const handleExportarPDF = () => {
+        gerarPDFPaletes(registros, { totalPbr, saldoPbr, totalDevPbr, pendentes });
+        mostrarToast('📄 PDF gerado!');
+    };
+
     return (
         <div style={s.wrap}>
             {toast && <div style={s.toast}>{toast}</div>}
             {modalDevolucao && <ModalDevolucao registro={modalDevolucao} onClose={() => setModalDevolucao(null)} onConfirm={registrarDevolucao} />}
 
-            {/* Título */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Package size={22} color="#60a5fa" />
-                    <span style={{ fontSize: '20px', fontWeight: '700', color: '#f1f5f9' }}>Saldo de Paletes</span>
+            {/* Header */}
+            <div style={s.header}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: '10px', padding: '8px', display: 'flex' }}>
+                        <Package size={22} color="#60a5fa" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#f1f5f9' }}>Saldo de Paletes PBR</div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{registros.length} registros totais</div>
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <button style={s.btn()} onClick={carregar}><RefreshCw size={14} /> Atualizar</button>
+                    <button style={s.btn('indigo')} onClick={handleExportarPDF}>
+                        <FileDown size={14} /> Exportar PDF
+                    </button>
+                    <button style={s.btn()} onClick={carregar}>
+                        <RefreshCw size={14} /> Atualizar
+                    </button>
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                <KpiCard label="Saldo PBR" valor={saldoPbr} cor="#60a5fa" icone={<Package size={16} color="#60a5fa" />} />
-                <KpiCard label="Pendentes" valor={pendentes} cor="#fbbf24" icone={<RotateCcw size={16} color="#fbbf24" />} />
-                <KpiCard label="Total Devolvido" valor={totalDevPbr} cor="#4ade80" icone={<RotateCcw size={16} color="#4ade80" />} />
-            </div>
+            <div style={s.body}>
+                {/* KPI Grid */}
+                <div style={s.kpiGrid}>
+                    <KpiCard
+                        label="Saldo PBR"
+                        valor={saldoPbr}
+                        cor="#3b82f6"
+                        sub={`de ${totalPbr} emitidos`}
+                        icone={<Package size={16} />}
+                    />
+                    <KpiCard
+                        label="Total Saídas"
+                        valor={totalPbr}
+                        cor="#94a3b8"
+                        sub="paletes emitidos"
+                        icone={<TrendingUp size={16} />}
+                    />
+                    <KpiCard
+                        label="Devolvidos"
+                        valor={totalDevPbr}
+                        cor="#22c55e"
+                        sub="paletes retornados"
+                        icone={<RotateCcw size={16} />}
+                    />
+                    <KpiCard
+                        label="Pendentes"
+                        valor={pendentes}
+                        cor="#f59e0b"
+                        sub="aguardando devolução"
+                        icone={<Clock size={16} />}
+                    />
+                </div>
 
-            {/* Filtros */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
-                <Filter size={14} color="#64748b" />
-                <select style={{ ...s.select, width: 'auto', minWidth: '140px', fontSize: '12px', padding: '6px 10px' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
-                    <option value="TODOS">Todos os status</option>
-                    <option value="PENDENTE">Pendente</option>
-                    <option value="DEVOLVIDO">Devolvido</option>
-                </select>
-                <span style={{ fontSize: '12px', color: '#64748b', marginLeft: 'auto' }}>{filtrados.length} registros</span>
-            </div>
+                {/* Tabela */}
+                <div style={s.tableWrap}>
+                    <div style={s.tableHeader}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Filter size={14} color="#64748b" />
+                            <select style={s.select} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+                                <option value="TODOS">Todos os status</option>
+                                <option value="PENDENTE">Pendente</option>
+                                <option value="DEVOLVIDO">Devolvido</option>
+                            </select>
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#475569' }}>{filtrados.length} registros</span>
+                    </div>
 
-            {/* Tabela */}
-            {loading ? (
-                <div style={s.empty}>Carregando...</div>
-            ) : filtrados.length === 0 ? (
-                <div style={s.empty}>Nenhum registro encontrado.</div>
-            ) : (
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={s.table}>
-                        <thead>
-                            <tr>
-                                <th style={s.th}>Motorista</th>
-                                <th style={s.th}>Placas</th>
-                                <th style={s.th}>Tipo</th>
-                                <th style={s.th}>Qtd PBR</th>
-                                <th style={s.th}>Fornecedor</th>
-                                <th style={s.th}>Status</th>
-                                <th style={s.th}>Data</th>
-                                <th style={s.th}>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtrados.map(r => {
-                                const saldoPbrRow = (r.qtd_pbr || 0) - (r.qtd_devolvida_pbr || 0);
-                                return (
-                                    <tr key={r.id}>
-                                        <td style={s.td}>
-                                            <div style={{ fontWeight: '600' }}>{r.motorista}</div>
-                                            {r.telefone && <div style={{ fontSize: '11px', color: '#64748b' }}>{r.telefone}</div>}
-                                        </td>
-                                        <td style={s.td}>
-                                            <div style={{ fontSize: '12px' }}>{r.placa_cavalo || '—'}</div>
-                                            {r.placa_carreta && <div style={{ fontSize: '11px', color: '#64748b' }}>{r.placa_carreta}</div>}
-                                        </td>
-                                        <td style={s.td}><span style={s.badgeTipo(r.tipo_palete)}>{r.tipo_palete}</span></td>
-                                        <td style={s.td}>
-                                            {r.qtd_pbr > 0 ? (
-                                                <div>
-                                                    <span style={{ fontWeight: '700', color: '#60a5fa' }}>{saldoPbrRow}</span>
-                                                    <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
-                                                </div>
-                                            ) : '—'}
-                                        </td>
-                                        <td style={s.td}>{r.fornecedor_pbr || '—'}</td>
-                                        <td style={s.td}><span style={s.badge(r.devolvido)}>{r.devolvido ? 'Devolvido' : 'Pendente'}</span></td>
-                                        <td style={s.td}>
-                                            <div style={{ fontSize: '12px' }}>{formatarData(r.data_entrada)}</div>
-                                            {r.data_devolucao && <div style={{ fontSize: '10px', color: '#4ade80' }}>Dev: {formatarData(r.data_devolucao)}</div>}
-                                        </td>
-                                        <td style={s.td}>
-                                            <div style={{ display: 'flex', gap: '6px' }}>
-                                                {!r.devolvido && (
-                                                    <button style={s.btn('green')} onClick={() => setModalDevolucao(r)} title="Registrar devolução">
-                                                        <RotateCcw size={13} /> Devolver
-                                                    </button>
-                                                )}
-                                                <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluir(r.id)} title="Excluir">
-                                                    <Trash2 size={13} />
-                                                </button>
-                                            </div>
-                                        </td>
+                    {loading ? (
+                        <div style={s.empty}>
+                            <RefreshCw size={20} color="#3b82f6" style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+                            <br />Carregando...
+                        </div>
+                    ) : filtrados.length === 0 ? (
+                        <div style={s.empty}>
+                            <Package size={40} color="#1e293b" style={{ marginBottom: '12px' }} />
+                            <div>Nenhum registro encontrado.</div>
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={s.table}>
+                                <thead>
+                                    <tr>
+                                        <th style={s.th}>Motorista</th>
+                                        <th style={s.th}>Placas</th>
+                                        <th style={s.th}>Tipo</th>
+                                        <th style={s.th}>Qtd PBR</th>
+                                        <th style={s.th}>Fornecedor</th>
+                                        <th style={s.th}>Status</th>
+                                        <th style={s.th}>Data Entrada</th>
+                                        <th style={s.th}>Ações</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody>
+                                    {filtrados.map((r, idx) => {
+                                        const saldoPbrRow = (r.qtd_pbr || 0) - (r.qtd_devolvida_pbr || 0);
+                                        return (
+                                            <tr key={r.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                                                <td style={s.td}>
+                                                    <div style={{ fontWeight: '600' }}>{r.motorista}</div>
+                                                    {r.telefone && <div style={{ fontSize: '11px', color: '#64748b' }}>{r.telefone}</div>}
+                                                </td>
+                                                <td style={s.td}>
+                                                    <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: '700' }}>{r.placa_cavalo || '—'}</div>
+                                                    {r.placa_carreta && <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>{r.placa_carreta}</div>}
+                                                </td>
+                                                <td style={s.td}><span style={s.badgeTipo()}>{r.tipo_palete}</span></td>
+                                                <td style={s.td}>
+                                                    {r.qtd_pbr > 0 ? (
+                                                        <div>
+                                                            <span style={{ fontWeight: '800', color: saldoPbrRow > 0 ? '#60a5fa' : '#4ade80', fontSize: '15px' }}>{saldoPbrRow}</span>
+                                                            <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
+                                                        </div>
+                                                    ) : '—'}
+                                                </td>
+                                                <td style={s.td}><span style={{ fontSize: '12px', color: '#94a3b8' }}>{r.fornecedor_pbr || '—'}</span></td>
+                                                <td style={s.td}><span style={s.badge(r.devolvido)}>{r.devolvido ? '✓ Devolvido' : '⏳ Pendente'}</span></td>
+                                                <td style={s.td}>
+                                                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>{formatarData(r.data_entrada)}</div>
+                                                    {r.data_devolucao && <div style={{ fontSize: '10px', color: '#4ade80' }}>Dev: {formatarData(r.data_devolucao)}</div>}
+                                                </td>
+                                                <td style={s.td}>
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                        {!r.devolvido && (
+                                                            <button style={s.btn('green')} onClick={() => setModalDevolucao(r)} title="Registrar devolução">
+                                                                <RotateCcw size={13} /> Devolver
+                                                            </button>
+                                                        )}
+                                                        <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluir(r.id)} title="Excluir">
+                                                            <Trash2 size={13} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
-            )}
+            </div>
+
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }

@@ -531,6 +531,11 @@ module.exports = function createChecklistsRouter(io) {
                 [JSON.stringify(tempos), JSON.stringify(ts), veiculoId]
             );
 
+            // Buscar veículo atualizado para emitir payload completo
+            const veiculoAtualizado = await dbGet('SELECT * FROM veiculos WHERE id = ?', [veiculoId]);
+            let dadosJsonAtual = {};
+            try { dadosJsonAtual = JSON.parse(veiculoAtualizado?.dados_json || '{}'); } catch { }
+
             // Emitir notificações
             io.emit('conferente_liberar_carregamento', {
                 veiculoId,
@@ -538,7 +543,21 @@ module.exports = function createChecklistsRouter(io) {
                 placa: veiculo.placa,
                 doca: veiculo[docaField]
             });
-            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: veiculoId });
+            io.emit('receber_atualizacao', {
+                tipo: 'atualiza_veiculo',
+                id: Number(veiculoId),
+                ...(veiculoAtualizado || {}),
+                rotaRecife: veiculoAtualizado?.rota_recife || '',
+                rotaMoreno: veiculoAtualizado?.rota_moreno || '',
+                coletaRecife: veiculoAtualizado?.coletarecife || '',
+                coletaMoreno: veiculoAtualizado?.coletamoreno || '',
+                tempos_recife: (() => { try { return JSON.parse(veiculoAtualizado?.tempos_recife || '{}'); } catch { return {}; } })(),
+                tempos_moreno: (() => { try { return JSON.parse(veiculoAtualizado?.tempos_moreno || '{}'); } catch { return {}; } })(),
+                timestamps_status: (() => { try { return JSON.parse(veiculoAtualizado?.timestamps_status || '{}'); } catch { return {}; } })(),
+                placa1Motorista: dadosJsonAtual.placa1Motorista || '',
+                placa2Motorista: dadosJsonAtual.placa2Motorista || '',
+                telefoneMotorista: dadosJsonAtual.telefoneMotorista || '',
+            });
             io.emit('enviar_alerta', {
                 tipo: 'aviso',
                 origem: cidade,

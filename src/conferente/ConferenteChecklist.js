@@ -348,9 +348,12 @@ export default function ConferenteChecklist({ socket }) {
         const handler = () => carregarVeiculos();
         socket.on('receber_atualizacao', handler);
         socket.on('conferente_novo_veiculo', handler);
+        // Quando o Cadastro libera/atualiza situação do motorista, recarregar para refletir o novo status
+        socket.on('cadastro_situacao_atualizada', handler);
         return () => {
             socket.off('receber_atualizacao', handler);
             socket.off('conferente_novo_veiculo', handler);
+            socket.off('cadastro_situacao_atualizada', handler);
         };
     }, [socket, carregarVeiculos]);
 

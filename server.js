@@ -17,6 +17,17 @@ const cron = require('node-cron');
 const { authMiddleware, authorize, generateToken } = require('./middleware/authMiddleware');
 const { validate, loginSchema, novoLancamentoSchema, cubagemSchema, cadastroUsuarioSchema } = require('./middleware/validationMiddleware');
 
+// ── Logger seguro: suprime dados sensíveis em produção ────────────────────────
+const IS_PROD = process.env.NODE_ENV === 'production';
+const logger = {
+    info: (...args) => { if (!IS_PROD) console.log(...args); },
+    warn: (...args) => console.warn(...args),   // avisos sempre visíveis
+    error: (...args) => console.error(...args), // erros sempre visíveis
+    audit: (acao, alvo) => {                    // log de auditoria seguro (sem PII)
+        console.log(`[AUDIT] ${acao} | alvo: ${alvo}`);
+    }
+};
+
 const app = express();
 
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
@@ -54,14 +65,26 @@ const marcacaoPublicaLimiter = rateLimit({
     message: { success: false, message: 'Limite de requisições atingido. Aguarde alguns minutos.' }
 });
 
+// ── Rate limiting: solicitações de cadastro (5 por hora por IP) ──────────────
+const solicitacoesLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Muitas solicitações. Tente novamente em 1 hora.' }
+});
+
 // Aumenta o limite para aceitar imagens em Base64 grandes
 const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '10mb';
 app.use(bodyParser.json({ limit: MAX_FILE_SIZE }));
-app.use(cors());
+
+// ── CORS: restrito ao frontend (defina FRONTEND_URL no .env em produção) ─────
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST", "PUT", "DELETE"] }
+    cors: { origin: ALLOWED_ORIGIN, methods: ["GET", "POST", "PUT", "DELETE"], credentials: true }
 });
 
 const { dbRun, dbAll, dbGet, dbTransaction } = require('./src/database/db');
@@ -134,7 +157,8 @@ app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador'])
         const senhaTemp = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
         const hashedPassword = await bcrypt.hash(senhaTemp, 10);
         await dbRun("UPDATE usuarios SET senha = ? WHERE id = ?", [hashedPassword, req.params.id]);
-        console.log(`🔑 Senha resetada para: ${usuario.email} (ID ${req.params.id})`);
+        // [FIX-6] Não loga email em produção — apenas ID para auditoria
+        logger.audit('RESET_SENHA', `ID:${req.params.id}`);
         res.json({ success: true, message: `Senha de ${usuario.nome} resetada.`, senhaTemp });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
@@ -145,11 +169,24 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
     const { avatarUrl } = req.body;
     const userId = Number(req.params.id);
 
-    console.log(`📸 [Avatar] Solicitado update para usuário ${userId}`);
+    // [FIX-5] Validar formato do avatarUrl: aceita apenas Base64 ou URL HTTPS
+    if (avatarUrl) {
+        const isBase64 = typeof avatarUrl === 'string' && avatarUrl.startsWith('data:image/');
+        const isHttpsUrl = typeof avatarUrl === 'string' && /^https:\/\/.+/.test(avatarUrl);
+        if (!isBase64 && !isHttpsUrl) {
+            return res.status(400).json({ success: false, message: 'Formato de avatar inválido. Use Base64 ou URL HTTPS.' });
+        }
+        // Limite de tamanho para Base64 (previne DoS por upload gigante)
+        if (isBase64 && avatarUrl.length > 5 * 1024 * 1024) { // 5MB
+            return res.status(413).json({ success: false, message: 'Imagem muito grande. Máximo: 5MB.' });
+        }
+    }
+
+    logger.info(`📸 [Avatar] Solicitado update para usuário ${userId}`);
 
     // Usuário só pode alterar o próprio avatar, ou Coordenador altera qualquer um
     if (req.user.id !== userId && req.user.cargo !== 'Coordenador') {
-        console.warn(`🚫 [Avatar] Acesso negado para usuário ${req.user.id} tentando alterar o de ${userId}`);
+        logger.warn(`🚫 [Avatar] Acesso negado: usuário ${req.user.id} tentando alterar avatar de ${userId}`);
         return res.status(403).json({ success: false, message: 'Acesso negado' });
     }
 
@@ -157,7 +194,7 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
         // No PostgreSQL, avatarUrl se torna avatarurl se não for citado
         await dbRun("UPDATE usuarios SET avatarUrl = ? WHERE id = ?", [avatarUrl, userId]);
 
-        console.log(`✅ [Avatar] Foto atualizada no banco para usuário ${userId}`);
+        logger.audit('AVATAR_ATUALIZADO', `ID:${userId}`);
 
         io.emit('receber_atualizacao', {
             tipo: 'avatar_mudou',
@@ -167,7 +204,7 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
 
         res.json({ success: true });
     } catch (e) {
-        console.error("❌ [Avatar] Erro ao salvar foto:", e);
+        logger.error("❌ [Avatar] Erro ao salvar foto:", e);
         res.status(500).json({ success: false, message: 'Erro ao salvar foto no servidor' });
     }
 });
@@ -932,7 +969,16 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conh
         const rows = await dbAll("SELECT * FROM ctes_ativos ORDER BY id ASC");
         const lista = rows.map(row => {
             try {
-                return { ...JSON.parse(row.dados_json), id: row.id, origem: row.origem, status: row.status };
+                const dados = JSON.parse(row.dados_json);
+                return {
+                    ...dados,
+                    id: row.id,
+                    origem: row.origem,
+                    status: row.status,
+                    // Garantir que data_liberacao sempre está presente no objeto
+                    data_liberacao: dados.data_liberacao || null,
+                    numero_liberacao: dados.numero_liberacao || ''
+                };
             } catch (_) {
                 return { id: row.id, origem: row.origem, status: row.status };
             }
@@ -1103,11 +1149,14 @@ app.use('/', require('./src/routes/auth'));
 app.get('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { try { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); } catch (e) { res.status(500).json({ success: false }); } });
 app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); enviarNotificacao('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas', data_criacao: new Date().toISOString() }); res.json({ success: true }); });
 app.get('/solicitacoes', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { try { const s = await dbAll("SELECT * FROM solicitacoes"); res.json({ success: true, solicitacoes: s }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/solicitacoes', async (req, res) => {
+app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
     try {
         const { nome, emailPrefix, unidade, senha } = req.body;
         if (!nome || !emailPrefix || !senha) {
             return res.status(400).json({ success: false, message: 'Campos obrigatórios faltando.' });
+        }
+        if (!/^[a-zA-Z0-9._+-]+$/.test(emailPrefix)) {
+            return res.status(400).json({ success: false, message: 'Prefixo de e-mail inválido.' });
         }
         const senhaHash = await bcrypt.hash(senha || '123456', 10);
         await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
