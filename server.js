@@ -138,6 +138,11 @@ async function enviarNotificacao(evento, dados) {
     }
 }
 
+// ── Servir arquivos estáticos do Frontend em produção ─────────────────────
+if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.join(__dirname, 'build')));
+}
+
 // Registrar rotas após io e registrarLog estarem definidos
 const veiculosRouter = require('./src/routes/veiculos')(io, registrarLog);
 app.use('/veiculos', veiculosRouter);
@@ -1794,6 +1799,14 @@ app.use((err, req, res, next) => {
         message: 'Ocorreu um erro interno no servidor. A equipe técnica foi notificada.'
     });
 });
+
+// ── Fallback para React (SPA) ────────────────────────────────────────────────
+// Deve ser uma das últimas rotas para não interferir nas rotas da API
+if (process.env.NODE_ENV === 'production') {
+    app.get('/*splat', (req, res) => {
+        res.sendFile(path.join(__dirname, 'build', 'index.html'));
+    });
+}
 
 server.listen(PORT, () => {
     console.log(`\n🚀 SERVIDOR RODANDO NA PORTA ${PORT}`);
