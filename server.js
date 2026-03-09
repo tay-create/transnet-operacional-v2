@@ -30,6 +30,9 @@ const logger = {
 
 const app = express();
 
+// ── Trust proxy: necessário para rate limit funcionar atrás de Cloudflare/Nginx
+app.set('trust proxy', 1);
+
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
 app.use(helmet({
     crossOriginEmbedderPolicy: false,
