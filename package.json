@@ -61,10 +61,7 @@
     "main": "electron/main.js",
     "files": [
       "build/**/*",
-      "electron/**/*",
-      "server.js",
-      "middleware/**/*",
-      "tnetlog.db",
+      "electron/main.js",
       "node_modules/**/*"
     ],
     "win": {
