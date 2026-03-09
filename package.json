@@ -58,15 +58,16 @@
   "build": {
     "appId": "com.transnet.operacional",
     "productName": "Transnet Operacional",
-    "main": "electron/main.js",
+    "extends": null,
     "files": [
-      "build/**/*",
       "electron/main.js",
       "node_modules/**/*"
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico"
+      "icon": "public/logo512.png",
+      "signAndEditExecutable": false,
+      "signingHashAlgorithms": null
     },
     "nsis": {
       "oneClick": false,
@@ -93,7 +94,7 @@
   },
   "proxy": "http://localhost:3001",
   "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
-  "main": "server.js",
+  "main": "electron/main.js",
   "overrides": {
     "nth-check": "^2.0.1",
     "jsonpath": "^1.1.1",
