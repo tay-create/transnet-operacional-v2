@@ -27,6 +27,22 @@ export default function ConferenteApp({ socket }) {
     const { page, selectedVeiculo, toasts, addToast, removeToast } = useConferenteStore();
     const user = useAuthStore(state => state.user);
 
+    // PWA: usar manifest e título dedicados ao conferente
+    useEffect(() => {
+        document.title = 'Conferente — Transnet';
+        let link = document.querySelector("link[rel='manifest']");
+        if (!link) {
+            link = document.createElement('link');
+            link.rel = 'manifest';
+            document.head.appendChild(link);
+        }
+        link.href = '/conferente-manifest.json';
+        return () => {
+            document.title = 'Transnet Operacional';
+            if (link) link.href = '/manifest.json';
+        };
+    }, []);
+
     // Auto-remover toasts após 5 segundos
     useEffect(() => {
         if (toasts.length === 0) return;
