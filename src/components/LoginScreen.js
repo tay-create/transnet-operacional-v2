@@ -12,6 +12,7 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
     const [erro, setErro] = useState('');
     const [loading, setLoading] = useState(false);
     const [aviso, setAviso] = useState('');
+    const [manterConectado, setManterConectado] = useState(false);
     const { validate, errors } = useValidation(loginSchema);
 
     // Modais
@@ -44,6 +45,12 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
             }
             const userData = data.usuario || data.user;
             if (data.success && userData) {
+                // Salvar preferência "manter conectado" para o Electron respeitar ao fechar
+                if (manterConectado) {
+                    localStorage.setItem('manter_conectado', '1');
+                } else {
+                    localStorage.removeItem('manter_conectado');
+                }
                 // Save token and user data in Zustand (token may be null in Electron)
                 login(userData, token);
                 // Callback de sucesso
@@ -163,7 +170,7 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '-5px' }}>
-                        <input type="checkbox" id="manter" style={{ accentColor: '#3b82f6' }} />
+                        <input type="checkbox" id="manter" style={{ accentColor: '#3b82f6' }} checked={manterConectado} onChange={e => setManterConectado(e.target.checked)} />
                         <label htmlFor="manter" style={{ color: '#94a3b8', fontSize: '12px' }}>Manter conectado</label>
                     </div>
 

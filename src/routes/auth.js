@@ -42,6 +42,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
             cidade: usuario.cidade,
             cargo: usuario.cargo,
             avatarUrl: usuario.avatarurl || usuario.avatarUrl,
+            usaPermissaoIndividual: !!(usuario.usapermissaoindividual || usuario.usaPermissaoIndividual),
             permissoesAcesso: JSON.parse(usuario.permissoesacesso || usuario.permissoesAcesso || '[]'),
             permissoesEdicao: JSON.parse(usuario.permissoesedicao || usuario.permissoesEdicao || '[]')
         };

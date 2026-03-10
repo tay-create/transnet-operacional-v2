@@ -189,20 +189,22 @@ function App({ socket }) {
     };
 
     const handleReceberAlerta = useCallback((dados) => {
-        if (dados.tipo === 'admin_cadastro' && userRef.current.cargo !== 'Coordenador') return;
-        if (dados.tipo === 'admin_senha' && userRef.current.cargo !== 'Coordenador') return;
-        if (dados.tipo === 'admin_config_mudou' && userRef.current.cargo !== 'Coordenador') return;
-        // Usa o idInterno do servidor se existir, senão cria um temporário consistente
+        // Permissões atualizadas: recarregar para todos, notificar só Coordenadores
+        if (dados.tipo === 'admin_config_mudou') {
+            carregarPermissoes();
+            if (userRef.current.cargo !== 'Coordenador') return;
+            adicionarNotificacao({ ...dados, idInterno: dados.idInterno || (dados.tipo + '_' + Date.now()) });
+            mostrarNotificacao("🔄 Permissões atualizadas!");
+            return;
+        }
+        // Todas as demais notificações (painel operacional e admin) apenas para Coordenadores
+        if (userRef.current.cargo !== 'Coordenador') return;
         const notificacaoComId = {
             ...dados,
             idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
         };
         adicionarNotificacao(notificacaoComId);
-
-        if (dados.tipo === 'admin_config_mudou') {
-            mostrarNotificacao("🔄 Permissões atualizadas!");
-            carregarPermissoes();
-        } else if (dados.tipo === 'aceite_cte_pendente') {
+        if (dados.tipo === 'aceite_cte_pendente') {
             const nome = dados.dadosVeiculo?.motorista || "Motorista";
             dispararNotificacaoWindows(`📄 NOVO CT-E!\nMotorista: ${nome}`);
         } else {

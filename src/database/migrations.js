@@ -338,32 +338,8 @@ const inicializarBanco = async () => {
             }
         }
 
-        const admin = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['julio@tnetlog.com.br']);
-        if (!admin) {
-            const hashedPassword = await bcrypt.hash('123', 10);
-            await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
-                ['Julio', 'julio@tnetlog.com.br', hashedPassword, 'Recife', 'Coordenador']);
-            console.log("✅ Usuário admin criado com senha hasheada");
-        }
-
-        const testePlanejamento = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['teste@tnetlog.com.br']);
-        if (!testePlanejamento) {
-            const hashedPassword = await bcrypt.hash('123', 10);
-            await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
-                ['will.teste', 'teste@tnetlog.com.br', hashedPassword, 'Moreno', 'Planejamento']);
-            console.log("✅ Usuário de teste (Planejamento) criado com senha hasheada");
-        }
-
-        const testeConferente = await dbGet("SELECT * FROM usuarios WHERE email = ?", ['testeconferencia@tnetlog.com.br']);
-        if (!testeConferente) {
-            const hashedPassword = await bcrypt.hash('123', 10);
-            await dbRun(`INSERT INTO usuarios(nome, email, senha, cidade, cargo) VALUES(?, ?, ?, ?, ?)`,
-                ['Teste Conferente', 'testeconferencia@tnetlog.com.br', hashedPassword, 'Ambas', 'Conferente']);
-            console.log("✅ Usuário de teste (Conferente) criado com senha hasheada");
-        } else if (testeConferente.cidade !== 'Ambas') {
-            await dbRun(`UPDATE usuarios SET cidade = 'Ambas' WHERE email = ?`, ['testeconferencia@tnetlog.com.br']);
-            console.log("✅ Usuário testeconferencia atualizado para cidade=Ambas");
-        }
+        // Remover contas de teste legadas caso ainda existam
+        await dbRun(`DELETE FROM usuarios WHERE email IN ('teste@tnetlog.com.br', 'testeconferencia@tnetlog.com.br')`);
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");

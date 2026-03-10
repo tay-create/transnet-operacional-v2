@@ -37,12 +37,17 @@ function createWindow() {
 
     mainWindow.loadURL(APP_URL);
 
-    // Desloga ao fechar: limpa token do localStorage antes de destruir a janela
+    // Desloga ao fechar, salvo se "Manter conectado" estiver marcado
     mainWindow.on('close', (event) => {
         event.preventDefault();
         mainWindow.webContents.executeJavaScript(`
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('auth-storage');
+            (function() {
+                const manter = localStorage.getItem('manter_conectado');
+                if (manter !== '1') {
+                    localStorage.removeItem('auth_token');
+                    localStorage.removeItem('auth-storage');
+                }
+            })();
         `).finally(() => {
             mainWindow.destroy();
         });
