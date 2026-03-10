@@ -33,6 +33,18 @@ function createWindow() {
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
     mainWindow.loadURL(APP_URL);
+
+    // Desloga ao fechar: limpa token do localStorage antes de destruir a janela
+    mainWindow.on('close', (event) => {
+        event.preventDefault();
+        mainWindow.webContents.executeJavaScript(`
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth-storage');
+        `).finally(() => {
+            mainWindow.destroy();
+        });
+    });
+
     mainWindow.on('closed', () => { mainWindow = null; });
 }
 

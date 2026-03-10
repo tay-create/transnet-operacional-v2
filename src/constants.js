@@ -1,4 +1,4 @@
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+export const API_URL = process.env.REACT_APP_API_URL || '';
 export const AZUL_PRIMARIO = '#004a99';
 
 export const MODULOS_SISTEMA = [
