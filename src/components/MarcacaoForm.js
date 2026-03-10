@@ -330,7 +330,6 @@ export default function MarcacaoForm() {
                             <option value="EM CASA">EM CASA</option>
                             <option value="NO PÁTIO">NO PÁTIO</option>
                             <option value="NO POSTO">NO POSTO</option>
-                            <option value="NA ESTRADA">NA ESTRADA</option>
                         </select>
                     </div>
                 </div>

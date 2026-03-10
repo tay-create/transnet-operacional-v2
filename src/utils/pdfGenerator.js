@@ -48,7 +48,7 @@ export const gerarPDFCompacto = (item) => {
     const colWidth = larguraUtil / 2;
     let col = 0;
 
-    dadosPrincipais.forEach((dado, idx) => {
+    dadosPrincipais.forEach((dado) => {
         const xPos = margemEsq + (col * colWidth);
 
         doc.setFont('helvetica', 'bold');
@@ -159,7 +159,7 @@ export const gerarPDFCompacto = (item) => {
         const xPos = margemEsq + 5;
         const espacamentoLinha = 3.2; // Espaçamento ultra-mínimo (3.2mm = ~70 NFs por página A4)
 
-        nfsUnicas.forEach((nf, idx) => {
+        nfsUnicas.forEach((nf) => {
             // Verificar se precisa quebrar página
             if (yPos > 280) {
                 doc.addPage();
@@ -193,11 +193,13 @@ export const gerarPDFCompacto = (item) => {
     doc.text(`Relatório gerado em: ${dataGeracao}`, margemEsq, yPos);
     doc.text(`Total de NFs: ${nfsUnicas.length}`, margemDir - 30, yPos, { align: 'right' });
 
-    // Nome do arquivo dinâmico
     const nomeArquivo = `Relatorio_${item.motorista || 'SemMotorista'}_${item.data_prevista || 'SemData'}.pdf`;
-
-    // Download automático
-    doc.save(nomeArquivo);
+    const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArquivo;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
 };
 
 /**
@@ -303,5 +305,10 @@ export const gerarPDFPaletes = (registros, kpis) => {
         doc.text(`Página ${p} / ${totalPags}`, MR, yFoot, { align: 'right' });
     }
 
-    doc.save(`saldo-paletes-${dataArquivo}.pdf`);
+    const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `saldo-paletes-${dataArquivo}.pdf`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
 };

@@ -73,8 +73,9 @@ const validate = (schema) => {
             next();
         } catch (error) {
             if (error instanceof z.ZodError) {
-                // Formata erros do Zod para resposta amigável
-                const errors = error.errors.map(err => ({
+                // Formata erros do Zod para resposta amigável (Zod v4 usa .issues)
+                const issues = error.issues || error.errors || [];
+                const errors = issues.map(err => ({
                     campo: err.path.join('.'),
                     mensagem: err.message
                 }));

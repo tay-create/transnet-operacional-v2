@@ -24,7 +24,7 @@ const playNotificationSound = () => {
 };
 
 export default function ConferenteApp({ socket }) {
-    const { page, selectedVeiculo, toasts, addToast, removeToast } = useConferenteStore();
+    const { page, selectedVeiculo, toasts, addToast, removeToast, triggerRefresh } = useConferenteStore();
     const user = useAuthStore(state => state.user);
 
     // PWA: usar manifest e título dedicados ao conferente
@@ -59,7 +59,8 @@ export default function ConferenteApp({ socket }) {
             mensagem: `Novo veículo para checklist: ${data.motorista} - Doca ${data.doca || 'N/A'}`
         });
         playNotificationSound();
-    }, [user?.cidade, addToast]);
+        triggerRefresh();
+    }, [user?.cidade, addToast, triggerRefresh]);
 
     const handleChecklistResultado = useCallback((data) => {
         const cor = data.status === 'APROVADO' ? 'success' : 'error';
@@ -75,11 +76,13 @@ export default function ConferenteApp({ socket }) {
         if (!socket) return;
         socket.on('conferente_novo_veiculo', handleNovoVeiculo);
         socket.on('conferente_checklist_resultado', handleChecklistResultado);
+        socket.on('receber_atualizacao', triggerRefresh);
         return () => {
             socket.off('conferente_novo_veiculo', handleNovoVeiculo);
             socket.off('conferente_checklist_resultado', handleChecklistResultado);
+            socket.off('receber_atualizacao', triggerRefresh);
         };
-    }, [socket, handleNovoVeiculo, handleChecklistResultado]);
+    }, [socket, handleNovoVeiculo, handleChecklistResultado, triggerRefresh]);
 
     const TOAST_CORES = {
         info: { bg: 'rgba(59, 130, 246, 0.9)', border: '#3b82f6' },

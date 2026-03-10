@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend, CartesianGrid
 } from 'recharts';
-import { Filter, Calendar, MapPin, Truck, ChevronDown, ChevronRight, Clock, BarChart3, FileDown } from 'lucide-react';
+import { Filter, Calendar, MapPin, Truck, ChevronDown, ChevronRight, Clock, BarChart3, FileDown, RefreshCw } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
+import api from '../services/apiService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -102,6 +103,16 @@ function construirLinhas(listaVeiculos) {
         const adicionarLinha = (origem, tempos, coleta, status) => {
             if (!tempos || !tempos.t_inicio_separacao) return;
             const { t_inicio_separacao, fim_separacao, t_inicio_carregamento, fim_carregamento, t_inicio_carregado, t_fim_liberado_cte } = tempos;
+
+            // Calcular minutos em pausa para esta unidade
+            const unidadeLower = origem.toLowerCase();
+            const pausas = JSON.parse(v.pausas_status || '[]').filter(p => p.unidade === unidadeLower);
+            const pausaMin = pausas.reduce((acc, p) => {
+                if (!p.fim) return acc; // pausa ainda ativa — não conta no relatório
+                const diffMs = new Date(p.fim).getTime() - new Date(p.inicio).getTime();
+                return acc + Math.max(0, Math.floor(diffMs / 60000));
+            }, 0);
+
             linhas.push({
                 motorista,
                 cardId: v.id,
@@ -113,7 +124,8 @@ function construirLinhas(listaVeiculos) {
                 status: status || 'AGUARDANDO',
                 t_inicio_separacao, fim_separacao,
                 t_inicio_carregamento, fim_carregamento,
-                t_inicio_carregado, t_fim_liberado_cte
+                t_inicio_carregado, t_fim_liberado_cte,
+                pausaMin
             });
         };
 
@@ -169,36 +181,48 @@ const CORES_STATUS_BAR = {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
-export default function RelatorioOperacional({ listaVeiculos }) {
+export default function RelatorioOperacional() {
     const hoje = obterDataBrasilia();
     const [dataInicio, setDataInicio] = useState(hoje);
     const [dataFim, setDataFim] = useState(hoje);
     const [filtroUnidade, setFiltroUnidade] = useState('Todas');
     const [filtroTipo, setFiltroTipo] = useState('Todas');
     const [expandidos, setExpandidos] = useState(new Set());
+    const [veiculosBanco, setVeiculosBanco] = useState([]);
+    const [carregando, setCarregando] = useState(false);
+
+    const buscarDados = useCallback(async (de, ate) => {
+        setCarregando(true);
+        try {
+            const res = await api.get(`/api/relatorio/veiculos?de=${de}&ate=${ate}`);
+            if (res.data.success) setVeiculosBanco(res.data.veiculos);
+        } catch (e) {
+            console.error('Erro ao buscar dados do relatório:', e);
+        } finally {
+            setCarregando(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        buscarDados(dataInicio, dataFim);
+    }, [dataInicio, dataFim, buscarDados]);
 
     // Linhas brutas — uma por card com tempos registrados
-    const todasLinhas = useMemo(() => construirLinhas(listaVeiculos || []), [listaVeiculos]);
+    const todasLinhas = useMemo(() => construirLinhas(veiculosBanco), [veiculosBanco]);
 
-    // ── REGRA DE OURO: dadosFiltrados alimenta tudo ──────────────────────────
+    // ── Dados filtrados por unidade/tipo (data já filtrada pelo backend) ────────
     const dadosFiltrados = useMemo(() => {
         return todasLinhas.filter(l => {
-            if (dataInicio && l.data < dataInicio) return false;
-            if (dataFim && l.data > dataFim) return false;
             if (filtroUnidade === 'Recife' && l.origem !== 'Recife') return false;
             if (filtroUnidade === 'Moreno' && l.origem !== 'Moreno') return false;
             if (filtroTipo !== 'Todas' && l.tipoOp !== filtroTipo) return false;
             return true;
         });
-    }, [todasLinhas, dataInicio, dataFim, filtroUnidade, filtroTipo]);
+    }, [todasLinhas, filtroUnidade, filtroTipo]);
 
-    // ── Contadores por tipo de operação (igual ao dashboard) ─────────────────
+    // ── Contadores por tipo de operação ──────────────────────────────────────
     const contTipos = useMemo(() => {
-        // Contar por veículo único (não por linha), usando listaVeiculos filtrada por data
-        const veicsFiltrados = (listaVeiculos || []).filter(v => {
-            const d = v.data_prevista || '';
-            if (dataInicio && d < dataInicio) return false;
-            if (dataFim && d > dataFim) return false;
+        const veicsFiltrados = veiculosBanco.filter(v => {
             if (filtroUnidade === 'Recife' && !ehOperacaoRecife(v.operacao)) return false;
             if (filtroUnidade === 'Moreno' && !ehOperacaoMoreno(v.operacao)) return false;
             if (filtroTipo !== 'Todas' && classificarOperacao(v.operacao) !== filtroTipo) return false;
@@ -212,7 +236,7 @@ export default function RelatorioOperacional({ listaVeiculos }) {
         const totalRecife = veicsFiltrados.filter(v => ehOperacaoRecife(v.operacao)).length;
         const totalMoreno = veicsFiltrados.filter(v => ehOperacaoMoreno(v.operacao)).length;
         return { ...cnt, totalRecife, totalMoreno, total: veicsFiltrados.length };
-    }, [listaVeiculos, dataInicio, dataFim, filtroUnidade, filtroTipo]);
+    }, [veiculosBanco, filtroUnidade, filtroTipo]);
 
     // ── Gráfico de barras: volume por status (das linhas com tempo) ───────────
     const dadosBarras = useMemo(() => {
@@ -248,19 +272,21 @@ export default function RelatorioOperacional({ listaVeiculos }) {
         for (const { motorista, cards } of grupos) {
             for (const c of cards) {
                 const duracao = diffMin(c.t_inicio_separacao, c.fim_carregamento);
+                const efetivo = duracao !== null ? Math.max(0, duracao - (c.pausaMin || 0)) : null;
                 rows.push([
                     motorista, c.origem, c.coleta, c.data, c.operacao, c.status,
                     c.t_inicio_separacao || '—', c.fim_separacao || '—',
                     c.t_inicio_carregamento || '—', c.fim_carregamento || '—',
                     c.t_inicio_carregado || '—', c.t_fim_liberado_cte || '—',
                     formatMin(duracao),
+                    formatMin(efetivo),
                 ]);
             }
         }
         return rows;
     }
 
-    const CABECALHO_EXPORT = ['Motorista', 'Origem', 'Coleta', 'Data', 'Operação', 'Status', 'Início Sep.', 'Fim Sep.', 'Início Car.', 'Fim Car.', 'Carregado', 'Lib. CT-e', 'Duração'];
+    const CABECALHO_EXPORT = ['Motorista', 'Origem', 'Coleta', 'Data', 'Operação', 'Status', 'Início Sep.', 'Fim Sep.', 'Início Car.', 'Fim Car.', 'Carregado', 'Lib. CT-e', 'Duração', 'Efetivo'];
 
     function exportarPDF() {
         if (dadosFiltrados.length === 0) return;
@@ -299,9 +325,13 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                     else if (v === 'LIBERADO P/ DOCA') data.cell.styles.textColor = [59, 130, 246];
                     else if (v === 'EM SEPARAÇÃO') data.cell.styles.textColor = [202, 138, 4];
                 }
-                // Colorir coluna Duração
+                // Colorir coluna Duração e Efetivo
                 if (data.column.index === 12 && data.cell.raw !== '—') {
                     data.cell.styles.textColor = [34, 197, 94];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+                if (data.column.index === 13 && data.cell.raw !== '—') {
+                    data.cell.styles.textColor = [251, 191, 36];
                     data.cell.styles.fontStyle = 'bold';
                 }
             },
@@ -317,14 +347,22 @@ export default function RelatorioOperacional({ listaVeiculos }) {
             doc.text(`Pág. ${i}/${totalPags}`, 283, 207, { align: 'right' });
         }
 
-        doc.save(`relatorio-operacional-${dataInicio}-${dataFim}.pdf`);
+        const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `relatorio-operacional-${dataInicio}-${dataFim}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     function exportarXLSX() {
         if (dadosFiltrados.length === 0) return;
         const linhas = linhasParaExportar();
         const ws = XLSX.utils.aoa_to_sheet([CABECALHO_EXPORT, ...linhas]);
-        ws['!cols'] = [22, 10, 18, 12, 28, 22, 12, 10, 12, 10, 12, 12, 10].map(w => ({ wch: w }));
+        ws['!cols'] = [22, 10, 18, 12, 28, 22, 12, 10, 12, 10, 12, 12, 10, 10].map(w => ({ wch: w }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
         // Usar write + Blob para compatibilidade garantida com browsers
@@ -346,6 +384,7 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                 <BarChart3 size={22} color="#38bdf8" />
                 <span style={{ fontSize: '20px', fontWeight: '700', color: '#f1f5f9' }}>Relatório Operacional</span>
                 <span style={{ fontSize: '12px', color: '#64748b' }}>Tempos & Desempenho</span>
+                {carregando && <RefreshCw size={15} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />}
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                     <button onClick={exportarXLSX} disabled={dadosFiltrados.length === 0} title="Exportar XLSX"
                         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: '1px solid rgba(74,222,128,0.3)', background: 'rgba(74,222,128,0.08)', color: dadosFiltrados.length === 0 ? '#475569' : '#4ade80', cursor: dadosFiltrados.length === 0 ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: '600' }}>
@@ -495,6 +534,7 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                                 <th style={s.th}>Carregado</th>
                                 <th style={s.th}>Lib. CT-e</th>
                                 <th style={s.th}>Duração</th>
+                                <th style={{ ...s.th, color: '#fbbf24' }}>Efetivo</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -524,9 +564,17 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                                             <td style={{ ...s.tdMain, color: totalMin ? '#4ade80' : '#475569', fontWeight: '700' }}>
                                                 {formatMin(totalMin)}
                                             </td>
+                                            <td style={{ ...s.tdMain, color: '#fbbf24', fontWeight: '700' }}>
+                                                {formatMin(cards.reduce((acc, c) => {
+                                                    const d = diffMin(c.t_inicio_separacao, c.fim_carregamento);
+                                                    if (d === null) return acc;
+                                                    return acc + Math.max(0, d - (c.pausaMin || 0));
+                                                }, 0) || null)}
+                                            </td>
                                         </tr>
                                         {aberto && cards.map((c, idx) => {
                                             const duracao = diffMin(c.t_inicio_separacao, c.fim_carregamento);
+                                            const efetivo = duracao !== null ? Math.max(0, duracao - (c.pausaMin || 0)) : null;
                                             return (
                                                 <tr key={`${c.cardId}-${c.origem}-${idx}`} style={{ background: 'rgba(0,0,0,0.15)' }}>
                                                     <td style={s.tdSub}></td>
@@ -542,6 +590,10 @@ export default function RelatorioOperacional({ listaVeiculos }) {
                                                     <td style={{ ...s.tdSub, color: '#4ade80' }}>{c.t_inicio_carregado || '—'}</td>
                                                     <td style={{ ...s.tdSub, color: '#a78bfa' }}>{c.t_fim_liberado_cte || '—'}</td>
                                                     <td style={{ ...s.tdSub, fontWeight: '700', color: duracao !== null ? '#4ade80' : '#475569' }}>{formatMin(duracao)}</td>
+                                                    <td style={{ ...s.tdSub, fontWeight: '700', color: efetivo !== null ? (c.pausaMin > 0 ? '#fbbf24' : '#4ade80') : '#475569' }}>
+                                                        {formatMin(efetivo)}
+                                                        {c.pausaMin > 0 && <span style={{ fontSize: '10px', color: '#64748b', marginLeft: '4px' }}>(-{formatMin(c.pausaMin)})</span>}
+                                                    </td>
                                                 </tr>
                                             );
                                         })}

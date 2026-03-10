@@ -160,7 +160,8 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'isFrotaMotorista', tipo: 'INTEGER DEFAULT 0' },
             { tabela: 'veiculos', coluna: 'placa1Motorista', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'placa2Motorista', tipo: 'TEXT' },
-            { tabela: 'veiculos', coluna: 'timestamps_status', tipo: 'TEXT' }
+            { tabela: 'veiculos', coluna: 'timestamps_status', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'pausas_status', tipo: 'TEXT' }
         ];
 
         // Criação de Índices Otimizados

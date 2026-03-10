@@ -202,7 +202,7 @@ export default function PainelSaldoPaletes() {
 
     function formatarData(dt) {
         if (!dt) return '—';
-        const d = new Date(dt.endsWith?.('Z') ? dt : dt + 'Z');
+        const d = new Date(dt);
         return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 

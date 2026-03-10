@@ -8,8 +8,7 @@ const router = express.Router();
 
 router.post('/login', validate(loginSchema), async (req, res) => {
     const { nome, senha } = req.body;
-    let emailLogin = nome.trim().toLowerCase();
-    if (!emailLogin.includes('@')) emailLogin = `${emailLogin}@tnetlog.com.br`;
+    const emailLogin = nome.trim().toLowerCase();
 
     try {
         const usuario = await dbGet("SELECT * FROM usuarios WHERE email = ?", [emailLogin]);
@@ -60,7 +59,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 
 router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
-        const rows = await dbAll("SELECT * FROM usuarios");
+        const rows = await dbAll("SELECT id, nome, email, cidade, cargo, avatarurl, permissoesacesso, permissoesedicao, usapermissaoindividual FROM usuarios");
         const usuarios = rows.map(u => ({
             ...u,
             avatarUrl: u.avatarurl || u.avatarUrl,

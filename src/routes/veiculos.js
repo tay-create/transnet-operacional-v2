@@ -710,5 +710,101 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
     // ── GET Ocorrências da Operação ──────────────────
 
+    // ── POST Pausar Veículo ───────────────────────────
+    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente']), async (req, res) => {
+        try {
+            const { motivo, unidade } = req.body;
+            const veiculo_id = req.params.id;
+
+            const veiculo = await dbGet('SELECT pausas_status FROM veiculos WHERE id = ?', [veiculo_id]);
+            if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+
+            const pausas = JSON.parse(veiculo.pausas_status || '[]');
+
+            // Verificar se já existe pausa ativa para esta unidade
+            const pausaAtiva = pausas.find(p => p.unidade === unidade && p.fim === null);
+            if (pausaAtiva) return res.status(400).json({ success: false, message: 'Já existe uma pausa ativa.' });
+
+            pausas.push({ inicio: new Date().toISOString(), fim: null, motivo: motivo || '', unidade });
+            await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
+
+            io.emit('receber_atualizacao', { tipo: 'atualizar_veiculo', id: Number(veiculo_id) });
+            console.log(`⏸ [Pausa] Veículo #${veiculo_id} pausado por ${req.user?.nome || 'desconhecido'} | Motivo: "${motivo}"`);
+            await registrarLog('PAUSA_INICIADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, motivo);
+
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Erro ao pausar veículo:', e);
+            res.status(500).json({ success: false, message: 'Erro ao pausar.' });
+        }
+    });
+
+    // ── POST Retomar Veículo ──────────────────────────
+    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente']), async (req, res) => {
+        try {
+            const { unidade } = req.body;
+            const veiculo_id = req.params.id;
+
+            const veiculo = await dbGet('SELECT pausas_status FROM veiculos WHERE id = ?', [veiculo_id]);
+            if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+
+            const pausas = JSON.parse(veiculo.pausas_status || '[]');
+
+            const idx = pausas.findIndex(p => p.unidade === unidade && p.fim === null);
+            if (idx === -1) return res.status(400).json({ success: false, message: 'Nenhuma pausa ativa.' });
+
+            pausas[idx].fim = new Date().toISOString();
+            await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
+
+            io.emit('receber_atualizacao', { tipo: 'atualizar_veiculo', id: Number(veiculo_id) });
+            console.log(`▶ [Retomada] Veículo #${veiculo_id} retomado por ${req.user?.nome || 'desconhecido'}`);
+            await registrarLog('PAUSA_FINALIZADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, null);
+
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Erro ao retomar veículo:', e);
+            res.status(500).json({ success: false, message: 'Erro ao retomar.' });
+        }
+    });
+
+    // ── GET Relatório por período (dados próprios, não depende de memória do App) ──
+    router.get('/api/relatorio/veiculos', authMiddleware, async (req, res) => {
+        try {
+            const { de, ate } = req.query;
+            if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+
+            const rows = await dbAll(`
+                SELECT v.*,
+                    (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                FROM veiculos v
+                WHERE v.data_prevista >= ? AND v.data_prevista <= ?
+                ORDER BY v.data_prevista ASC, v.id ASC
+            `, [de, ate]);
+
+            const veiculos = rows.map(row => {
+                let dados_json = {};
+                try { dados_json = JSON.parse(row.dados_json || '{}'); } catch {}
+                return {
+                    ...row,
+                    rotaRecife: row.rota_recife || '',
+                    rotaMoreno: row.rota_moreno || '',
+                    coletaRecife: row.coletarecife || row.coletaRecife || '',
+                    coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
+                    tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
+                    tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
+                    timestamps_status: (() => { try { return JSON.parse(row.timestamps_status || '{}'); } catch { return {}; } })(),
+                    pausas_status: row.pausas_status || '[]',
+                    tipoVeiculo: dados_json.tipoVeiculo || '',
+                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                };
+            });
+
+            res.json({ success: true, veiculos });
+        } catch (e) {
+            console.error('Erro ao buscar dados do relatório:', e);
+            res.status(500).json({ success: false, message: 'Erro interno.' });
+        }
+    });
+
     return router;
 };

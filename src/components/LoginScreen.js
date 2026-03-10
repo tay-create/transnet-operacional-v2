@@ -145,7 +145,7 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                         <User size={18} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
                         <input
                             className="input-dark"
-                            placeholder="ID de acesso..."
+                            placeholder="usuario@tnetlog.com.br"
                             value={loginDados.nome}
                             onChange={(e) => setLoginDados({ ...loginDados, nome: e.target.value })}
                         />

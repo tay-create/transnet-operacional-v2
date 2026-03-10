@@ -181,7 +181,7 @@ export default function PainelOcorrencias() {
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <span style={{ color: '#64748b', fontSize: '11px' }}>
-                                            {o.data_criacao ? new Date(o.data_criacao + 'Z').toLocaleString('pt-BR') : ''}
+                                            {o.data_criacao ? new Date(o.data_criacao).toLocaleString('pt-BR') : ''}
                                         </span>
                                         {confirmandoExcluir === o.id ? (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

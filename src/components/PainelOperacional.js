@@ -98,6 +98,7 @@ export default function PainelOperacional({
     const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
     const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
+    const [modalPausaAberto, setModalPausaAberto] = useState(false);
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -314,6 +315,40 @@ export default function PainelOperacional({
                                         <AlertTriangle size={14} /> CONTAINER
                                     </button>
                                 )}
+                                {podeEditarNaUnidade('operacao') && (() => {
+                                    const veiculosAtivos = itensFiltrados.filter(v => {
+                                        const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
+                                        return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
+                                    });
+                                    const unidadeLower = origem.toLowerCase();
+                                    const algumPausado = veiculosAtivos.some(v => {
+                                        const pausas = JSON.parse(v.pausas_status || '[]');
+                                        return pausas.some(p => p.unidade === unidadeLower && p.fim === null);
+                                    });
+                                    if (veiculosAtivos.length === 0) return null;
+                                    return (
+                                        <button
+                                            onClick={() => setModalPausaAberto(true)}
+                                            title={algumPausado ? 'Retomar operações pausadas' : 'Pausar todas as operações ativas'}
+                                            style={{
+                                                marginLeft: '8px',
+                                                padding: '4px 12px',
+                                                fontSize: '11px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                background: algumPausado ? 'rgba(34,197,94,0.15)' : 'rgba(251,191,36,0.15)',
+                                                border: `1px solid ${algumPausado ? 'rgba(34,197,94,0.4)' : 'rgba(251,191,36,0.4)'}`,
+                                                color: algumPausado ? '#4ade80' : '#fbbf24',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontWeight: '700'
+                                            }}
+                                        >
+                                            {algumPausado ? '▶ RETOMAR' : '⏸ PAUSAR'}
+                                        </button>
+                                    );
+                                })()}
                             </h2>
                             <div style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
                                 <span className="badge-neon-pill" style={{ display: 'inline-block' }}>
@@ -426,6 +461,8 @@ export default function PainelOperacional({
 
                                 const precisaCampoMoreno = origem === 'Recife' && ehOperacaoMoreno(item.operacao);
                                 const precisaCampoRecife = origem === 'Moreno' && ehOperacaoRecife(item.operacao);
+                                const pausasCard = JSON.parse(item.pausas_status || '[]');
+                                const temPausaAtiva = pausasCard.some(p => p.unidade === origem.toLowerCase() && p.fim === null);
 
                                 return (
                                     <div key={item.id} className="glass-panel-internal card-neon-hover" style={{ borderLeft: `4px solid ${corStatus.border}`, borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -446,13 +483,28 @@ export default function PainelOperacional({
                                                 )}
                                             </div>
 
-                                            <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <Calendar size={12} /> {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : ''}
-                                            </div>
+                                            {podeEditarNaUnidade('adiar_dia') ? (
+                                                <input
+                                                    type="date"
+                                                    value={item.data_prevista || ''}
+                                                    onChange={e => updateList(lista, setLista, realIndex, 'data_prevista', e.target.value)}
+                                                    title="Reagendar data prevista"
+                                                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', outline: 'none', padding: '0' }}
+                                                />
+                                            ) : (
+                                                <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <Calendar size={12} /> {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : ''}
+                                                </div>
+                                            )}
 
                                             {isMista && (
                                                 <div style={{ fontSize: '10px', marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', background: souPrimeira ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: souPrimeira ? '#60a5fa' : '#fbbf24', marginLeft: '10px' }}>
                                                     {souPrimeira ? <MapPin size={10} /> : <ArrowRight size={10} />} {souPrimeira ? '1ª PARADA' : '2ª PARADA'}
+                                                </div>
+                                            )}
+                                            {temPausaAtiva && (
+                                                <div style={{ fontSize: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.4)', color: '#fbbf24', marginLeft: '6px', fontWeight: '700', letterSpacing: '0.5px' }}>
+                                                    ⏸ PAUSADO
                                                 </div>
                                             )}
 
@@ -990,8 +1042,101 @@ export default function PainelOperacional({
                 />
             )}
 
-
+            {/* Modal Pausar/Retomar Unidade */}
+            {modalPausaAberto && (
+                <ModalPausarUnidade
+                    origem={origem}
+                    lista={itensFiltrados}
+                    onClose={() => setModalPausaAberto(false)}
+                    onSucesso={(msg) => { adicionarToast(msg, 'sucesso'); setModalPausaAberto(false); }}
+                />
+            )}
 
         </div >
+    );
+}
+
+function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
+    const unidade = origem.toLowerCase();
+    const [motivo, setMotivo] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const veiculosAtivos = lista.filter(v => {
+        const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
+        return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
+    });
+    const algumPausado = veiculosAtivos.some(v => {
+        const pausas = JSON.parse(v.pausas_status || '[]');
+        return pausas.some(p => p.unidade === unidade && p.fim === null);
+    });
+
+    const handleConfirmar = async () => {
+        if (!algumPausado && !motivo.trim()) return;
+        setSalvando(true);
+        setErro('');
+        try {
+            const endpoint = algumPausado ? 'retomar' : 'pausar';
+            const body = algumPausado ? { unidade } : { motivo, unidade };
+            const veiculosAlvo = algumPausado
+                ? veiculosAtivos.filter(v => {
+                    const pausas = JSON.parse(v.pausas_status || '[]');
+                    return pausas.some(p => p.unidade === unidade && p.fim === null);
+                })
+                : veiculosAtivos.filter(v => {
+                    const pausas = JSON.parse(v.pausas_status || '[]');
+                    return !pausas.some(p => p.unidade === unidade && p.fim === null);
+                });
+
+            await Promise.all(veiculosAlvo.map(v =>
+                api.post(`/api/veiculos/${v.id}/${endpoint}`, body)
+            ));
+            onSucesso(algumPausado ? `${veiculosAlvo.length} veículo(s) retomado(s)` : `${veiculosAlvo.length} veículo(s) pausado(s)`);
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Erro ao processar.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+            <div style={{ background: 'linear-gradient(160deg, rgba(2,6,23,0.98) 0%, rgba(15,23,42,0.98) 100%)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', width: '380px', padding: '24px', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontWeight: '700', fontSize: '15px' }}>
+                        {algumPausado ? '▶ Retomar Operação' : '⏸ Pausar Operação'} — {origem}
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>✕</button>
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '14px' }}>
+                    {algumPausado
+                        ? `Irá retomar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return p.some(x => x.unidade === unidade && x.fim === null); }).length} veículo(s) pausado(s).`
+                        : `Irá pausar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return !p.some(x => x.unidade === unidade && x.fim === null); }).length} veículo(s) ativo(s).`
+                    }
+                </div>
+                {!algumPausado && (
+                    <textarea
+                        value={motivo}
+                        onChange={e => setMotivo(e.target.value)}
+                        placeholder="Motivo da pausa (obrigatório)..."
+                        style={{ width: '100%', boxSizing: 'border-box', minHeight: '80px', resize: 'vertical', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 12px', color: '#f1f5f9', fontSize: '13px', outline: 'none', fontFamily: 'system-ui, sans-serif', marginBottom: '14px' }}
+                        autoFocus
+                    />
+                )}
+                {erro && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{erro}</div>}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button onClick={onClose} disabled={salvando} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleConfirmar}
+                        disabled={salvando || (!algumPausado && !motivo.trim())}
+                        style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: algumPausado ? 'linear-gradient(135deg,#4ade80,#22c55e)' : 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: '#1c1917', fontWeight: '700', fontSize: '13px', cursor: salvando || (!algumPausado && !motivo.trim()) ? 'not-allowed' : 'pointer', opacity: salvando || (!algumPausado && !motivo.trim()) ? 0.5 : 1 }}
+                    >
+                        {salvando ? 'Aguarde...' : algumPausado ? '▶ Confirmar Retomada' : '⏸ Confirmar Pausa'}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }

@@ -945,7 +945,7 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'relatorio_op' && temAcesso('relatorios') && (
-                    <RelatorioOperacional listaVeiculos={listaVeiculos} />
+                    <RelatorioOperacional />
                 )}
 
                 {abaAtiva === 'cadastro' && temAcesso('cadastro') && (

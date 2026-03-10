@@ -54,7 +54,7 @@
     "db:wipe": "node scripts/wipe-db.js",
     "db:wipe-op": "node scripts/wipe-operacional.js"
   },
-  "homepage": "./",
+  "homepage": "/",
   "build": {
     "appId": "com.transnet.operacional",
     "productName": "Transnet Operacional",

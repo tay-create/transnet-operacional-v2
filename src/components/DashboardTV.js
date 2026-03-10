@@ -73,7 +73,8 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     const [tema, setTema] = useState('dark');
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [ocorrenciasHoje, setOcorrenciasHoje] = useState([]);
-    const totalTelas = 4;
+    const [paletesHoje, setPaletesHoje] = useState([]);
+    const totalTelas = 5;
     const t = TEMAS[tema];
 
     // Filtro para cards de hoje (comparar data_prevista ou data_criacao com hoje)
@@ -111,9 +112,15 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 }
             }).catch(() => { });
         };
+        const fetchPaletes = () => {
+            api.get('/api/saldo-paletes').then(r => {
+                if (!unmounted && r.data?.success) setPaletesHoje(r.data.registros || []);
+            }).catch(() => { });
+        };
         fetchDocas();
         fetchOcorrencias();
-        const pollTimer = setInterval(() => { fetchDocas(); fetchOcorrencias(); }, 10000);
+        fetchPaletes();
+        const pollTimer = setInterval(() => { fetchDocas(); fetchOcorrencias(); fetchPaletes(); }, 10000);
         return () => { unmounted = true; clearInterval(pollTimer); };
     }, []);
 
@@ -139,7 +146,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Fluxo Mensal'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Paletes Diario', 'Fluxo Mensal'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -205,14 +212,15 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 3 && <TelaPaletesDiario paletes={paletesHoje} t={t} tema={tema} />}
+                {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} paletes={paletesHoje} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
             {/* Rodape */}
             <div style={{ padding: '6px 20px', background: t.bgBar, borderTop: `1px solid ${t.border}`, display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: t.textDim, flexShrink: 0 }}>
                 <span>{nomeTelas[telaAtiva]} ({telaAtiva + 1}/{totalTelas})</span>
                 <span>{new Date().toLocaleString('pt-BR')}</span>
-                <span>ESC para sair | {veiculosHoje.length} veiculos hoje | {listaVeiculos.length} total</span>
+                <span>ESC para sair | {veiculosHoje.length} veiculos hoje | {paletesHoje.length} paletes reg.</span>
             </div>
 
         </div>
@@ -569,7 +577,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
 // ================================================================
 // TELA 4: FLUXO MENSAL
 // ================================================================
-function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
+function TelaFluxoMensal({ veiculos, paletes = [], t, tema, ocorrenciasHoje = [] }) {
     const [ocorrenciasMes, setOcorrenciasMes] = useState([]);
 
     // Filtrar apenas veículos do mês atual usando horário de Brasília
@@ -634,6 +642,20 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
         { name: 'Só Recife', value: recifeOnly, fill: '#3b82f6' },
         { name: 'Só Moreno', value: morenoOnly, fill: '#60a5fa' },
         { name: 'Ambas', value: ambasMes, fill: '#818cf8' }
+    ].filter(d => d.value > 0);
+
+    // ── Paletes do mês ──
+    const paletesMes = paletes.filter(p => {
+        const d = p.data_entrada ? String(p.data_entrada).substring(0, 10) : '';
+        return d >= primeiroDiaMesStr && d <= ultimoDiaMesStr;
+    });
+    const pbrMes = paletesMes.reduce((a, p) => a + (p.qtd_pbr || 0), 0);
+    const devMes = paletesMes.reduce((a, p) => a + (p.qtd_devolvida_pbr || 0), 0);
+    const saldoMes = pbrMes - devMes;
+    const pendMes = paletesMes.filter(p => !p.devolvido).length;
+    const dadosPaletePie = [
+        { name: 'Devolvidos', value: devMes, fill: '#22c55e' },
+        { name: 'Pendentes', value: saldoMes, fill: '#f59e0b' },
     ].filter(d => d.value > 0);
 
     return (
@@ -755,6 +777,151 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                     ) : <div style={{ textAlign: 'center', padding: '40px', color: t.textDim }}>Sem dados</div>}
                 </div>
             </div>
+
+            {/* ── PALETES DO MÊS ── */}
+            <div style={{ ...glassCard(t, 'rgba(167,139,250,0.2)'), padding: '18px 20px', marginTop: '14px', borderLeft: '4px solid #a78bfa' }}>
+                <h3 style={{ fontSize: '11px', fontWeight: '700', color: '#a78bfa', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '2px' }}>Paletes PBR — Resumo do Mês</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr) 1fr', gap: '12px', alignItems: 'center' }}>
+                    {[
+                        { label: 'Total Saídas', valor: pbrMes, cor: '#3b82f6' },
+                        { label: 'Devolvidos', valor: devMes, cor: '#22c55e' },
+                        { label: 'Saldo', valor: saldoMes, cor: saldoMes > 0 ? '#f59e0b' : '#22c55e' },
+                        { label: 'Pendentes', valor: pendMes, cor: '#f59e0b' },
+                    ].map(k => (
+                        <div key={k.label} style={{ textAlign: 'center', background: `${k.cor}0f`, border: `1px solid ${k.cor}30`, borderRadius: '12px', padding: '14px 10px' }}>
+                            <div style={{ fontSize: '38px', fontWeight: '900', color: k.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${k.cor}60)` }}>{k.valor}</div>
+                            <div style={{ fontSize: '10px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>{k.label}</div>
+                        </div>
+                    ))}
+                    {dadosPaletePie.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={100}>
+                            <PieChart>
+                                <Pie data={dadosPaletePie} dataKey="value" cx="50%" cy="50%" outerRadius={42} innerRadius={22}>
+                                    {dadosPaletePie.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                                </Pie>
+                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '8px', fontSize: '12px', color: t.text }}
+                                    formatter={(value, name) => {
+                                        const tot = dadosPaletePie.reduce((a, d) => a + d.value, 0);
+                                        return [`${value} (${tot > 0 ? ((value / tot) * 100).toFixed(0) : 0}%)`, name];
+                                    }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div style={{ textAlign: 'center', color: t.textDim, fontSize: '12px' }}>—</div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ================================================================
+// TELA 4: PALETES DIÁRIO
+// ================================================================
+function TelaPaletesDiario({ paletes, t, tema }) {
+    const hoje = obterDataBrasilia();
+
+    // Filtrar paletes de hoje
+    const paletesHoje = paletes.filter(p => {
+        const d = p.data_entrada ? String(p.data_entrada).substring(0, 10) : '';
+        return d === hoje;
+    });
+
+    // KPIs
+    const totalPbr = paletesHoje.reduce((a, p) => a + (p.qtd_pbr || 0), 0);
+    const totalDevolvido = paletesHoje.reduce((a, p) => a + (p.qtd_devolvida_pbr || 0), 0);
+    const saldo = totalPbr - totalDevolvido;
+    const pendentes = paletesHoje.filter(p => !p.devolvido).length;
+    const devolvidos = paletesHoje.filter(p => p.devolvido).length;
+
+    const dataHojeFmt = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Recife' });
+
+    const corSaldo = saldo > 0 ? '#f59e0b' : '#22c55e';
+
+    return (
+        <div className="tv-card-anim">
+            <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px', color: '#a78bfa', letterSpacing: '2px', textTransform: 'uppercase' }}>
+                Paletes PBR — {dataHojeFmt}
+            </h2>
+
+            {/* KPI row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '22px' }}>
+                {[
+                    { label: 'Saíram Hoje', valor: totalPbr, cor: '#3b82f6' },
+                    { label: 'Devolvidos', valor: totalDevolvido, cor: '#22c55e' },
+                    { label: 'Saldo', valor: saldo, cor: corSaldo },
+                    { label: 'Pendentes', valor: pendentes, cor: '#f59e0b' },
+                ].map(k => (
+                    <div key={k.label} style={{ ...glassCard(t, `${k.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${k.cor}` }}>
+                        <div style={{ fontSize: '56px', fontWeight: '900', color: k.cor, lineHeight: 1, filter: `drop-shadow(0 0 10px ${k.cor}70)` }}>{k.valor}</div>
+                        <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginTop: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>{k.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Status resumido */}
+            <div style={{ ...glassCard(t, 'rgba(167,139,250,0.25)'), padding: '14px 20px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '24px', borderLeft: '4px solid #a78bfa' }}>
+                <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#a78bfa', textTransform: 'uppercase', fontWeight: '700', whiteSpace: 'nowrap' }}>Transportes Hoje</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: '900', color: '#c4b5fd' }}>{paletesHoje.length}</span>
+                    <span style={{ fontSize: '11px', color: t.textMuted }}>registros</span>
+                </div>
+                <div style={{ height: '28px', width: '1px', background: 'rgba(167,139,250,0.3)' }} />
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: '900', color: '#22c55e' }}>{devolvidos}</span>
+                    <span style={{ fontSize: '11px', color: t.textMuted }}>devolvidos</span>
+                </div>
+                <div style={{ height: '28px', width: '1px', background: 'rgba(167,139,250,0.3)' }} />
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: '900', color: '#fbbf24' }}>{pendentes}</span>
+                    <span style={{ fontSize: '11px', color: t.textMuted }}>pendentes</span>
+                </div>
+            </div>
+
+            {/* Tabela de motoristas */}
+            {paletesHoje.length === 0 ? (
+                <div style={{ ...glassCard(t), padding: '48px', textAlign: 'center', color: t.textDim, fontSize: '14px' }}>
+                    Nenhum palete registrado hoje
+                </div>
+            ) : (
+                <div style={{ ...glassCard(t), overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                            <tr style={{ background: 'rgba(167,139,250,0.1)', borderBottom: `1px solid rgba(167,139,250,0.2)` }}>
+                                {['Motorista', 'Placa Cavalo', 'Placa Carreta', 'Fornecedor', 'Qtd PBR', 'Devolvido', 'Saldo', 'Status'].map(h => (
+                                    <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '10px', fontWeight: '700', color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paletesHoje.map((p, i) => {
+                                const saldoLinha = (p.qtd_pbr || 0) - (p.qtd_devolvida_pbr || 0);
+                                return (
+                                    <tr key={p.id} style={{ borderBottom: `1px solid ${t.border}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                                        <td style={{ padding: '11px 14px', color: t.text, fontWeight: '600' }}>{p.motorista || '—'}</td>
+                                        <td style={{ padding: '11px 14px', color: t.textMuted, fontFamily: 'monospace', fontSize: '12px' }}>{p.placa_cavalo || '—'}</td>
+                                        <td style={{ padding: '11px 14px', color: t.textMuted, fontFamily: 'monospace', fontSize: '12px' }}>{p.placa_carreta || '—'}</td>
+                                        <td style={{ padding: '11px 14px', color: t.textMuted }}>{p.fornecedor_pbr || '—'}</td>
+                                        <td style={{ padding: '11px 14px', color: '#60a5fa', fontWeight: '700', textAlign: 'center' }}>{p.qtd_pbr || 0}</td>
+                                        <td style={{ padding: '11px 14px', color: '#4ade80', fontWeight: '700', textAlign: 'center' }}>{p.qtd_devolvida_pbr || 0}</td>
+                                        <td style={{ padding: '11px 14px', fontWeight: '700', textAlign: 'center', color: saldoLinha > 0 ? '#fbbf24' : '#4ade80' }}>{saldoLinha}</td>
+                                        <td style={{ padding: '11px 14px', textAlign: 'center' }}>
+                                            <span style={{
+                                                padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                background: p.devolvido ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.12)',
+                                                color: p.devolvido ? '#4ade80' : '#fbbf24',
+                                                border: `1px solid ${p.devolvido ? 'rgba(34,197,94,0.3)' : 'rgba(251,191,36,0.3)'}`
+                                            }}>
+                                                {p.devolvido ? 'Devolvido' : 'Pendente'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

@@ -4,8 +4,10 @@ const useConferenteStore = create((set) => ({
     page: 'checklist',          // 'checklist' | 'embarques' | 'checklistForm'
     selectedVeiculo: null,
     toasts: [],
+    refreshKey: 0,
 
     setPage: (page) => set({ page, selectedVeiculo: null }),
+    triggerRefresh: () => set((state) => ({ refreshKey: state.refreshKey + 1 })),
     openChecklistForm: (veiculo) => set({ page: 'checklistForm', selectedVeiculo: veiculo }),
     goBack: () => set({ page: 'checklist', selectedVeiculo: null }),
 

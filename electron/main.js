@@ -1,11 +1,14 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, Menu, globalShortcut } = require('electron');
 const path = require('path');
 
 const APP_URL = 'https://portal.tnethub.com.br';
 
+Menu.setApplicationMenu(null);
+
 let mainWindow;
 
 function createWindow() {
+
     mainWindow = new BrowserWindow({
         width: 1400,
         height: 900,
@@ -48,7 +51,21 @@ function createWindow() {
     mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+
+    // Recarregar página — menu removido, registrar atalhos manualmente
+    globalShortcut.register('F5', () => {
+        if (mainWindow) mainWindow.webContents.reload();
+    });
+    globalShortcut.register('CommandOrControl+R', () => {
+        if (mainWindow) mainWindow.webContents.reload();
+    });
+});
+
+app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

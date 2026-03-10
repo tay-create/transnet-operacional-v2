@@ -14,22 +14,34 @@ import ModalOcorrencia from '../components/ModalOcorrencia';
 const STATUS_CONFERENTE = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
 
 // Badges de tempo ao vivo (mini versão para o card conferente)
-function MiniTimer({ inicioAt }) {
+function MiniTimer({ inicioAt, pausas = [], unidade = 'recife' }) {
     const [agora, setAgora] = useState(Date.now());
     useEffect(() => {
         const id = setInterval(() => setAgora(Date.now()), 1000);
         return () => clearInterval(id);
     }, []);
     if (!inicioAt) return null;
-    const ms = agora - new Date(inicioAt).getTime();
+
+    const pausasUnidade = pausas.filter(p => p.unidade === unidade);
+    const temPausaAtiva = pausasUnidade.some(p => p.fim === null);
+
+    // Calcular tempo total em pausa (ms)
+    const msPausa = pausasUnidade.reduce((acc, p) => {
+        const inicio = new Date(p.inicio).getTime();
+        const fim = p.fim ? new Date(p.fim).getTime() : agora;
+        return acc + Math.max(0, fim - inicio);
+    }, 0);
+
+    const msTotal = agora - new Date(inicioAt).getTime();
+    const ms = Math.max(0, msTotal - msPausa);
     const totalMin = Math.floor(ms / 60000);
     const h = Math.floor(totalMin / 60);
     const m = totalMin % 60;
     const texto = h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
-    const cor = ms < 3600000 ? '#4ade80' : ms < 7200000 ? '#facc15' : '#f87171';
+    const cor = temPausaAtiva ? '#94a3b8' : ms < 3600000 ? '#4ade80' : ms < 7200000 ? '#facc15' : '#f87171';
     return (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: '700', color: cor, fontVariantNumeric: 'tabular-nums' }}>
-            <Timer size={9} /> {texto}
+            {temPausaAtiva ? '⏸' : <Timer size={9} />} {texto}
         </span>
     );
 }
@@ -84,6 +96,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [erro, setErro] = useState('');
     const [docaSelecionada, setDocaSelecionada] = useState(v.doca || 'SELECIONE');
     const [modalOcorrencia, setModalOcorrencia] = useState(false);
+    const [modalPausa, setModalPausa] = useState(false);
 
     const corStatus = CORES_STATUS[v.status] || { border: '#64748b', text: '#94a3b8' };
     const idxAtual = STATUS_CONFERENTE.indexOf(v.status);
@@ -91,6 +104,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     // Timestamp da etapa atual para o timer ao vivo
     const ts = v.timestamps_status || {};
     const unidade = (v.unidade || 'Recife').toLowerCase() === 'moreno' ? 'moreno' : 'recife';
+    const pausas = JSON.parse(v.pausas_status || '[]');
+    const temPausaAtiva = pausas.some(p => p.unidade === unidade && p.fim === null);
     const timerAtKey = v.status === 'EM SEPARAÇÃO' ? `separacao_${unidade}_at`
         : v.status === 'LIBERADO P/ DOCA' ? `lib_doca_${unidade}_at`
             : v.status === 'EM CARREGAMENTO' ? `carregamento_${unidade}_at`
@@ -188,7 +203,12 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                     }}>
                         {v.status}
                     </span>
-                    {timerAtKey && ts[timerAtKey] && <MiniTimer inicioAt={ts[timerAtKey]} />}
+                    {timerAtKey && ts[timerAtKey] && <MiniTimer inicioAt={ts[timerAtKey]} pausas={pausas} unidade={unidade} />}
+                    {temPausaAtiva && (
+                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                            ⏸ PAUSADO
+                        </span>
+                    )}
                     {v.doca && v.doca !== 'SELECIONE' && (
                         <span style={{ fontSize: '10px', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '3px' }}>
                             <MapPin size={9} /> {v.doca}
@@ -256,6 +276,24 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                         <AlertTriangle size={14} /> REGISTRAR OCORRÊNCIA
                     </button>
 
+                    {/* Botão Pausar/Retomar */}
+                    {v.status !== 'AGUARDANDO' && v.status !== 'CARREGADO' && (
+                        <button
+                            onClick={() => setModalPausa(true)}
+                            style={{
+                                width: '100%', padding: '9px',
+                                borderRadius: '10px',
+                                border: temPausaAtiva ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(251,191,36,0.35)',
+                                background: temPausaAtiva ? 'rgba(34,197,94,0.08)' : 'rgba(251,191,36,0.06)',
+                                color: temPausaAtiva ? '#4ade80' : '#fbbf24',
+                                fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                            }}
+                        >
+                            {temPausaAtiva ? '▶ RETOMAR OPERAÇÃO' : '⏸ PAUSAR OPERAÇÃO'}
+                        </button>
+                    )}
+
                     {/* Mensagem de erro */}
                     {erro && (
                         <div style={{
@@ -309,6 +347,79 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                     onClose={() => setModalOcorrencia(false)}
                 />
             )}
+
+            {/* Modal Pausar/Retomar */}
+            {modalPausa && (
+                <ModalPausaCard
+                    veiculo={v}
+                    unidade={unidade}
+                    temPausaAtiva={temPausaAtiva}
+                    onClose={() => setModalPausa(false)}
+                    onSucesso={() => { setModalPausa(false); onAtualizarStatus(v.id, v.status, docaSelecionada); }}
+                />
+            )}
+        </div>
+    );
+}
+
+function ModalPausaCard({ veiculo, unidade, temPausaAtiva, onClose, onSucesso }) {
+    const [motivo, setMotivo] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const handleConfirmar = async () => {
+        if (!temPausaAtiva && !motivo.trim()) return;
+        setSalvando(true);
+        setErro('');
+        try {
+            if (temPausaAtiva) {
+                await api.post(`/api/veiculos/${veiculo.id}/retomar`, { unidade });
+            } else {
+                await api.post(`/api/veiculos/${veiculo.id}/pausar`, { motivo, unidade });
+            }
+            onSucesso();
+        } catch (e) {
+            setErro(e?.response?.data?.message || 'Erro ao processar.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+            <div style={{ background: 'linear-gradient(160deg, rgba(2,6,23,0.98) 0%, rgba(15,23,42,0.98) 100%)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '22px', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div style={{ fontWeight: '700', fontSize: '14px' }}>
+                        {temPausaAtiva ? '▶ Retomar Operação' : '⏸ Pausar Operação'}
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px' }}>✕</button>
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '14px' }}>
+                    {veiculo.motorista} — {unidade.charAt(0).toUpperCase() + unidade.slice(1)}
+                </div>
+                {!temPausaAtiva && (
+                    <textarea
+                        value={motivo}
+                        onChange={e => setMotivo(e.target.value)}
+                        placeholder="Motivo da pausa (obrigatório)..."
+                        style={{ width: '100%', boxSizing: 'border-box', minHeight: '80px', resize: 'vertical', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 12px', color: '#f1f5f9', fontSize: '13px', outline: 'none', fontFamily: 'system-ui, sans-serif', marginBottom: '14px' }}
+                        autoFocus
+                    />
+                )}
+                {erro && <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '10px' }}>{erro}</div>}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={onClose} disabled={salvando} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '13px' }}>
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={handleConfirmar}
+                        disabled={salvando || (!temPausaAtiva && !motivo.trim())}
+                        style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: temPausaAtiva ? 'linear-gradient(135deg,#4ade80,#22c55e)' : 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: '#1c1917', fontWeight: '700', fontSize: '13px', cursor: salvando || (!temPausaAtiva && !motivo.trim()) ? 'not-allowed' : 'pointer', opacity: salvando || (!temPausaAtiva && !motivo.trim()) ? 0.5 : 1 }}
+                    >
+                        {salvando ? 'Aguarde...' : temPausaAtiva ? '▶ Confirmar' : '⏸ Confirmar'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
@@ -317,7 +428,7 @@ export default function ConferenteChecklist({ socket }) {
     const [veiculos, setVeiculos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [expandidos, setExpandidos] = useState(new Set());
-    const { openChecklistForm } = useConferenteStore();
+    const { openChecklistForm, refreshKey } = useConferenteStore();
     const user = useAuthStore(state => state.user);
 
     const cidade = user?.cidade || 'Recife';
@@ -340,7 +451,7 @@ export default function ConferenteChecklist({ socket }) {
 
     useEffect(() => {
         carregarVeiculos();
-    }, [carregarVeiculos]);
+    }, [carregarVeiculos, refreshKey]);
 
     // Socket: atualizar lista em tempo real
     useEffect(() => {

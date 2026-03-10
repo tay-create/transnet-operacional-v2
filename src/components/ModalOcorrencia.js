@@ -8,6 +8,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     const [ocorrencias, setOcorrencias] = useState([]);
     const [carregandoListagem, setCarregandoListagem] = useState(false);
     const [salvando, setSalvando] = useState(false);
+    const [erroSalvar, setErroSalvar] = useState('');
     const fileInputRef = useRef(null);
 
     useEffect(() => {
@@ -28,15 +29,29 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => setFotoBase64(reader.result);
-        reader.readAsDataURL(file);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const MAX = 1000;
+            let w = img.width, h = img.height;
+            if (w > MAX || h > MAX) {
+                if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                else { w = Math.round(w * MAX / h); h = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            setFotoBase64(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = url;
     };
 
     const salvarOcorrencia = async () => {
         if (!descricao.trim()) return;
         setSalvando(true);
         try {
+            setErroSalvar('');
             const res = await api.post(`/api/veiculos/${veiculo.id}/ocorrencias`, {
                 descricao,
                 foto_base64: fotoBase64 || null,
@@ -45,11 +60,12 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
             if (res.data.success) {
                 onClose();
             } else {
-                alert('Falha ao salvar: ' + res.data.message);
+                setErroSalvar(res.data.message || 'Falha ao salvar.');
             }
         } catch (e) {
             console.error('Erro ao salvar ocorrência:', e);
-            alert('Erro ao salvar ocorrência.');
+            const msg = e?.response?.data?.message || e?.message || 'Erro desconhecido';
+            setErroSalvar(`Erro ao salvar: ${msg}`);
         } finally {
             setSalvando(false);
         }
@@ -120,7 +136,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                         }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '11px', color: '#94a3b8' }}>
                                                 <span style={{ fontWeight: '700', color: '#fbbf24' }}>{o.motorista}</span>
-                                                <span>{new Date(o.data_criacao + 'Z').toLocaleString('pt-BR')}</span>
+                                                <span>{o.data_criacao ? new Date(o.data_criacao).toLocaleString('pt-BR') : '—'}</span>
                                             </div>
                                             <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#e2e8f0', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{o.descricao}</p>
                                             {o.foto_base64 && (
@@ -214,9 +230,19 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                 {/* Footer */}
                 <div style={{
                     padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.07)',
-                    display: 'flex', justifyContent: 'flex-end', gap: '10px',
+                    display: 'flex', flexDirection: 'column', gap: '10px',
                     background: 'rgba(0,0,0,0.3)', borderRadius: '0 0 16px 16px'
                 }}>
+                    {erroSalvar && (
+                        <div style={{
+                            padding: '8px 12px', borderRadius: '8px',
+                            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+                            color: '#f87171', fontSize: '12px'
+                        }}>
+                            {erroSalvar}
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                     <button
                         onClick={onClose}
                         disabled={salvando}
@@ -246,6 +272,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                     >
                         {salvando ? <><Loader className="spin" size={15} /> Salvando...</> : <><Save size={15} /> Registrar</>}
                     </button>
+                    </div>
                 </div>
             </div>
         </div>
