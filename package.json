@@ -65,9 +65,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/appicon.ico",
-      "signAndEditExecutable": false,
-      "signingHashAlgorithms": null
+      "icon": "public/appicon.ico"
     },
     "nsis": {
       "oneClick": false,
