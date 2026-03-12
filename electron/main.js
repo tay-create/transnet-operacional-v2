@@ -28,6 +28,16 @@ function createWindow() {
         }
     });
 
+    // Permite notificações do Windows via Notification API do browser
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+        if (permission === 'notifications') return callback(true);
+        callback(false);
+    });
+    mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+        if (permission === 'notifications') return true;
+        return false;
+    });
+
     // Bloqueia navegação para fora do domínio
     mainWindow.webContents.on('will-navigate', (event, url) => {
         if (!url.startsWith(APP_URL)) {
