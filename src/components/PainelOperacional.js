@@ -754,12 +754,15 @@ export default function PainelOperacional({
                                                         }
 
                                                         {/* Botao Editar Nome */}
-                                                        <button
-                                                            onClick={() => setEditandoMotorista(item.id)}
-                                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, marginLeft: 'auto' }}
-                                                        >
-                                                            <Edit2 size={14} />
-                                                        </button>
+                                                        {podeEditarNaUnidade('operacao') && (
+                                                            <button
+                                                                onClick={() => setEditandoMotorista(item.id)}
+                                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, marginLeft: 'auto' }}
+                                                                title="Trocar motorista"
+                                                            >
+                                                                <Edit2 size={14} />
+                                                            </button>
+                                                        )}
                                                     </div >
                                                 </div >
                                                 <div>

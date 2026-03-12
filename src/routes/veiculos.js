@@ -680,10 +680,6 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     }
                 }
 
-                if (JSON.stringify(cubagem_antiga) !== JSON.stringify(cubagem_nova)) {
-                    mudancas.push(`Cubagem alterada`);
-                }
-
                 // Registrar edição geral para mudanças que não sejam exclusivamente de status
                 const mudancasNaoStatus = mudancas.filter(m => !m.includes('Status'));
                 if (mudancasNaoStatus.length > 0) {
@@ -718,7 +714,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             res.json({ success: true });
-        } catch (e) { res.status(500).json({ success: false }); }
+        } catch (e) { console.error('Erro PUT /veiculos/:id', e); res.status(500).json({ success: false }); }
     });
     router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
         try {

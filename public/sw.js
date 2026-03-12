@@ -15,6 +15,8 @@ self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
     if (event.request.url.includes('/socket.io/')) return;
     if (event.request.url.includes('/api/')) return;
+    // Ignora requisições para domínios externos (fonts, CDN, analytics)
+    if (!event.request.url.startsWith(self.location.origin)) return;
 
     event.respondWith(
         fetch(event.request)

@@ -228,14 +228,14 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
 // ==================== MARCAÇÃO DE PLACAS ====================
 
 // Gestão de tokens (links de motorista)
-app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM tokens_motoristas ORDER BY data_criacao DESC");
         res.json({ success: true, tokens: rows });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         let telefone = (req.body.telefone || '').replace(/\D/g, '');
         if (telefone.length <= 11) telefone = '55' + telefone;
@@ -261,14 +261,14 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const { status, telefone } = req.body;
         if (status) {
@@ -429,7 +429,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
 });
 
 // Leitura de todas as marcações (autenticado)
-app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const rows = await dbAll(
             "SELECT * FROM marcacoes_placas ORDER BY data_marcacao DESC"
@@ -443,7 +443,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 });
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const isCoordenador = req.user.cargo === 'Coordenador';
         const cidade = req.user.cidade;
@@ -473,7 +473,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
         res.json({ success: true });
@@ -1409,6 +1409,14 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
             // Estorno/Cancelamento
             acao = 'ESTORNO_CTE';
             detalhes = `⚠️ CT-e retrocedido: ${statusAntigo} → ${statusNovo} | ${origem} | Coleta: ${coleta}`;
+        }
+
+        // Sempre persistir o status no veículo para não perder no reload (v0.2.3 fix)
+        try {
+            await dbRun("UPDATE veiculos SET status_cte = ? WHERE id = ?", [statusNovo, cteId]);
+            console.log(`✅ [CT-e] status_cte = '${statusNovo}' gravado no veículo id=${cteId}`);
+        } catch (errStatus) {
+            console.error('Erro ao gravar status_cte no veículo:', errStatus);
         }
 
         await registrarLog(
