@@ -68,11 +68,11 @@ NODE_ENV=development
 PORT=3000
 
 # Conexão Banco Postgres
-DB_USER=transnet_user
+DB_USER=DB_USER
 DB_HOST=localhost
 DB_NAME=tnet_operacional
 DB_PASSWORD=sua_senha
-DB_PORT=5432
+DB_PORT=DB_PORT
 
 # Autenticação
 JWT_SECRET=SuaChaveSuperSecretaToken
