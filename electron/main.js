@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, dialog } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
@@ -6,7 +6,8 @@ const APP_URL = 'https://portal.tnethub.com.br';
 
 Menu.setApplicationMenu(null);
 
-// Silencia logs do updater em produção
+// Controla o download manualmente para garantir que o progresso seja rastreado
+autoUpdater.autoDownload = false;
 autoUpdater.logger = null;
 
 let mainWindow;
@@ -63,6 +64,24 @@ function createWindow() {
     });
 
     mainWindow.on('closed', () => { mainWindow = null; });
+
+    // Atalhos locais — só disparam quando esta janela está focada
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return;
+        if (input.key === 'F5') {
+            mainWindow.webContents.reload();
+            event.preventDefault();
+        } else if (input.key === 'F11') {
+            mainWindow.setFullScreen(!mainWindow.isFullScreen());
+            event.preventDefault();
+        } else if (input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+            event.preventDefault();
+        } else if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+            mainWindow.webContents.reload();
+            event.preventDefault();
+        }
+    });
 }
 
 // ── Auto-Updater com Barra de Progresso Visível ──────────────────────────────
@@ -159,6 +178,27 @@ function updateComplete() {
 
 autoUpdater.on('update-available', () => {
     injectUpdateOverlay();
+    // Inicia o download explicitamente (autoDownload = false)
+    autoUpdater.downloadUpdate().catch(() => {});
+});
+
+autoUpdater.on('update-not-available', () => {
+    // Nenhuma atualização — não faz nada
+});
+
+autoUpdater.on('error', (err) => {
+    if (!mainWindow) return;
+    mainWindow.setProgressBar(-1);
+    mainWindow.webContents.executeJavaScript(`
+        (function() {
+            const overlay = document.getElementById('update-overlay');
+            const title = document.getElementById('update-title');
+            if (title) title.textContent = '⚠️ Falha ao baixar atualização. Reinicie o app para tentar novamente.';
+            const bar = document.getElementById('update-bar');
+            if (bar) { bar.style.background = '#ef4444'; bar.style.width = '100%'; }
+            setTimeout(() => { if (overlay) overlay.remove(); }, 5000);
+        })();
+    `).catch(() => {});
 });
 
 autoUpdater.on('download-progress', (progress) => {
@@ -184,28 +224,10 @@ autoUpdater.on('update-downloaded', () => {
 app.whenReady().then(() => {
     createWindow();
 
-    // Recarregar página — menu removido, registrar atalhos manualmente
-    globalShortcut.register('F5', () => {
-        if (mainWindow) mainWindow.webContents.reload();
-    });
-    globalShortcut.register('CommandOrControl+R', () => {
-        if (mainWindow) mainWindow.webContents.reload();
-    });
-    globalShortcut.register('F11', () => {
-        if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
-    });
-    globalShortcut.register('F12', () => {
-        if (mainWindow) mainWindow.webContents.toggleDevTools();
-    });
-
     // Verificar atualizações 10 segundos após o app abrir
     setTimeout(() => {
         autoUpdater.checkForUpdates().catch(() => {});
     }, 10000);
-});
-
-app.on('will-quit', () => {
-    globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
