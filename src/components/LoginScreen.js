@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Truck, UserPlus, KeyRound } from 'lucide-react';
+import { User, Lock, ArrowRight, Truck, UserPlus, KeyRound, Phone, MessageCircle } from 'lucide-react';
 import { loginSchema } from '../schemas/validationSchemas';
 import { useValidation } from '../hooks/useValidation';
 import useAuthStore from '../store/useAuthStore';
@@ -18,8 +18,13 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
     // Modais
     const [modalCadastro, setModalCadastro] = useState(false);
     const [modalEsqueci, setModalEsqueci] = useState(false);
+    const [modalToken, setModalToken] = useState(false);
     const [formCadastro, setFormCadastro] = useState({ nome: '', emailPrefix: '', senha: '', unidade: 'Recife' });
     const [formRecuperacao, setFormRecuperacao] = useState({ nome: '' });
+    const [etapaEsqueci, setEtapaEsqueci] = useState('buscar'); // 'buscar' | 'cadastrar_tel' | 'aguardar'
+    const [usuarioEncontrado, setUsuarioEncontrado] = useState(null);
+    const [telefoneCadastro, setTelefoneCadastro] = useState('');
+    const [formToken, setFormToken] = useState({ email: '', token: '', novaSenha: '' });
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -82,22 +87,67 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
         if (!formRecuperacao.nome) return mostrarNotificacao("Digite seu nome de usuário.");
         try {
             const r = await api.get(`/usuarios/buscar?nome=${encodeURIComponent(formRecuperacao.nome)}`);
-            if (!r.data.success) {
-                return mostrarNotificacao("Usuário não encontrado. Verifique o nome digitado.");
+            if (!r.data.success) return mostrarNotificacao("Usuário não encontrado. Verifique o nome digitado.");
+            const { id, nome, email, telefone } = r.data;
+            setUsuarioEncontrado({ id, nome, email, telefone });
+            if (!telefone) {
+                setEtapaEsqueci('cadastrar_tel');
+            } else {
+                enviarAlertaRecuperacao(id, nome, email, telefone);
             }
-            const { id, nome, email } = r.data;
-            socket.emit('enviar_alerta', {
-                tipo: 'admin_senha',
-                origem: 'SISTEMA',
-                usuarioId: id,
-                nome,
-                mensagem: `🔑 Recuperação de senha: ${nome} (${email})`
-            });
-            setModalEsqueci(false);
-            mostrarNotificacao("✅ Solicitação enviada ao administrador!");
         } catch {
             mostrarNotificacao("Erro ao enviar solicitação. Tente novamente.");
         }
+    };
+
+    const salvarTelefoneCadastro = async () => {
+        if (!telefoneCadastro || telefoneCadastro.replace(/\D/g, '').length < 10) {
+            return mostrarNotificacao("Telefone inválido. Informe DDD + número (ex: 81912345678).");
+        }
+        try {
+            await api.post(`/usuarios/${usuarioEncontrado.id}/telefone`, { telefone: telefoneCadastro });
+            enviarAlertaRecuperacao(usuarioEncontrado.id, usuarioEncontrado.nome, usuarioEncontrado.email, telefoneCadastro);
+        } catch {
+            mostrarNotificacao("Erro ao salvar telefone. Tente novamente.");
+        }
+    };
+
+    const enviarAlertaRecuperacao = (id, nome, email, telefone) => {
+        socket.emit('enviar_alerta', {
+            tipo: 'admin_senha',
+            origem: 'SISTEMA',
+            usuarioId: id,
+            nome,
+            telefone: telefone.replace(/\D/g, ''),
+            mensagem: `🔑 Recuperação de senha: ${nome} (${email})`
+        });
+        setEtapaEsqueci('aguardar');
+    };
+
+    const trocarSenhaComToken = async () => {
+        if (!formToken.email || !formToken.token || !formToken.novaSenha) {
+            return mostrarNotificacao("Preencha todos os campos.");
+        }
+        try {
+            const r = await api.post('/reset-senha-token', formToken);
+            if (r.data.success) {
+                setModalToken(false);
+                setFormToken({ email: '', token: '', novaSenha: '' });
+                mostrarNotificacao("✅ Senha alterada! Faça login com a nova senha.");
+            } else {
+                mostrarNotificacao(r.data.message || "Código inválido ou expirado.");
+            }
+        } catch (e) {
+            mostrarNotificacao(e.response?.data?.message || "Erro ao alterar senha.");
+        }
+    };
+
+    const abrirModalEsqueci = () => {
+        setEtapaEsqueci('buscar');
+        setUsuarioEncontrado(null);
+        setTelefoneCadastro('');
+        setFormRecuperacao({ nome: '' });
+        setModalEsqueci(true);
     };
 
     const mostrarNotificacao = (msg) => {
@@ -183,7 +233,10 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px' }}>
                     <span onClick={() => setModalCadastro(true)} style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 'bold' }}>CRIAR CONTA</span>
-                    <span onClick={() => setModalEsqueci(true)} style={{ color: '#64748b', cursor: 'pointer' }}>ESQUECI A SENHA</span>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <span onClick={() => setModalToken(true)} style={{ color: '#22c55e', cursor: 'pointer' }}>TENHO O CÓDIGO</span>
+                        <span onClick={abrirModalEsqueci} style={{ color: '#64748b', cursor: 'pointer' }}>ESQUECI A SENHA</span>
+                    </div>
                 </div>
 
                 <div style={{ textAlign: 'center', marginTop: '20px', color: '#334155', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -322,7 +375,7 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                 </div>
             )}
 
-            {/* --- MODAL ESQUECI A SENHA (CORRIGIDO) --- */}
+            {/* --- MODAL ESQUECI A SENHA --- */}
             {modalEsqueci && (
                 <div className="modal-overlay">
                     <div className="modal-glass" style={{ maxWidth: '380px', textAlign: 'center' }}>
@@ -332,17 +385,12 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                         </div>
 
                         <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white' }}>Recuperar Acesso</h3>
-                        <p className="modal-desc">Informe seu nome de usuário. O administrador receberá um alerta para resetar sua senha.</p>
 
-                        {/* AVISO DENTRO DO MODAL DE ESQUECI SENHA */}
                         {aviso && (
                             <div style={{
                                 background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
                                 color: aviso.startsWith('✅') ? '#86efac' : '#fde047',
-                                padding: '10px',
-                                borderRadius: '8px',
-                                fontSize: '12px',
-                                textAlign: 'center',
+                                padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center',
                                 border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`,
                                 marginBottom: '15px'
                             }}>
@@ -350,21 +398,143 @@ export default function LoginScreen({ onLoginSuccess, socket }) {
                             </div>
                         )}
 
-                        <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Seu Usuário</label>
-                            <input
-                                className="input-dark"
-                                placeholder="Digite aqui..."
-                                value={formRecuperacao.nome}
-                                onChange={e => setFormRecuperacao({ ...formRecuperacao, nome: e.target.value })}
-                            />
+                        {/* ETAPA 1: buscar usuário */}
+                        {etapaEsqueci === 'buscar' && (
+                            <>
+                                <p className="modal-desc">Informe seu usuário (email). O administrador receberá um alerta para gerar seu código.</p>
+                                <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Seu Usuário</label>
+                                    <input
+                                        className="input-dark"
+                                        placeholder="usuario@tnetlog.com.br"
+                                        value={formRecuperacao.nome}
+                                        onChange={e => setFormRecuperacao({ ...formRecuperacao, nome: e.target.value })}
+                                        onKeyDown={e => e.key === 'Enter' && solicitarRecuperacao()}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button onClick={solicitarRecuperacao} className="btn-primary-glow" style={{ background: '#ef4444', color: 'white', flex: 1 }}>
+                                        CONTINUAR
+                                    </button>
+                                    <button onClick={() => setModalEsqueci(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
+                                        CANCELAR
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ETAPA 2: cadastrar telefone */}
+                        {etapaEsqueci === 'cadastrar_tel' && (
+                            <>
+                                <p className="modal-desc">
+                                    Para receber o código via WhatsApp, precisamos do seu número. Informe com DDD (ex: 81912345678).
+                                </p>
+                                <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Phone size={12} /> Número WhatsApp
+                                    </label>
+                                    <input
+                                        className="input-dark"
+                                        placeholder="81912345678"
+                                        value={telefoneCadastro}
+                                        onChange={e => setTelefoneCadastro(e.target.value.replace(/\D/g, ''))}
+                                        maxLength={11}
+                                        onKeyDown={e => e.key === 'Enter' && salvarTelefoneCadastro()}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button onClick={salvarTelefoneCadastro} className="btn-primary-glow" style={{ background: '#25D366', color: 'white', flex: 1 }}>
+                                        <MessageCircle size={14} /> SALVAR E ENVIAR
+                                    </button>
+                                    <button onClick={() => setEtapaEsqueci('buscar')} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
+                                        VOLTAR
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {/* ETAPA 3: aguardando código */}
+                        {etapaEsqueci === 'aguardar' && (
+                            <>
+                                <p className="modal-desc">
+                                    Solicitação enviada ao administrador. Em breve você receberá um código de 6 dígitos no WhatsApp.<br /><br />
+                                    Quando receber, clique em <strong style={{ color: '#22c55e' }}>"Tenho o código"</strong> na tela de login.
+                                </p>
+                                <button onClick={() => { setModalEsqueci(false); setModalToken(true); setFormToken(f => ({ ...f, email: usuarioEncontrado?.email || '' })); }} className="btn-primary-glow" style={{ background: '#22c55e', color: 'white', width: '100%', marginBottom: '10px' }}>
+                                    JÁ TENHO O CÓDIGO
+                                </button>
+                                <button onClick={() => setModalEsqueci(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', width: '100%' }}>
+                                    FECHAR
+                                </button>
+                            </>
+                        )}
+
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL TENHO O CÓDIGO --- */}
+            {modalToken && (
+                <div className="modal-overlay">
+                    <div className="modal-glass" style={{ maxWidth: '380px', textAlign: 'center' }}>
+
+                        <div style={{ width: '60px', height: '60px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px auto', border: '1px solid rgba(34,197,94,0.3)' }}>
+                            <MessageCircle size={28} color="#22c55e" />
+                        </div>
+
+                        <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white' }}>Usar Código WhatsApp</h3>
+                        <p className="modal-desc">Digite seu email, o código de 6 dígitos recebido no WhatsApp e sua nova senha.</p>
+
+                        {aviso && (
+                            <div style={{
+                                background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)',
+                                color: aviso.startsWith('✅') ? '#86efac' : '#fde047',
+                                padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center',
+                                border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`,
+                                marginBottom: '15px'
+                            }}>
+                                {aviso}
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', textAlign: 'left', marginBottom: '20px' }}>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Email</label>
+                                <input
+                                    className="input-dark"
+                                    placeholder="usuario@tnetlog.com.br"
+                                    value={formToken.email}
+                                    onChange={e => setFormToken({ ...formToken, email: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Código (6 dígitos)</label>
+                                <input
+                                    className="input-dark"
+                                    placeholder="123456"
+                                    maxLength={6}
+                                    value={formToken.token}
+                                    onChange={e => setFormToken({ ...formToken, token: e.target.value.replace(/\D/g, '') })}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Nova Senha</label>
+                                <input
+                                    type="password"
+                                    className="input-dark"
+                                    placeholder="••••••••"
+                                    value={formToken.novaSenha}
+                                    onChange={e => setFormToken({ ...formToken, novaSenha: e.target.value })}
+                                    onKeyDown={e => e.key === 'Enter' && trocarSenhaComToken()}
+                                />
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={solicitarRecuperacao} className="btn-primary-glow" style={{ background: '#ef4444', color: 'white', flex: 1 }}>
-                                ENVIAR PEDIDO
+                            <button onClick={trocarSenhaComToken} className="btn-primary-glow" style={{ background: '#22c55e', color: 'white', flex: 1 }}>
+                                ALTERAR SENHA
                             </button>
-                            <button onClick={() => setModalEsqueci(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
+                            <button onClick={() => setModalToken(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
                                 CANCELAR
                             </button>
                         </div>

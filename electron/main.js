@@ -89,6 +89,9 @@ app.whenReady().then(() => {
     globalShortcut.register('CommandOrControl+R', () => {
         if (mainWindow) mainWindow.webContents.reload();
     });
+    globalShortcut.register('F11', () => {
+        if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    });
 
     // Verificar atualizações 10 segundos após o app abrir
     setTimeout(() => {

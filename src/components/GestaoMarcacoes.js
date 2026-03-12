@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X } from 'lucide-react';
 import api from '../services/apiService';
+import ModalConfirm from './ModalConfirm';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -94,6 +95,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [aba, setAba] = useState('links');
     const [tokens, setTokens] = useState([]);
     const [marcacoes, setMarcacoes] = useState([]);
+    const [confirmar, setConfirmar] = useState(null);
     const [loading, setLoading] = useState(false);
     const [tel, setTel] = useState('');
     const [copiado, setCopiado] = useState(null);
@@ -171,22 +173,34 @@ export default function GestaoMarcacoes({ socket }) {
         } catch (e) { mostrarToast('Erro ao atualizar.'); }
     }
 
-    async function excluirToken(id) {
-        if (!window.confirm('Excluir este link permanentemente?')) return;
-        try {
-            await api.delete(`/api/tokens/${id}`);
-            setTokens(prev => prev.filter(t => t.id !== id));
-            mostrarToast('Link excluído.');
-        } catch (e) { mostrarToast('Erro ao excluir.'); }
+    function excluirToken(id) {
+        setConfirmar({
+            mensagem: 'Excluir este link permanentemente?',
+            textConfirm: 'Excluir',
+            onConfirm: async () => {
+                setConfirmar(null);
+                try {
+                    await api.delete(`/api/tokens/${id}`);
+                    setTokens(prev => prev.filter(t => t.id !== id));
+                    mostrarToast('Link excluído.');
+                } catch (e) { mostrarToast('Erro ao excluir.'); }
+            }
+        });
     }
 
-    async function excluirMarcacao(id) {
-        if (!window.confirm('Remover este motorista da fila?')) return;
-        try {
-            await api.delete(`/api/marcacoes/${id}`);
-            setMarcacoes(prev => prev.filter(m => m.id !== id));
-            mostrarToast('Marcação removida.');
-        } catch (e) { mostrarToast('Erro ao excluir.'); }
+    function excluirMarcacao(id) {
+        setConfirmar({
+            mensagem: 'Remover este motorista da fila?',
+            textConfirm: 'Remover',
+            onConfirm: async () => {
+                setConfirmar(null);
+                try {
+                    await api.delete(`/api/marcacoes/${id}`);
+                    setMarcacoes(prev => prev.filter(m => m.id !== id));
+                    mostrarToast('Marcação removida.');
+                } catch (e) { mostrarToast('Erro ao excluir.'); }
+            }
+        });
     }
 
     async function handleToggleIndisponivel(id, disponibilidadeAtual) {
@@ -348,6 +362,7 @@ export default function GestaoMarcacoes({ socket }) {
 
     return (
         <div style={s.wrap}>
+            {confirmar && <ModalConfirm mensagem={confirmar.mensagem} textConfirm={confirmar.textConfirm} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} />}
 
             {/* Título */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>

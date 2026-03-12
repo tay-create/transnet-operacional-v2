@@ -21,7 +21,7 @@ import RelatorioOperacional from './components/RelatorioOperacional';
 import PainelCadastro from './components/PainelCadastro';
 import HistoricoLiberacoes from './components/HistoricoLiberacoes';
 import PainelProgramacao from './components/PainelProgramacao';
-import { CheckCircle as CheckCircleIcon } from 'lucide-react';
+import { CheckCircle as CheckCircleIcon, Phone } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
 import PainelOcorrencias from './components/PainelOcorrencias';
 import PainelSaldoPaletes from './components/PainelSaldoPaletes';
@@ -30,8 +30,17 @@ import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
 import useUserStore from './store/useUserStore';
 import LoginScreen from './components/LoginScreen';
+import ModalConfirm from './components/ModalConfirm';
 
 const hojeISO = obterDataBrasilia();
+
+// Tabela de destinatários por tipo de notificação (fora do componente — constante estática)
+const DESTINATARIOS_ALERTA = {
+    'admin_cadastro':      ['Coordenador'],
+    'admin_senha':         ['Coordenador'],
+    'aceite_cte_pendente': ['Conhecimento'],
+    'checklist_pendente':  [],
+};
 
 function App({ socket }) {
     // === ESTADO GLOBAL (Zustand) ===
@@ -78,8 +87,14 @@ function App({ socket }) {
         idFilaOriginal: null
     });
 
+    const [modalTelefone, setModalTelefone] = useState(false);
+    const [telefonePrimeiroLogin, setTelefonePrimeiroLogin] = useState('');
+    const [confirmarRemover, setConfirmarRemover] = useState(null);
+
     const userRef = useRef(user);
     const mostrarNotificacaoRef = useRef(mostrarNotificacao);
+    const isFirstConnectRef = useRef(true);
+    const recarregarDadosRef = useRef(null);
 
     useEffect(() => {
         userRef.current = user;
@@ -189,16 +204,15 @@ function App({ socket }) {
     };
 
     const handleReceberAlerta = useCallback((dados) => {
-        // Permissões atualizadas: recarregar para todos, notificar só Coordenadores
+        // admin_config_mudou: recarrega permissões para todos, sem notificação visual
         if (dados.tipo === 'admin_config_mudou') {
             carregarPermissoes();
-            if (userRef.current.cargo !== 'Coordenador') return;
-            adicionarNotificacao({ ...dados, idInterno: dados.idInterno || (dados.tipo + '_' + Date.now()) });
-            mostrarNotificacao("🔄 Permissões atualizadas!");
             return;
         }
-        // Todas as demais notificações (painel operacional e admin) apenas para Coordenadores
-        if (userRef.current.cargo !== 'Coordenador') return;
+        const meuCargo = userRef.current?.cargo || '';
+        const alvo = DESTINATARIOS_ALERTA[dados.tipo] || [];
+        if (!alvo.includes(meuCargo)) return;
+
         const notificacaoComId = {
             ...dados,
             idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
@@ -210,7 +224,7 @@ function App({ socket }) {
         } else {
             dispararNotificacaoWindows(`⚠️ NOTIFICAÇÃO!\n${dados.mensagem}`);
         }
-    }, [carregarPermissoes, adicionarNotificacao, mostrarNotificacao]);
+    }, [carregarPermissoes, adicionarNotificacao]);
 
     const handleReceberAtualizacao = useCallback((data) => {
         // CORREÇÃO: Adiciona verificação de duplicatas no novo_veiculo (igual ao novo_fila)
@@ -244,6 +258,10 @@ function App({ socket }) {
                 localStorage.setItem('usuario_logado', JSON.stringify(saved));
             }
         }
+        // REFRESH GERAL (rollover/fim do dia ou CT-e despachado) — recarrega dados completos
+        else if (data.tipo === 'refresh_geral') {
+            recarregarDadosRef.current?.();
+        }
     }, [updateUser]);
 
     // --- USE EFFECT: carregamento inicial de dados (só na montagem / logout) ---
@@ -261,7 +279,15 @@ function App({ socket }) {
     useEffect(() => {
         if (!logado) return;
 
-        socket.on('connect', () => console.log("🟢 Socket Conectado:", socket.id));
+        isFirstConnectRef.current = !socket.connected;
+        socket.on('connect', () => {
+            console.log("🟢 Socket Conectado:", socket.id);
+            if (!isFirstConnectRef.current) {
+                // Reconectou após queda — recarrega dados que podem ter chegado durante a desconexão
+                recarregarDadosRef.current?.();
+            }
+            isFirstConnectRef.current = false;
+        });
         socket.on('disconnect', () => console.log("🔴 Socket Desconectado"));
 
         socket.on('receber_alerta', handleReceberAlerta);
@@ -326,6 +352,8 @@ function App({ socket }) {
         });
 
         return () => {
+            socket.off('connect');
+            socket.off('disconnect');
             socket.off('receber_alerta');
             socket.off('receber_atualizacao');
             socket.off('notificacao_direcionada');
@@ -358,6 +386,13 @@ function App({ socket }) {
         } catch (error) {
             console.error("Erro ao carregar CT-es ativos:", error);
         }
+    };
+
+    // Mantém ref atualizada para uso dentro de event handlers do socket
+    recarregarDadosRef.current = () => {
+        carregarVeiculos();
+        carregarCtes();
+        carregarFila();
     };
 
     const temAcesso = (modulo) => {
@@ -683,20 +718,22 @@ function App({ socket }) {
         }
     };
 
-    const removerVeiculo = async (id) => {
-        if (!window.confirm("Tem certeza que deseja excluir este veículo permanentemente?")) return;
-
-        try {
-            setListaVeiculos(prev => prev.filter(item => item.id !== id));
-
-            await api.delete(`/veiculos/${id}`);
-
-            mostrarNotificacao("🗑️ Veículo removido com sucesso!");
-        } catch (error) {
-            console.error("Erro ao deletar:", error);
-            mostrarNotificacao("❌ Erro ao deletar do banco. Dê F5.");
-            carregarVeiculos();
-        }
+    const removerVeiculo = (id) => {
+        setConfirmarRemover({
+            mensagem: 'Tem certeza que deseja excluir este veículo permanentemente?',
+            onConfirm: async () => {
+                setConfirmarRemover(null);
+                try {
+                    setListaVeiculos(prev => prev.filter(item => item.id !== id));
+                    await api.delete(`/veiculos/${id}`);
+                    mostrarNotificacao("🗑️ Veículo removido com sucesso!");
+                } catch (error) {
+                    console.error("Erro ao deletar:", error);
+                    mostrarNotificacao("❌ Erro ao deletar do banco. Dê F5.");
+                    carregarVeiculos();
+                }
+            }
+        });
     };
 
     const updateListCte = async (lista, setLista, index, campo, valor, origem) => {
@@ -858,6 +895,25 @@ function App({ socket }) {
     const handleLoginSuccess = (usuarioData) => {
         // Token already set during login; no need to call login again
         setAbaAtiva(usuarioData.cidade === 'Recife' ? 'op_recife' : 'op_moreno');
+        if (!usuarioData.telefone) {
+            setModalTelefone(true);
+        }
+    };
+
+    const salvarTelefonePrimeiroLogin = async () => {
+        const tel = telefonePrimeiroLogin.replace(/\D/g, '');
+        if (tel.length < 10) {
+            mostrarNotificacao('Telefone inválido. Informe DDD + número (ex: 81912345678).', 'aviso');
+            return;
+        }
+        try {
+            await api.post(`/usuarios/${user.id}/telefone`, { telefone: tel });
+            updateUser({ telefone: tel });
+            setModalTelefone(false);
+            setTelefonePrimeiroLogin('');
+        } catch {
+            mostrarNotificacao('Erro ao salvar telefone. Tente novamente.', 'erro');
+        }
     };
 
     const handleLogout = () => {
@@ -879,6 +935,42 @@ function App({ socket }) {
             handleUpdateAvatar={handleUpdateAvatar}
             handleRemoverNotificacao={handleRemoverNotificacao}
         >
+            {/* MODAL DE CONFIRMAÇÃO GLOBAL */}
+            {confirmarRemover && <ModalConfirm titulo="Excluir veículo" mensagem={confirmarRemover.mensagem} textConfirm="Excluir" onConfirm={confirmarRemover.onConfirm} onCancel={() => setConfirmarRemover(null)} />}
+
+            {/* MODAL OBRIGATÓRIO — CADASTRO DE TELEFONE NO PRIMEIRO LOGIN */}
+            {modalTelefone && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div className="modal-glass" style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', background: 'rgba(37,211,102,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', border: '1px solid rgba(37,211,102,0.3)' }}>
+                            <Phone size={28} color="#25D366" />
+                        </div>
+                        <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white', fontSize: '16px' }}>
+                            Cadastre seu WhatsApp
+                        </h3>
+                        <p className="modal-desc" style={{ marginBottom: '20px' }}>
+                            Para poder recuperar sua senha pelo WhatsApp, informe seu número com DDD. Este passo é obrigatório.
+                        </p>
+                        <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>
+                                <Phone size={12} /> Número WhatsApp (com DDD)
+                            </label>
+                            <input
+                                className="input-dark"
+                                placeholder="81912345678"
+                                value={telefonePrimeiroLogin}
+                                onChange={e => setTelefonePrimeiroLogin(e.target.value.replace(/\D/g, ''))}
+                                maxLength={11}
+                                onKeyDown={e => e.key === 'Enter' && salvarTelefonePrimeiroLogin()}
+                                autoFocus
+                            />
+                        </div>
+                        <button onClick={salvarTelefonePrimeiroLogin} className="btn-primary-glow" style={{ background: '#25D366', color: 'white', width: '100%' }}>
+                            SALVAR E CONTINUAR
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Dashboard TV - Fullscreen overlay */}
             {abaAtiva === 'dashboard_tv' && temAcesso('dashboard_tv') && (
                 <DashboardTV

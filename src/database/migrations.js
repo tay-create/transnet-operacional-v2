@@ -3,26 +3,26 @@ const { dbRun, dbGet } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Coordenador': ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro'],
-    'Planejamento': ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota'],
-    'Encarregado': ['operacao', 'cte', 'relatorios', 'relatorio_op', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
-    'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno'],
-    'Conhecimento': ['cte', 'operacao', 'ver_unidade_recife', 'ver_unidade_moreno'],
-    'Cadastro': ['operacao', 'cadastro', 'ver_unidade_recife', 'ver_unidade_moreno'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
+    'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
+    'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
+    'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
+    'Cadastro':         ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Dashboard Viewer': ['dashboard_tv'],
-    'Conferente': ['ver_unidade_recife', 'ver_unidade_moreno'],
-    'Pos Embarque': ['marcacao_placas', 'operacao', 'ver_unidade_recife', 'ver_unidade_moreno']
+    'Conferente':       ['ver_unidade_recife', 'ver_unidade_moreno'],
+    'Pos Embarque':     ['marcacao_placas', 'ver_unidade_recife', 'ver_unidade_moreno']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
-    'Coordenador': ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
-    'Planejamento': ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem'],
-    'Encarregado': ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
-    'Aux. Operacional': ['operacao', 'editar_operacao_card', 'coleta_card', 'timer_solicitado', 'timer_liberado'],
-    'Conhecimento': ['cte'],
-    'Cadastro': [],
-    'Conferente': [],
-    'Pos Embarque': ['marcacao_placas']
+    'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Encarregado':      ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
+    'Aux. Operacional': ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'fila'],
+    'Conhecimento':     ['cte'],
+    'Cadastro':         [],
+    'Conferente':       [],
+    'Pos Embarque':     ['marcacao_placas']
 });
 
 const inicializarBanco = async () => {
@@ -161,7 +161,14 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'placa1Motorista', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'placa2Motorista', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'timestamps_status', tipo: 'TEXT' },
-            { tabela: 'veiculos', coluna: 'pausas_status', tipo: 'TEXT' }
+            { tabela: 'veiculos', coluna: 'pausas_status', tipo: 'TEXT' },
+            // Recuperação de senha via WhatsApp
+            { tabela: 'usuarios', coluna: 'telefone', tipo: 'TEXT' },
+            // Gerenciamento de Risco — campos salvos direto no veículo (evita dependência de marcacoes_placas)
+            { tabela: 'veiculos', coluna: 'seguradora_cad', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'origem_cad', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'destino_uf_cad', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'destino_cidade_cad', tipo: 'TEXT' }
         ];
 
         // Criação de Índices Otimizados
@@ -294,6 +301,7 @@ const inicializarBanco = async () => {
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_data ON marcacoes_placas (data_marcacao DESC)`); } catch (_) { }
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_cubagens_coleta ON cubagens (numero_coleta)`); } catch (_) { }
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens_motoristas (status)`); } catch (_) { }
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_nome ON marcacoes_placas (nome_motorista, data_marcacao DESC)`); } catch (_) { }
 
         // ── Módulo de Frota e Telemetria ────────────────────────────────────────
         await dbRun(`CREATE TABLE IF NOT EXISTS frota_checklists(
@@ -328,6 +336,15 @@ const inicializarBanco = async () => {
                 observacao TEXT,
                 unidade TEXT
             )`);
+
+        // Tabela de tokens para recuperação de senha via WhatsApp
+        await dbRun(`CREATE TABLE IF NOT EXISTS reset_tokens (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL,
+            token TEXT NOT NULL,
+            expira_em TIMESTAMP NOT NULL,
+            usado INTEGER DEFAULT 0
+        )`);
 
         // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {

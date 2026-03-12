@@ -1,11 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { Calculator, Upload, Download, Plus, X, Trash2, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import ModalConfirm from './ModalConfirm';
 
 export default function ModuloCubagem() {
     const [motorista, setMotorista] = useState('Aguardando Contratação');
     const [nomeRedespacho, setNomeRedespacho] = useState('');
     const [itens, setItens] = useState([]);
+    const [aviso, setAviso] = useState(null);
+    const [confirmarLimpar, setConfirmarLimpar] = useState(false);
     const fileInputRef = useRef(null);
 
     // Fórmulas: Base = M³ + 10% → Mix = (Base / 2.5) / 1.3 → Kit = (Base / 2.5) / 1.9
@@ -78,14 +81,14 @@ export default function ModuloCubagem() {
                 const novosItens = dados.map(mapear).filter(item => item.nf || item.metragem);
 
                 if (novosItens.length === 0) {
-                    alert('Nenhum dado válido encontrado. Verifique as colunas: NF, Cliente, Cidade, UF, Volumes, Peso Kg, M³, Doca');
+                    setAviso('Nenhum dado válido encontrado. Verifique as colunas: NF, Cliente, Cidade, UF, Volumes, Peso Kg, M³, Doca');
                     return;
                 }
 
                 setItens(novosItens);
             } catch (err) {
                 console.error('Erro ao ler arquivo:', err);
-                alert('Erro ao processar o arquivo. Verifique se é um arquivo válido (.xlsx, .xls ou .csv).');
+                setAviso('Erro ao processar o arquivo. Verifique se é um arquivo válido (.xlsx, .xls ou .csv).');
             }
         };
 
@@ -112,7 +115,14 @@ export default function ModuloCubagem() {
     };
 
     const limparTudo = () => {
-        if (itens.length > 0 && !window.confirm('Limpar todos os dados?')) return;
+        if (itens.length > 0) { setConfirmarLimpar(true); return; }
+        setItens([]);
+        setMotorista('Aguardando Contratação');
+        setNomeRedespacho('');
+    };
+
+    const executarLimpar = () => {
+        setConfirmarLimpar(false);
         setItens([]);
         setMotorista('Aguardando Contratação');
         setNomeRedespacho('');
@@ -128,7 +138,7 @@ export default function ModuloCubagem() {
     const escapeHtml = (str) => String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
     const gerarPDF = () => {
-        if (itens.length === 0) { alert('Importe ou adicione NFs antes de gerar o PDF.'); return; }
+        if (itens.length === 0) { setAviso('Importe ou adicione NFs antes de gerar o PDF.'); return; }
 
         const dataEmissao = new Date().toLocaleString('pt-BR');
         const temRedespacho = nomeRedespacho.trim() !== '';
@@ -233,6 +243,8 @@ export default function ModuloCubagem() {
 
     return (
         <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto' }}>
+            {aviso && <ModalConfirm variante="aviso" mensagem={aviso} onCancel={() => setAviso(null)} />}
+            {confirmarLimpar && <ModalConfirm mensagem="Limpar todos os dados da cubagem?" textConfirm="Limpar" onConfirm={executarLimpar} onCancel={() => setConfirmarLimpar(false)} />}
 
             {/* CABEÇALHO GLOBAL */}
             <div className="glass-panel" style={{ padding: '25px', borderRadius: '16px', marginBottom: '20px', border: '1px solid rgba(168, 85, 247, 0.2)' }}>

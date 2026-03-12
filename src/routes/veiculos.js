@@ -13,7 +13,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     router.get('/veiculos', authMiddleware, async (req, res) => {
         try {
             const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 200;
+            const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = (page - 1) * limit;
 
             const [rows, countRow] = await Promise.all([

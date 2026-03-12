@@ -2,11 +2,57 @@ import React, { useEffect, useState } from 'react';
 import {
     Bell, User, Check, X,
     Calendar, LogOut, ClipboardList, FileText,
-    AlertTriangle, ShieldOff
+    AlertTriangle, ShieldOff, MessageCircle
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
+import api from '../services/apiService';
 import logoImg from '../assets/logo.png';
+
+function BotaoWhatsapp({ usuarioId, telefone, nome, onEnviado }) {
+    const [enviado, setEnviado] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const handleEnviar = async () => {
+        if (loading || enviado) return;
+        setLoading(true);
+        try {
+            const r = await api.post(`/usuarios/${usuarioId}/gerar-token-reset`);
+            if (r.data.success) {
+                const tel = (r.data.telefone || telefone || '').replace(/\D/g, '');
+                const msg = encodeURIComponent(
+                    `Olá ${nome}! Seu código de recuperação de senha do sistema Transnet é: *${r.data.token}*. Válido por 15 minutos. Não compartilhe com ninguém.`
+                );
+                window.open(`https://wa.me/55${tel}?text=${msg}`, '_blank');
+                setEnviado(true);
+                setTimeout(() => onEnviado?.(), 1500);
+            }
+        } catch {
+            // silently fail — coordinator sees nothing happened
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <button
+            onClick={handleEnviar}
+            disabled={loading || enviado}
+            style={{
+                background: enviado ? '#15803d' : '#25D366',
+                border: 'none', color: 'white',
+                padding: '4px 10px', borderRadius: '4px',
+                fontSize: '10px', fontWeight: 'bold',
+                cursor: enviado ? 'default' : 'pointer',
+                marginTop: '5px', display: 'flex', alignItems: 'center', gap: '4px',
+                opacity: loading ? 0.7 : 1
+            }}
+        >
+            <MessageCircle size={12} />
+            {enviado ? 'ENVIADO ✓' : loading ? 'GERANDO...' : 'ENVIAR WHATSAPP'}
+        </button>
+    );
+}
 
 export default function Header({
     onLogout,
@@ -129,12 +175,21 @@ export default function Header({
                                                 {notif.tipo === 'aceite_cte_pendente' && <Check size={16} color="#22c55e" />}
                                                 {notif.tipo === 'liberacao_expirada' && <ShieldOff size={16} color="#ef4444" />}
                                                 {notif.tipo === 'liberacao_vencendo' && <AlertTriangle size={16} color="#f59e0b" />}
-                                                {!['aceite_cte_pendente', 'liberacao_expirada', 'liberacao_vencendo'].includes(notif.tipo) && <Bell size={16} />}
+                                                {notif.tipo === 'admin_senha' && <MessageCircle size={16} color="#25D366" />}
+                                                {!['aceite_cte_pendente', 'liberacao_expirada', 'liberacao_vencendo', 'admin_senha'].includes(notif.tipo) && <Bell size={16} />}
                                             </div>
                                             <div style={{ flex: 1 }}>
                                                 <p style={{ margin: '0 0 5px 0', lineHeight: '1.4' }}>{notif.mensagem}</p>
                                                 {notif.tipo === 'aceite_cte_pendente' && (
                                                     <button onClick={() => { aceitarCtePelaNotificacao(notif); toggleNotificacoes(); }} style={{ background: '#22c55e', border: 'none', color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px' }}>ACEITAR CT-E</button>
+                                                )}
+                                                {notif.tipo === 'admin_senha' && (
+                                                    <BotaoWhatsapp
+                                                        usuarioId={notif.usuarioId}
+                                                        telefone={notif.telefone}
+                                                        nome={notif.nome}
+                                                        onEnviado={() => onRemoverClick(notif.idInterno)}
+                                                    />
                                                 )}
                                             </div>
                                             <button onClick={() => onRemoverClick(notif.idInterno)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={14} /></button>

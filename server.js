@@ -76,6 +76,15 @@ const solicitacoesLimiter = rateLimit({
     message: { success: false, message: 'Muitas solicitações. Tente novamente em 1 hora.' }
 });
 
+// ── Rate limiting: reset de senha via token (5 tentativas / 15 min por IP) ───
+const resetSenhaLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' }
+});
+
 // Aumenta o limite para aceitar imagens em Base64 grandes
 const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '10mb';
 app.use(bodyParser.json({ limit: MAX_FILE_SIZE }));
@@ -497,7 +506,7 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
 });
 
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
-app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
         const isCoordenador = req.user.cargo === 'Coordenador';
         const cidade = req.user.cidade;
@@ -670,7 +679,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 });
 
 // ── Cadastro: motoristas já lançados na operação (tabela veiculos) ────────────
-app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
         const rows = await dbAll(`
             SELECT v.id, v.motorista, v.dados_json,
@@ -680,10 +689,17 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
                    v.status_recife, v.status_moreno,
                    m.placa1 AS mp_placa1, m.placa2 AS mp_placa2,
                    m.tipo_veiculo AS mp_tipo_veiculo,
-                   m.seguradora_cad, m.origem_cad, m.destino_uf_cad, m.destino_cidade_cad
+                   COALESCE(v.seguradora_cad, m.seguradora_cad) AS seguradora_cad,
+                   COALESCE(v.origem_cad, m.origem_cad) AS origem_cad,
+                   COALESCE(v.destino_uf_cad, m.destino_uf_cad) AS destino_uf_cad,
+                   COALESCE(v.destino_cidade_cad, m.destino_cidade_cad) AS destino_cidade_cad
             FROM veiculos v
-            LEFT JOIN marcacoes_placas m ON LOWER(TRIM(m.nome_motorista)) = LOWER(TRIM(v.motorista))
-                AND v.motorista IS NOT NULL AND v.motorista != ''
+            LEFT JOIN marcacoes_placas m ON m.id = (
+                SELECT mp.id FROM marcacoes_placas mp
+                WHERE v.motorista IS NOT NULL AND v.motorista != ''
+                  AND LOWER(TRIM(mp.nome_motorista)) = LOWER(TRIM(v.motorista))
+                ORDER BY mp.data_marcacao DESC LIMIT 1
+            )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
               AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
@@ -723,9 +739,9 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Coordenador', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
-        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual, origem_cad, destino_uf_cad, destino_cidade_cad } = req.body;
+        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual, seguradora_cad, origem_cad, destino_uf_cad, destino_cidade_cad } = req.body;
 
         // Calcular situação automaticamente
         const todosChk = !!(chk_cnh_cad && chk_antt_cad && chk_tacografo_cad && chk_crlv_cad);
@@ -753,7 +769,8 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
         await dbRun(
             `UPDATE veiculos SET
                 chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?,
-                numero_liberacao=?, situacao_cadastro=?, data_liberacao=?
+                numero_liberacao=?, situacao_cadastro=?, data_liberacao=?,
+                seguradora_cad=?, origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
              WHERE id=?`,
             [
                 chk_cnh_cad ? 1 : 0,
@@ -763,6 +780,10 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
                 num_liberacao_cad || null,
                 situacao,
                 novaDataLib,
+                seguradora_cad || null,
+                origem_cad || null,
+                destino_uf_cad || null,
+                destino_cidade_cad || null,
                 req.params.id
             ]
         );
@@ -796,13 +817,13 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
                 `UPDATE marcacoes_placas SET
                     chk_cnh_cad=?, chk_antt_cad=?, chk_tacografo_cad=?, chk_crlv_cad=?,
                     num_liberacao_cad=?, situacao_cad=?, data_liberacao_cad=?,
-                    origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
+                    seguradora_cad=?, origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
                  WHERE telefone = ? OR REPLACE(REPLACE(telefone,'+55',''),' ','') = ?`,
                 [
                     chk_cnh_cad ? 1 : 0, chk_antt_cad ? 1 : 0,
                     chk_tacografo_cad ? 1 : 0, chk_crlv_cad ? 1 : 0,
                     num_liberacao_cad || null, situacao, novaDataLib,
-                    origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '',
+                    seguradora_cad || '', origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '',
                     dj.telefoneMotorista, dj.telefoneMotorista
                 ]
             );
@@ -810,9 +831,9 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             // Fallback: sincronizar pelo nome do motorista quando não há telefone
             await dbRun(
                 `UPDATE marcacoes_placas SET
-                    origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
+                    seguradora_cad=?, origem_cad=?, destino_uf_cad=?, destino_cidade_cad=?
                  WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?))`,
-                [origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '', atual.motorista]
+                [seguradora_cad || '', origem_cad || '', destino_uf_cad || '', destino_cidade_cad || '', atual.motorista]
             );
         }
 
@@ -1182,11 +1203,90 @@ app.get('/usuarios/buscar', authMiddleware, async (req, res) => {
     try {
         const { nome } = req.query;
         if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
-        const usuario = await dbGet("SELECT id, nome, email, cargo FROM usuarios WHERE LOWER(nome) LIKE LOWER(?)", [`%${nome.trim()}%`]);
+        const usuario = await dbGet("SELECT id, nome, email, cargo, telefone FROM usuarios WHERE LOWER(nome) LIKE LOWER($1)", [`%${nome.trim()}%`]);
         if (!usuario) return res.json({ success: false, message: 'Usuário não encontrado.' });
-        res.json({ success: true, id: usuario.id, nome: usuario.nome, email: usuario.email });
+        res.json({ success: true, id: usuario.id, nome: usuario.nome, email: usuario.email, telefone: usuario.telefone || null });
     } catch (e) {
         res.status(500).json({ success: false });
+    }
+});
+
+// Salvar telefone WhatsApp do usuário (próprio usuário ou Coordenador)
+app.post('/usuarios/:id/telefone', authMiddleware, async (req, res) => {
+    try {
+        const idAlvo = Number(req.params.id);
+        const { telefone } = req.body;
+        if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+            return res.status(400).json({ success: false, message: 'Telefone inválido. Informe DDD + número.' });
+        }
+        // Só o próprio usuário ou um Coordenador pode salvar
+        if (req.user.id !== idAlvo && req.user.cargo !== 'Coordenador') {
+            return res.status(403).json({ success: false, message: 'Sem permissão.' });
+        }
+        const tel = telefone.replace(/\D/g, '');
+        await dbRun("UPDATE usuarios SET telefone = $1 WHERE id = $2", [tel, idAlvo]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Gerar token de reset de senha (só Coordenador) — retorna código para enviar via WhatsApp
+app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+    try {
+        const idAlvo = Number(req.params.id);
+        const usuario = await dbGet("SELECT id, nome, telefone FROM usuarios WHERE id = $1", [idAlvo]);
+        if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        if (!usuario.telefone) return res.status(400).json({ success: false, message: 'Usuário sem telefone cadastrado.' });
+
+        // Invalida tokens anteriores do usuário
+        await dbRun("UPDATE reset_tokens SET usado = 1 WHERE usuario_id = $1", [idAlvo]);
+
+        // Gera código de 6 dígitos criptograficamente seguro e salva com TTL de 15 min
+        const token = require('crypto').randomInt(100000, 1000000).toString();
+        await dbRun(
+            "INSERT INTO reset_tokens (usuario_id, token, expira_em) VALUES ($1, $2, NOW() + interval '15 minutes')",
+            [idAlvo, token]
+        );
+        logger.audit('GERAR_TOKEN_RESET', `ID:${idAlvo}`);
+        res.json({ success: true, token, telefone: usuario.telefone, nome: usuario.nome });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Trocar senha usando token recebido via WhatsApp (sem auth — usuário ainda não está logado)
+app.post('/reset-senha-token', resetSenhaLimiter, async (req, res) => {
+    const MSG_INVALIDO = 'Código inválido ou expirado.';
+    try {
+        const { email, token, novaSenha } = req.body;
+        if (!email || !token || !novaSenha) {
+            return res.status(400).json({ success: false, message: 'Campos obrigatórios: email, token, novaSenha.' });
+        }
+        if (novaSenha.length < 6) {
+            return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 6 caracteres.' });
+        }
+
+        const usuario = await dbGet("SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1)", [email.trim()]);
+        // Retorna a mesma mensagem para email inválido e código inválido (evita email enumeration)
+        if (!usuario) return res.status(400).json({ success: false, message: MSG_INVALIDO });
+
+        const registro = await dbGet(
+            "SELECT id FROM reset_tokens WHERE usuario_id = $1 AND token = $2 AND usado = 0 AND expira_em > NOW()",
+            [usuario.id, token.trim()]
+        );
+        if (!registro) {
+            return res.status(400).json({ success: false, message: MSG_INVALIDO });
+        }
+
+        const hash = await bcrypt.hash(novaSenha, 10);
+        await dbRun("UPDATE usuarios SET senha = $1 WHERE id = $2", [hash, usuario.id]);
+        await dbRun("UPDATE reset_tokens SET usado = 1 WHERE id = $1", [registro.id]);
+        logger.audit('RESET_SENHA_TOKEN', `ID:${usuario.id}`);
+        res.json({ success: true, message: 'Senha alterada com sucesso!' });
+    } catch (e) {
+        console.error('❌ [reset-senha-token]:', e);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); });
@@ -1526,6 +1626,8 @@ cron.schedule('0 17 * * 1-5', () => gerarProgramacaoDiaria('17h'), { scheduled: 
 // Só alerta para motoristas em espera (marcacoes_placas com disponibilidade != Contratado)
 // Guarda controle de alertas já enviados para não duplicar
 const alertasJaEnviados = new Set(); // chave: `${id}_2h` ou `${id}_exp`
+// Limpar o Set uma vez por dia (motoristas removidos do banco não limpam automaticamente)
+setInterval(() => { alertasJaEnviados.clear(); }, 24 * 60 * 60 * 1000);
 
 async function verificarExpiracaoLiberacoes() {
     try {
@@ -1562,7 +1664,7 @@ async function verificarExpiracaoLiberacoes() {
                     await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
                         tipo: 'liberacao_expirada',
-                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
+                        cargos_alvo: ['Cadastro', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
@@ -1585,7 +1687,7 @@ async function verificarExpiracaoLiberacoes() {
                     await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
                         tipo: 'liberacao_vencendo',
-                        cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado', 'Planejamento'],
+                        cargos_alvo: ['Cadastro', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
@@ -1793,12 +1895,15 @@ app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador']),
 const PORT = process.env.PORT || 3001;
 
 // ── ERRO GLOBAL (FALLBACK DE SEGURANÇA) ──────────────────────────────
-// Deve ser o último middleware a ser definido
 app.use((err, req, res, next) => {
-    console.error('❌ [ERRO CRÍTICO NÃO TRATADO]:', err.stack);
+    // JSON malformado enviado pelo cliente (SyntaxError do body-parser)
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ success: false, message: 'JSON inválido na requisição.' });
+    }
+    console.error('❌ [ERRO SERVIDOR]:', err.message || err);
     res.status(500).json({
         success: false,
-        message: 'Ocorreu um erro interno no servidor. A equipe técnica foi notificada.'
+        message: 'Erro interno no servidor.'
     });
 });
 

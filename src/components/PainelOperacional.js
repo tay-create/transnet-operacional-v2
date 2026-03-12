@@ -93,6 +93,7 @@ export default function PainelOperacional({
     const [dataFim, setDataFim] = useState(obterDataBrasilia);
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
+    const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
     const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
@@ -738,6 +739,54 @@ export default function PainelOperacional({
                                                 </div>
                                             </div >
 
+                                            {/* Linha de Placa — visível e editável para Aux. Operacional e Cadastro */}
+                                            {(() => {
+                                                const podEditarPlaca = ['Coordenador', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento'].includes(user.cargo);
+                                                const placaExibida = item.placa1Motorista || item.placa || '—';
+                                                const placa2Exibida = item.placa2Motorista || '';
+                                                if (editandoPlaca === item.id) {
+                                                    return (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.25)', borderRadius: '8px', padding: '6px 10px' }}>
+                                                            <Truck size={12} color="#fbbf24" />
+                                                            <input
+                                                                autoFocus
+                                                                defaultValue={item.placa1Motorista || item.placa || ''}
+                                                                placeholder="Placa 1"
+                                                                maxLength={8}
+                                                                onBlur={e => {
+                                                                    updateList(lista, setLista, realIndex, 'placa1Motorista', e.target.value.toUpperCase().trim());
+                                                                }}
+                                                                style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '5px', color: '#fbbf24', fontWeight: 'bold', fontSize: '12px', padding: '3px 6px', outline: 'none', width: '90px', fontFamily: 'monospace', textTransform: 'uppercase' }}
+                                                            />
+                                                            <span style={{ color: '#64748b', fontSize: '11px' }}>/</span>
+                                                            <input
+                                                                defaultValue={item.placa2Motorista || ''}
+                                                                placeholder="Placa 2"
+                                                                maxLength={8}
+                                                                onBlur={e => {
+                                                                    updateList(lista, setLista, realIndex, 'placa2Motorista', e.target.value.toUpperCase().trim());
+                                                                }}
+                                                                style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(100,116,139,0.4)', borderRadius: '5px', color: '#94a3b8', fontWeight: 'bold', fontSize: '12px', padding: '3px 6px', outline: 'none', width: '90px', fontFamily: 'monospace', textTransform: 'uppercase' }}
+                                                            />
+                                                            <button onClick={() => setEditandoPlaca(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4ade80', padding: '2px', display: 'flex', alignItems: 'center' }} title="Fechar">
+                                                                <CheckCircle size={14} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', padding: '4px 8px' }}>
+                                                        <Truck size={11} color="#64748b" />
+                                                        <span style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', fontFamily: 'monospace' }}>{placaExibida}</span>
+                                                        {placa2Exibida && <><span style={{ color: '#475569', fontSize: '11px' }}>/</span><span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{placa2Exibida}</span></>}
+                                                        {podEditarPlaca && (
+                                                            <button onClick={() => setEditandoPlaca(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px', marginLeft: 'auto', display: 'flex', alignItems: 'center' }} title="Editar placa">
+                                                                <Edit2 size={12} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* Doca e Status */}
                                             {podeEditarNaUnidade('alterar_status_operacao') ? (

@@ -1,12 +1,21 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize, generateToken } = require('../../middleware/authMiddleware');
 const { validate, loginSchema, cadastroUsuarioSchema } = require('../../middleware/validationMiddleware');
 
 const router = express.Router();
 
-router.post('/login', validate(loginSchema), async (req, res) => {
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
+});
+
+router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
     const { nome, senha } = req.body;
     const emailLogin = nome.trim().toLowerCase();
 
@@ -35,16 +44,18 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 
         // Preparar dados do usuário (sem senha)
         // PostgreSQL retorna campos em minúsculo (avatarurl, permissoesacesso, etc)
+        const parseJson = (val, fallback = '[]') => { try { return JSON.parse(val || fallback); } catch { return JSON.parse(fallback); } };
         const usuarioSemSenha = {
             id: usuario.id,
             nome: usuario.nome,
             email: usuario.email,
             cidade: usuario.cidade,
             cargo: usuario.cargo,
+            telefone: usuario.telefone || null,
             avatarUrl: usuario.avatarurl || usuario.avatarUrl,
             usaPermissaoIndividual: !!(usuario.usapermissaoindividual || usuario.usaPermissaoIndividual),
-            permissoesAcesso: JSON.parse(usuario.permissoesacesso || usuario.permissoesAcesso || '[]'),
-            permissoesEdicao: JSON.parse(usuario.permissoesedicao || usuario.permissoesEdicao || '[]')
+            permissoesAcesso: parseJson(usuario.permissoesacesso || usuario.permissoesAcesso),
+            permissoesEdicao: parseJson(usuario.permissoesedicao || usuario.permissoesEdicao)
         };
 
         res.json({
@@ -61,11 +72,12 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT id, nome, email, cidade, cargo, avatarurl, permissoesacesso, permissoesedicao, usapermissaoindividual FROM usuarios");
+        const parseJson = (val, fallback = '[]') => { try { return JSON.parse(val || fallback); } catch { return JSON.parse(fallback); } };
         const usuarios = rows.map(u => ({
             ...u,
             avatarUrl: u.avatarurl || u.avatarUrl,
-            permissoesAcesso: JSON.parse(u.permissoesacesso || u.permissoesAcesso || '[]'),
-            permissoesEdicao: JSON.parse(u.permissoesedicao || u.permissoesEdicao || '[]')
+            permissoesAcesso: parseJson(u.permissoesacesso || u.permissoesAcesso),
+            permissoesEdicao: parseJson(u.permissoesedicao || u.permissoesEdicao)
         }));
         res.json({ success: true, usuarios });
     } catch (e) {
@@ -78,7 +90,7 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
     const { nome, email, senha, cidade, cargo } = req.body;
 
     try {
-        const usuarioExistente = await dbGet("SELECT id FROM usuarios WHERE email = ?", [email]);
+        const usuarioExistente = await dbGet("SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1)", [email]);
         if (usuarioExistente) {
             return res.status(400).json({ success: false, message: "Este email já está em uso!" });
         }
@@ -99,22 +111,23 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
 });
 
 router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome } = req.body;
+    const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome, telefone } = req.body;
     try {
-        const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=?", [req.params.id]);
+        const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=$1", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
         const cargoFinal = req.user.cargo === 'Coordenador' ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
 
         await dbRun(
-            `UPDATE usuarios SET usaPermissaoIndividual=?, permissoesAcesso=?, permissoesEdicao=?, cargo=?, cidade=?, nome=? WHERE id=?`,
+            `UPDATE usuarios SET usaPermissaoIndividual=$1, permissoesAcesso=$2, permissoesEdicao=$3, cargo=$4, cidade=$5, nome=$6, telefone=$7 WHERE id=$8`,
             [
-                usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usapermissoaindividual,
+                usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usapermissaoindividual,
                 JSON.stringify(permissoesAcesso ?? JSON.parse(usuarioAtual.permissoesacesso || '[]')),
                 JSON.stringify(permissoesEdicao ?? JSON.parse(usuarioAtual.permissoesedicao || '[]')),
                 cargoFinal,
                 cidade ?? usuarioAtual.cidade,
                 nome ?? usuarioAtual.nome,
+                telefone !== undefined ? (telefone ? telefone.replace(/\D/g, '') : null) : (usuarioAtual.telefone || null),
                 req.params.id
             ]
         );

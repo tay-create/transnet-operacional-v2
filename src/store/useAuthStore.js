@@ -79,8 +79,9 @@ const useAuthStore = create(
                     return user.permissoesAcesso.includes(modulo);
                 }
 
-                // Fallback: Coordenador tem acesso a tudo, demais cargos negado por padrão
-                return user?.cargo === 'Coordenador';
+                // Fallback: usar permissões padrão por cargo do configStore
+                const { permissoes } = require('./useConfigStore').default.getState();
+                return permissoes[user.cargo]?.includes(modulo) ?? false;
             },
 
             /**
@@ -96,7 +97,9 @@ const useAuthStore = create(
                     return user.permissoesEdicao.includes(acao);
                 }
 
-                return true;
+                // Fallback: usar permissões de edição padrão por cargo do configStore
+                const { permissoesEdicao } = require('./useConfigStore').default.getState();
+                return permissoesEdicao[user.cargo]?.includes(acao) ?? false;
             },
 
             /**

@@ -3,12 +3,14 @@ import { ClipboardCheck, CheckCircle, XCircle, Calendar, Search, Filter } from '
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 import { obterDataBrasilia } from '../utils/helpers';
+import ModalConfirm from './ModalConfirm';
 
 export default function PainelChecklist() {
     const user = useAuthStore(state => state.user);
     const podeAprovar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
 
     const [checklists, setChecklists] = useState([]);
+    const [aviso, setAviso] = useState(null);
     const [loading, setLoading] = useState(true);
 
     const dataHoje = obterDataBrasilia();
@@ -40,7 +42,7 @@ export default function PainelChecklist() {
             await api.put(`/api/checklists/${id}/status`, { status: novoStatus });
             setChecklists(prev => prev.map(c => c.id === id ? { ...c, status: novoStatus } : c));
         } catch (error) {
-            alert('Erro ao atualizar status do checklist.');
+            setAviso('Erro ao atualizar status do checklist.');
         }
     };
 
@@ -73,6 +75,7 @@ export default function PainelChecklist() {
 
     return (
         <div style={{ padding: '20px', color: '#f1f5f9', height: '100%', display: 'flex', flexDirection: 'column' }}>
+            {aviso && <ModalConfirm variante="aviso" mensagem={aviso} onCancel={() => setAviso(null)} />}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: 'rgba(249,115,22,0.1)', padding: '10px', borderRadius: '10px' }}>

@@ -1,13 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Package } from 'lucide-react';
 
 export default function ModalColetas({ veiculoSelecionado, setModalColetasAberto, setVeiculoSelecionado, updateList, podeEditarNaUnidade }) {
+    const [localSolicitado, setLocalSolicitado] = useState(veiculoSelecionado?.item?.status_coleta?.solicitado || '');
+    const [localLiberado, setLocalLiberado] = useState(veiculoSelecionado?.item?.status_coleta?.liberado || '');
+
     if (!veiculoSelecionado) return null;
+
+    const handleClose = () => {
+        // Merge local values with the current item state to avoid stale overwrites
+        const novaColeta = {
+            ...veiculoSelecionado.item.status_coleta,
+            solicitado: localSolicitado,
+            liberado: localLiberado,
+        };
+        updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta', novaColeta, veiculoSelecionado.origem);
+        setModalColetasAberto(false);
+        setVeiculoSelecionado(null);
+    };
 
     return (
         <div
             className="modal-overlay"
-            onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
+            onClick={handleClose}
             style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(2px)' }}
         >
             <div
@@ -25,12 +40,9 @@ export default function ModalColetas({ veiculoSelecionado, setModalColetasAberto
                             type="time"
                             className="input-internal"
                             style={{ width: '100%', fontSize: '14px', padding: '10px' }}
-                            value={veiculoSelecionado.item.status_coleta?.solicitado || ''}
+                            value={localSolicitado}
                             disabled={!podeEditarNaUnidade('timer_solicitado')}
-                            onChange={e => {
-                                updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.solicitado', e.target.value, veiculoSelecionado.origem);
-                                setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, solicitado: e.target.value } } }));
-                            }}
+                            onChange={e => setLocalSolicitado(e.target.value)}
                         />
                     </div>
                     <div>
@@ -39,21 +51,18 @@ export default function ModalColetas({ veiculoSelecionado, setModalColetasAberto
                             type="time"
                             className="input-internal"
                             style={{ width: '100%', fontSize: '14px', padding: '10px' }}
-                            value={veiculoSelecionado.item.status_coleta?.liberado || ''}
+                            value={localLiberado}
                             disabled={!podeEditarNaUnidade('timer_liberado')}
-                            onChange={e => {
-                                updateList(veiculoSelecionado.lista, veiculoSelecionado.setLista, veiculoSelecionado.realIndex, 'status_coleta.liberado', e.target.value, veiculoSelecionado.origem);
-                                setVeiculoSelecionado(prev => ({ ...prev, item: { ...prev.item, status_coleta: { ...prev.item.status_coleta, liberado: e.target.value } } }));
-                            }}
+                            onChange={e => setLocalLiberado(e.target.value)}
                         />
                     </div>
                 </div>
                 <div style={{ marginTop: '25px', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
-                        onClick={() => { setModalColetasAberto(false); setVeiculoSelecionado(null); }}
+                        onClick={handleClose}
                         style={{ padding: '8px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
                     >
-                        FECHAR
+                        SALVAR E FECHAR
                     </button>
                 </div>
             </div>

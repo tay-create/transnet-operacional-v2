@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     X, Users, AlertTriangle, CheckCircle, XCircle, Key, Trash2, Eye, Pencil, Save, RotateCcw
 } from 'lucide-react';
+import ModalConfirm from './ModalConfirm';
 import { MODULOS_SISTEMA, MODULOS_EDICAO, CARGOS_DISPONIVEIS } from '../constants';
 import useUserStore from '../store/useUserStore';
 import useAuthStore from '../store/useAuthStore';
@@ -31,6 +32,7 @@ const ModalAdmin = ({ isOpen, onClose }) => {
 
     const { permissoes, permissoesEdicao } = useConfigStore();
     const { mostrarNotificacao } = useUIStore();
+    const [confirmar, setConfirmar] = useState(null);
 
     if (!isOpen) return null;
     if (user?.cargo !== 'Coordenador') return null;
@@ -52,12 +54,17 @@ const ModalAdmin = ({ isOpen, onClose }) => {
         }
     };
 
-    const handleRemover = async (id) => {
-        if (!window.confirm("Remover este usuário permanentemente?")) return;
-        const result = await removerUsuario(id);
-        if (result.success) {
-            mostrarNotificacao("🗑️ Usuário removido.");
-        }
+    const handleRemover = (id) => {
+        setConfirmar({
+            titulo: 'Remover usuário',
+            mensagem: 'Remover este usuário permanentemente?',
+            textConfirm: 'Remover',
+            onConfirm: async () => {
+                setConfirmar(null);
+                const result = await removerUsuario(id);
+                if (result.success) mostrarNotificacao("🗑️ Usuário removido.");
+            }
+        });
     };
 
     const handleSalvarRegras = async () => {
@@ -76,22 +83,28 @@ const ModalAdmin = ({ isOpen, onClose }) => {
         }
     };
 
-    const handleResetSenha = async (u) => {
-        if (!window.confirm(`Resetar a senha de "${u.nome}" para "123"?`)) return;
-        try {
-            const r = await import('../services/apiService').then(m => m.default.post(`/usuarios/${u.id}/reset-senha`));
-            if (r.data.success) {
-                mostrarNotificacao(`🔑 Senha de ${u.nome} resetada para "123".`);
-            } else {
-                mostrarNotificacao(`❌ ${r.data.message || 'Erro ao resetar senha.'}`);
+    const handleResetSenha = (u) => {
+        setConfirmar({
+            titulo: 'Resetar senha',
+            mensagem: `Resetar a senha de "${u.nome}" para "123"?`,
+            textConfirm: 'Resetar',
+            variante: 'aviso',
+            onConfirm: async () => {
+                setConfirmar(null);
+                try {
+                    const r = await import('../services/apiService').then(m => m.default.post(`/usuarios/${u.id}/reset-senha`));
+                    if (r.data.success) mostrarNotificacao(`🔑 Senha de ${u.nome} resetada para "123".`);
+                    else mostrarNotificacao(`❌ ${r.data.message || 'Erro ao resetar senha.'}`);
+                } catch {
+                    mostrarNotificacao('❌ Erro ao resetar senha.');
+                }
             }
-        } catch {
-            mostrarNotificacao('❌ Erro ao resetar senha.');
-        }
+        });
     };
 
     return (
         <div className="modal-overlay">
+            {confirmar && <ModalConfirm titulo={confirmar.titulo} mensagem={confirmar.mensagem} variante={confirmar.variante || 'perigo'} textConfirm={confirmar.textConfirm} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} />}
             <div className="modal-neon-panel" style={{ width: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
                 {!usuarioEditando ? (
                     <>

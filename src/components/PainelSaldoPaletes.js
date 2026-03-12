@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Package, RefreshCw, RotateCcw, Trash2, X, Filter, FileDown, TrendingUp, Clock } from 'lucide-react';
 import api from '../services/apiService';
 import { gerarPDFPaletes } from '../utils/pdfGenerator';
+import ModalConfirm from './ModalConfirm';
 
 // ── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
@@ -152,6 +153,7 @@ export default function PainelSaldoPaletes() {
     const [toast, setToast] = useState('');
     const [filtroStatus, setFiltroStatus] = useState('TODOS');
     const [modalDevolucao, setModalDevolucao] = useState(null);
+    const [confirmar, setConfirmar] = useState(null);
 
     const mostrarToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
 
@@ -178,13 +180,18 @@ export default function PainelSaldoPaletes() {
         } catch (e) { mostrarToast('Erro ao registrar devolução.'); }
     };
 
-    const excluir = async (id) => {
-        if (!window.confirm('Excluir este registro permanentemente?')) return;
-        try {
-            await api.delete(`/api/saldo-paletes/${id}`);
-            mostrarToast('🗑️ Registro removido.');
-            carregar();
-        } catch (e) { mostrarToast('Erro ao excluir.'); }
+    const excluir = (id) => {
+        setConfirmar({
+            mensagem: 'Excluir este registro permanentemente?',
+            onConfirm: async () => {
+                setConfirmar(null);
+                try {
+                    await api.delete(`/api/saldo-paletes/${id}`);
+                    mostrarToast('🗑️ Registro removido.');
+                    carregar();
+                } catch (e) { mostrarToast('Erro ao excluir.'); }
+            }
+        });
     };
 
     // ── Filtros ──
@@ -215,6 +222,7 @@ export default function PainelSaldoPaletes() {
         <div style={s.wrap}>
             {toast && <div style={s.toast}>{toast}</div>}
             {modalDevolucao && <ModalDevolucao registro={modalDevolucao} onClose={() => setModalDevolucao(null)} onConfirm={registrarDevolucao} />}
+            {confirmar && <ModalConfirm mensagem={confirmar.mensagem} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} textConfirm="Excluir" />}
 
             {/* Header */}
             <div style={s.header}>

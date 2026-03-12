@@ -46,7 +46,7 @@ function corSituacao(sit) {
 export default function PainelCadastro({ user, socket }) {
     // ── Blindagem de Acesso ──
     const cargo = (user?.cargo || '').toUpperCase();
-    const podeEditar = ['COORDENADOR', 'CADASTRO', 'ENCARREGADO'].includes(cargo);
+    const podeEditar = ['COORDENADOR', 'PLANEJAMENTO', 'CADASTRO', 'CONHECIMENTO'].includes(cargo);
 
     const [motoristas, setMotoristas] = useState([]);
     const [edicoes, setEdicoes] = useState({}); // { [id]: { chk_cnh_cad, ... } }
@@ -122,6 +122,7 @@ export default function PainelCadastro({ user, socket }) {
                         situacao_cad: m.situacao_cad || 'NÃO CONFERIDO',
                         data_liberacao_cad: m.data_liberacao_cad || null,
                         data_liberacao_manual: '',
+                        seguradora_cad: m.seguradora_cad || '',
                         origem_cad: m.origem_cad || '',
                         destino_uf_cad: m.destino_uf_cad || '',
                         destino_cidade_cad: m.destino_cidade_cad || '',
