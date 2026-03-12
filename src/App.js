@@ -558,6 +558,10 @@ function App({ socket }) {
             t_fim_liberado_cte: temposVeic.t_fim_liberado_cte || null,
             numero_liberacao: dadosVeiculo.numero_liberacao || '',
             data_liberacao: dadosVeiculo.data_liberacao || null,
+            // Campos de rota herdados do cadastro
+            origem_cad: dadosVeiculo.origem_cad || '',
+            destino_uf_cad: dadosVeiculo.destino_uf_cad || '',
+            destino_cidade_cad: dadosVeiculo.destino_cidade_cad || '',
             timestamps: { criado_em: new Date().toISOString(), inicio_emissao: '', fim_emissao: '' }
         };
 
@@ -832,16 +836,23 @@ function App({ socket }) {
 
             salvarNoHistoricoCte(itemAtual, origem);
 
-            // Remover do banco de CT-es ativos (ja foi arquivado no historico)
+            // Em vez de remover do banco, apenas atualiza o status para persistir como "Emitido"
             if (itemAtual.id) {
                 try {
-                    await api.delete(`/ctes/${itemAtual.id}`);
+                    await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual });
+                    // Atualiza a lista local mantendo o item agora com status "Emitido"
+                    setLista(prev => prev.map((c, mIndex) => mIndex === index ? itemAtual : c));
+                    mostrarNotificacao("✅ CT-e Emitido!");
                 } catch (error) {
-                    console.error('Erro ao remover CT-e ativo do banco:', error);
+                    const msgErro = error.response?.data?.message || 'Erro ao persistir status Emitido (PUT).';
+                    console.error('Erro ao persistir status Emitido:', error);
+                    mostrarNotificacao(`⚠️ ${msgErro}`);
                 }
             }
-            mostrarNotificacao("✅ CT-e Emitido!");
+            return; // Interrompe para não executar o update genérico abaixo
         }
+
+        // Para outros status, atualiza localmente primeiro (estado otimista)
         novaLista[index] = itemAtual;
         setLista(novaLista);
 

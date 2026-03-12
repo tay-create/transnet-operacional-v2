@@ -1075,8 +1075,8 @@ export default function PainelOperacional({
                                                         </button>
                                                     )}
 
-                                                    {/* Botão Liberado p/ CTE — só aparece quando conferente finalizou (CARREGADO) */}
-                                                    {valorStatusAtual === 'CARREGADO' && (
+                                                    {/* Botão Liberado p/ CTE — só aparece quando conferente finalizou (CARREGADO) ou está em carregamento */}
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && (
                                                         <button
                                                             onClick={() => updateList(lista, setLista, realIndex, campoStatusAlvo, 'LIBERADO P/ CT-e', origem)}
                                                             style={{

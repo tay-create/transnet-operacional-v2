@@ -133,6 +133,20 @@ export default function PainelCte({
 
                         {/* Corpo do Card */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {/* Origem e Destino */}
+                            <div style={{ display: 'flex', gap: '10px', background: 'rgba(255,255,255,0.03)', padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: '9px', opacity: 0.6 }}>ORIGEM</label>
+                                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#f1f5f9' }}>{cte.origem || cte.origem_cad || '---'}</div>
+                                </div>
+                                <div style={{ flex: 1.2 }}>
+                                    <label style={{ fontSize: '9px', opacity: 0.6 }}>DESTINO</label>
+                                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#f1f5f9' }}>
+                                        {cte.destino_cidade || cte.destino_cidade_cad || '---'}{' / '}{cte.destino_uf || cte.destino_uf_cad || '--'}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div>
                                 <label>MOTORISTA RESPONSÁVEL</label>
                                 <input value={cte.motorista} readOnly />

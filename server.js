@@ -1051,7 +1051,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
 });
 
 // Remover CT-e ativo (apos arquivar no historico)
-app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
         res.json({ success: true });
@@ -1400,8 +1400,8 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                     console.error('Erro ao gravar status_cte no veículo:', errStatus);
                 }
 
-                // Notificar painéis para sumir com o card (refresh geral)
-                io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
+                // Notificar painéis para atualizar os dados via socket específico se necessário
+                // io.emit('receber_atualizacao', { tipo: 'refresh_geral' }); // REMOVIDO para evitar sumiço do card
             } catch (errViagem) {
                 console.error('Erro ao incrementar viagem do motorista:', errViagem);
             }
