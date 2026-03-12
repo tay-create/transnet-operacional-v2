@@ -1910,6 +1910,17 @@ app.use((err, req, res, next) => {
 // ── Fallback para React (SPA) ────────────────────────────────────────────────
 // Deve ser uma das últimas rotas para não interferir nas rotas da API
 if (process.env.NODE_ENV === 'production') {
+    const fs = require('fs');
+
+    // PWA Conferente: serve index.html com manifest apontando para /conferente
+    app.get('/conferente', (req, res) => {
+        const indexPath = path.join(__dirname, 'build', 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        html = html.replace('/manifest.json', '/conferente-manifest.json');
+        res.set('Content-Type', 'text/html');
+        res.send(html);
+    });
+
     app.get('/*splat', (req, res) => {
         res.sendFile(path.join(__dirname, 'build', 'index.html'));
     });

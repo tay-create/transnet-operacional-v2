@@ -19,7 +19,7 @@ function createWindow() {
         minWidth: 1024,
         minHeight: 600,
         title: 'Transnet Operacional',
-        icon: path.join(__dirname, '..', 'public', 'favicon.ico'),
+        icon: path.join(__dirname, '..', 'public', 'appicon.ico'),
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/favicon.ico" width="80" alt="Logo Transnet" />
+  <img src="public/appicon.ico" width="80" alt="Logo Transnet" />
   <h1>Transnet Operacional (v2)</h1>
   <p><strong>Plataforma Logística e Gestão Operacional de Transporte</strong></p>
 </div>
