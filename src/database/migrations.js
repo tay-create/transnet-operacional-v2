@@ -7,18 +7,18 @@ const PERMISSOES_PADRAO = JSON.stringify({
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
-    'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
-    'Cadastro':         ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
+    'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
+    'Cadastro':         ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
     'Dashboard Viewer': ['dashboard_tv'],
     'Conferente':       ['ver_unidade_recife', 'ver_unidade_moreno'],
     'Pos Embarque':     ['marcacao_placas', 'ver_unidade_recife', 'ver_unidade_moreno']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
-    'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
-    'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
-    'Encarregado':      ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
-    'Aux. Operacional': ['operacao', 'editar_operacao_card', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'fila'],
+    'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Encarregado':      ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
+    'Aux. Operacional': ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'fila'],
     'Conhecimento':     ['cte'],
     'Cadastro':         [],
     'Conferente':       [],

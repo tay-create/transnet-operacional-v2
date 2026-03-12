@@ -21,9 +21,13 @@ const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PO
 
 
 // Ao mudar a operacao, limpar campos de unidades removidas e aplicar regras de parada
-const handleOperacaoChange = (item, novaOperacao, updateList, lista, setLista, realIndex, api) => {
+const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista, realIndex, api) => {
+    const { updateList, mostrarNotificacao } = funcoes;
     const precisaRecife = ehOperacaoRecife(novaOperacao);
     const precisaMoreno = ehOperacaoMoreno(novaOperacao);
+
+    // Backup para reverter em caso de erro
+    const itemOriginal = { ...lista[realIndex] };
 
     // Construir objeto com todas as mudancas de uma vez
     const novaLista = [...lista];
@@ -67,17 +71,30 @@ const handleOperacaoChange = (item, novaOperacao, updateList, lista, setLista, r
 
     // Persistir no backend em uma unica chamada
     if (itemAtualizado.id && api) {
-        api.put(`/ veiculos / ${itemAtualizado.id} `, itemAtualizado).catch(err => {
+        try {
+            await api.put(`/veiculos/${itemAtualizado.id}`, itemAtualizado);
+            mostrarNotificacao?.(`✅ Operação alterada: ${novaOperacao}`);
+        } catch (err) {
             console.error("Erro ao salvar mudanca de operacao:", err);
-        });
+            const msg = err.response?.data?.message || "Erro ao salvar mudança de operação.";
+            mostrarNotificacao?.(`⚠️ ${msg}`);
+            
+            // Reverte o estado local em caso de erro
+            setLista(prev => {
+                const revertida = [...prev];
+                revertida[realIndex] = itemOriginal;
+                return revertida;
+            });
+        }
     }
 };
 
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
     termoBusca, setTermoBusca, user,
-    funcoes: { podeEditar, updateList, socket, removerVeiculo }
+    funcoes
 }) {
+    const { podeEditar, updateList, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') {
@@ -89,8 +106,8 @@ export default function PainelOperacional({
         return podeEditar(permissao);
     };
 
-    const [dataInicio, setDataInicio] = useState(obterDataBrasilia);
-    const [dataFim, setDataFim] = useState(obterDataBrasilia);
+    const [dataInicio, setDataInicio] = useState(() => localStorage.getItem('filtro_data_inicio_' + origem) || obterDataBrasilia());
+    const [dataFim, setDataFim] = useState(() => localStorage.getItem('filtro_data_fim_' + origem) || obterDataBrasilia());
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
@@ -161,6 +178,9 @@ export default function PainelOperacional({
 
 
     function selecionarMotoristaNaEdicao(item, realIndex, m) {
+        // Backup para reverter em caso de erro
+        const itemOriginal = { ...lista[realIndex] };
+
         // Herda campos extras sem destruir o objeto
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[realIndex] };
@@ -179,7 +199,23 @@ export default function PainelOperacional({
         itemAtual.destinoMotorista = m.destino_desejado || '';
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
-        if (itemAtual.id) api.put(`/veiculos/${itemAtual.id}`, itemAtual).catch(() => { });
+
+        if (itemAtual.id) {
+            api.put(`/veiculos/${itemAtual.id}`, itemAtual).then(() => {
+                mostrarNotificacao?.(`🚛 Motorista vinculado: ${itemAtual.motorista}`);
+            }).catch((err) => {
+                console.error("Erro ao vincular motorista:", err);
+                const msg = err.response?.data?.message || "Erro ao salvar motorista.";
+                mostrarNotificacao?.(`⚠️ ${msg}`);
+                
+                // Reverte o estado local em caso de erro
+                setLista(prev => {
+                    const revertida = [...prev];
+                    revertida[realIndex] = itemOriginal;
+                    return revertida;
+                });
+            });
+        }
         setEditandoMotorista(null);
     }
 
@@ -224,13 +260,8 @@ export default function PainelOperacional({
         // Se a operação não envolve esta origem, não exibir
         if (!operacaoEnvolveOrigem) return false;
 
-        const souCriador = item.inicio_rota === origem || item.origem_criacao === origem;
-        const temColetaPraMim = origem === 'Recife'
-            ? (item.coletaRecife && item.coletaRecife.length > 0)
-            : (item.coletaMoreno && item.coletaMoreno.length > 0);
-
-
-        const deveAparecer = souCriador || temColetaPraMim;
+        // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
+        // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
         const meuStatus = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
 
         const bateuBusca = (item.coleta && item.coleta.toLowerCase().includes(termoBusca.toLowerCase())) ||
@@ -238,7 +269,7 @@ export default function PainelOperacional({
             (meuStatus && meuStatus.toLowerCase().includes(termoBusca.toLowerCase()));
 
 
-        return ehDataCerta && deveAparecer && bateuBusca;
+        return ehDataCerta && bateuBusca;
     });
 
     const getEstiloRota = (valor) => ({
@@ -361,10 +392,10 @@ export default function PainelOperacional({
                         {/* Filtro de Datas */}
                         <div className="date-range-container">
                             <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>DE:</span>
-                            <input type="date" className="input-date-neon" value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+                            <input type="date" className="input-date-neon" value={dataInicio} onChange={e => { setDataInicio(e.target.value); localStorage.setItem('filtro_data_inicio_' + origem, e.target.value); }} />
                             <span style={{ fontSize: '10px', color: '#64748b' }}>➜</span>
                             <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>ATÉ:</span>
-                            <input type="date" className="input-date-neon" value={dataFim} onChange={e => setDataFim(e.target.value)} />
+                            <input type="date" className="input-date-neon" value={dataFim} onChange={e => { setDataFim(e.target.value); localStorage.setItem('filtro_data_fim_' + origem, e.target.value); }} />
                         </div>
                     </div>
 
@@ -471,7 +502,7 @@ export default function PainelOperacional({
                                         {/* Header do Card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between' }}>
                                             <div style={{ flex: 1 }}>
-                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, updateList, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
+                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, funcoes, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
                                                     {OPCOES_OPERACAO.map(op => <option key={op} style={{ color: 'black' }}>{op}</option>)}
                                                 </select>
                                                 {/* Exibicao sutil da 1a e 2a parada */}
@@ -805,9 +836,10 @@ export default function PainelOperacional({
                                                                         novaDoca
                                                                     });
                                                                     updateList(lista, setLista, realIndex, origem === 'Recife' ? 'doca_recife' : 'doca_moreno', novaDoca);
+                                                                    mostrarNotificacao?.(`✅ Doca alterada para ${novaDoca}`);
                                                                 } catch (err) {
                                                                     const msg = err.response?.data?.message || 'Erro ao atualizar doca.';
-                                                                    setToasts(t => [...t, { id: Date.now(), msg }]);
+                                                                    mostrarNotificacao?.(`⚠️ ${msg}`);
                                                                 }
                                                             }}
                                                             style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', color: '#60a5fa', fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
@@ -828,12 +860,13 @@ export default function PainelOperacional({
                                                                     await api.post('/api/conferente/atualizar-status', {
                                                                         veiculoId: item.id,
                                                                         novoStatus,
-                                                                        novaDoca: item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno']
+                                                                        novaDoca: item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'
                                                                     });
-                                                                    updateList(lista, setLista, realIndex, campoStatusAlvo, novoStatus);
+                                                                    updateList(lista, setLista, realIndex, origem === 'Recife' ? 'status_recife' : 'status_moreno', novoStatus);
+                                                                    mostrarNotificacao?.(`✅ Status alterado para ${novoStatus}`);
                                                                 } catch (err) {
                                                                     const msg = err.response?.data?.message || 'Erro ao atualizar status.';
-                                                                    setToasts(t => [...t, { id: Date.now(), msg }]);
+                                                                    mostrarNotificacao?.(`⚠️ ${msg}`);
                                                                 }
                                                             }}
                                                             style={{ background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px', color: corStatus.text, fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}

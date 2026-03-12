@@ -429,7 +429,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
 });
 
 // Leitura de todas as marcações (autenticado)
-app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const rows = await dbAll(
             "SELECT * FROM marcacoes_placas ORDER BY data_marcacao DESC"
@@ -443,7 +443,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 });
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const isCoordenador = req.user.cargo === 'Coordenador';
         const cidade = req.user.cidade;
@@ -473,7 +473,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Pos Embarque']), async (req, res) => {
+app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
         res.json({ success: true });
@@ -679,7 +679,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 });
 
 // ── Cadastro: motoristas já lançados na operação (tabela veiculos) ────────────
-app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
+app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
         const rows = await dbAll(`
             SELECT v.id, v.motorista, v.dados_json,
@@ -1726,8 +1726,8 @@ cron.schedule('59 23 * * 1-5', async () => {
             UPDATE veiculos
             SET data_prevista = ?
             WHERE
-                (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
-                AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
+                (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'CARREGADO'))
+                AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'CARREGADO'))
                 AND NOT EXISTS (
                     SELECT 1 FROM veiculos v2
                     WHERE v2.id = veiculos.id

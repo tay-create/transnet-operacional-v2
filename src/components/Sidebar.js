@@ -208,7 +208,7 @@ export default function Sidebar({
                 )}
 
                 {/* FROTA */}
-                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE') && (
+                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
                     <>
                         <Divider label="Checklist" aberto={aberto} />
                         {(temAcesso('checklist_carreta') || ehCoordenador) && (
@@ -221,7 +221,7 @@ export default function Sidebar({
                                 onClick={() => setAbaAtiva('checklist_carreta')}
                             />
                         )}
-                        {(ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE') && (
+                        {(ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
                             <>
                                 <MenuItem
                                     icon={<MapPin size={20} />}

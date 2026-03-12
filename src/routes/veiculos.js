@@ -74,6 +74,57 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             res.json({ success: true, veiculos, total, page, limit, totalPages: Math.ceil(total / limit) });
         } catch (e) { res.status(500).json({ success: false }); }
     });
+
+    router.get('/veiculos/:id', authMiddleware, async (req, res) => {
+        try {
+            const row = await dbGet(`
+                SELECT v.*,
+                       (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
+                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                FROM veiculos v WHERE v.id = ?
+            `, [req.params.id]);
+            if (!row) return res.status(404).json({ success: false });
+            const dados_json = (() => { try { return JSON.parse(row.dados_json || '{}'); } catch { return {}; } })();
+            
+            // Standardize transformation (same logic as GET /veiculos)
+            const veiculo = {
+                ...row,
+                // Renamed fields (snake_case -> camelCase)
+                rotaRecife: row.rota_recife,
+                rotaMoreno: row.rota_moreno,
+                coletaRecife: row.coletarecife || row.coletaRecife || '',
+                coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
+                // JSON fields
+                tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
+                tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
+                status_coleta: (() => { try { return JSON.parse(row.status_coleta || '{}'); } catch { return {}; } })(),
+                imagens: (() => { try { return JSON.parse(row.imagens || '[]'); } catch { return []; } })(),
+                timestamps_status: (() => { try { return JSON.parse(row.timestamps_status || '{}'); } catch { return {}; } })(),
+                // Defaults
+                observacao: row.observacao || '',
+                numero_coleta: row.numero_coleta || '',
+                numero_cte: row.numero_cte || '',
+                chave_cte: row.chave_cte || '',
+                situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
+                numero_liberacao: row.numero_liberacao || '',
+                data_liberacao: row.data_liberacao || null,
+                chk_cnh: row.chk_cnh ? 1 : 0,
+                chk_antt: row.chk_antt ? 1 : 0,
+                chk_tacografo: row.chk_tacografo ? 1 : 0,
+                chk_crlv: row.chk_crlv ? 1 : 0,
+                // Extra fields from dados_json or related rows
+                tipoVeiculo: dados_json.tipoVeiculo || '',
+                placa1Motorista: dados_json.placa1Motorista || '',
+                placa2Motorista: dados_json.placa2Motorista || '',
+                telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
+                telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
+                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                dados_json: row.dados_json || '{}'
+            };
+            res.json({ success: true, veiculo });
+        } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+    });
+
     router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(novoLancamentoSchema), async (req, res) => {
         try {
             const v = req.body;
@@ -561,6 +612,21 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (veiculoAntigo.data_prevista !== v.data_prevista) {
                     mudancas.push(`Data Prevista: ${veiculoAntigo.data_prevista} → ${v.data_prevista}`);
                 }
+                if (veiculoAntigo.operacao !== v.operacao) {
+                    mudancas.push(`Operação: ${veiculoAntigo.operacao || 'N/A'} → ${v.operacao || 'N/A'}`);
+                }
+
+                // Verificar campos de dados_json extraídos
+                const dadosAntigosJson = veiculoAntigo.dados_json ? JSON.parse(veiculoAntigo.dados_json) : {};
+                if (dadosAntigosJson.placa1Motorista !== v.placa1Motorista) {
+                    mudancas.push(`Placa 1: ${dadosAntigosJson.placa1Motorista || 'N/A'} → ${v.placa1Motorista || 'N/A'}`);
+                }
+                if (dadosAntigosJson.placa2Motorista !== v.placa2Motorista) {
+                    mudancas.push(`Placa 2: ${dadosAntigosJson.placa2Motorista || 'N/A'} → ${v.placa2Motorista || 'N/A'}`);
+                }
+                if (dadosAntigosJson.telefoneMotorista !== v.telefoneMotorista) {
+                    mudancas.push(`Telefone: ${dadosAntigosJson.telefoneMotorista || 'N/A'} → ${v.telefoneMotorista || 'N/A'}`);
+                }
 
                 // Verificar mudanças nos dados fiscais de CT-e
                 if (veiculoAntigo.numero_cte !== (v.numero_cte || '')) {
@@ -613,11 +679,6 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                         mudancas.push(`Chave CT-e alterada`);
                     }
                 }
-
-                // Verificar cubagem (campo em dados_json)
-                const dadosAntigosJson = veiculoAntigo.dados_json ? JSON.parse(veiculoAntigo.dados_json) : {};
-                const cubagem_antiga = dadosAntigosJson.cubagem || {};
-                const cubagem_nova = v.cubagem || {};
 
                 if (JSON.stringify(cubagem_antiga) !== JSON.stringify(cubagem_nova)) {
                     mudancas.push(`Cubagem alterada`);
@@ -711,7 +772,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // ── GET Ocorrências da Operação ──────────────────
 
     // ── POST Pausar Veículo ───────────────────────────
-    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente']), async (req, res) => {
+    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
             const { motivo, unidade } = req.body;
             const veiculo_id = req.params.id;
@@ -740,7 +801,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     });
 
     // ── POST Retomar Veículo ──────────────────────────
-    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente']), async (req, res) => {
+    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
             const { unidade } = req.body;
             const veiculo_id = req.params.id;

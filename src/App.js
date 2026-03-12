@@ -39,6 +39,7 @@ const DESTINATARIOS_ALERTA = {
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
     'aceite_cte_pendente': ['Conhecimento'],
+    'veiculo_carregado':   ['Conhecimento'],
     'checklist_pendente':  [],
 };
 
@@ -221,6 +222,8 @@ function App({ socket }) {
         if (dados.tipo === 'aceite_cte_pendente') {
             const nome = dados.dadosVeiculo?.motorista || "Motorista";
             dispararNotificacaoWindows(`📄 NOVO CT-E!\nMotorista: ${nome}`);
+        } else if (dados.tipo === 'veiculo_carregado') {
+            dispararNotificacaoWindows(`🚛 CARREGADO!\n${dados.mensagem}`);
         } else {
             dispararNotificacaoWindows(`⚠️ NOTIFICAÇÃO!\n${dados.mensagem}`);
         }
@@ -234,8 +237,26 @@ function App({ socket }) {
                 if (existe) return prev;
                 return [data.dados, ...prev];
             });
+
+            const hoje = obterDataBrasilia();
+            const dataVeiculo = data.dados?.data_prevista || hoje;
+            if (dataVeiculo !== hoje) {
+                mostrarNotificacaoRef.current?.(`📅 Novo lançamento para ${dataVeiculo} — ajuste o filtro para ver`);
+            }
         }
-        else if (data.tipo === 'atualiza_veiculo') setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+        else if (data.tipo === 'atualiza_veiculo') {
+            const temDados = data.status_recife !== undefined || data.dados_json !== undefined || data.motorista !== undefined;
+            if (temDados) {
+                setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+            } else {
+                // Só veio o id — busca dado completo do banco para não perder campos
+                api.get(`/veiculos/${data.id}`).then(r => {
+                    if (r.data?.success && r.data.veiculo) {
+                        setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...r.data.veiculo } : c));
+                    }
+                }).catch(() => {});
+            }
+        }
         else if (data.tipo === 'remove_veiculo') setListaVeiculos(prev => prev.filter(c => c.id !== data.id));
 
         // CORREÇÃO DO PISCAR NA FILA (Verifica se já existe)
@@ -292,6 +313,11 @@ function App({ socket }) {
 
         socket.on('receber_alerta', handleReceberAlerta);
         socket.on('receber_atualizacao', handleReceberAtualizacao);
+
+        // Se socket já está conectado mas lista está vazia (remount sem reload), recarregar
+        if (socket.connected) {
+            recarregarDadosRef.current?.();
+        }
         socket.on('notificacao_direcionada', (d) => {
             const meuCargo = userRef.current?.cargo || '';
             if (d.cargos_alvo && d.cargos_alvo.includes(meuCargo)) {
@@ -354,8 +380,8 @@ function App({ socket }) {
         return () => {
             socket.off('connect');
             socket.off('disconnect');
-            socket.off('receber_alerta');
-            socket.off('receber_atualizacao');
+            socket.off('receber_alerta', handleReceberAlerta);
+            socket.off('receber_atualizacao', handleReceberAtualizacao);
             socket.off('notificacao_direcionada');
             socket.off('cadastro_situacao_atualizada');
             socket.off('programacao_gerada');
@@ -686,6 +712,15 @@ function App({ socket }) {
                 mostrarNotificacao(`✅ Enviado para Notificações!`);
             }
 
+            if (campo.includes('status') && valor === 'CARREGADO') {
+                socket.emit('enviar_alerta', {
+                    tipo: 'veiculo_carregado',
+                    origem,
+                    mensagem: `Veículo carregado: ${itemAtual.motorista || itemAtual.placa || '?'}`,
+                    dadosVeiculo: itemAtual
+                });
+            }
+
             if (campo.includes('status') && valor === 'LIBERADO P/ DOCA') {
                 const doca = origem === 'Recife' ? itemAtual.doca_recife : itemAtual.doca_moreno;
                 socket.emit('enviar_alerta', {
@@ -998,7 +1033,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
@@ -1011,7 +1046,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
@@ -1030,7 +1065,7 @@ function App({ socket }) {
                     <ModuloCubagem />
                 )}
 
-                {abaAtiva === 'marcacao_placas' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') && (
+                {abaAtiva === 'marcacao_placas' && temAcesso('marcacao_placas') && (
                     <GestaoMarcacoes socket={socket} />
                 )}
 

@@ -194,6 +194,9 @@ app.whenReady().then(() => {
     globalShortcut.register('F11', () => {
         if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen());
     });
+    globalShortcut.register('F12', () => {
+        if (mainWindow) mainWindow.webContents.toggleDevTools();
+    });
 
     // Verificar atualizações 10 segundos após o app abrir
     setTimeout(() => {
