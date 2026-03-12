@@ -6,9 +6,8 @@ const APP_URL = 'https://portal.tnethub.com.br';
 
 Menu.setApplicationMenu(null);
 
-// Controla o download manualmente para garantir que o progresso seja rastreado
-autoUpdater.autoDownload = false;
-autoUpdater.logger = null;
+// Habilita logs básicos para depuração em caso de erro na atualização
+autoUpdater.logger = console;
 
 let mainWindow;
 
