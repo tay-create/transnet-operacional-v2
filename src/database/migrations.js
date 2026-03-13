@@ -306,6 +306,7 @@ const inicializarBanco = async () => {
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_histlib_motorista ON historico_liberacoes (primeira_letra, motorista_nome)`); } catch (_) { }
+        try { await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS idx_historico_lib_unique ON historico_liberacoes (motorista_nome, num_liberacao, num_coleta)`); } catch (_) { }
 
         // Indexes para colunas frequentemente consultadas
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_data ON marcacoes_placas (data_marcacao DESC)`); } catch (_) { }

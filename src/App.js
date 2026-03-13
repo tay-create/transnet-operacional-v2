@@ -38,10 +38,13 @@ const hojeISO = obterDataBrasilia();
 const DESTINATARIOS_ALERTA = {
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
-    'aceite_cte_pendente': ['Conhecimento'],
-    'veiculo_carregado':   ['Conhecimento'],
+    'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
+    'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
     'checklist_pendente':  [],
+    'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
 };
+
+console.log("🚀 [App] Carregando v0.2.3 - Socket Debug Mode");
 
 function App({ socket }) {
     // === ESTADO GLOBAL (Zustand) ===
@@ -96,6 +99,35 @@ function App({ socket }) {
     const mostrarNotificacaoRef = useRef(mostrarNotificacao);
     const isFirstConnectRef = useRef(true);
     const recarregarDadosRef = useRef(null);
+
+    // === LÓGICA DE VIRADA DE DATA À MEIA-NOITE ===
+    useEffect(() => {
+        const agendarVirada = () => {
+            const agora = new Date();
+            const agoraBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const meiaNoiteBrasilia = new Date(agoraBrasilia);
+            meiaNoiteBrasilia.setHours(24, 0, 0, 0);
+            const msRestantes = meiaNoiteBrasilia - agoraBrasilia;
+
+            return setTimeout(() => {
+                const novaData = obterDataBrasilia();
+                console.log(`[App] Virada de meia-noite detectada. Atualizando estados globais para: ${novaData}`);
+
+                setFiltroDataInicio(novaData);
+                setFiltroDataFim(novaData);
+                setFiltroDataInicioCte(novaData);
+                setFiltroDataFimCte(novaData);
+
+                // Também atualiza o formulário de novo lançamento
+                setFormLanca(prev => ({ ...prev, data_prevista: novaData }));
+
+                agendarVirada();
+            }, msRestantes);
+        };
+
+        const timeout = agendarVirada();
+        return () => clearTimeout(timeout);
+    }, []);
 
     useEffect(() => {
         userRef.current = user;
@@ -205,20 +237,31 @@ function App({ socket }) {
     };
 
     const handleReceberAlerta = useCallback((dados) => {
+        const meuCargo = userRef.current?.cargo || '';
+        const alvo = DESTINATARIOS_ALERTA[dados.tipo] || [];
+        
+        console.log(`%c🔔 ALERTA RECEBIDO: ${dados.tipo}`, 'background: #222; color: #bada55; font-size: 14px', { dados, meuCargo, alvo });
+
         // admin_config_mudou: recarrega permissões para todos, sem notificação visual
         if (dados.tipo === 'admin_config_mudou') {
             carregarPermissoes();
             return;
         }
-        const meuCargo = userRef.current?.cargo || '';
-        const alvo = DESTINATARIOS_ALERTA[dados.tipo] || [];
-        if (!alvo.includes(meuCargo)) return;
+
+        if (!alvo.includes(meuCargo)) {
+            console.log(`🚫 Alerta ignorado: cargo '${meuCargo}' não está na lista de alvos.`);
+            return;
+        }
 
         const notificacaoComId = {
             ...dados,
             idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
         };
         adicionarNotificacao(notificacaoComId);
+        
+        const msgTexto = dados.mensagem || `Novo alerta: ${dados.tipo}`;
+        mostrarNotificacao(`🔔 ${msgTexto}`);
+
         if (dados.tipo === 'aceite_cte_pendente') {
             const nome = dados.dadosVeiculo?.motorista || "Motorista";
             dispararNotificacaoWindows(`📄 NOVO CT-E!\nMotorista: ${nome}`);
@@ -227,7 +270,7 @@ function App({ socket }) {
         } else {
             dispararNotificacaoWindows(`⚠️ NOTIFICAÇÃO!\n${dados.mensagem}`);
         }
-    }, [carregarPermissoes, adicionarNotificacao]);
+    }, [carregarPermissoes, adicionarNotificacao, mostrarNotificacao]);
 
     const handleReceberAtualizacao = useCallback((data) => {
         // CORREÇÃO: Adiciona verificação de duplicatas no novo_veiculo (igual ao novo_fila)
@@ -245,7 +288,7 @@ function App({ socket }) {
             }
         }
         else if (data.tipo === 'atualiza_veiculo') {
-            const temDados = data.status_recife !== undefined || data.dados_json !== undefined || data.motorista !== undefined;
+            const temDados = data.status_recife !== undefined || data.status_moreno !== undefined || data.status_cte !== undefined || data.dados_json !== undefined || data.motorista !== undefined;
             if (temDados) {
                 setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
             } else {
@@ -258,6 +301,22 @@ function App({ socket }) {
             }
         }
         else if (data.tipo === 'remove_veiculo') setListaVeiculos(prev => prev.filter(c => c.id !== data.id));
+
+        // --- Sincronização de CT-e ---
+        else if (data.tipo === 'novo_cte') {
+            if (data.dados.origem === 'Moreno') setCtesMoreno(prev => [...prev, data.dados]);
+            else setCtesRecife(prev => [...prev, data.dados]);
+        }
+        else if (data.tipo === 'atualiza_cte') {
+            const updater = prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c);
+            setCtesRecife(updater);
+            setCtesMoreno(updater);
+        }
+        else if (data.tipo === 'remove_cte') {
+            const filter = prev => prev.filter(c => c.id !== data.id);
+            setCtesRecife(filter);
+            setCtesMoreno(filter);
+        }
 
         // CORREÇÃO DO PISCAR NA FILA (Verifica se já existe)
         else if (data.tipo === 'novo_fila') {
@@ -300,7 +359,11 @@ function App({ socket }) {
     useEffect(() => {
         if (!logado) return;
 
-        isFirstConnectRef.current = !socket.connected;
+        console.log(`🔌 [Socket] Inicializando listeners. Conectado: ${socket.connected}`);
+        
+        const monitorInterval = setInterval(() => {
+            if (!socket.connected) console.warn("🔴 [Socket] ATENÇÃO: Socket desconectado!");
+        }, 5000);
         socket.on('connect', () => {
             console.log("🟢 Socket Conectado:", socket.id);
             if (!isFirstConnectRef.current) {
@@ -378,6 +441,7 @@ function App({ socket }) {
         });
 
         return () => {
+            clearInterval(monitorInterval);
             socket.off('connect');
             socket.off('disconnect');
             socket.off('receber_alerta', handleReceberAlerta);
@@ -487,7 +551,7 @@ function App({ socket }) {
         const unidadeForcada = ehEletrikOuPorcelana ? 'Moreno' : (formLanca.inicio || 'Recife');
 
         const novoItem = {
-            placa: formLanca.operacao,
+            placa: formLanca.placa1Motorista || '',
             modelo: formLanca.tipoVeiculo,
             tipoVeiculo: formLanca.tipoVeiculo,
             status: 'AGUARDANDO',
@@ -602,7 +666,8 @@ function App({ socket }) {
     };
 
 
-    const updateList = async (lista, setLista, index, campo, valor, origem = '') => {
+    const updateList = useCallback(async (lista, setLista, index, campo, valor, origem = '') => {
+        console.log(`📝 [updateList] Chamado: ${campo} -> ${valor} (ID: ${lista[index]?.id})`);
         const novaLista = [...lista];
         // Clone profundo dos objetos aninhados para não mutar o item original
         // (necessário para que o revert no catch funcione corretamente)
@@ -697,6 +762,7 @@ function App({ socket }) {
         // Lógica de Sockets e Alertas (Apenas para veículos do Painel)
         if (!ehFila) {
             if (campo.includes('status') && valor === 'LIBERADO P/ CT-e') {
+                console.log(`📡 [updateList] Tentando disparar alerta de CT-e. Coleta: ${itemAtual.coletaRecife || itemAtual.coletaMoreno || itemAtual.coleta} | Motorista: ${itemAtual.motorista}`);
                 // Buscar coleta válida: campo principal, ou coletaRecife/coletaMoreno
                 const coletaValida = (itemAtual.coleta && itemAtual.coleta.trim()) ||
                     (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
@@ -713,7 +779,6 @@ function App({ socket }) {
                     mensagem: `CT-e Liberado (${coletaValida})`,
                     dadosVeiculo: itemAtual
                 });
-                mostrarNotificacao(`✅ Enviado para Notificações!`);
             }
 
             if (campo.includes('status') && valor === 'CARREGADO') {
@@ -755,7 +820,7 @@ function App({ socket }) {
                 return stateRevertido;
             });
         }
-    };
+    }, [fila, socket, mostrarNotificacao]);
 
     const removerVeiculo = (id) => {
         setConfirmarRemover({

@@ -191,21 +191,41 @@ export default function RelatorioOperacional() {
     const [veiculosBanco, setVeiculosBanco] = useState([]);
     const [carregando, setCarregando] = useState(false);
 
-    const buscarDados = useCallback(async (de, ate) => {
-        setCarregando(true);
-        try {
-            const res = await api.get(`/api/relatorio/veiculos?de=${de}&ate=${ate}`);
-            if (res.data.success) setVeiculosBanco(res.data.veiculos);
-        } catch (e) {
-            console.error('Erro ao buscar dados do relatório:', e);
-        } finally {
-            setCarregando(false);
-        }
-    }, []);
-
     useEffect(() => {
-        buscarDados(dataInicio, dataFim);
-    }, [dataInicio, dataFim, buscarDados]);
+        const buscarDadosLocal = async (de, ate) => {
+            setCarregando(true);
+            try {
+                const res = await api.get(`/api/relatorio/veiculos?de=${de}&ate=${ate}`);
+                if (res.data.success) setVeiculosBanco(res.data.veiculos);
+            } catch (e) {
+                console.error('Erro ao buscar dados do relatório:', e);
+            } finally {
+                setCarregando(false);
+            }
+        };
+
+        buscarDadosLocal(dataInicio, dataFim);
+
+        // Agendar virada de meia-noite
+        const agendarVirada = () => {
+            const agora = new Date();
+            const agoraBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const meiaNoiteBrasilia = new Date(agoraBrasilia);
+            meiaNoiteBrasilia.setHours(24, 0, 0, 0);
+            const msRestantes = meiaNoiteBrasilia - agoraBrasilia;
+
+            return setTimeout(() => {
+                const novaData = obterDataBrasilia();
+                console.log(`[RelatorioOperacional] Virada de meia-noite detectada. Atualizando filtros para: ${novaData}`);
+                setDataInicio(novaData);
+                setDataFim(novaData);
+                agendarVirada();
+            }, msRestantes);
+        };
+
+        const timeout = agendarVirada();
+        return () => clearTimeout(timeout);
+    }, [dataInicio, dataFim]);
 
     // Linhas brutas — uma por card com tempos registrados
     const todasLinhas = useMemo(() => construirLinhas(veiculosBanco), [veiculosBanco]);
