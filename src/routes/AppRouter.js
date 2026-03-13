@@ -5,6 +5,8 @@ import MarcacaoForm from '../components/MarcacaoForm';
 import LoginScreen from '../components/LoginScreen';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
+import ChecklistLogin from '../checklist/ChecklistLogin';
+import ChecklistApp from '../checklist/ChecklistApp';
 import io from 'socket.io-client';
 
 const API_URL = process.env.REACT_APP_API_URL || window.location.origin;
@@ -33,6 +35,14 @@ function AppRouter() {
             );
         }
         return <ConferenteApp socket={socket} />;
+    }
+
+    // 3. Rota do Checklist (Coordenador PWA)
+    if (path.startsWith('/checklist')) {
+        if (!isAuthenticated || user?.cargo !== 'Coordenador') {
+            return <ChecklistLogin />;
+        }
+        return <ChecklistApp socket={socket} />;
     }
 
     // 3. Verificação de Autenticação para o Sistema Principal

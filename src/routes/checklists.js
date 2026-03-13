@@ -247,7 +247,7 @@ module.exports = function createChecklistsRouter(io) {
     // ── Conferente: Atualizar status e/ou doca ──
     router.post('/api/conferente/atualizar-status', authMiddleware, authorize(['Conferente', 'Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
         try {
-            const { veiculoId, novoStatus, novaDoca, unidade } = req.body;
+            const { veiculoId, novoStatus, novaDoca, unidade, horaManual } = req.body;
             const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
             const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
@@ -312,8 +312,13 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             // Montar timestamps e tempos conforme o novo status
-            const agora = new Date().toISOString();
-            const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
+            let agoraDt = new Date();
+            if (horaManual && /^\d{2}:\d{2}$/.test(horaManual)) {
+                const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                agoraDt = new Date(`${hoje}T${horaManual}:00-03:00`);
+            }
+            const agora = agoraDt.toISOString();
+            const agoraHHMM = horaManual || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
 
             let ts = {};
             try { ts = typeof veiculo.timestamps_status === 'string' ? JSON.parse(veiculo.timestamps_status || '{}') : (veiculo.timestamps_status || {}); } catch { }
@@ -322,19 +327,21 @@ module.exports = function createChecklistsRouter(io) {
 
             const prefix = cidade === 'Moreno' ? 'moreno' : 'recife';
 
-            if (novoStatus === 'EM SEPARAÇÃO' && !ts[`separacao_${prefix}_at`]) {
+            // Se horaManual, sempre sobrescreve o timestamp (correção manual)
+            const forcar = !!horaManual;
+            if (novoStatus === 'EM SEPARAÇÃO' && (forcar || !ts[`separacao_${prefix}_at`])) {
                 ts[`separacao_${prefix}_at`] = agora;
             }
-            if (novoStatus === 'LIBERADO P/ DOCA' && !ts[`lib_doca_${prefix}_at`]) {
+            if (novoStatus === 'LIBERADO P/ DOCA' && (forcar || !ts[`lib_doca_${prefix}_at`])) {
                 ts[`lib_doca_${prefix}_at`] = agora;
             }
             if (novoStatus === 'EM CARREGAMENTO') {
-                if (!ts[`carregamento_${prefix}_at`]) ts[`carregamento_${prefix}_at`] = agora;
-                if (!tempos.t_inicio_carregamento) tempos.t_inicio_carregamento = agoraHHMM;
+                if (forcar || !ts[`carregamento_${prefix}_at`]) ts[`carregamento_${prefix}_at`] = agora;
+                if (forcar || !tempos.t_inicio_carregamento) tempos.t_inicio_carregamento = agoraHHMM;
             }
             if (novoStatus === 'CARREGADO') {
-                if (!ts[`carregado_${prefix}_at`]) ts[`carregado_${prefix}_at`] = agora;
-                if (!tempos.t_inicio_carregado) tempos.t_inicio_carregado = agoraHHMM;
+                if (forcar || !ts[`carregado_${prefix}_at`]) ts[`carregado_${prefix}_at`] = agora;
+                if (forcar || !tempos.t_inicio_carregado) tempos.t_inicio_carregado = agoraHHMM;
             }
 
             // Construir query de update
@@ -379,12 +386,12 @@ module.exports = function createChecklistsRouter(io) {
                 const coletaNum = cidade === 'Moreno' ? (veiculo.coletamoreno || '') : (veiculo.coletarecife || '');
                 const coletaInfo = coletaNum ? ` | Coleta: ${coletaNum}` : '';
 
-                // Todos os status → notifica Auxiliar Operacional e Coordenador
-                const cargosAlvo = ['Auxiliar Operacional', 'Coordenador'];
+                // Todos os status → notifica Auxiliar Operacional
+                const cargosAlvo = ['Auxiliar Operacional'];
 
-                // LIBERADO P/ DOCA → também notifica Cadastro
+                // LIBERADO P/ DOCA → também notifica Cadastro e Conhecimento
                 if (novoStatus === 'LIBERADO P/ DOCA') {
-                    cargosAlvo.push('Cadastro');
+                    cargosAlvo.push('Cadastro', 'Conhecimento');
                     io.emit('conferente_novo_veiculo', {
                         veiculoId,
                         motorista: motoristaNome,

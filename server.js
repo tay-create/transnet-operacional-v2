@@ -702,6 +702,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
+              AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
             ORDER BY v.id DESC
         `);
         const veiculos = rows.map(r => {
@@ -1074,6 +1075,34 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 req.params.id
             ]
         );
+        // Quando CT-e é emitido, salvar no histórico de liberações
+        if (status === 'Emitido') {
+            try {
+                const cte = await dbGet("SELECT * FROM ctes_ativos WHERE id = ?", [req.params.id]);
+                if (cte && cte.motorista) {
+                    const nomeLimpo = cte.motorista.trim().toUpperCase();
+                    await dbRun(
+                        `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         ON CONFLICT DO NOTHING`,
+                        [
+                            nomeLimpo[0] || '#', nomeLimpo,
+                            cte.coleta || '',
+                            cte.numero_liberacao || '',
+                            new Date().toISOString(),
+                            cte.origem || '',
+                            cte.destino_uf_cad || '',
+                            cte.destino_cidade_cad || '',
+                            cte.placa1 || '',
+                            dados.operacao || '',
+                            dados.id || null
+                        ]
+                    );
+                }
+            } catch (errHist) {
+                console.error('Erro ao salvar histórico de liberações:', errHist);
+            }
+        }
         io.emit('receber_atualizacao', { tipo: 'atualiza_cte', id: Number(req.params.id), status, ...dados });
         res.json({ success: true });
     } catch (e) {
@@ -1433,8 +1462,8 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                     console.error('Erro ao gravar status_cte no veículo:', errStatus);
                 }
 
-                // Notificar painéis para atualizar os dados via socket específico se necessário
-                // io.emit('receber_atualizacao', { tipo: 'refresh_geral' }); // REMOVIDO para evitar sumiço do card
+                // Notificar PainelCadastro para remover card em tempo real
+                io.emit('receber_atualizacao', { tipo: 'cadastro_situacao_atualizada' });
             } catch (errViagem) {
                 console.error('Erro ao incrementar viagem do motorista:', errViagem);
             }

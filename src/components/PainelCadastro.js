@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, CheckCircle, XCircle, AlertTriangle, Clock, Save, RefreshCw, Truck } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, AlertTriangle, Clock, Save, RefreshCw, Truck, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import api from '../services/apiService';
 
 const SEGURADORAS = ['BUONNY', 'VERTTICE'];
@@ -64,6 +64,10 @@ export default function PainelCadastro({ user, socket }) {
     const [motoristasFrota, setMotoristasFrota] = useState([]);
     const [edicoesFrota, setEdicoesFrota] = useState({});
     const [salvandoFrota, setSalvandoFrota] = useState(null);
+
+    // Em Espera: expandir/colapsar e filtro
+    const [expandidosEspera, setExpandidosEspera] = useState({});
+    const [filtroEspera, setFiltroEspera] = useState('');
 
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
@@ -170,7 +174,7 @@ export default function PainelCadastro({ user, socket }) {
         // Listener para atualizações em tempo real (ex: CT-e emitido)
         if (socket) {
             const handleRefresh = (data) => {
-                if (data?.tipo === 'refresh_geral') {
+                if (data?.tipo === 'refresh_geral' || data?.tipo === 'cadastro_situacao_atualizada') {
                     carregarMotoristas();
                     carregarMotoristasOperacao();
                     carregarMotoristasFrota();
@@ -391,6 +395,17 @@ export default function PainelCadastro({ user, socket }) {
             {/* ABA: EM ESPERA */}
             {abaAtiva === 'espera' && (
                 <>
+                    {/* Barra de filtro */}
+                    <div style={{ position: 'relative', marginBottom: '14px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                        <input
+                            className="input-internal"
+                            placeholder="Filtrar por nome ou status..."
+                            value={filtroEspera}
+                            onChange={e => setFiltroEspera(e.target.value)}
+                            style={{ paddingLeft: '30px', fontSize: '13px', width: '100%' }}
+                        />
+                    </div>
                     {motoristas.length === 0 ? (
                         <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
                             <ShieldCheck size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
@@ -398,13 +413,18 @@ export default function PainelCadastro({ user, socket }) {
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                            {motoristas.map(m => {
+                            {motoristas.filter(m => {
+                                if (!filtroEspera) return true;
+                                const q = filtroEspera.toLowerCase();
+                                const ed = edicoes[m.id] || {};
+                                return (m.nome_motorista || '').toLowerCase().includes(q)
+                                    || (ed.situacao_cad || 'NÃO CONFERIDO').toLowerCase().includes(q);
+                            }).map(m => {
                                 const ed = edicoes[m.id] || {};
                                 const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
                                 const cor = corSituacao(situacao);
-                                const timer = calcularTimer(ed.data_liberacao_cad);
-                                const corTm = corTimer(timer);
                                 const estaSalvando = salvando === m.id;
+                                const expandido = !!expandidosEspera[m.id];
 
                                 return (
                                     <div
@@ -417,226 +437,103 @@ export default function PainelCadastro({ user, socket }) {
                                             animation: 'slideIn 0.3s ease'
                                         }}
                                     >
-                                        {/* Header do card */}
-                                        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px' }}>
+                                        {/* Header clicável — sempre visível */}
+                                        <div
+                                            onClick={() => setExpandidosEspera(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                                            style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.2)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: expandido ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                                        >
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {m.nome_motorista}
                                                 </div>
-                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                                     <span style={{ fontSize: '10px', color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
                                                         <Truck size={10} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />
                                                         {m.placa1}{m.placa2 ? ` / ${m.placa2}` : ''}
                                                     </span>
-                                                    <span style={{ fontSize: '10px', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
-                                                        {m.tipo_veiculo || '—'}
+                                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: cor.text, padding: '2px 6px', borderRadius: '4px', background: cor.bg, border: `1px solid ${cor.border}` }}>
+                                                        {situacao}
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                                {/* Badge situação */}
-                                                <span style={{ fontSize: '10px', fontWeight: 'bold', color: cor.text, padding: '3px 8px', borderRadius: '5px', background: cor.bg, border: `1px solid ${cor.border}` }}>
-                                                    {situacao}
-                                                </span>
-                                                {/* Indicador PDF */}
-                                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '140px' }}>
-                                                    {m.comprovante_pdf && <a href={m.comprovante_pdf} download={`PDF_ORIG_${m.placa1}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>PDF Orig.</a>}
-                                                    {m.anexo_cnh && <a href={m.anexo_cnh} download={`CNH_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>CNH</a>}
-                                                    {m.anexo_doc_veiculo && <a href={m.anexo_doc_veiculo} download={`CRLV_CAV_${m.placa1}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>CRLV Cav.</a>}
-                                                    {m.anexo_crlv_carreta && <a href={m.anexo_crlv_carreta} download={`CRLV_CAR_${m.placa2 || 'CARRETA'}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#fb923c', textDecoration: 'none', background: 'rgba(251,146,60,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)', fontWeight: '700' }}>CRLV Car.</a>}
-                                                    {m.anexo_antt && <a href={m.anexo_antt} download={`ANTT_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>ANTT</a>}
-                                                    {m.anexo_outros && <a href={m.anexo_outros} download={`OUTROS_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>Outros</a>}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                                {/* PDFs */}
+                                                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '120px' }}>
+                                                    {m.anexo_cnh && <a href={m.anexo_cnh} download={`CNH_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '9px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 5px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>CNH</a>}
+                                                    {m.anexo_doc_veiculo && <a href={m.anexo_doc_veiculo} download={`CRLV_CAV_${m.placa1}.pdf`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '9px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 5px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>CRLV</a>}
+                                                    {m.anexo_antt && <a href={m.anexo_antt} download={`ANTT_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: '9px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 5px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)', fontWeight: '700' }}>ANTT</a>}
                                                 </div>
+                                                {expandido ? <ChevronUp size={14} color="#64748b" /> : <ChevronDown size={14} color="#64748b" />}
                                             </div>
                                         </div>
 
-                                        {/* Corpo do card */}
-                                        <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-                                            {/* Checkboxes CNH / ANTT / Tacógrafo / CRLV */}
-                                            <div>
-                                                <label className="label-tech-sm" style={{ marginBottom: '6px' }}>DOCUMENTAÇÃO</label>
-                                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                                    {[
-                                                        { campo: 'chk_cnh_cad', label: 'CNH' },
-                                                        { campo: 'chk_antt_cad', label: 'ANTT' },
-                                                        { campo: 'chk_tacografo_cad', label: 'TACÓGRAFO' },
-                                                        { campo: 'chk_crlv_cad', label: 'CRLV' },
-                                                    ].map(({ campo, label }) => {
-                                                        const ok = !!ed[campo];
-                                                        return (
-                                                            <button
-                                                                key={campo}
-                                                                disabled={!podeEditar}
-                                                                onClick={() => podeEditar && atualizarEdicao(m.id, campo, !ed[campo])}
-                                                                style={{
-                                                                    display: 'flex', alignItems: 'center', gap: '5px',
-                                                                    background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
-                                                                    border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
-                                                                    borderRadius: '6px', padding: '5px 10px',
-                                                                    cursor: podeEditar ? 'pointer' : 'not-allowed',
-                                                                    opacity: podeEditar ? 1 : 0.5,
-                                                                    color: ok ? '#4ade80' : '#f87171',
-                                                                    fontSize: '11px', fontWeight: '700',
-                                                                    transition: 'all 0.2s'
-                                                                }}
-                                                            >
-                                                                {ok ? <CheckCircle size={13} /> : <XCircle size={13} />}
-                                                                {label}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* Seguradora */}
-                                            <div>
-                                                <label className="label-tech-sm">SEGURADORA</label>
-                                                <select
-                                                    className="input-internal"
-                                                    style={{ fontSize: '12px' }}
-                                                    value={ed.seguradora_cad || ''}
-                                                    disabled={!podeEditar}
-                                                    onChange={e => atualizarEdicao(m.id, 'seguradora_cad', e.target.value)}
-                                                >
-                                                    <option value="" style={{ color: 'black' }}>-- Selecione --</option>
-                                                    {SEGURADORAS.map(s => <option key={s} style={{ color: 'black' }}>{s}</option>)}
-                                                </select>
-                                            </div>
-
-                                            {/* Origem e Destino */}
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '8px' }}>
-                                                <div>
-                                                    <label className="label-tech-sm">ORIGEM</label>
-                                                    <select
-                                                        className="input-internal"
-                                                        style={{ fontSize: '12px' }}
-                                                        value={ed.origem_cad || ''}
-                                                        disabled={!podeEditar}
-                                                        onChange={e => atualizarEdicao(m.id, 'origem_cad', e.target.value)}
-                                                    >
-                                                        <option value="" style={{ color: 'black' }}>-- Selecione --</option>
-                                                        <option value="Recife" style={{ color: 'black' }}>Recife</option>
-                                                        <option value="Moreno" style={{ color: 'black' }}>Moreno</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="label-tech-sm">UF DESTINO</label>
-                                                    <select
-                                                        className="input-internal"
-                                                        style={{ fontSize: '12px' }}
-                                                        value={ed.destino_uf_cad || ''}
-                                                        disabled={!podeEditar}
-                                                        onChange={e => atualizarEdicao(m.id, 'destino_uf_cad', e.target.value)}
-                                                    >
-                                                        <option value="" style={{ color: 'black' }}>--</option>
-                                                        {UFS_BRASIL.map(uf => <option key={uf} style={{ color: 'black' }}>{uf}</option>)}
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="label-tech-sm">CIDADE DESTINO</label>
-                                                <input
-                                                    className="input-internal"
-                                                    style={{ fontSize: '12px' }}
-                                                    value={ed.destino_cidade_cad || ''}
-                                                    disabled={!podeEditar}
-                                                    onChange={e => atualizarEdicao(m.id, 'destino_cidade_cad', e.target.value)}
-                                                    placeholder="Ex: São Paulo"
-                                                />
-                                            </div>
-
-                                            {/* Número de Liberação */}
-                                            {(() => {
-                                                const faltaSoNumLib = !!(ed.chk_cnh_cad && ed.chk_antt_cad && ed.chk_tacografo_cad && ed.chk_crlv_cad && ed.seguradora_cad && !ed.num_liberacao_cad);
-                                                const dataFormatada = formatarDataHoraBrasilia(ed.data_liberacao_cad);
-                                                return (
+                                        {/* Corpo colapsável — somente DOCUMENTAÇÃO + Salvar */}
+                                        {expandido && (
+                                            <>
+                                                <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                    {/* Checkboxes CNH / ANTT / Tacógrafo / CRLV */}
                                                     <div>
-                                                        <label className="label-tech-sm" style={{ color: faltaSoNumLib ? '#f59e0b' : undefined }}>
-                                                            LIBERAÇÃO {faltaSoNumLib && <span style={{ color: '#f59e0b' }}>★ OBRIGATÓRIO PARA LIBERAR</span>}
-                                                        </label>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                                            <div>
-                                                                <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px', display: 'block' }}>Nº Liberação</label>
-                                                                <input
-                                                                    className="input-internal"
-                                                                    style={{ fontSize: '12px', border: faltaSoNumLib ? '1px solid rgba(245,158,11,0.7)' : undefined, boxShadow: faltaSoNumLib ? '0 0 0 2px rgba(245,158,11,0.2)' : undefined }}
-                                                                    value={ed.num_liberacao_cad || ''}
-                                                                    disabled={!podeEditar}
-                                                                    onChange={e => atualizarEdicao(m.id, 'num_liberacao_cad', e.target.value)}
-                                                                    placeholder="Ex: 123456"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px', display: 'block' }}>Data/Hora da Liberação</label>
-                                                                <input
-                                                                    type="datetime-local"
-                                                                    className="input-internal"
-                                                                    style={{ fontSize: '11px' }}
-                                                                    value={ed.data_liberacao_manual || ''}
-                                                                    disabled={!podeEditar}
-                                                                    onChange={e => atualizarEdicao(m.id, 'data_liberacao_manual', e.target.value)}
-                                                                />
-                                                            </div>
+                                                        <label className="label-tech-sm" style={{ marginBottom: '6px' }}>DOCUMENTAÇÃO</label>
+                                                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                                            {[
+                                                                { campo: 'chk_cnh_cad', label: 'CNH' },
+                                                                { campo: 'chk_antt_cad', label: 'ANTT' },
+                                                                { campo: 'chk_tacografo_cad', label: 'TACÓGRAFO' },
+                                                                { campo: 'chk_crlv_cad', label: 'CRLV' },
+                                                            ].map(({ campo, label }) => {
+                                                                const ok = !!ed[campo];
+                                                                return (
+                                                                    <button
+                                                                        key={campo}
+                                                                        disabled={!podeEditar}
+                                                                        onClick={() => podeEditar && atualizarEdicao(m.id, campo, !ed[campo])}
+                                                                        style={{
+                                                                            display: 'flex', alignItems: 'center', gap: '5px',
+                                                                            background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
+                                                                            border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
+                                                                            borderRadius: '6px', padding: '5px 10px',
+                                                                            cursor: podeEditar ? 'pointer' : 'not-allowed',
+                                                                            opacity: podeEditar ? 1 : 0.5,
+                                                                            color: ok ? '#4ade80' : '#f87171',
+                                                                            fontSize: '11px', fontWeight: '700',
+                                                                            transition: 'all 0.2s'
+                                                                        }}
+                                                                    >
+                                                                        {ok ? <CheckCircle size={13} /> : <XCircle size={13} />}
+                                                                        {label}
+                                                                    </button>
+                                                                );
+                                                            })}
                                                         </div>
-                                                        {dataFormatada && (
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#64748b', fontSize: '10px' }}>
-                                                                <Clock size={11} />
-                                                                Última alteração: {dataFormatada}
-                                                            </div>
-                                                        )}
                                                     </div>
-                                                );
-                                            })()}
+                                                </div>
 
-                                            {/* Timer de expiração */}
-                                            {timer && (
-                                                <div style={{
-                                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                                    padding: '6px 10px', borderRadius: '6px',
-                                                    background: `${corTm}11`,
-                                                    border: `1px solid ${corTm}44`,
-                                                    color: corTm, fontSize: '12px', fontWeight: '700'
-                                                }}>
-                                                    {timer.expirado ? (
-                                                        <>
-                                                            <AlertTriangle size={14} style={{ animation: 'pulse 1.5s infinite' }} />
-                                                            LIBERAÇÃO EXPIRADA — Solicite renovação
-                                                        </>
+                                                {/* Footer — Botão Salvar */}
+                                                <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
+                                                    {podeEditar ? (
+                                                        <button
+                                                            onClick={() => salvar(m.id)}
+                                                            disabled={estaSalvando}
+                                                            style={{
+                                                                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                                                padding: '8px', borderRadius: '7px', border: 'none',
+                                                                background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
+                                                                color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                                fontWeight: 'bold', fontSize: '12px',
+                                                                cursor: estaSalvando ? 'default' : 'pointer',
+                                                                opacity: estaSalvando ? 0.6 : 1,
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            <Save size={14} />
+                                                            {estaSalvando ? 'Salvando...' : 'Salvar Checklist'}
+                                                        </button>
                                                     ) : (
-                                                        <>
-                                                            <Clock size={13} />
-                                                            {timer.h}h {String(timer.m).padStart(2, '0')}min restantes
-                                                        </>
+                                                        <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
-
-                                        {/* Footer — Botão Salvar */}
-                                        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
-                                                <button
-                                                    onClick={() => salvar(m.id)}
-                                                    disabled={estaSalvando}
-                                                    style={{
-                                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                                                        padding: '8px', borderRadius: '7px', border: 'none',
-                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
-                                                        fontWeight: 'bold', fontSize: '12px',
-                                                        cursor: estaSalvando ? 'default' : 'pointer',
-                                                        opacity: estaSalvando ? 0.6 : 1,
-                                                        transition: 'all 0.2s'
-                                                    }}
-                                                >
-                                                    <Save size={14} />
-                                                    {estaSalvando ? 'Salvando...' : 'Salvar Checklist'}
-                                                </button>
-                                            ) : (
-                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
-                                            )}
-                                        </div>
+                                            </>
+                                        )}
                                     </div>
                                 );
                             })}

@@ -258,6 +258,13 @@ export default function GestaoMarcacoes({ socket }) {
             .catch(() => mostrarToast('Erro ao copiar.'));
     }
 
+    function linkWpp(tel) {
+        if (!tel) return null;
+        const d = tel.replace(/\D/g, '');
+        const num = d.startsWith('55') ? d : `55${d}`;
+        return `https://wa.me/${num}`;
+    }
+
     function formatarTelefone(tel) {
         if (!tel) return '—';
         let d = tel.replace(/\D/g, '');
@@ -299,7 +306,9 @@ export default function GestaoMarcacoes({ socket }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                         <div>
                             <div style={{ fontSize: '17px', fontWeight: '700', color: '#f1f5f9' }}>{m.nome_motorista}</div>
-                            <div style={{ fontSize: '13px', color: '#60a5fa', marginTop: '2px' }}>{formatarTelefone(m.telefone)}</div>
+                            <div style={{ fontSize: '13px', color: '#60a5fa', marginTop: '2px' }}>
+                                {linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}
+                            </div>
                         </div>
                         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
                             <X size={20} />
@@ -430,7 +439,7 @@ export default function GestaoMarcacoes({ socket }) {
                                     {tokens.map(t => (
                                         <tr key={t.id}>
                                             <td style={s.td}>{t.id}</td>
-                                            <td style={s.td}>{formatarTelefone(t.telefone)}</td>
+                                            <td style={s.td}>{linkWpp(t.telefone) ? <a href={linkWpp(t.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(t.telefone)}</a> : formatarTelefone(t.telefone)}</td>
                                             <td style={s.td}>
                                                 <div style={s.linkText}>
                                                     /cadastro/{t.token.slice(0, 8)}...
@@ -548,7 +557,7 @@ export default function GestaoMarcacoes({ socket }) {
                                                         ) : null}
                                                     </div>
                                                 </td>
-                                                <td style={s.td}>{formatarTelefone(m.telefone)}</td>
+                                                <td style={s.td}>{linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}</td>
                                                 <td style={{ ...s.td, fontWeight: '700', color: '#60a5fa' }}>{m.placa1}</td>
                                                 <td style={s.td}>{m.placa2 || '—'}</td>
                                                 <td style={s.td}>{m.tipo_veiculo}</td>
@@ -729,7 +738,7 @@ export default function GestaoMarcacoes({ socket }) {
                                                 <span style={s.badgeFreota}><Truck size={10} /> FROTA</span>
                                             </div>
                                         </td>
-                                        <td style={s.td}>{formatarTelefone(m.telefone)}</td>
+                                        <td style={s.td}>{linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}</td>
                                         <td style={{ ...s.td, color: '#60a5fa' }}>
                                             {m.placa1 ? `${m.placa1}${m.placa2 ? ' / ' + m.placa2 : ''}` : '—'}
                                         </td>

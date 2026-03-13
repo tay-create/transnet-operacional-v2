@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer
+    Loader, Timer, Edit2
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -91,12 +91,18 @@ function PainelGerRisco({ v }) {
 }
 
 // Card individual de um veículo no conferente
-function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtualizarStatus, onAbrirChecklist, cidade }) {
+function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtualizarStatus, onRecarregar, onAbrirChecklist, cidade }) {
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
     const [docaSelecionada, setDocaSelecionada] = useState(v.doca || 'SELECIONE');
     const [modalOcorrencia, setModalOcorrencia] = useState(false);
     const [modalPausa, setModalPausa] = useState(false);
+    const [modalAlterarStatus, setModalAlterarStatus] = useState(false);
+    const [statusManual, setStatusManual] = useState(v.status || STATUS_CONFERENTE[0]);
+    const [horaManual, setHoraManual] = useState(() => {
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    });
 
     const corStatus = CORES_STATUS[v.status] || { border: '#64748b', text: '#94a3b8' };
     const idxAtual = STATUS_CONFERENTE.indexOf(v.status);
@@ -145,6 +151,29 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
             });
             onAtualizarStatus(v.id, v.status, novaDoca);
         } catch { /* silencioso */ }
+    };
+
+    const alterarStatusManual = async () => {
+        if (!horaManual) return;
+        setSalvando(true);
+        setErro('');
+        try {
+            const res = await api.post('/api/conferente/atualizar-status', {
+                veiculoId: v.id,
+                novoStatus: statusManual,
+                novaDoca: docaSelecionada !== 'SELECIONE' ? docaSelecionada : undefined,
+                unidade: v.unidade,
+                horaManual
+            });
+            if (res.data.success) {
+                setModalAlterarStatus(false);
+                onAtualizarStatus(v.id, statusManual, docaSelecionada);
+            }
+        } catch (err) {
+            setErro(err.response?.data?.message || 'Erro ao alterar status.');
+        } finally {
+            setSalvando(false);
+        }
     };
 
     const proximoStatus = STATUS_CONFERENTE[idxAtual + 1];
@@ -196,13 +225,25 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
 
                 {/* Status badge + timer */}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                    <span style={{
-                        fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '5px',
-                        background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`,
-                        color: corStatus.text, whiteSpace: 'nowrap'
-                    }}>
-                        {v.status}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{
+                            fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '5px',
+                            background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`,
+                            color: corStatus.text, whiteSpace: 'nowrap'
+                        }}>
+                            {v.status}
+                        </span>
+                        <button
+                            onClick={e => { e.stopPropagation(); setStatusManual(v.status); setModalAlterarStatus(true); }}
+                            title="Alterar status manualmente"
+                            style={{
+                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                                color: '#64748b', display: 'flex', alignItems: 'center'
+                            }}
+                        >
+                            <Edit2 size={11} />
+                        </button>
+                    </div>
                     {timerAtKey && ts[timerAtKey] && <MiniTimer inicioAt={ts[timerAtKey]} pausas={pausas} unidade={unidade} />}
                     {temPausaAtiva && (
                         <span style={{ fontSize: '10px', fontWeight: '700', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -340,6 +381,60 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                 </div>
             )}
 
+            {/* Modal Alterar Status Manualmente */}
+            {modalAlterarStatus && (
+                <div
+                    onClick={() => setModalAlterarStatus(false)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: '#0f172a', border: '1px solid rgba(96,165,250,0.3)', borderRadius: '14px', padding: '24px', width: '100%', maxWidth: '320px', boxShadow: '0 20px 50px rgba(0,0,0,0.8)' }}
+                    >
+                        <div style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Edit2 size={14} color="#60a5fa" /> Alterar Status Manualmente
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div>
+                                <label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>STATUS</label>
+                                <select
+                                    value={statusManual}
+                                    onChange={e => setStatusManual(e.target.value)}
+                                    style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(96,165,250,0.3)', color: '#e2e8f0', fontSize: '13px', outline: 'none' }}
+                                >
+                                    {STATUS_CONFERENTE.map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>HORA EM QUE OCORREU *</label>
+                                <input
+                                    type="time"
+                                    value={horaManual}
+                                    onChange={e => setHoraManual(e.target.value)}
+                                    style={{ width: '100%', padding: '9px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(96,165,250,0.3)', color: '#e2e8f0', fontSize: '14px', outline: 'none' }}
+                                />
+                            </div>
+                            {erro && <div style={{ fontSize: '12px', color: '#f87171', padding: '6px 10px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px' }}>{erro}</div>}
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                    onClick={() => setModalAlterarStatus(false)}
+                                    style={{ flex: 1, padding: '9px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={alterarStatusManual}
+                                    disabled={!horaManual || salvando}
+                                    style={{ flex: 1, padding: '9px', borderRadius: '8px', border: 'none', background: !horaManual || salvando ? 'rgba(59,130,246,0.3)' : '#3b82f6', color: 'white', fontSize: '13px', cursor: !horaManual || salvando ? 'not-allowed' : 'pointer', fontWeight: '700' }}
+                                >
+                                    {salvando ? 'Salvando...' : 'Confirmar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modal de Ocorrência */}
             {modalOcorrencia && (
                 <ModalOcorrencia
@@ -355,7 +450,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                     unidade={unidade}
                     temPausaAtiva={temPausaAtiva}
                     onClose={() => setModalPausa(false)}
-                    onSucesso={() => { setModalPausa(false); onAtualizarStatus(v.id, v.status, docaSelecionada); }}
+                    onSucesso={() => { setModalPausa(false); onRecarregar(); }}
                 />
             )}
         </div>
@@ -573,6 +668,7 @@ export default function ConferenteChecklist({ socket }) {
                                                 })}
                                                 opcoesDocas={docasCard}
                                                 onAtualizarStatus={handleAtualizarStatus}
+                                                onRecarregar={carregarVeiculos}
                                                 onAbrirChecklist={openChecklistForm}
                                                 cidade={cidade}
                                             />
