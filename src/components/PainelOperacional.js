@@ -112,6 +112,7 @@ export default function PainelOperacional({
         return (salvo && salvo >= hoje) ? salvo : hoje;
     });
     const [dataFim, setDataFim] = useState(() => localStorage.getItem('filtro_data_fim_' + origem) || obterDataBrasilia());
+    const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
@@ -280,7 +281,9 @@ export default function PainelOperacional({
             (meuStatus && meuStatus.toLowerCase().includes(termoBusca.toLowerCase()));
 
 
-        return ehDataCerta && bateuBusca;
+        const bateuOperacao = !filtroOperacao || (item.operacao || '') === filtroOperacao;
+
+        return ehDataCerta && bateuBusca && bateuOperacao;
     });
 
     const getEstiloRota = (valor) => ({
@@ -408,6 +411,21 @@ export default function PainelOperacional({
                             <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 'bold' }}>ATÉ:</span>
                             <input type="date" className="input-date-neon" value={dataFim} onChange={e => { setDataFim(e.target.value); localStorage.setItem('filtro_data_fim_' + origem, e.target.value); }} />
                         </div>
+
+                        {/* Filtro de Operação */}
+                        <select
+                            value={filtroOperacao}
+                            onChange={e => setFiltroOperacao(e.target.value)}
+                            className="input-date-neon"
+                            style={{ fontSize: '11px', fontWeight: '600', paddingLeft: '8px', paddingRight: '8px', minWidth: '160px', cursor: 'pointer' }}
+                        >
+                            <option value="">Todas as operações</option>
+                            {OPCOES_OPERACAO.filter(op =>
+                                origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
+                            ).map(op => (
+                                <option key={op} value={op}>{op}</option>
+                            ))}
+                        </select>
                     </div>
 
                     {/* Campo de Busca */}
