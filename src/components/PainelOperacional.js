@@ -106,7 +106,11 @@ export default function PainelOperacional({
         return podeEditar(permissao);
     };
 
-    const [dataInicio, setDataInicio] = useState(() => localStorage.getItem('filtro_data_inicio_' + origem) || obterDataBrasilia());
+    const [dataInicio, setDataInicio] = useState(() => {
+        const salvo = localStorage.getItem('filtro_data_inicio_' + origem);
+        const hoje = obterDataBrasilia();
+        return (salvo && salvo >= hoje) ? salvo : hoje;
+    });
     const [dataFim, setDataFim] = useState(() => localStorage.getItem('filtro_data_fim_' + origem) || obterDataBrasilia());
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
@@ -234,8 +238,15 @@ export default function PainelOperacional({
             const msRestantes = calcularMsAteMeiaNoite();
             timeout = setTimeout(() => {
                 const novaData = obterDataBrasilia();
+                console.log(`[PainelOperacional] Virada de meia-noite detectada. Atualizando filtros para: ${novaData}`);
+                
                 setDataInicio(novaData);
                 setDataFim(novaData);
+                
+                // Persistir no localStorage para evitar dessincronização em refresh
+                localStorage.setItem('filtro_data_inicio_' + origem, novaData);
+                localStorage.setItem('filtro_data_fim_' + origem, novaData);
+                
                 agendarVirada(); // Reagendar para a próxima meia-noite
             }, msRestantes);
         };

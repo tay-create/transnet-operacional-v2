@@ -309,7 +309,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     v.status_moreno === 'EM CARREGAMENTO' &&
                     veiculoAntigo.status_moreno !== 'EM CARREGAMENTO';
                 if ((mudouParaCarregamentoRecife || mudouParaCarregamentoMoreno) && situacao === 'LIBERADO') {
-                    const dataLib = dadosAntigos.data_liberacao || veiculoAntigo.data_liberacao;
+                    const dataLib = veiculoAntigo.data_liberacao || dadosAntigos.data_liberacao;
                     if (dataLib) {
                         const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
                         if ((Date.now() - new Date(dataLibStr).getTime()) > 24 * 60 * 60 * 1000) {

@@ -702,8 +702,6 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
-              AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
-              AND (v.dados_json IS NULL OR v.dados_json::jsonb->>'status_cte' IS DISTINCT FROM 'Emitido')
             ORDER BY v.id DESC
         `);
         const veiculos = rows.map(r => {
@@ -987,7 +985,7 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
         res.json({ success: true, notificacoes: [] }); // Retorna sucesso vazio para não quebrar o front
     }
 });
-app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento']), async (req, res) => { try { const id = Number(req.params.id); if (!isNaN(id)) await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => { try { const id = Number(req.params.id); if (!isNaN(id)) await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
 
 // --- ROTAS DE CT-E ATIVOS ---
 
@@ -1003,9 +1001,16 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conh
                     id: row.id,
                     origem: row.origem,
                     status: row.status,
-                    // Garantir que data_liberacao sempre está presente no objeto
-                    data_liberacao: dados.data_liberacao || null,
-                    numero_liberacao: dados.numero_liberacao || ''
+                    // Colunas dedicadas têm prioridade sobre dados_json
+                    motorista: row.motorista || dados.motorista || '',
+                    placa1Motorista: row.placa1 || dados.placa1Motorista || '',
+                    coleta: row.coleta || dados.coleta || '',
+                    numero_liberacao: row.numero_liberacao || dados.numero_liberacao || '',
+                    data_liberacao: row.data_liberacao || dados.data_liberacao || null,
+                    origem_cad: row.origem_cad || dados.origem_cad || '',
+                    destino_uf_cad: row.destino_uf_cad || dados.destino_uf_cad || '',
+                    destino_cidade_cad: row.destino_cidade_cad || dados.destino_cidade_cad || '',
+                    usuario_aceitou: row.usuario_aceitou || dados.usuario_aceitou || ''
                 };
             } catch (_) {
                 return { id: row.id, origem: row.origem, status: row.status };
@@ -1024,9 +1029,23 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
         const { origem, dados } = req.body;
         const status = dados.status || 'Aguardando Emissão';
         const result = await dbRun(
-            `INSERT INTO ctes_ativos (origem, status, dados_json) VALUES (?, ?, ?)`,
-            [origem, status, JSON.stringify(dados)]
+            `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                origem, status, JSON.stringify(dados),
+                dados.motorista || null,
+                dados.placa1Motorista || null,
+                dados.coleta || null,
+                dados.numero_liberacao || null,
+                dados.data_liberacao || null,
+                dados.origem_cad || null,
+                dados.destino_uf_cad || null,
+                dados.destino_cidade_cad || null,
+                dados.usuario_aceitou || null
+            ]
         );
+        const novo = { id: result.lastID, origem, status, ...dados };
+        io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) {
         console.error("Erro ao criar CT-e ativo:", e);
@@ -1040,9 +1059,22 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
         const { dados } = req.body;
         const status = dados.status || 'Aguardando Emissão';
         await dbRun(
-            `UPDATE ctes_ativos SET status = ?, dados_json = ? WHERE id = ?`,
-            [status, JSON.stringify(dados), req.params.id]
+            `UPDATE ctes_ativos SET status = ?, dados_json = ?, motorista = ?, placa1 = ?, coleta = ?, numero_liberacao = ?, data_liberacao = ?, origem_cad = ?, destino_uf_cad = ?, destino_cidade_cad = ?, usuario_aceitou = ? WHERE id = ?`,
+            [
+                status, JSON.stringify(dados),
+                dados.motorista || null,
+                dados.placa1Motorista || null,
+                dados.coleta || null,
+                dados.numero_liberacao || null,
+                dados.data_liberacao || null,
+                dados.origem_cad || null,
+                dados.destino_uf_cad || null,
+                dados.destino_cidade_cad || null,
+                dados.usuario_aceitou || null,
+                req.params.id
+            ]
         );
+        io.emit('receber_atualizacao', { tipo: 'atualiza_cte', id: Number(req.params.id), status, ...dados });
         res.json({ success: true });
     } catch (e) {
         console.error("Erro ao atualizar CT-e ativo:", e);
@@ -1054,6 +1086,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
 app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
+        io.emit('receber_atualizacao', { tipo: 'remove_cte', id: Number(req.params.id) });
         res.json({ success: true });
     } catch (e) {
         console.error("Erro ao remover CT-e ativo:", e);
@@ -1429,6 +1462,9 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
             detalhes
         );
 
+        // Notificar painel operacional sobre a mudança de status do vínculo CT-e
+        io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(cteId), status_cte: statusNovo });
+
         res.json({ success: true });
     } catch (e) {
         console.error('Erro ao registrar status CT-e:', e);
@@ -1565,6 +1601,7 @@ app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 
 // Socket.io
 io.on('connection', (socket) => {
     socket.on('enviar_alerta', async (dados) => {
+        console.log(`🔌 [Socket] enviar_alerta recebido:`, dados.tipo, dados.mensagem);
         await enviarNotificacao('receber_alerta', { ...dados, data_criacao: dados.data_criacao || new Date().toISOString() });
     });
     socket.on('nova_atualizacao', (dados) => { io.emit('receber_atualizacao', dados); });

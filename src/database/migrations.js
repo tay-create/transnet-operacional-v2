@@ -4,7 +4,7 @@ const { dbRun, dbGet } = require('./db');
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
     'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
     'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
@@ -168,7 +168,17 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'seguradora_cad', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'origem_cad', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'destino_uf_cad', tipo: 'TEXT' },
-            { tabela: 'veiculos', coluna: 'destino_cidade_cad', tipo: 'TEXT' }
+            { tabela: 'veiculos', coluna: 'destino_cidade_cad', tipo: 'TEXT' },
+            // Normalização ctes_ativos — campos críticos em colunas dedicadas
+            { tabela: 'ctes_ativos', coluna: 'motorista', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'placa1', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'coleta', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'numero_liberacao', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'data_liberacao', tipo: 'TIMESTAMP' },
+            { tabela: 'ctes_ativos', coluna: 'origem_cad', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'destino_uf_cad', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'destino_cidade_cad', tipo: 'TEXT' },
+            { tabela: 'ctes_ativos', coluna: 'usuario_aceitou', tipo: 'TEXT' }
         ];
 
         // Criação de Índices Otimizados

@@ -296,8 +296,8 @@ module.exports = function createChecklistsRouter(io) {
                             return res.status(403).json({ success: false, message: 'Bloqueado: Checklist da Carreta não foi aprovado.' });
                         }
 
-                        // Verificar expiração de 24h da liberação
-                        const dataLib = dados.data_liberacao || veiculo.data_liberacao;
+                        // Verificar expiração de 24h da liberação (coluna tem prioridade sobre dados_json)
+                        const dataLib = veiculo.data_liberacao || dados.data_liberacao;
                         if (dataLib) {
                             const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
                             const idadeMs = Date.now() - new Date(dataLibStr).getTime();
@@ -497,8 +497,8 @@ module.exports = function createChecklistsRouter(io) {
                     });
                 }
 
-                // Trava de expiração 24h
-                const dataLib = dados.data_liberacao || veiculo.data_liberacao;
+                // Trava de expiração 24h (coluna tem prioridade sobre dados_json)
+                const dataLib = veiculo.data_liberacao || dados.data_liberacao;
                 if (dataLib) {
                     const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
                     if ((Date.now() - new Date(dataLibStr).getTime()) > 24 * 60 * 60 * 1000) {
