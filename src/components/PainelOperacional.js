@@ -416,14 +416,25 @@ export default function PainelOperacional({
                         <select
                             value={filtroOperacao}
                             onChange={e => setFiltroOperacao(e.target.value)}
-                            className="input-date-neon"
-                            style={{ fontSize: '11px', fontWeight: '600', paddingLeft: '8px', paddingRight: '8px', minWidth: '160px', cursor: 'pointer' }}
+                            style={{
+                                background: filtroOperacao ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
+                                border: filtroOperacao ? '1px solid rgba(59,130,246,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '8px',
+                                color: filtroOperacao ? '#60a5fa' : '#94a3b8',
+                                fontSize: '11px', fontWeight: '600',
+                                padding: '5px 26px 5px 10px',
+                                minWidth: '150px', cursor: 'pointer',
+                                outline: 'none', appearance: 'none',
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E")`,
+                                backgroundRepeat: 'no-repeat',
+                                backgroundPosition: 'right 8px center',
+                            }}
                         >
-                            <option value="">Todas as operações</option>
+                            <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>Todas as operações</option>
                             {OPCOES_OPERACAO.filter(op =>
                                 origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
                             ).map(op => (
-                                <option key={op} value={op}>{op}</option>
+                                <option key={op} value={op} style={{ background: '#1e293b', color: '#e2e8f0' }}>{op}</option>
                             ))}
                         </select>
                     </div>
