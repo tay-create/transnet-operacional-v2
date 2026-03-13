@@ -1417,7 +1417,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                                  situacao_cad = 'ARQUIVADO',
                                  chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
                                  num_liberacao_cad = NULL, data_liberacao_cad = NULL
-                             WHERE telefone = ?`,
+                             WHERE telefone = ? AND (is_frota IS NULL OR is_frota = 0)`,
                             [agora, telefoneMotorista]
                         );
                         rowsAfetadas = r.changes || 0;
@@ -1434,7 +1434,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                                  situacao_cad = 'ARQUIVADO',
                                  chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
                                  num_liberacao_cad = NULL, data_liberacao_cad = NULL
-                             WHERE nome_motorista = ?`,
+                             WHERE nome_motorista = ? AND (is_frota IS NULL OR is_frota = 0)`,
                             [agora, veiculo.motorista]
                         );
                         rowsAfetadas = r.changes || 0;
