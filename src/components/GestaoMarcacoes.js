@@ -321,7 +321,7 @@ export default function GestaoMarcacoes({ socket }) {
                             { label: 'Placa 1', valor: m.placa1 || '—', destaque: true },
                             { label: 'Placa 2', valor: m.placa2 || '—', destaque: true },
                             { label: 'Tipo de Veículo', valor: m.tipo_veiculo || '—' },
-                            { label: 'Já carregou aqui?', valor: m.ja_carregou || '—' },
+                            { label: 'Já carregou conosco?', valor: m.ja_carregou || '—' },
                             { label: 'Estados de Destino', valor: Array.isArray(m.estados_destino) ? m.estados_destino.join(', ') : '—' },
                             { label: 'Rastreador', valor: m.rastreador || '—' },
                             { label: 'Status Rastreador', valor: m.status_rastreador || '—' },
