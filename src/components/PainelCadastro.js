@@ -66,7 +66,7 @@ export default function PainelCadastro({ user, socket }) {
     const [salvandoFrota, setSalvandoFrota] = useState(null);
 
     // Em Espera: expandir/colapsar e filtro
-    const [expandidosEspera, setExpandidosEspera] = useState({});
+    const [expandidoEspera, setExpandidoEspera] = useState(null);
     const [filtroEspera, setFiltroEspera] = useState('');
 
     const carregarMotoristas = useCallback(async () => {
@@ -424,7 +424,7 @@ export default function PainelCadastro({ user, socket }) {
                                 const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
                                 const cor = corSituacao(situacao);
                                 const estaSalvando = salvando === m.id;
-                                const expandido = !!expandidosEspera[m.id];
+                                const expandido = expandidoEspera === m.id;
 
                                 return (
                                     <div
@@ -439,7 +439,7 @@ export default function PainelCadastro({ user, socket }) {
                                     >
                                         {/* Header clicável — sempre visível */}
                                         <div
-                                            onClick={() => setExpandidosEspera(prev => ({ ...prev, [m.id]: !prev[m.id] }))}
+                                            onClick={() => setExpandidoEspera(prev => prev === m.id ? null : m.id)}
                                             style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.2)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: expandido ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
                                         >
                                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -552,7 +552,12 @@ export default function PainelCadastro({ user, socket }) {
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                            {motoristasOperacao.map(m => {
+                            {[...motoristasOperacao].sort((a, b) => {
+                                const ORDEM = ['NÃO CONFERIDO', 'PENDENTE', 'LIBERADO'];
+                                const sA = (edicoesOp[a.id] || {}).situacao_cad || 'NÃO CONFERIDO';
+                                const sB = (edicoesOp[b.id] || {}).situacao_cad || 'NÃO CONFERIDO';
+                                return ORDEM.indexOf(sA) - ORDEM.indexOf(sB);
+                            }).map(m => {
                                 const ed = edicoesOp[m.id] || {};
                                 const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
                                 const cor = corSituacao(situacao);

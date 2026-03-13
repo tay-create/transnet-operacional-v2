@@ -723,9 +723,6 @@ export default function GestaoMarcacoes({ socket }) {
                                 <tr>
                                     <th style={s.th}>Motorista</th>
                                     <th style={s.th}>Telefone</th>
-                                    <th style={s.th}>Placas (Atual)</th>
-                                    <th style={s.th}>Disponibilidade</th>
-                                    <th style={s.th}>Status</th>
                                     <th style={s.th}>Ações</th>
                                 </tr>
                             </thead>
@@ -739,45 +736,6 @@ export default function GestaoMarcacoes({ socket }) {
                                             </div>
                                         </td>
                                         <td style={s.td}>{linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}</td>
-                                        <td style={{ ...s.td, color: '#60a5fa' }}>
-                                            {m.placa1 ? `${m.placa1}${m.placa2 ? ' / ' + m.placa2 : ''}` : '—'}
-                                        </td>
-                                        <td style={s.td}>
-                                            <select
-                                                value={['EM CASA', 'NO PÁTIO', 'NO POSTO'].includes(m.disponibilidade) ? m.disponibilidade : ''}
-                                                onChange={e => e.target.value && handleAtualizarLocalizacao(m.id, e.target.value)}
-                                                style={{
-                                                    background: 'rgba(255,255,255,0.06)',
-                                                    border: '1px solid rgba(255,255,255,0.1)',
-                                                    borderRadius: '6px', padding: '4px 8px',
-                                                    color: corDisponibilidade(m.disponibilidade),
-                                                    fontSize: '11px', fontWeight: '700',
-                                                    cursor: 'pointer', outline: 'none'
-                                                }}
-                                            >
-                                                <option value="" style={{ color: '#475569' }}>— localização —</option>
-                                                <option value="EM CASA" style={{ color: 'black' }}>EM CASA</option>
-                                                <option value="NO PÁTIO" style={{ color: 'black' }}>NO PÁTIO</option>
-                                                <option value="NO POSTO" style={{ color: 'black' }}>NO POSTO</option>
-                                            </select>
-                                        </td>
-                                        <td style={s.td}>
-                                            {m.disponibilidade === 'Indisponível' ? (
-                                                <span style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                    background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)'
-                                                }}>Indisponível</span>
-                                            ) : m.disponibilidade === 'Contratado' || m.status_operacional === 'EM VIAGEM' || m.status_operacional === 'EM ROTA' ? (
-                                                <span style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                    background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)'
-                                                }}>Em Viagem</span>
-                                            ) : (
-                                                <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
-                                                    {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : m.status_operacional}
-                                                </span>
-                                            )}
-                                        </td>
                                         <td style={s.td}>
                                             <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
                                                 <Trash2 size={14} />
@@ -787,7 +745,7 @@ export default function GestaoMarcacoes({ socket }) {
                                 ))}
                                 {marcacoes.filter(m => m.is_frota === 1).length === 0 && (
                                     <tr>
-                                        <td colSpan="6" style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '20px' }}>
+                                        <td colSpan="3" style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '20px' }}>
                                             Nenhum motorista de frota na fila.
                                         </td>
                                     </tr>

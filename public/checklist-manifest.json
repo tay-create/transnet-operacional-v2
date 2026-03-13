@@ -2,7 +2,9 @@
   "name": "Transnet Checklist",
   "short_name": "Checklist",
   "start_url": "/checklist",
+  "scope": "/checklist",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#020617",
   "theme_color": "#1e293b",
   "icons": [

@@ -1986,11 +1986,20 @@ app.use((err, req, res, next) => {
 if (process.env.NODE_ENV === 'production') {
     const fs = require('fs');
 
-    // PWA Conferente: serve index.html com manifest apontando para /conferente
-    app.get('/conferente', (req, res) => {
+    // PWA Conferente: serve index.html com manifest correto para /conferente e subpaths
+    app.get(['/conferente', '/conferente/*splat'], (req, res) => {
         const indexPath = path.join(__dirname, 'build', 'index.html');
         let html = fs.readFileSync(indexPath, 'utf8');
         html = html.replace('/manifest.json', '/conferente-manifest.json');
+        res.set('Content-Type', 'text/html');
+        res.send(html);
+    });
+
+    // PWA Checklist: serve index.html com manifest correto para /checklist e subpaths
+    app.get(['/checklist', '/checklist/*splat'], (req, res) => {
+        const indexPath = path.join(__dirname, 'build', 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        html = html.replace('/manifest.json', '/checklist-manifest.json');
         res.set('Content-Type', 'text/html');
         res.send(html);
     });

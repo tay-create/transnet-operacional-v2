@@ -187,6 +187,28 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.numero_coleta = tagMorIns;
             }
 
+            // Verificar coletas duplicadas em operações ativas
+            const tagsRec = (v.coletaRecife || '').split(',').map(t => t.trim()).filter(Boolean);
+            const tagsMor = (v.coletaMoreno || '').split(',').map(t => t.trim()).filter(Boolean);
+            const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
+            const placeholders = STATUS_FINAIS.map(() => '?').join(',');
+            for (const tag of [...tagsRec, ...tagsMor]) {
+                const existente = await dbGet(
+                    `SELECT id, motorista FROM veiculos
+                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coleta = ?)
+                       AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
+                       AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
+                     LIMIT 1`,
+                    [`%${tag}%`, `%${tag}%`, tag, ...STATUS_FINAIS, ...STATUS_FINAIS]
+                );
+                if (existente) {
+                    return res.status(409).json({
+                        success: false,
+                        message: `Coleta "${tag}" já está em uso (veículo #${existente.id} — ${existente.motorista || 'S/motorista'}).`
+                    });
+                }
+            }
+
             const query = `INSERT INTO veiculos (
             placa, modelo, motorista, status_recife, status_moreno,
             doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno,

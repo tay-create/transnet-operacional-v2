@@ -466,7 +466,11 @@ export default function PainelOperacional({
                                 </div>
                             ))}
 
-                            {itensFiltrados.map((item) => {
+                            {[...itensFiltrados].sort((a, b) => {
+                                const ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+                                const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                return ORDEM.indexOf(a[campo] || 'AGUARDANDO') - ORDEM.indexOf(b[campo] || 'AGUARDANDO');
+                            }).map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
