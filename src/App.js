@@ -1173,7 +1173,7 @@ function App({ socket }) {
                     <PainelProgramacao />
                 )}
 
-                {abaAtiva === 'ocorrencias' && temAcesso('operacao') && (
+                {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (
                     <PainelOcorrencias />
                 )}
 

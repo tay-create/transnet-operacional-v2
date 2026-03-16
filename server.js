@@ -1783,17 +1783,22 @@ async function verificarExpiracaoLiberacoes() {
 cron.schedule('*/15 * * * *', verificarExpiracaoLiberacoes, { scheduled: true, timezone: "America/Sao_Paulo" });
 
 // ── ROLLOVER AUTOMÁTICO DE DIA (Fecho do Dia) ─────────────────────────
-// Roda todos os dias de semana (1-5) às 23:59 no horário de Brasília
-cron.schedule('59 23 * * 1-5', async () => {
+// Roda de seg a sáb às 23:59 (sex→sáb ok; sáb→segunda pula domingo)
+function proximoDiaRollover() {
+    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const prox = new Date(agora);
+    prox.setDate(prox.getDate() + 1);
+    if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // domingo → segunda
+    const ano = prox.getFullYear();
+    const mes = String(prox.getMonth() + 1).padStart(2, '0');
+    const dia = String(prox.getDate()).padStart(2, '0');
+    return `${ano}-${mes}-${dia}`;
+}
+
+cron.schedule('59 23 * * 1-6', async () => {
     try {
         console.log(`[CRON] Iniciando Rollover/Fecho Automático do Dia...`);
-        // O rollover altera apenas a "data_prevista" para o próximo dia útil (hoje + 1 dia)
-        // Apenas para veículos pendentes cujo status NÃO seja de saída
-        // E que NÃO tenham status fiscal "Emitido"
-
-        const amanha = new Date();
-        amanha.setDate(amanha.getDate() + 1);
-        const amanhaStr = amanha.toLocaleString("en-CA", { timeZone: "America/Sao_Paulo" }).split(',')[0];
+        const amanhaStr = proximoDiaRollover();
 
         // Atualiza a data_prevista apenas de quem não foi finalizado/não tem CTE Emitido
         const query = `
@@ -1809,8 +1814,21 @@ cron.schedule('59 23 * * 1-5', async () => {
                 )
         `;
         const resultado = await dbRun(query, [amanhaStr]);
+        console.log(`[CRON] Fecho do Dia: ${resultado.changes} veículos → ${amanhaStr}.`);
 
-        console.log(`[CRON] Fecho do Dia concluído. ${resultado.changes} veículos transferidos para ${amanhaStr}.`);
+        // Avança CT-es com status "Aguardando Emissão" para o próximo dia
+        const ctesAguardando = await dbAll("SELECT id, dados_json FROM ctes_ativos WHERE status = 'Aguardando Emissão'");
+        let ctesAtualizados = 0;
+        for (const cte of ctesAguardando) {
+            try {
+                const dados = JSON.parse(cte.dados_json);
+                dados.data_entrada_cte = new Date(amanhaStr + 'T12:00:00').toLocaleDateString('pt-BR');
+                await dbRun("UPDATE ctes_ativos SET dados_json = ? WHERE id = ?", [JSON.stringify(dados), cte.id]);
+                ctesAtualizados++;
+            } catch (_) {}
+        }
+        console.log(`[CRON] CT-es "Aguardando Emissão" avançados: ${ctesAtualizados} → ${amanhaStr}.`);
+
         io.emit('receber_atualizacao', { tipo: 'refresh_geral' }); // Força atualização dos painéis na virada
     } catch (e) {
         console.error(`[CRON] Erro ao processar Rollover Automático:`, e);

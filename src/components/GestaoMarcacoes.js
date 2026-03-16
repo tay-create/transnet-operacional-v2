@@ -26,9 +26,9 @@ const s = {
     td: { padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', verticalAlign: 'middle' },
     badge: (status) => ({
         display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-        background: status === 'ativo' ? 'rgba(34,197,94,0.12)' : status === 'utilizado' ? 'rgba(250,204,21,0.12)' : 'rgba(239,68,68,0.12)',
-        color: status === 'ativo' ? '#4ade80' : status === 'utilizado' ? '#facc15' : '#f87171',
-        border: `1px solid ${status === 'ativo' ? 'rgba(34,197,94,0.25)' : status === 'utilizado' ? 'rgba(250,204,21,0.25)' : 'rgba(239,68,68,0.25)'}`
+        background: status === 'ativo' ? 'rgba(34,197,94,0.12)' : status === 'utilizado' ? 'rgba(250,204,21,0.12)' : status === 'expirado' ? 'rgba(249,115,22,0.12)' : 'rgba(239,68,68,0.12)',
+        color: status === 'ativo' ? '#4ade80' : status === 'utilizado' ? '#facc15' : status === 'expirado' ? '#fb923c' : '#f87171',
+        border: `1px solid ${status === 'ativo' ? 'rgba(34,197,94,0.25)' : status === 'utilizado' ? 'rgba(250,204,21,0.25)' : status === 'expirado' ? 'rgba(249,115,22,0.25)' : 'rgba(239,68,68,0.25)'}`
     }),
     badgeOp: (status) => ({
         display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
@@ -271,6 +271,20 @@ export default function GestaoMarcacoes({ socket }) {
         return `https://wa.me/${num}`;
     }
 
+    function linkWppComMensagem(tel, tokenObj) {
+        const base = linkWpp(tel);
+        if (!base || !tokenObj) return base;
+        const url = `${window.location.origin}/cadastro/${tokenObj.token}`;
+        const msg = encodeURIComponent(`${url}\n\nAssim que sair para a região desejada entraremos em contato`);
+        return `${base}?text=${msg}`;
+    }
+
+    function statusEfetivo(token) {
+        if (token.status !== 'ativo') return token.status;
+        if (token.data_expiracao && new Date() > new Date(token.data_expiracao)) return 'expirado';
+        return 'ativo';
+    }
+
     function formatarTelefone(tel) {
         if (!tel) return '—';
         let d = tel.replace(/\D/g, '');
@@ -445,7 +459,7 @@ export default function GestaoMarcacoes({ socket }) {
                                     {tokens.map(t => (
                                         <tr key={t.id}>
                                             <td style={s.td}>{t.id}</td>
-                                            <td style={s.td}>{linkWpp(t.telefone) ? <a href={linkWpp(t.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(t.telefone)}</a> : formatarTelefone(t.telefone)}</td>
+                                            <td style={s.td}>{linkWppComMensagem(t.telefone, t) ? <a href={linkWppComMensagem(t.telefone, t)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(t.telefone)}</a> : formatarTelefone(t.telefone)}</td>
                                             <td style={s.td}>
                                                 <div style={s.linkText}>
                                                     /cadastro/{t.token.slice(0, 8)}...
@@ -458,27 +472,29 @@ export default function GestaoMarcacoes({ socket }) {
                                                 </button>
                                             </td>
                                             <td style={s.td}>
-                                                <span style={s.badge(t.status)}>
-                                                    {t.status === 'ativo' ? <CheckCircle size={10} /> : t.status === 'utilizado' ? <CheckCircle size={10} /> : <Ban size={10} />}
-                                                    {t.status === 'ativo' ? 'Ativo' : t.status === 'utilizado' ? 'Utilizado' : 'Inativo'}
-                                                </span>
+                                                {(() => { const st = statusEfetivo(t); return (
+                                                    <span style={s.badge(st)}>
+                                                        {st === 'ativo' ? <CheckCircle size={10} /> : st === 'utilizado' ? <CheckCircle size={10} /> : st === 'expirado' ? <Clock size={10} /> : <Ban size={10} />}
+                                                        {st === 'ativo' ? 'Ativo' : st === 'utilizado' ? 'Utilizado' : st === 'expirado' ? 'Expirado' : 'Inativo'}
+                                                    </span>
+                                                ); })()}
                                             </td>
                                             <td style={s.td}>
                                                 <div>{formatarData(t.data_criacao)}</div>
-                                                {t.data_expiracao && t.status === 'ativo' && (
-                                                    <div style={{ fontSize: '10px', color: '#475569', marginTop: '2px' }}>
-                                                        Expira: {formatarData(t.data_expiracao)}
+                                                {t.data_expiracao && (statusEfetivo(t) === 'ativo' || statusEfetivo(t) === 'expirado') && (
+                                                    <div style={{ fontSize: '10px', color: statusEfetivo(t) === 'expirado' ? '#fb923c' : '#475569', marginTop: '2px' }}>
+                                                        {statusEfetivo(t) === 'expirado' ? 'Expirou: ' : 'Expira: '}{formatarData(t.data_expiracao)}
                                                     </div>
                                                 )}
                                             </td>
                                             <td style={s.td}>
                                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                                    {t.status === 'ativo' && (
+                                                    {statusEfetivo(t) === 'ativo' && (
                                                         <button style={{ ...s.btn('red'), padding: '6px 10px' }} onClick={() => toggleStatus(t)}>
                                                             <Ban size={13} /> Inativar
                                                         </button>
                                                     )}
-                                                    {(t.status === 'inativo' || t.status === 'utilizado') && (
+                                                    {(t.status === 'inativo' || t.status === 'utilizado' || statusEfetivo(t) === 'expirado') && (
                                                         <button style={{ ...s.btn('green'), padding: '6px 10px' }} onClick={() => toggleStatus(t)}>
                                                             <CheckCircle size={13} /> Reativar
                                                         </button>
