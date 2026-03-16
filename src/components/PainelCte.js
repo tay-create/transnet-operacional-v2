@@ -75,7 +75,7 @@ export default function PainelCte({
 
             <div className="grid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                 {ctesFiltrados.map((cte, index) => (
-                    <div key={index} className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
+                    <div key={cte.id ?? index} className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
                         {/* Topo do Card */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
                             <div style={{ flex: 1 }}>

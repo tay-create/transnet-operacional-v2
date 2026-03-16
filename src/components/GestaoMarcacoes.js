@@ -68,9 +68,15 @@ function calcularTempoEspera(dataMarcacao, dataContratacao) {
 function formatarTempo(minutos) {
     if (minutos === null) return '—';
     if (minutos < 60) return `${minutos}min`;
-    const h = Math.floor(minutos / 60);
+    const totalH = Math.floor(minutos / 60);
     const m = minutos % 60;
-    return m > 0 ? `${h}h ${m}min` : `${h}h`;
+    if (totalH < 24) return m > 0 ? `${totalH}h ${m}min` : `${totalH}h`;
+    const d = Math.floor(totalH / 24);
+    const h = totalH % 24;
+    if (h === 0 && m === 0) return `${d}d`;
+    if (h === 0) return `${d}d ${m}min`;
+    if (m === 0) return `${d}d ${h}h`;
+    return `${d}d ${h}h ${m}min`;
 }
 
 function corTempo(min) {

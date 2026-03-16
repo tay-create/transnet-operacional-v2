@@ -304,8 +304,17 @@ function App({ socket }) {
 
         // --- Sincronização de CT-e ---
         else if (data.tipo === 'novo_cte') {
-            if (data.dados.origem === 'Moreno') setCtesMoreno(prev => [...prev, data.dados]);
-            else setCtesRecife(prev => [...prev, data.dados]);
+            if (data.dados.origem === 'Moreno') {
+                setCtesMoreno(prev => {
+                    if (prev.find(c => c.id === data.dados.id)) return prev;
+                    return [...prev, data.dados];
+                });
+            } else {
+                setCtesRecife(prev => {
+                    if (prev.find(c => c.id === data.dados.id)) return prev;
+                    return [...prev, data.dados];
+                });
+            }
         }
         else if (data.tipo === 'atualiza_cte') {
             const updater = prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c);
@@ -640,13 +649,8 @@ function App({ socket }) {
             console.error("Erro ao persistir CT-e:", error);
         }
 
-        if (user.cidade === 'Moreno') {
-            setCtesMoreno(prev => [...prev, dadosCte]);
-            mostrarNotificacao(`✅ CT-e Aceito! Enviado para MORENO.`);
-        } else {
-            setCtesRecife(prev => [...prev, dadosCte]);
-            mostrarNotificacao(`✅ CT-e Aceito! Enviado para RECIFE.`);
-        }
+        const origemLabel = user.cidade === 'Moreno' ? 'MORENO' : 'RECIFE';
+        mostrarNotificacao(`✅ CT-e Aceito! Enviado para ${origemLabel}.`);
 
         // Remover notificação do backend e do state via handle unificado
         try {
