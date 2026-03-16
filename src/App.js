@@ -614,7 +614,8 @@ function App({ socket }) {
             mostrarNotificacao("✅ Veículo Lançado !");
         } catch (error) {
             console.error("Erro ao lançar:", error);
-            mostrarNotificacao("❌ Erro ao salvar no banco.");
+            const msg = error?.response?.data?.message || "Erro ao salvar no banco.";
+            mostrarNotificacao(`❌ ${msg}`);
         }
     };
 
