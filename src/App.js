@@ -42,6 +42,9 @@ const DESTINATARIOS_ALERTA = {
     'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
     'checklist_pendente':  [],
     'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
+    'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
+    'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
+    'nova_marcacao_coord': ['Coordenador'],
 };
 
 console.log("🚀 [App] Carregando v0.2.3 - Socket Debug Mode");

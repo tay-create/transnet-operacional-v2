@@ -162,7 +162,7 @@ app.use('/', veiculosRouter);
 const checklistsRouter = require('./src/routes/checklists')(io);
 app.use('/', checklistsRouter);
 
-const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog);
+const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog, io);
 app.use('/', ocorrenciasRouter);
 
 // Reset de senha por Coordenador (gera senha padrão "123" e força troca)
@@ -257,6 +257,11 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
             [telefone, token, expiracao]
         );
         const novo = await dbGet("SELECT * FROM tokens_motoristas WHERE id = ?", [result.lastID]);
+        const criador = req.user?.nome || '?';
+        await registrarLog('TOKEN_CRIADO', criador, result.lastID, 'token', null, null, `Token para tel ${telefone}`);
+        io.emit('receber_alerta', { tipo: 'nova_marcacao', mensagem: `Link criado por ${criador}`, criador, data_criacao: new Date().toISOString() });
+        io.emit('receber_alerta', { tipo: 'nova_marcacao_coord', mensagem: `${criador} criou um link de cadastro`, criador, data_criacao: new Date().toISOString() });
+        io.emit('marcacao_atualizada', { tipo: 'token_criado' });
         res.json({ success: true, token: novo });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -264,6 +269,9 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
 app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);
+        const criador = req.user?.nome || '?';
+        await registrarLog('TOKEN_DELETADO', criador, req.params.id, 'token', null, null, null);
+        io.emit('marcacao_atualizada', { tipo: 'token_deletado', id: req.params.id });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -284,6 +292,9 @@ app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamen
             if (!tel.startsWith('55')) tel = '55' + tel;
             await dbRun("UPDATE tokens_motoristas SET telefone = ? WHERE id = ?", [tel, req.params.id]);
         }
+        const criador = req.user?.nome || '?';
+        await registrarLog('TOKEN_ATUALIZADO', criador, req.params.id, 'token', null, null, JSON.stringify(req.body));
+        io.emit('marcacao_atualizada', { tipo: 'token_atualizado', id: req.params.id });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -424,6 +435,12 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
             await dbRun("UPDATE tokens_motoristas SET status = 'utilizado' WHERE id = ?", [token_id]);
         }
 
+        const nomeMarcacao = nome_motorista || 'Motorista';
+        await registrarLog('MARCACAO_CRIADA', nomeMarcacao, null, 'marcacao', null, null, `Placa: ${placa1}`);
+        io.emit('receber_alerta', { tipo: 'nova_marcacao', mensagem: `${nomeMarcacao} marcou placa (${placa1})`, criador: nomeMarcacao, data_criacao: new Date().toISOString() });
+        io.emit('receber_alerta', { tipo: 'nova_marcacao_coord', mensagem: `${nomeMarcacao} marcou placa`, criador: nomeMarcacao, data_criacao: new Date().toISOString() });
+        io.emit('marcacao_atualizada', { tipo: 'nova_marcacao' });
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -476,6 +493,10 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
 app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
+        const criador = req.user?.nome || '?';
+        await registrarLog('MARCACAO_DELETADA', criador, req.params.id, 'marcacao', null, null, null);
+        io.emit('receber_alerta', { tipo: 'nova_marcacao', mensagem: `Marcação removida por ${criador}`, criador, data_criacao: new Date().toISOString() });
+        io.emit('marcacao_atualizada', { tipo: 'marcacao_removida', id: req.params.id });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -498,6 +519,7 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
             await dbRun("UPDATE marcacoes_placas SET data_contratacao = NULL WHERE id = ?", [req.params.id]);
         }
 
+        await registrarLog('MARCACAO_STATUS', req.user?.nome || '?', req.params.id, 'marcacao', null, status, null);
         io.emit('marcacao_atualizada');
         res.json({ success: true });
     } catch (e) {
@@ -571,6 +593,7 @@ app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'En
             WHERE id = ? AND is_frota = 1`,
             [num_liberacao_cad || '', data_liberacao_cad || null, seguradora_cad || '', situacao_cad, req.params.id]
         );
+        await registrarLog('FROTA_LIBERACAO', req.user?.nome || '?', req.params.id, 'frota', null, situacao_cad, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao: situacao_cad });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -579,6 +602,7 @@ app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'En
 app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ? AND is_frota = 1", [req.params.id]);
+        await registrarLog('FROTA_DELETADO', req.user?.nome || '?', req.params.id, 'frota', null, null, null);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -674,6 +698,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
             });
         }
 
+        await registrarLog('MOTORISTA_CADASTRO', req.user?.nome || '?', req.params.id, 'marcacao', null, situacao, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao, data_liberacao_cad: novaDataLib });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -836,6 +861,7 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             );
         }
 
+        await registrarLog('VEICULO_CADASTRO', req.user?.nome || '?', req.params.id, 'veiculo', null, situacao, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao, data_liberacao_cad: novaDataLib });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -947,6 +973,7 @@ app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Enc
         const unidade = item.unidade || req.user.cidade || 'Recife';
         const result = await dbRun(`INSERT INTO fila (dados_json, unidade) VALUES (?, ?)`, [JSON.stringify(item), unidade]);
         const novo = { id: result.lastID, unidade, ...item };
+        await registrarLog('FILA_CRIADA', req.user?.nome || '?', result.lastID, 'fila', null, null, `Unidade: ${unidade}`);
         io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) { res.status(500).json({ success: false }); }
@@ -957,6 +984,7 @@ app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Planejamen
         const { ordem } = req.body;
         if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
         await Promise.all(ordem.map(item => dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(item), item.id])));
+        await registrarLog('FILA_REORDENADA', req.user?.nome || '?', null, 'fila', null, null, null);
         io.emit('receber_atualizacao', { tipo: 'reordenar_fila', ordem });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
@@ -964,11 +992,19 @@ app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Planejamen
 app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]);
+        await registrarLog('FILA_ATUALIZADA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
         io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { try { await dbRun("DELETE FROM fila WHERE id = ?", [req.params.id]); io.emit('receber_atualizacao', { tipo: 'remove_fila', id: Number(req.params.id) }); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    try {
+        await dbRun("DELETE FROM fila WHERE id = ?", [req.params.id]);
+        await registrarLog('FILA_REMOVIDA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
+        io.emit('receber_atualizacao', { tipo: 'remove_fila', id: Number(req.params.id) });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
 
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
@@ -1046,6 +1082,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
             ]
         );
         const novo = { id: result.lastID, origem, status, ...dados };
+        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coleta || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) {
@@ -1103,6 +1140,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 console.error('Erro ao salvar histórico de liberações:', errHist);
             }
         }
+        await registrarLog('CTE_ATUALIZADO', req.user?.nome || '?', req.params.id, 'cte', null, status, `Motorista: ${dados.motorista || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'atualiza_cte', id: Number(req.params.id), status, ...dados });
         res.json({ success: true });
     } catch (e) {
@@ -1115,6 +1153,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
 app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
+        await registrarLog('CTE_DELETADO', req.user?.nome || '?', req.params.id, 'cte', null, null, null);
         io.emit('receber_atualizacao', { tipo: 'remove_cte', id: Number(req.params.id) });
         res.json({ success: true });
     } catch (e) {
@@ -1186,6 +1225,7 @@ app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 
             return id;
         });
 
+        await registrarLog('CUBAGEM_CRIADA', req.user?.nome || '?', cubagemId, 'cubagem', null, null, `Coleta: ${numero_coleta} | Motorista: ${motorista}`);
         res.json({ success: true, id: cubagemId });
     } catch (e) {
         console.error('Erro ao salvar cubagem:', e);
@@ -1218,6 +1258,7 @@ app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
             }
         });
 
+        await registrarLog('CUBAGEM_ATUALIZADA', req.user?.nome || '?', id, 'cubagem', null, null, `Coleta: ${numero_coleta}`);
         res.json({ success: true });
     } catch (e) {
         console.error('Erro ao atualizar cubagem:', e);
@@ -1229,6 +1270,7 @@ app.delete('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejame
     try {
         await dbRun("DELETE FROM cubagem_itens WHERE cubagem_id = ?", [req.params.id]);
         await dbRun("DELETE FROM cubagens WHERE id = ?", [req.params.id]);
+        await registrarLog('CUBAGEM_DELETADA', req.user?.nome || '?', req.params.id, 'cubagem', null, null, null);
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false });
@@ -1586,6 +1628,7 @@ app.post('/api/checklists', authMiddleware, authorize(['Conferente', 'Coordenado
             [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at, status]
         );
 
+        await registrarLog('CHECKLIST_CRIADO', req.user?.nome || '?', veiculo_id, 'veiculo', null, status, `Placa: ${placa_carreta} | Conferente: ${conferente_nome || '-'}`);
         // Se auto-aprovado, dispara socket para atualizar a fila operacional sem precisar de refresh
         if (autoAprovado) {
             io.emit('receber_atualizacao');
@@ -1621,6 +1664,7 @@ app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 
             return res.status(400).json({ success: false, message: 'Status inválido.' });
         }
         await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
+        await registrarLog('CHECKLIST_STATUS', req.user?.nome || '?', req.params.id, 'checklist', null, status, null);
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
@@ -1893,6 +1937,7 @@ app.post('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'P
         const newCard = { id: result.lastID, unidade, doca: 'SELECIONE', nome: 'CONTAINER' };
 
         const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        await registrarLog('DOCA_CRIADA', req.user?.nome || '?', result.lastID, 'doca', null, null, `Unidade: ${unidade}`);
         io.emit('docas_interditadas_update', allDocas);
         res.json({ success: true, doca: newCard });
     } catch (e) {
@@ -1907,6 +1952,7 @@ app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador',
         await dbRun('UPDATE docas_interditadas SET doca = ? WHERE id = ?', [doca, id]);
 
         const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        await registrarLog('DOCA_ATUALIZADA', req.user?.nome || '?', id, 'doca', null, doca, null);
         io.emit('docas_interditadas_update', allDocas);
         res.json({ success: true });
     } catch (e) {
@@ -1920,6 +1966,7 @@ app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenado
         await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
 
         const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        await registrarLog('DOCA_DELETADA', req.user?.nome || '?', id, 'doca', null, null, null);
         io.emit('docas_interditadas_update', allDocas);
         res.json({ success: true });
     } catch (e) {
@@ -1950,6 +1997,7 @@ app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planej
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '']
         );
+        await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
         res.json({ success: true, id: result.lastID || result.id });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -1972,6 +2020,7 @@ app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordena
             `UPDATE saldo_paletes SET qtd_devolvida_pbr = ?, qtd_devolvida_desc = ?, devolvido = ?, data_devolucao = CURRENT_TIMESTAMP WHERE id = ?`,
             [devPbr, devDesc, todosDevolvidos, id]
         );
+        await registrarLog('PALETE_DEVOLUCAO', req.user?.nome || '?', id, 'palete', null, null, `PBR: ${devPbr}, Desc: ${devDesc}`);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -1979,6 +2028,7 @@ app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordena
 app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
     try {
         await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
+        await registrarLog('PALETE_DELETADO', req.user?.nome || '?', req.params.id, 'palete', null, null, null);
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

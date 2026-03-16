@@ -1,7 +1,7 @@
 const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
-module.exports = function createOcorrenciasRouter(registrarLog) {
+module.exports = function createOcorrenciasRouter(registrarLog, io) {
     const router = express.Router();
 
     router.get('/api/veiculos/:id/ocorrencias', authMiddleware, async (req, res) => {
@@ -29,8 +29,21 @@ module.exports = function createOcorrenciasRouter(registrarLog) {
                 [veiculo_id, motorista || 'N/A', descricao, foto_base64 || null]
             );
 
-            console.log(`🚨 [Ocorrência] Veículo #${veiculo_id} (${motorista || 'N/A'}) | Criada por: ${req.user?.nome || 'desconhecido'} | "${descricao?.substring(0, 60)}"`);
-            await registrarLog('OCORRÊNCIA_CRIADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, descricao);
+            const criador = req.user?.nome || 'desconhecido';
+            console.log(`🚨 [Ocorrência] Veículo #${veiculo_id} (${motorista || 'N/A'}) | Criada por: ${criador} | "${descricao?.substring(0, 60)}"`);
+            await registrarLog('OCORRÊNCIA_CRIADA', criador, veiculo_id, 'veiculo', null, null, descricao);
+
+            // Notifica Pos Embarque e Cadastro em tempo real
+            if (io) {
+                io.emit('receber_alerta', {
+                    tipo: 'nova_ocorrencia',
+                    mensagem: `Nova ocorrência registrada por ${criador}: "${(descricao || '').substring(0, 80)}"`,
+                    motorista: motorista || 'N/A',
+                    veiculo_id,
+                    criador,
+                    data_criacao: new Date().toISOString()
+                });
+            }
 
             res.json({ success: true, id: result.lastID });
         } catch (e) {
@@ -60,6 +73,7 @@ module.exports = function createOcorrenciasRouter(registrarLog) {
     router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
         try {
             await dbRun("DELETE FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
+            if (io) io.emit('receber_atualizacao', { tipo: 'ocorrencia_deletada', id: req.params.id });
             res.json({ success: true });
         } catch (e) {
             console.error('Erro ao buscar ocorrências:', e);
