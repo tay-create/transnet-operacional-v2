@@ -1,6 +1,7 @@
 import React from 'react';
 import { Copy } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
+import api from '../services/apiService';
 
 export default function PainelCte({
     abaAtiva,
@@ -124,7 +125,11 @@ export default function PainelCte({
                             </div>
                             {podeEditar('cte') && (
                                 <button
-                                    onClick={() => setListaAtual(listaCtes.filter((_, i) => i !== realIndex))}
+                                    onClick={async () => {
+                                        if (!cte.id) return;
+                                        try { await api.delete(`/ctes/${cte.id}`); } catch {}
+                                        setListaAtual(prev => prev.filter(c => c.id !== cte.id));
+                                    }}
                                     title="Remover Card"
                                     style={{ border: 'none', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: '6px', padding: '6px', cursor: 'pointer', transition: '0.2s', marginLeft: '8px' }}
                                 >

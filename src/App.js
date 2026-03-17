@@ -102,6 +102,7 @@ function App({ socket }) {
     const mostrarNotificacaoRef = useRef(mostrarNotificacao);
     const isFirstConnectRef = useRef(true);
     const recarregarDadosRef = useRef(null);
+    const aceitandoCteIds = useRef(new Set());
 
     // === LÓGICA DE VIRADA DE DATA À MEIA-NOITE ===
     useEffect(() => {
@@ -628,6 +629,8 @@ function App({ socket }) {
 
     const aceitarCtePelaNotificacao = async (notificacao) => {
         const { dadosVeiculo, idInterno, origem } = notificacao;
+        if (aceitandoCteIds.current.has(idInterno)) return;
+        aceitandoCteIds.current.add(idInterno);
         // Herdar t_fim_liberado_cte dos tempos do veículo (para o dashboard de efetividade)
         const temposVeic = origem === 'Recife'
             ? (dadosVeiculo.tempos_recife || {})
@@ -668,6 +671,8 @@ function App({ socket }) {
             await handleRemoverNotificacao(idInterno);
         } catch (error) {
             console.error("Erro ao remover notificação:", error);
+        } finally {
+            aceitandoCteIds.current.delete(idInterno);
         }
     };
 
