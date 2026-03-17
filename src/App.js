@@ -916,18 +916,21 @@ function App({ socket }) {
 
             salvarNoHistoricoCte(itemAtual, origem);
 
-            // Em vez de remover do banco, apenas atualiza o status para persistir como "Emitido"
+            // Remove do banco e da lista ao emitir
             if (itemAtual.id) {
                 try {
-                    await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual });
-                    // Atualiza a lista local mantendo o item agora com status "Emitido"
-                    setLista(prev => prev.map((c, mIndex) => mIndex === index ? itemAtual : c));
+                    await api.delete(`/ctes/${itemAtual.id}`);
+                    setLista(prev => prev.filter(c => c.id !== itemAtual.id));
                     mostrarNotificacao("✅ CT-e Emitido!");
                 } catch (error) {
-                    const msgErro = error.response?.data?.message || 'Erro ao persistir status Emitido (PUT).';
-                    console.error('Erro ao persistir status Emitido:', error);
+                    const msgErro = error.response?.data?.message || 'Erro ao remover CT-e (DELETE).';
+                    console.error('Erro ao remover CT-e emitido:', error);
                     mostrarNotificacao(`⚠️ ${msgErro}`);
                 }
+            } else {
+                // CT-e sem ID (criado localmente, nunca foi ao banco)
+                setLista(prev => prev.filter((_, i) => i !== index));
+                mostrarNotificacao("✅ CT-e Emitido!");
             }
             return; // Interrompe para não executar o update genérico abaixo
         }
