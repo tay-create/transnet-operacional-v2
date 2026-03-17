@@ -54,7 +54,9 @@ function createWindow() {
         return { action: 'deny' };
     });
 
-    mainWindow.loadURL(APP_URL);
+    mainWindow.webContents.session.clearCache().then(() => {
+        mainWindow.loadURL(APP_URL);
+    });
 
     // Desloga ao fechar, salvo se "Manter conectado" estiver marcado
     mainWindow.on('close', (event) => {
