@@ -115,6 +115,7 @@ export default function PainelOperacional({
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
+    const [buscaMotoristaCard, setBuscaMotoristaCard] = useState(''); // texto digitado no input do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
@@ -222,6 +223,22 @@ export default function PainelOperacional({
             });
         }
         setEditandoMotorista(null);
+        setBuscaMotoristaCard('');
+    }
+
+    function salvarMotoristaManual(item, realIndex, nome) {
+        if (!nome.trim()) { setEditandoMotorista(null); setBuscaMotoristaCard(''); return; }
+        const novaLista = [...lista];
+        const itemAtual = { ...novaLista[realIndex], motorista: nome.trim() };
+        novaLista[realIndex] = itemAtual;
+        setLista(novaLista);
+        if (itemAtual.id) {
+            api.put(`/veiculos/${itemAtual.id}`, itemAtual).then(() => {
+                mostrarNotificacao?.(`🚛 Motorista atualizado: ${itemAtual.motorista}`);
+            }).catch(() => { mostrarNotificacao?.('⚠️ Erro ao salvar motorista.'); });
+        }
+        setEditandoMotorista(null);
+        setBuscaMotoristaCard('');
     }
 
     // Atualiza o filtro de data automaticamente na virada da meia-noite (horário de Brasília)
@@ -714,24 +731,57 @@ export default function PainelOperacional({
 
                                                         {/* Condicao de edicao apenas para o nome */}
                                                         {editandoMotorista === item.id ? (
-                                                            <select
-                                                                className="input-internal"
-                                                                autoFocus
-                                                                defaultValue=""
-                                                                onChange={e => {
-                                                                    const m = motoristasDisponiveis.find(x => String(x.id) === e.target.value);
-                                                                    if (m) selecionarMotoristaNaEdicao(item, realIndex, m);
-                                                                    else setEditandoMotorista(null);
-                                                                }}
-                                                                onBlur={() => setEditandoMotorista(null)}
-                                                            >
-                                                                <option value="" disabled>Selecione o motorista...</option>
-                                                                {motoristasDisponiveis.map(m => (
-                                                                    <option key={m.id} value={m.id} style={{ color: 'black' }}>
-                                                                        {m.nome_motorista}{m.is_frota ? ' [FROTA]' : ''} — {m.placa1} {m.disponibilidade ? `[${m.disponibilidade}]` : ''}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
+                                                            <div style={{ position: 'relative' }}>
+                                                                <input
+                                                                    className="input-internal"
+                                                                    autoFocus
+                                                                    placeholder="Digite ou selecione..."
+                                                                    value={buscaMotoristaCard}
+                                                                    onChange={e => setBuscaMotoristaCard(e.target.value)}
+                                                                    onBlur={e => {
+                                                                        // Pequeno delay para permitir click na lista
+                                                                        setTimeout(() => {
+                                                                            salvarMotoristaManual(item, realIndex, buscaMotoristaCard);
+                                                                        }, 150);
+                                                                    }}
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') salvarMotoristaManual(item, realIndex, buscaMotoristaCard);
+                                                                        if (e.key === 'Escape') { setEditandoMotorista(null); setBuscaMotoristaCard(''); }
+                                                                    }}
+                                                                    style={{ width: '100%' }}
+                                                                />
+                                                                {buscaMotoristaCard.length > 0 && motoristasDisponiveis.filter(m =>
+                                                                    m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.toLowerCase()) ||
+                                                                    m.placa1.toLowerCase().includes(buscaMotoristaCard.toLowerCase())
+                                                                ).length > 0 && (
+                                                                    <div style={{
+                                                                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
+                                                                        background: '#0f172a', border: '1px solid rgba(59,130,246,0.4)',
+                                                                        borderRadius: '6px', maxHeight: '200px', overflowY: 'auto',
+                                                                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+                                                                    }}>
+                                                                        {motoristasDisponiveis.filter(m =>
+                                                                            m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.toLowerCase()) ||
+                                                                            m.placa1.toLowerCase().includes(buscaMotoristaCard.toLowerCase())
+                                                                        ).map(m => (
+                                                                            <div
+                                                                                key={m.id}
+                                                                                onMouseDown={() => selecionarMotoristaNaEdicao(item, realIndex, m)}
+                                                                                style={{
+                                                                                    padding: '8px 10px', cursor: 'pointer', fontSize: '12px',
+                                                                                    color: '#f1f5f9', borderBottom: '1px solid rgba(255,255,255,0.05)'
+                                                                                }}
+                                                                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.2)'}
+                                                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                <strong>{m.nome_motorista}</strong>
+                                                                                {m.is_frota ? ' [FROTA]' : ''} — {m.placa1}
+                                                                                {m.disponibilidade ? <span style={{ color: '#94a3b8' }}> [{m.disponibilidade}]</span> : ''}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         ) : (
                                                             <div className="motorista-hover-wrapper" style={{ position: 'relative' }}>
                                                                 <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#f1f5f9', cursor: 'help' }}>{item.motorista || 'A DEFINIR'}</span>
@@ -800,7 +850,7 @@ export default function PainelOperacional({
                                                         {/* Botao Editar Nome */}
                                                         {podeEditarNaUnidade('operacao') && (
                                                             <button
-                                                                onClick={() => setEditandoMotorista(item.id)}
+                                                                onClick={() => { setEditandoMotorista(item.id); setBuscaMotoristaCard(item.motorista || ''); }}
                                                                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, marginLeft: 'auto' }}
                                                                 title="Trocar motorista"
                                                             >
