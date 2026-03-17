@@ -174,7 +174,7 @@ export default function PainelCadastro({ user, socket }) {
         // Listener para atualizações em tempo real (ex: CT-e emitido)
         if (socket) {
             const handleRefresh = (data) => {
-                if (data?.tipo === 'refresh_geral' || data?.tipo === 'cadastro_situacao_atualizada') {
+                if (data?.tipo === 'refresh_geral' || data?.tipo === 'cadastro_situacao_atualizada' || data?.tipo === 'cadastro_cte_emitido') {
                     carregarMotoristas();
                     carregarMotoristasOperacao();
                     carregarMotoristasFrota();

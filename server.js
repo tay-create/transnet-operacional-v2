@@ -1112,7 +1112,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 req.params.id
             ]
         );
-        // Quando CT-e é emitido, salvar no histórico de liberações
+        // Quando CT-e é emitido, salvar no histórico de liberações + remover do cadastro
         if (status === 'Emitido') {
             try {
                 const cte = await dbGet("SELECT * FROM ctes_ativos WHERE id = ?", [req.params.id]);
@@ -1135,6 +1135,12 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                             dados.id || null
                         ]
                     );
+                    // Marcar veículo como CT-e emitido para sumir do painel Cadastro (Na Operação)
+                    await dbRun(
+                        `UPDATE veiculos SET status_cte = 'Emitido' WHERE LOWER(TRIM(motorista)) = LOWER(TRIM(?))`,
+                        [cte.motorista]
+                    );
+                    io.emit('receber_atualizacao', { tipo: 'cadastro_cte_emitido', motorista: cte.motorista });
                 }
             } catch (errHist) {
                 console.error('Erro ao salvar histórico de liberações:', errHist);
