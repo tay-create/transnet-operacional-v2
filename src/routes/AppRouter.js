@@ -27,7 +27,7 @@ function AppRouter() {
 
     // 2. Rota do Conferente (Login separado + App dedicado)
     if (path.startsWith('/conferente')) {
-        if (!isAuthenticated || user?.cargo !== 'Conferente') {
+        if (!isAuthenticated || !['Conferente', 'Encarregado'].includes(user?.cargo)) {
             return (
                 <ConferenteLogin
                     onLoginSuccess={() => { }}
