@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2, Trash2
+    Loader, Timer, Edit2
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -92,7 +92,6 @@ function PainelGerRisco({ v }) {
 
 // Card individual de um veículo no conferente
 function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtualizarStatus, onRecarregar, onAbrirChecklist, cidade }) {
-    const [excluindo, setExcluindo] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
     const [docaSelecionada, setDocaSelecionada] = useState(v.doca || 'SELECIONE');
@@ -104,21 +103,6 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
         const now = new Date();
         return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     });
-
-    const user = useAuthStore(state => state.user);
-    const isEncarregado = user?.cargo === 'Encarregado';
-
-    const excluirVeiculo = async (e) => {
-        e.stopPropagation();
-        if (!window.confirm(`Excluir "${v.motorista || 'A DEFINIR'}" da operação?`)) return;
-        setExcluindo(true);
-        try {
-            await api.delete(`/veiculos/${v.id}`);
-            onRecarregar();
-        } catch {
-            setExcluindo(false);
-        }
-    };
 
     const corStatus = CORES_STATUS[v.status] || { border: '#64748b', text: '#94a3b8' };
     const idxAtual = STATUS_CONFERENTE.indexOf(v.status);
@@ -261,19 +245,6 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                         >
                             <Edit2 size={11} />
                         </button>
-                        {isEncarregado && (
-                            <button
-                                onClick={excluirVeiculo}
-                                disabled={excluindo}
-                                title="Excluir veículo"
-                                style={{
-                                    background: 'none', border: 'none', cursor: excluindo ? 'not-allowed' : 'pointer',
-                                    padding: '2px', color: '#ef4444', display: 'flex', alignItems: 'center', opacity: excluindo ? 0.5 : 1
-                                }}
-                            >
-                                <Trash2 size={11} />
-                            </button>
-                        )}
                     </div>
                     {timerAtKey && ts[timerAtKey] && <MiniTimer inicioAt={ts[timerAtKey]} pausas={pausas} unidade={unidade} />}
                     {temPausaAtiva && (
