@@ -126,7 +126,7 @@ module.exports = function createChecklistsRouter(io) {
         }
     });
 
-    router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
             const { status } = req.body; // 'APROVADO' ou 'RECUSADO'
             if (!['APROVADO', 'RECUSADO'].includes(status)) {

@@ -108,6 +108,8 @@ export default function GestaoMarcacoes({ socket }) {
     const [toast, setToast] = useState('');
     const [formFrota, setFormFrota] = useState(FORM_FROTA_INICIAL);
     const [salvandoFrota, setSalvandoFrota] = useState(false);
+    const [buscaLinks, setBuscaLinks] = useState('');
+    const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
@@ -432,7 +434,13 @@ export default function GestaoMarcacoes({ socket }) {
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '10px' }}>
+                        <input
+                            style={{ ...s.input, flex: 1, maxWidth: '300px' }}
+                            placeholder="Buscar por telefone..."
+                            value={buscaLinks}
+                            onChange={e => setBuscaLinks(e.target.value)}
+                        />
                         <button style={s.btn()} onClick={carregarTokens}>
                             <RefreshCw size={14} /> Atualizar
                         </button>
@@ -456,7 +464,7 @@ export default function GestaoMarcacoes({ socket }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {tokens.map(t => (
+                                    {tokens.filter(t => !buscaLinks || (t.telefone || '').replace(/\D/g, '').includes(buscaLinks.replace(/\D/g, ''))).map(t => (
                                         <tr key={t.id}>
                                             <td style={s.td}>{t.id}</td>
                                             <td style={s.td}>{linkWppComMensagem(t.telefone, t) ? <a href={linkWppComMensagem(t.telefone, t)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(t.telefone)}</a> : formatarTelefone(t.telefone)}</td>
@@ -516,7 +524,13 @@ export default function GestaoMarcacoes({ socket }) {
             {/* ABA: FILA DE PLACAS */}
             {aba === 'placas' && (
                 <>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '10px' }}>
+                        <input
+                            style={{ ...s.input, flex: 1, maxWidth: '300px' }}
+                            placeholder="Buscar por nome ou telefone..."
+                            value={buscaMarcacoes}
+                            onChange={e => setBuscaMarcacoes(e.target.value)}
+                        />
                         <button style={s.btn()} onClick={carregarMarcacoes}>
                             <RefreshCw size={14} /> Atualizar
                         </button>
@@ -550,7 +564,13 @@ export default function GestaoMarcacoes({ socket }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {marcacoes.filter(m => !m.is_frota).map(m => {
+                                    {marcacoes.filter(m => {
+                                        if (m.is_frota) return false;
+                                        if (!buscaMarcacoes) return true;
+                                        const q = buscaMarcacoes.toLowerCase();
+                                        return m.nome_motorista?.toLowerCase().includes(q) ||
+                                            (m.telefone || '').replace(/\D/g, '').includes(buscaMarcacoes.replace(/\D/g, ''));
+                                    }).map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
