@@ -135,7 +135,7 @@ export default function PainelChecklist() {
                         <span style={{ fontSize: '16px' }}>Nenhum checklist encontrado neste período.</span>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '16px', alignItems: 'start' }}>
                         {checklistsFiltrados.map(chk => {
                             const corStatus = getStatusColor(chk.status);
 

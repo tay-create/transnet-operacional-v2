@@ -73,9 +73,11 @@ export default function PainelCte({
                 </div>
             </div>
 
-            <div className="grid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                {ctesFiltrados.map((cte, index) => (
-                    <div key={cte.id ?? index} className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
+            <div className="grid-cards" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                {ctesFiltrados.map((cte) => {
+                    const realIndex = listaCtes.findIndex(c => c.id === cte.id);
+                    return (
+                    <div key={cte.id ?? realIndex} className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
                         {/* Topo do Card */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
                             <div style={{ flex: 1 }}>
@@ -122,7 +124,7 @@ export default function PainelCte({
                             </div>
                             {podeEditar('cte') && (
                                 <button
-                                    onClick={() => setListaAtual(listaCtes.filter((_, i) => i !== index))}
+                                    onClick={() => setListaAtual(listaCtes.filter((_, i) => i !== realIndex))}
                                     title="Remover Card"
                                     style={{ border: 'none', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: '6px', padding: '6px', cursor: 'pointer', transition: '0.2s', marginLeft: '8px' }}
                                 >
@@ -155,7 +157,7 @@ export default function PainelCte({
                                 <label>STATUS EMISSÃO</label>
                                 <select
                                     value={cte.status}
-                                    onChange={e => updateListCte(listaCtes, setListaAtual, index, 'status', e.target.value, isRecife ? 'Recife' : 'Moreno')}
+                                    onChange={e => updateListCte(listaCtes, setListaAtual, realIndex, 'status', e.target.value, isRecife ? 'Recife' : 'Moreno')}
                                     disabled={!podeEditar('cte')}
                                     style={{ borderColor: cte.status === 'Emitido' ? '#22c55e' : 'rgba(255,255,255,0.1)' }}
                                 >
@@ -233,7 +235,8 @@ export default function PainelCte({
                             )}
                         </div>
                     </div>
-                ))}
+                );
+                })}
             </div>
         </section>
     );

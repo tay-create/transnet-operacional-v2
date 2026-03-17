@@ -533,6 +533,13 @@ function App({ socket }) {
         });
     };
 
+    // Auto-solicita permissão de notificação ao abrir o app (só pede se ainda não foi decidido)
+    useEffect(() => {
+        if ("Notification" in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    }, []);
+
     const salvarNoHistoricoCte = async (item, origem) => {
         const duracao = calcularDiferencaHoras(item.timestamps?.inicio_emissao, item.timestamps?.fim_emissao);
         try {

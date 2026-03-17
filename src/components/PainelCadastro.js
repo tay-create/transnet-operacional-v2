@@ -412,7 +412,7 @@ export default function PainelCadastro({ user, socket }) {
                             <p>Nenhum motorista disponível na fila.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', alignItems: 'start' }}>
                             {motoristas.filter(m => {
                                 if (!filtroEspera) return true;
                                 const q = filtroEspera.toLowerCase();
@@ -551,7 +551,7 @@ export default function PainelCadastro({ user, socket }) {
                             <p>Nenhum veículo aguardando conferência na operação.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', alignItems: 'start' }}>
                             {[...motoristasOperacao].sort((a, b) => {
                                 const ORDEM = ['NÃO CONFERIDO', 'PENDENTE', 'LIBERADO'];
                                 const sA = (edicoesOp[a.id] || {}).situacao_cad || 'NÃO CONFERIDO';
@@ -805,7 +805,7 @@ export default function PainelCadastro({ user, socket }) {
                             <p>Nenhum veículo de frota marcado no sistema.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', alignItems: 'start' }}>
                             {motoristasFrota.map(m => {
                                 const ed = edicoesFrota[m.id] || {};
                                 const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
