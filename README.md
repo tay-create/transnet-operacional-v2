@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Versão-0.1.0-blue.svg" alt="Versão" />
+  <img src="https://img.shields.io/badge/Versão-0.2.4-blue.svg" alt="Versão" />
   <img src="https://img.shields.io/badge/Estágio-Produção-success.svg" alt="Produção" />
   <img src="https://img.shields.io/badge/Node.js-18%2B-green.svg" alt="Node JS" />
   <img src="https://img.shields.io/badge/PostgreSQL-15%2B-informational.svg" alt="PostgreSQL" />
@@ -38,6 +38,12 @@ O sistema é dividido em submódulos isolados por permissão de acesso (RBAC), p
   - Rastreamento e gestão financeira de estoques (PBR / Descartáveis) repassados ou retidos com agregados/frota.
 - **🖥️ Painel TV (Painel Status)**
   - Modo interativo "Real-Time" (`socket.io`) para projetar o status de liberação e chamadas em telões visuais da operação (Dashboard Viewer).
+  - Fluxo Mensal com KPIs de embarques, CT-es emitidos e tabela de coletas por operação (estilo planilha).
+- **🔔 Notificações em Tempo Real**
+  - Pos Embarque e Cadastro recebem alertas automáticos (sem F5) de novas ocorrências e marcações de placa.
+  - Coordenador recebe aviso simplificado de quem marcou placa.
+- **📝 Auditoria Completa (Cockpit)**
+  - Todas as ações de modificação de dados (tokens, marcações, CT-es, checklists, fila, paletes, cubagens) são registradas na tabela de logs com usuário, horário e detalhes.
 
 ---
 
