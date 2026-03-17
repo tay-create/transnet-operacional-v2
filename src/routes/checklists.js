@@ -47,8 +47,10 @@ module.exports = function createChecklistsRouter(io) {
     router.get('/api/checklists', authMiddleware, async (req, res) => {
         try {
             const cidade = req.user.cidade;
+            const cargo = req.user.cargo;
+            const filtrarPorCidade = ['Conferente', 'Encarregado'].includes(cargo);
             let checklists;
-            if (cidade && cidade !== 'Ambas') {
+            if (filtrarPorCidade && cidade && cidade !== 'Ambas') {
                 const cidadeFiltro = cidade === 'Moreno'
                     ? `(v.inicio_rota = 'Moreno' OR (v.coletamoreno IS NOT NULL AND v.coletamoreno != ''))`
                     : `(v.inicio_rota = 'Recife' AND (v.coletamoreno IS NULL OR v.coletamoreno = ''))`;
