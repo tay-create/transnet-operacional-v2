@@ -738,7 +738,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             res.json({ success: true });
         } catch (e) { console.error('Erro PUT /veiculos/:id', e); res.status(500).json({ success: false }); }
     });
-    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
             console.log(`🗑️ [DELETE] Tentando excluir veículo ID: ${req.params.id}`);
 

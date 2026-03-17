@@ -46,8 +46,21 @@ module.exports = function createChecklistsRouter(io) {
 
     router.get('/api/checklists', authMiddleware, async (req, res) => {
         try {
-            const checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
-            // Cast sqlite integers back to booleans
+            const cidade = req.user.cidade;
+            let checklists;
+            if (cidade && cidade !== 'Ambas') {
+                const cidadeFiltro = cidade === 'Moreno'
+                    ? `(v.inicio_rota = 'Moreno' OR (v.coletamoreno IS NOT NULL AND v.coletamoreno != ''))`
+                    : `(v.inicio_rota = 'Recife' AND (v.coletamoreno IS NULL OR v.coletamoreno = ''))`;
+                checklists = await dbAll(
+                    `SELECT c.* FROM checklists_carreta c
+                     JOIN veiculos v ON v.id = c.veiculo_id
+                     WHERE ${cidadeFiltro}
+                     ORDER BY c.id DESC`
+                );
+            } else {
+                checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
+            }
             const formatted = checklists.map(c => ({
                 ...c,
                 placa_confere: c.placa_confere === 1
@@ -148,7 +161,7 @@ module.exports = function createChecklistsRouter(io) {
     });
 
     // ── Conferente: Veículos ativos na operação (todos os status até CARREGADO) ──
-    router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
+    router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
         try {
             const cidade = req.user.cidade; // 'Recife', 'Moreno' ou 'Ambas' (teste)
             const STATUS_CONFERENTE = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
@@ -182,13 +195,16 @@ module.exports = function createChecklistsRouter(io) {
                 const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
                 const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
                 const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
+                const cidadeFiltro = cidade === 'Moreno'
+                    ? `(inicio_rota = 'Moreno' OR (coletamoreno IS NOT NULL AND coletamoreno != ''))`
+                    : `(inicio_rota = 'Recife' AND (coletamoreno IS NULL OR coletamoreno = ''))`;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
                         coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
                         ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, ? as _cidade
-                     FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista >= ? ORDER BY id DESC`,
+                     FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista >= ? AND ${cidadeFiltro} ORDER BY id DESC`,
                     [cidade, ...STATUS_CONFERENTE, hoje]
                 );
             }
@@ -419,7 +435,7 @@ module.exports = function createChecklistsRouter(io) {
     });
 
     // ── Conferente: Lista de Embarques ──
-    router.get('/api/conferente/embarques', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
+    router.get('/api/conferente/embarques', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
         try {
             const cidade = req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
@@ -461,7 +477,7 @@ module.exports = function createChecklistsRouter(io) {
     });
 
     // ── Conferente: Liberar para Carregamento ──
-    router.post('/api/conferente/liberar-carregamento', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
+    router.post('/api/conferente/liberar-carregamento', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
         try {
             const { veiculoId } = req.body;
             const cidade = req.user.cidade;
