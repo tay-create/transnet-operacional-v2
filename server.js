@@ -251,7 +251,7 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
             return res.status(400).json({ success: false, message: 'Já existe um link ativo para este número. Inative-o antes de gerar um novo.' });
         }
         const token = require('crypto').randomUUID();
-        const expiracao = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+        const expiracao = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
         const result = await dbRun(
             "INSERT INTO tokens_motoristas (telefone, token, data_expiracao) VALUES (?, ?, ?)",
             [telefone, token, expiracao]
@@ -281,7 +281,7 @@ app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamen
         const { status, telefone } = req.body;
         if (status) {
             if (status === 'ativo') {
-                const novaExpiracao = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+                const novaExpiracao = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
                 await dbRun("UPDATE tokens_motoristas SET status = ?, data_expiracao = ? WHERE id = ?", [status, novaExpiracao, req.params.id]);
             } else {
                 await dbRun("UPDATE tokens_motoristas SET status = ? WHERE id = ?", [status, req.params.id]);

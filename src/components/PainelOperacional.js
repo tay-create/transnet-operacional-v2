@@ -115,7 +115,7 @@ export default function PainelOperacional({
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
-    const [buscaMotoristaCard, setBuscaMotoristaCard] = useState(''); // texto digitado no input do card
+    const [buscaMotoristaCard, setBuscaMotoristaCard] = useState({ id: null, texto: '' }); // texto digitado no input do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
     const [modalColetasAberto, setModalColetasAberto] = useState(false);
@@ -223,11 +223,11 @@ export default function PainelOperacional({
             });
         }
         setEditandoMotorista(null);
-        setBuscaMotoristaCard('');
+        setBuscaMotoristaCard({ id: null, texto: '' });
     }
 
     function salvarMotoristaManual(item, realIndex, nome) {
-        if (!nome.trim()) { setEditandoMotorista(null); setBuscaMotoristaCard(''); return; }
+        if (!nome.trim()) { setEditandoMotorista(null); setBuscaMotoristaCard({ id: null, texto: '' }); return; }
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[realIndex], motorista: nome.trim() };
         novaLista[realIndex] = itemAtual;
@@ -238,7 +238,7 @@ export default function PainelOperacional({
             }).catch(() => { mostrarNotificacao?.('⚠️ Erro ao salvar motorista.'); });
         }
         setEditandoMotorista(null);
-        setBuscaMotoristaCard('');
+        setBuscaMotoristaCard({ id: null, texto: '' });
     }
 
     // Atualiza o filtro de data automaticamente na virada da meia-noite (horário de Brasília)
@@ -736,23 +736,22 @@ export default function PainelOperacional({
                                                                     className="input-internal"
                                                                     autoFocus
                                                                     placeholder="Digite ou selecione..."
-                                                                    value={buscaMotoristaCard}
-                                                                    onChange={e => setBuscaMotoristaCard(e.target.value)}
-                                                                    onBlur={e => {
-                                                                        // Pequeno delay para permitir click na lista
+                                                                    value={buscaMotoristaCard.id === item.id ? buscaMotoristaCard.texto : ''}
+                                                                    onChange={e => setBuscaMotoristaCard({ id: item.id, texto: e.target.value })}
+                                                                    onBlur={() => {
                                                                         setTimeout(() => {
-                                                                            salvarMotoristaManual(item, realIndex, buscaMotoristaCard);
+                                                                            salvarMotoristaManual(item, realIndex, buscaMotoristaCard.id === item.id ? buscaMotoristaCard.texto : '');
                                                                         }, 150);
                                                                     }}
                                                                     onKeyDown={e => {
-                                                                        if (e.key === 'Enter') salvarMotoristaManual(item, realIndex, buscaMotoristaCard);
-                                                                        if (e.key === 'Escape') { setEditandoMotorista(null); setBuscaMotoristaCard(''); }
+                                                                        if (e.key === 'Enter') salvarMotoristaManual(item, realIndex, buscaMotoristaCard.id === item.id ? buscaMotoristaCard.texto : '');
+                                                                        if (e.key === 'Escape') { setEditandoMotorista(null); setBuscaMotoristaCard({ id: null, texto: '' }); }
                                                                     }}
                                                                     style={{ width: '100%' }}
                                                                 />
-                                                                {buscaMotoristaCard.length > 0 && motoristasDisponiveis.filter(m =>
-                                                                    m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.toLowerCase()) ||
-                                                                    m.placa1.toLowerCase().includes(buscaMotoristaCard.toLowerCase())
+                                                                {buscaMotoristaCard.id === item.id && buscaMotoristaCard.texto.length > 0 && motoristasDisponiveis.filter(m =>
+                                                                    m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.texto.toLowerCase()) ||
+                                                                    m.placa1.toLowerCase().includes(buscaMotoristaCard.texto.toLowerCase())
                                                                 ).length > 0 && (
                                                                     <div style={{
                                                                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999,
@@ -761,8 +760,8 @@ export default function PainelOperacional({
                                                                         boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
                                                                     }}>
                                                                         {motoristasDisponiveis.filter(m =>
-                                                                            m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.toLowerCase()) ||
-                                                                            m.placa1.toLowerCase().includes(buscaMotoristaCard.toLowerCase())
+                                                                            m.nome_motorista.toLowerCase().includes(buscaMotoristaCard.texto.toLowerCase()) ||
+                                                                            m.placa1.toLowerCase().includes(buscaMotoristaCard.texto.toLowerCase())
                                                                         ).map(m => (
                                                                             <div
                                                                                 key={m.id}
@@ -850,7 +849,7 @@ export default function PainelOperacional({
                                                         {/* Botao Editar Nome */}
                                                         {podeEditarNaUnidade('operacao') && (
                                                             <button
-                                                                onClick={() => { setEditandoMotorista(item.id); setBuscaMotoristaCard(item.motorista || ''); }}
+                                                                onClick={() => { setEditandoMotorista(item.id); setBuscaMotoristaCard({ id: item.id, texto: item.motorista || '' }); }}
                                                                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, marginLeft: 'auto' }}
                                                                 title="Trocar motorista"
                                                             >
