@@ -671,7 +671,7 @@ function App({ socket }) {
 
         // Persistir no banco de dados
         try {
-            const origemCte = user.cidade === 'Moreno' ? 'Moreno' : 'Recife';
+            const origemCte = origem || (user.cidade === 'Moreno' ? 'Moreno' : 'Recife');
             const response = await api.post('/ctes', { origem: origemCte, dados: dadosCte });
             if (response.data.success) {
                 dadosCte.id = response.data.id;
