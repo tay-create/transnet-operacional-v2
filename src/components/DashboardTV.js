@@ -716,11 +716,7 @@ function TelaFluxoMensal({ veiculos, paletes = [], t, tema, ocorrenciasHoje = []
 
     // ── CT-es do mês ──
     const todosCtes = ctesMes;
-    const ctesEmitidosMes = todosCtes.filter(c => {
-        if (c.status !== 'Emitido') return false;
-        const d = normalizarDataStr(c.timestamps?.fim_emissao || c.data_entrada_cte || '');
-        return d >= primeiroDiaMesStr && d <= ultimoDiaMesStr;
-    });
+    const ctesEmitidosMes = todosCtes.filter(c => c.status === 'Emitido');
     const ctesProximosDias = todosCtes.filter(c => {
         if (c.status === 'Emitido') return false;
         const d = normalizarDataStr(c.data_entrada_cte || '');
