@@ -47,7 +47,7 @@ const DESTINATARIOS_ALERTA = {
     'nova_marcacao_coord': ['Coordenador'],
 };
 
-console.log("🚀 [App] Carregando v0.2.4 - Socket Debug Mode");
+console.log("🚀 [App] Carregando v0.2.7");
 
 function App({ socket }) {
     // === ESTADO GLOBAL (Zustand) ===
