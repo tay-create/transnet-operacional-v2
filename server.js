@@ -33,6 +33,18 @@ const app = express();
 // ── Trust proxy: necessário para rate limit funcionar atrás de Cloudflare/Nginx
 app.set('trust proxy', 1);
 
+// Mapeamento estático: tipo de notificação → cargos que a recebem
+const DESTINATARIOS_NOTIFICACAO = {
+    'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
+    'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
+    'admin_cadastro':      ['Coordenador'],
+    'admin_senha':         ['Coordenador'],
+    'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
+    'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
+    'nova_marcacao_coord': ['Coordenador'],
+    'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
+};
+
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
 app.use(helmet({
     crossOriginEmbedderPolicy: false,
@@ -48,6 +60,12 @@ app.use(helmet({
         },
     },
 }));
+
+// Permite acesso à API de Clipboard nos browsers sem solicitar permissão explícita
+app.use((req, res, next) => {
+    res.setHeader('Permissions-Policy', 'clipboard-write=(self), clipboard-read=(self)');
+    next();
+});
 
 // ── Rate limiting: login (10 tentativas / 15 min por IP) ─────────────────────
 const loginLimiter = rateLimit({
@@ -1008,16 +1026,6 @@ app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento'
 
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
-        const DESTINATARIOS = {
-            'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
-            'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
-            'admin_cadastro':      ['Coordenador'],
-            'admin_senha':         ['Coordenador'],
-            'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
-            'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
-            'nova_marcacao_coord': ['Coordenador'],
-            'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
-        };
         const meuCargo = req.user?.cargo || '';
         const rows = await dbAll("SELECT * FROM notificacoes ORDER BY id DESC");
         const lista = (rows || []).map(row => {
@@ -1028,7 +1036,7 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
             }
         }).filter(n => {
             if (!n.tipo) return true;
-            const alvo = DESTINATARIOS[n.tipo];
+            const alvo = DESTINATARIOS_NOTIFICACAO[n.tipo];
             if (!alvo) return true; // tipo desconhecido → exibir para todos
             return alvo.includes(meuCargo);
         });

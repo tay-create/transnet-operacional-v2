@@ -129,7 +129,7 @@ export default function GestaoMarcacoes({ socket }) {
         try {
             const r = await api.get('/api/tokens');
             if (r.data.success) setTokens(r.data.tokens);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); mostrarToast('Erro ao carregar links.'); }
         finally { setLoading(false); }
     }, []);
 
@@ -138,7 +138,7 @@ export default function GestaoMarcacoes({ socket }) {
         try {
             const r = await api.get('/api/marcacoes');
             if (r.data.success) setMarcacoes(r.data.marcacoes);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
     }, []);
 
@@ -257,13 +257,24 @@ export default function GestaoMarcacoes({ socket }) {
 
     function copiarLink(token) {
         const url = `${window.location.origin}/cadastro/${token.token}`;
-        navigator.clipboard.writeText(url)
-            .then(() => {
-                setCopiado(token.id);
-                mostrarToast('Link copiado!');
-                setTimeout(() => setCopiado(null), 2000);
-            })
-            .catch(() => mostrarToast('Erro ao copiar.'));
+        const sucesso = () => { setCopiado(token.id); mostrarToast('Link copiado!'); setTimeout(() => setCopiado(null), 2000); };
+        const fallback = () => {
+            try {
+                const el = document.createElement('textarea');
+                el.value = url;
+                el.style.cssText = 'position:fixed;opacity:0';
+                document.body.appendChild(el);
+                el.focus(); el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                sucesso();
+            } catch { mostrarToast('Erro ao copiar. Copie manualmente.'); }
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(url).then(sucesso).catch(fallback);
+        } else {
+            fallback();
+        }
     }
 
     function linkWpp(tel) {

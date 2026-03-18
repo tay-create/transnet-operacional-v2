@@ -856,6 +856,7 @@ function App({ socket }) {
         const itemAtual = { ...novaLista[index] };
         const agora = new Date().toISOString();
         const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
+        const valorAnterior = itemAtual[campo]; // captura antes da mutação para rollback preciso
 
         itemAtual[campo] = agora;
         novaLista[index] = itemAtual;
@@ -880,7 +881,10 @@ function App({ socket }) {
             }
         } catch (e) {
             mostrarNotificacao('⚠️ Erro ao salvar liberação antecipada de CT-e.');
-            setLista(lista);
+            // Rollback preciso: restaura apenas o campo alterado no item correto
+            setLista(prev => prev.map(item =>
+                item.id === itemAtual.id ? { ...item, [campo]: valorAnterior } : item
+            ));
         }
     }, [socket, mostrarNotificacao]);
 
