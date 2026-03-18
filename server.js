@@ -750,7 +750,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
-              AND (v.data_criacao::date BETWEEN $1::date AND $2::date)
+              AND (COALESCE(v.data_prevista, v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date)
             ORDER BY v.id DESC
         `, [dInicio, dFim]);
         const veiculos = rows.map(r => {
