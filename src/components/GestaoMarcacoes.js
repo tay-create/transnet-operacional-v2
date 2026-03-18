@@ -22,8 +22,8 @@ const s = {
         border: color === 'red' ? '1px solid rgba(239,68,68,0.25)' : color === 'green' ? '1px solid rgba(34,197,94,0.25)' : '1px solid rgba(255,255,255,0.08)'
     }),
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '13px' },
-    th: { padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.07)', color: '#64748b', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' },
-    td: { padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', verticalAlign: 'middle' },
+    th: { padding: '7px 8px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.07)', color: '#64748b', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' },
+    td: { padding: '6px 8px', borderBottom: '1px solid rgba(255,255,255,0.04)', color: '#e2e8f0', verticalAlign: 'middle', fontSize: '12px' },
     badge: (status) => ({
         display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
         background: status === 'ativo' ? 'rgba(34,197,94,0.12)' : status === 'utilizado' ? 'rgba(250,204,21,0.12)' : status === 'expirado' ? 'rgba(249,115,22,0.12)' : 'rgba(239,68,68,0.12)',
@@ -110,6 +110,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [salvandoFrota, setSalvandoFrota] = useState(false);
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
+    const [filtroEstado, setFiltroEstado] = useState('');
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
@@ -535,13 +536,30 @@ export default function GestaoMarcacoes({ socket }) {
             {/* ABA: FILA DE PLACAS */}
             {aba === 'placas' && (
                 <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '10px' }}>
-                        <input
-                            style={{ ...s.input, flex: 1, maxWidth: '300px' }}
-                            placeholder="Buscar por nome ou telefone..."
-                            value={buscaMarcacoes}
-                            onChange={e => setBuscaMarcacoes(e.target.value)}
-                        />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '8px', flex: 1, flexWrap: 'wrap' }}>
+                            <input
+                                style={{ ...s.input, flex: 1, minWidth: '180px', maxWidth: '260px' }}
+                                placeholder="Buscar por nome ou telefone..."
+                                value={buscaMarcacoes}
+                                onChange={e => setBuscaMarcacoes(e.target.value)}
+                            />
+                            <select
+                                value={filtroEstado}
+                                onChange={e => setFiltroEstado(e.target.value)}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '130px', maxWidth: '180px',
+                                    cursor: 'pointer', color: filtroEstado ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroEstado ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Todos os estados</option>
+                                {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf => (
+                                    <option key={uf} value={uf}>{uf}</option>
+                                ))}
+                            </select>
+                        </div>
                         <button style={s.btn()} onClick={carregarMarcacoes}>
                             <RefreshCw size={14} /> Atualizar
                         </button>
@@ -577,6 +595,10 @@ export default function GestaoMarcacoes({ socket }) {
                                 <tbody>
                                     {marcacoes.filter(m => {
                                         if (m.is_frota) return false;
+                                        if (filtroEstado) {
+                                            const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
+                                            if (!estados.includes(filtroEstado)) return false;
+                                        }
                                         if (!buscaMarcacoes) return true;
                                         const q = buscaMarcacoes.toLowerCase();
                                         const soNumeros = buscaMarcacoes.replace(/\D/g, '');
