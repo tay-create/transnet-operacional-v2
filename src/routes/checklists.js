@@ -199,7 +199,7 @@ module.exports = function createChecklistsRouter(io) {
                 const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
                 const cidadeFiltro = cidade === 'Moreno'
                     ? `(inicio_rota = 'Moreno' OR (coletamoreno IS NOT NULL AND coletamoreno != ''))`
-                    : `(inicio_rota = 'Recife' AND (coletamoreno IS NULL OR coletamoreno = ''))`;
+                    : `(coletarecife IS NOT NULL AND coletarecife != '')`;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
                         coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
