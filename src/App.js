@@ -69,6 +69,9 @@ function App({ socket }) {
     const [listaVeiculos, setListaVeiculos] = useState([]);
     const [ctesRecife, setCtesRecife] = useState([]);
     const [ctesMoreno, setCtesMoreno] = useState([]);
+    // Estado exclusivo para o dashboard (sempre = hoje, nunca afetado pelo filtro do PainelCte)
+    const [ctesRecifeHoje, setCtesRecifeHoje] = useState([]);
+    const [ctesMorenoHoje, setCtesMorenoHoje] = useState([]);
     const [termoBusca, setTermoBusca] = useState('');
     const [fila, setFila] = useState([]);
     const [relatorioDados, setRelatorioDados] = useState([]);
@@ -309,26 +312,28 @@ function App({ socket }) {
         // --- Sincronização de CT-e ---
         else if (data.tipo === 'novo_cte') {
             if (data.dados.origem === 'Moreno') {
-                setCtesMoreno(prev => {
-                    if (prev.find(c => c.id === data.dados.id)) return prev;
-                    return [...prev, data.dados];
-                });
+                const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
+                setCtesMoreno(adder);
+                setCtesMorenoHoje(adder);
             } else {
-                setCtesRecife(prev => {
-                    if (prev.find(c => c.id === data.dados.id)) return prev;
-                    return [...prev, data.dados];
-                });
+                const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
+                setCtesRecife(adder);
+                setCtesRecifeHoje(adder);
             }
         }
         else if (data.tipo === 'atualiza_cte') {
             const updater = prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c);
             setCtesRecife(updater);
             setCtesMoreno(updater);
+            setCtesRecifeHoje(updater);
+            setCtesMorenoHoje(updater);
         }
         else if (data.tipo === 'remove_cte') {
             const filter = prev => prev.filter(c => c.id !== data.id);
             setCtesRecife(filter);
             setCtesMoreno(filter);
+            setCtesRecifeHoje(filter);
+            setCtesMorenoHoje(filter);
         }
 
         // CORREÇÃO DO PISCAR NA FILA (Verifica se já existe)
@@ -492,6 +497,11 @@ function App({ socket }) {
                 const todos = response.data.ctes || [];
                 setCtesRecife(todos.filter(c => c.origem === 'Recife'));
                 setCtesMoreno(todos.filter(c => c.origem !== 'Recife'));
+                // Sem params = carga inicial (hoje) → também atualiza o estado do dashboard
+                if (!params) {
+                    setCtesRecifeHoje(todos.filter(c => c.origem === 'Recife'));
+                    setCtesMorenoHoje(todos.filter(c => c.origem !== 'Recife'));
+                }
             }
         } catch (error) {
             console.error("Erro ao carregar CT-es ativos:", error);
@@ -1155,8 +1165,8 @@ function App({ socket }) {
             {abaAtiva === 'dashboard_tv' && temAcesso('dashboard_tv') && (
                 <DashboardTV
                     listaVeiculos={listaVeiculos}
-                    ctesRecife={ctesRecife}
-                    ctesMoreno={ctesMoreno}
+                    ctesRecife={ctesRecifeHoje}
+                    ctesMoreno={ctesMorenoHoje}
                     onSair={() => {
                         if (temAcesso('operacao') && podeVerUnidade('Recife')) setAbaAtiva('op_recife');
                         else if (temAcesso('operacao') && podeVerUnidade('Moreno')) setAbaAtiva('op_moreno');
