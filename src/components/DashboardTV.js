@@ -455,7 +455,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     });
 
     // Fluxo CT-e para Recife
-    const aguardandoCte = veiculosRecife.filter(v => v.status_recife === 'LIBERADO P/ CT-e').length;
+    const aguardandoCte = ctesRecife.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length;
     const emEmissaoCte = ctesRecife.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const emitidoCte = ctesRecife.filter(c => c.status === 'Emitido').length;
     const totalFluxoCte = aguardandoCte + emEmissaoCte + emitidoCte;
@@ -596,7 +596,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
                     <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e Recife</div>
                     {[
-                        { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'Cards "Liberado p/ CT-e"' },
+                        { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'CT-es "Aguardando Emissão"' },
                         { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
                         { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
                     ].map(item => (
@@ -1200,7 +1200,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
     });
 
     // Fluxo CT-e para Moreno
-    const aguardandoCte = veiculosMoreno.filter(v => v.status_moreno === 'LIBERADO P/ CT-e').length;
+    const aguardandoCte = ctesMoreno.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length;
     const emEmissaoCte = ctesMoreno.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const emitidoCte = ctesMoreno.filter(c => c.status === 'Emitido').length;
     const totalFluxoCte = aguardandoCte + emEmissaoCte + emitidoCte;
@@ -1369,7 +1369,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
                             <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e Moreno</div>
                             {[
-                                { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'Cards "Liberado p/ CT-e"' },
+                                { label: 'Aguardando Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'CT-es "Aguardando Emissão"' },
                                 { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
                                 { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
                             ].map(item => (
