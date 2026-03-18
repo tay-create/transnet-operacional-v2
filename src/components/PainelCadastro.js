@@ -70,6 +70,11 @@ export default function PainelCadastro({ user, socket }) {
     const [filtroEspera, setFiltroEspera] = useState('');
     const [filtroOperacao, setFiltroOperacao] = useState('');
 
+    // Filtro de datas para Na Operação
+    const dataHojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+    const [dataInicioOp, setDataInicioOp] = useState(dataHojeStr);
+    const [dataFimOp, setDataFimOp] = useState(dataHojeStr);
+
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
         try {
@@ -103,10 +108,13 @@ export default function PainelCadastro({ user, socket }) {
         }
     }, []);
 
-    const carregarMotoristasOperacao = useCallback(async () => {
+    const carregarMotoristasOperacao = useCallback(async (dInicio, dFim) => {
         setCarregando(true);
         try {
-            const r = await api.get('/api/cadastro/veiculos-em-operacao');
+            const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+            const di = dInicio || hoje;
+            const df = dFim || hoje;
+            const r = await api.get(`/api/cadastro/veiculos-em-operacao?dataInicio=${di}&dataFim=${df}`);
             if (r.data.success) {
                 // Filtra os motoristas da operação para OMITIR os da frota própria,
                 // já que eles devem ficar exclusivos na aba "Frota Própria"
@@ -169,7 +177,7 @@ export default function PainelCadastro({ user, socket }) {
 
     useEffect(() => {
         carregarMotoristas();
-        carregarMotoristasOperacao();
+        carregarMotoristasOperacao(dataInicioOp, dataFimOp);
         carregarMotoristasFrota();
 
         // Listener para atualizações em tempo real (ex: CT-e emitido)
@@ -177,7 +185,7 @@ export default function PainelCadastro({ user, socket }) {
             const handleRefresh = (data) => {
                 if (data?.tipo === 'refresh_geral' || data?.tipo === 'cadastro_situacao_atualizada' || data?.tipo === 'cadastro_cte_emitido') {
                     carregarMotoristas();
-                    carregarMotoristasOperacao();
+                    carregarMotoristasOperacao(dataInicioOp, dataFimOp);
                     carregarMotoristasFrota();
                 }
             };
@@ -188,7 +196,12 @@ export default function PainelCadastro({ user, socket }) {
         // Atualiza timers a cada 30s
         const interval = setInterval(() => setTick(t => t + 1), 30000);
         return () => clearInterval(interval);
-    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]);
+    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]); // eslint-disable-line
+
+    // Rebuscar Na Operação quando datas mudam
+    useEffect(() => {
+        carregarMotoristasOperacao(dataInicioOp, dataFimOp);
+    }, [dataInicioOp, dataFimOp]); // eslint-disable-line
 
     function atualizarEdicao(id, campo, valor) {
         setEdicoes(prev => {
@@ -547,15 +560,25 @@ export default function PainelCadastro({ user, socket }) {
             {abaAtiva === 'operacao' && (
                 <>
                     {/* Barra de filtro */}
-                    <div style={{ position: 'relative', marginBottom: '14px' }}>
-                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                        <input
-                            className="input-internal"
-                            placeholder="Filtrar por nome do motorista..."
-                            value={filtroOperacao}
-                            onChange={e => setFiltroOperacao(e.target.value)}
-                            style={{ paddingLeft: '30px', fontSize: '13px', width: '100%' }}
-                        />
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                            <input
+                                className="input-internal"
+                                placeholder="Filtrar por nome do motorista..."
+                                value={filtroOperacao}
+                                onChange={e => setFiltroOperacao(e.target.value)}
+                                style={{ paddingLeft: '30px', fontSize: '13px', width: '100%' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', whiteSpace: 'nowrap' }}>DE</span>
+                            <input type="date" className="input-internal" value={dataInicioOp} onChange={e => setDataInicioOp(e.target.value)}
+                                style={{ background: 'transparent', border: 'none', padding: '0', fontSize: '12px', color: '#f1f5f9', outline: 'none', cursor: 'pointer', width: '130px' }} />
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>ATÉ</span>
+                            <input type="date" className="input-internal" value={dataFimOp} onChange={e => setDataFimOp(e.target.value)}
+                                style={{ background: 'transparent', border: 'none', padding: '0', fontSize: '12px', color: '#f1f5f9', outline: 'none', cursor: 'pointer', width: '130px' }} />
+                        </div>
                     </div>
                     {motoristasOperacao.length === 0 ? (
                         <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
@@ -590,8 +613,13 @@ export default function PainelCadastro({ user, socket }) {
                                         {/* Header do card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px' }}>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     {m.nome_motorista}
+                                                    {m.status_cte === 'Emitido' && (
+                                                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#4ade80', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', padding: '1px 7px', borderRadius: '10px' }}>
+                                                            CT-e Emitido
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                                     <span style={{ fontSize: '10px', color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 6px', borderRadius: '4px' }}>

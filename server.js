@@ -724,12 +724,17 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 // ── Cadastro: motoristas já lançados na operação (tabela veiculos) ────────────
 app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
+        const { dataInicio, dataFim } = req.query;
+        const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const dInicio = dataInicio || hoje;
+        const dFim = dataFim || hoje;
+
         const rows = await dbAll(`
             SELECT v.id, v.motorista, v.dados_json,
                    v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv,
                    v.situacao_cadastro, v.numero_liberacao, v.data_liberacao,
                    v.placa, v.operacao, v.unidade,
-                   v.status_recife, v.status_moreno,
+                   v.status_recife, v.status_moreno, v.status_cte,
                    m.placa1 AS mp_placa1, m.placa2 AS mp_placa2,
                    m.tipo_veiculo AS mp_tipo_veiculo,
                    COALESCE(v.seguradora_cad, m.seguradora_cad) AS seguradora_cad,
@@ -745,9 +750,9 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
-              AND (v.status_cte IS NULL OR v.status_cte != 'Emitido')
+              AND (v.data_criacao::date BETWEEN $1::date AND $2::date)
             ORDER BY v.id DESC
-        `);
+        `, [dInicio, dFim]);
         const veiculos = rows.map(r => {
             const dj = (() => { try { return JSON.parse(r.dados_json || '{}'); } catch { return {}; } })();
             // Placas: prioridade dados_json > marcacoes_placas > fallback vazio
@@ -774,6 +779,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
                 origem_cad: r.origem_cad || '',
                 destino_uf_cad: r.destino_uf_cad || '',
                 destino_cidade_cad: r.destino_cidade_cad || '',
+                status_cte: r.status_cte || null,
                 _fonte: 'operacao',
             };
         });
@@ -1187,11 +1193,6 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                             dados.operacao || '',
                             dados.id || null
                         ]
-                    );
-                    // Marcar veículo como CT-e emitido para sumir do painel Cadastro (Na Operação)
-                    await dbRun(
-                        `UPDATE veiculos SET status_cte = 'Emitido' WHERE LOWER(TRIM(motorista)) = LOWER(TRIM(?))`,
-                        [cte.motorista]
                     );
                     io.emit('receber_atualizacao', { tipo: 'cadastro_cte_emitido', motorista: cte.motorista });
                 }
@@ -1897,7 +1898,7 @@ cron.schedule('59 23 * * 1-6', async () => {
         console.log(`[CRON] Iniciando Rollover/Fecho Automático do Dia...`);
         const amanhaStr = proximoDiaRollover();
 
-        // Atualiza a data_prevista apenas de quem não foi finalizado/não tem CTE Emitido
+        // Atualiza a data_prevista apenas de quem não foi finalizado e não tem CT-e emitido hoje
         const query = `
             UPDATE veiculos
             SET data_prevista = ?
@@ -1905,9 +1906,9 @@ cron.schedule('59 23 * * 1-6', async () => {
                 (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'CARREGADO'))
                 AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'CARREGADO'))
                 AND NOT EXISTS (
-                    SELECT 1 FROM veiculos v2
-                    WHERE v2.id = veiculos.id
-                    AND (v2.status_cte = 'Emitido' OR v2.dados_json::jsonb->>'status_cte' = 'Emitido')
+                    SELECT 1 FROM ctes_ativos ca
+                    WHERE LOWER(TRIM(ca.motorista)) = LOWER(TRIM(veiculos.motorista))
+                      AND ca.status = 'Emitido'
                 )
         `;
         const resultado = await dbRun(query, [amanhaStr]);
