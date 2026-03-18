@@ -568,8 +568,9 @@ export default function GestaoMarcacoes({ socket }) {
                                         if (m.is_frota) return false;
                                         if (!buscaMarcacoes) return true;
                                         const q = buscaMarcacoes.toLowerCase();
+                                        const soNumeros = buscaMarcacoes.replace(/\D/g, '');
                                         return m.nome_motorista?.toLowerCase().includes(q) ||
-                                            (m.telefone || '').replace(/\D/g, '').includes(buscaMarcacoes.replace(/\D/g, ''));
+                                            (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
                                     }).map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
