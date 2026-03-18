@@ -967,7 +967,7 @@ app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', '
         res.json({ success: true, fila });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.post('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const item = req.body;
         const unidade = item.unidade || req.user.cidade || 'Recife';
@@ -979,7 +979,7 @@ app.post('/fila', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Enc
     } catch (e) { res.status(500).json({ success: false }); }
 });
 // ATENÇÃO: /fila/reordenar deve vir ANTES de /fila/:id para evitar conflito de rota
-app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const { ordem } = req.body;
         if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
