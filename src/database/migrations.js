@@ -178,7 +178,10 @@ const inicializarBanco = async () => {
             { tabela: 'ctes_ativos', coluna: 'origem_cad', tipo: 'TEXT' },
             { tabela: 'ctes_ativos', coluna: 'destino_uf_cad', tipo: 'TEXT' },
             { tabela: 'ctes_ativos', coluna: 'destino_cidade_cad', tipo: 'TEXT' },
-            { tabela: 'ctes_ativos', coluna: 'usuario_aceitou', tipo: 'TEXT' }
+            { tabela: 'ctes_ativos', coluna: 'usuario_aceitou', tipo: 'TEXT' },
+            // CT-e liberado antecipadamente (ainda em EM CARREGAMENTO)
+            { tabela: 'veiculos', coluna: 'cte_antecipado_recife', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' }
         ];
 
         // Criação de Índices Otimizados

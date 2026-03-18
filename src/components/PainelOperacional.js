@@ -94,7 +94,7 @@ export default function PainelOperacional({
     termoBusca, setTermoBusca, user,
     funcoes
 }) {
-    const { podeEditar, updateList, socket, removerVeiculo, mostrarNotificacao } = funcoes;
+    const { podeEditar, updateList, liberarCteAntecipado, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') {
@@ -1172,8 +1172,8 @@ export default function PainelOperacional({
                                                         </button>
                                                     )}
 
-                                                    {/* Botão Liberado p/ CTE — só aparece quando conferente finalizou (CARREGADO) ou está em carregamento */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && (
+                                                    {/* Botão Liberado p/ CTE */}
+                                                    {valorStatusAtual === 'CARREGADO' && (
                                                         <button
                                                             onClick={() => updateList(lista, setLista, realIndex, campoStatusAlvo, 'LIBERADO P/ CT-e', origem)}
                                                             style={{
@@ -1189,6 +1189,30 @@ export default function PainelOperacional({
                                                         >
                                                             <CheckCircle size={13} /> LIBERADO P/ CT-e
                                                         </button>
+                                                    )}
+                                                    {/* Botão antecipado: disponível em EM CARREGAMENTO se ainda não liberado */}
+                                                    {valorStatusAtual === 'EM CARREGAMENTO' && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                        <button
+                                                            onClick={() => liberarCteAntecipado(lista, setLista, realIndex, origem)}
+                                                            style={{
+                                                                padding: '6px 14px', borderRadius: '8px',
+                                                                background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
+                                                                border: 'none', color: 'white',
+                                                                fontSize: '11px', fontWeight: '700',
+                                                                cursor: 'pointer', letterSpacing: '0.5px',
+                                                                boxShadow: '0 2px 10px rgba(168,85,247,0.4)',
+                                                                display: 'flex', alignItems: 'center', gap: '5px'
+                                                            }}
+                                                            title="Liberar CT-e antecipadamente (status avança ao chegar em CARREGADO)"
+                                                        >
+                                                            <CheckCircle size={13} /> LIBERADO P/ CT-e
+                                                        </button>
+                                                    )}
+                                                    {/* Feedback: CT-e já liberado antecipadamente, aguardando CARREGADO */}
+                                                    {valorStatusAtual === 'EM CARREGAMENTO' && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                        <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <CheckCircle size={12} /> CT-e liberado
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>

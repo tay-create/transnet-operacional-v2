@@ -169,7 +169,7 @@ export default function GestaoMarcacoes({ socket }) {
             } else {
                 mostrarToast(r.data.message || 'Erro ao gerar link.');
             }
-        } catch (e) { mostrarToast('Erro de conexão.'); }
+        } catch (e) { mostrarToast(e.response?.data?.message || 'Erro de conexão.'); }
     }
 
     async function toggleStatus(token) {

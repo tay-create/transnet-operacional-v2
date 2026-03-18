@@ -1008,6 +1008,17 @@ app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento'
 
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
+        const DESTINATARIOS = {
+            'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
+            'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
+            'admin_cadastro':      ['Coordenador'],
+            'admin_senha':         ['Coordenador'],
+            'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
+            'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
+            'nova_marcacao_coord': ['Coordenador'],
+            'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
+        };
+        const meuCargo = req.user?.cargo || '';
         const rows = await dbAll("SELECT * FROM notificacoes ORDER BY id DESC");
         const lista = (rows || []).map(row => {
             try {
@@ -1015,14 +1026,28 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
             } catch (err) {
                 return { idInterno: row.id, mensagem: "Erro ao processar notificação" };
             }
+        }).filter(n => {
+            if (!n.tipo) return true;
+            const alvo = DESTINATARIOS[n.tipo];
+            if (!alvo) return true; // tipo desconhecido → exibir para todos
+            return alvo.includes(meuCargo);
         });
         res.json({ success: true, notificacoes: lista });
     } catch (e) {
         console.error("Erro na rota /notificacoes:", e);
-        res.json({ success: true, notificacoes: [] }); // Retorna sucesso vazio para não quebrar o front
+        res.json({ success: true, notificacoes: [] });
     }
 });
-app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => { try { const id = Number(req.params.id); if (!isNaN(id)) await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]); res.json({ success: true }); } catch (e) { res.status(500).json({ success: false }); } });
+app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!isNaN(id)) {
+            await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]);
+            io.emit('notificacao_removida', { id });
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
 
 // --- ROTAS DE CT-E ATIVOS ---
 

@@ -453,6 +453,11 @@ function App({ socket }) {
             }
         });
 
+        // Remove notificação do estado local quando outro usuário a aceita/deleta
+        socket.on('notificacao_removida', ({ id }) => {
+            removerNotificacao(id);
+        });
+
         return () => {
             clearInterval(monitorInterval);
             socket.off('connect');
@@ -462,6 +467,7 @@ function App({ socket }) {
             socket.off('notificacao_direcionada');
             socket.off('cadastro_situacao_atualizada');
             socket.off('programacao_gerada');
+            socket.off('notificacao_removida');
         };
     }, [handleReceberAlerta, handleReceberAtualizacao, adicionarNotificacao, socket, logado]);
 
@@ -842,6 +848,42 @@ function App({ socket }) {
         }
     }, [fila, socket, mostrarNotificacao]);
 
+    // Libera CT-e antecipadamente enquanto ainda está em EM CARREGAMENTO.
+    // Salva o timestamp, dispara o alerta para Conhecimento, mas NÃO muda o status —
+    // o status avança automaticamente para LIBERADO P/ CT-e quando chegar em CARREGADO (backend).
+    const liberarCteAntecipado = useCallback(async (lista, setLista, index, origem) => {
+        const novaLista = [...lista];
+        const itemAtual = { ...novaLista[index] };
+        const agora = new Date().toISOString();
+        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
+
+        itemAtual[campo] = agora;
+        novaLista[index] = itemAtual;
+        setLista(novaLista);
+
+        const coletaValida = (itemAtual.coleta && itemAtual.coleta.trim()) ||
+            (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
+            (itemAtual.coletaMoreno && itemAtual.coletaMoreno.trim());
+
+        if (coletaValida && itemAtual.motorista?.trim()) {
+            socket.emit('enviar_alerta', {
+                tipo: 'aceite_cte_pendente',
+                origem,
+                mensagem: `CT-e Liberado (${coletaValida})`,
+                dadosVeiculo: itemAtual
+            });
+        }
+
+        try {
+            if (itemAtual.id) {
+                await api.put(`/veiculos/${itemAtual.id}`, itemAtual);
+            }
+        } catch (e) {
+            mostrarNotificacao('⚠️ Erro ao salvar liberação antecipada de CT-e.');
+            setLista(lista);
+        }
+    }, [socket, mostrarNotificacao]);
+
     const removerVeiculo = (id) => {
         setConfirmarRemover({
             mensagem: 'Tem certeza que deseja excluir este veículo permanentemente?',
@@ -1131,7 +1173,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, liberarCteAntecipado, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
@@ -1144,7 +1186,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, liberarCteAntecipado, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 

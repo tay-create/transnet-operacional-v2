@@ -40,8 +40,8 @@ const TagInput = ({ value, onChange, disabled }) => {
     return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', padding: '5px', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', backgroundColor: disabled ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.08)', minHeight: '38px', alignItems: 'center', color: '#ffffff' }}>
             {tags.map((tag, i) => (
-                <span key={i} style={{ backgroundColor: '#e0f2fe', color: '#004a99', padding: '2px 6px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ color: '#64748b', fontSize: '9px', fontWeight: '600', marginRight: '1px' }}>{i + 1}ª</span>
+                <span key={i} style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: '#ffffff', border: '1px solid rgba(99,179,237,0.5)', padding: '2px 6px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', textShadow: '0 0 6px rgba(99,179,237,0.7)' }}>
+                    <span style={{ color: '#93c5fd', fontSize: '9px', fontWeight: '600', marginRight: '1px' }}>{i + 1}ª</span>
                     {tag}
                     {!disabled && tags.length > 1 && (
                         <>
