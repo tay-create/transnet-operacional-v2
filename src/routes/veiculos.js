@@ -543,6 +543,27 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             await dbRun(query, values);
 
+            // ── Transição Em Espera ↔ Na Operação no Ger. Risco ──
+            if (veiculoAntigo && veiculoAntigo.motorista !== v.motorista) {
+                if (v.motorista && v.motorista.trim()) {
+                    await dbRun(
+                        `UPDATE marcacoes_placas SET status_operacional = 'EM OPERACAO'
+                         WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?))
+                           AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')`,
+                        [v.motorista]
+                    );
+                }
+                if (veiculoAntigo.motorista && veiculoAntigo.motorista.trim()) {
+                    await dbRun(
+                        `UPDATE marcacoes_placas SET status_operacional = 'DISPONIVEL'
+                         WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?))
+                           AND status_operacional = 'EM OPERACAO'`,
+                        [veiculoAntigo.motorista]
+                    );
+                }
+            }
+            // ─────────────────────────────────────────────────────
+
             // ── Salvar histórico de liberação quando status muda para LIBERADO P/ CT-e ──
             if (veiculoAntigo) {
                 const mudouCteRecife = v.status_recife === 'LIBERADO P/ CT-e' && veiculoAntigo.status_recife !== 'LIBERADO P/ CT-e';

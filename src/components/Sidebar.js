@@ -146,7 +146,9 @@ export default function Sidebar({
                 {temAcesso('operacao') && (
                     <>
                         <Divider label="Operação" aberto={aberto} />
-                        <MenuItem icon={<PlusCircle size={20} />} label="Novo Lançamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('novo_lancamento'); }} />
+                        {['COORDENADOR', 'PLANEJAMENTO'].includes(cargo) && (
+                            <MenuItem icon={<PlusCircle size={20} />} label="Novo Lançamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('novo_lancamento'); }} />
+                        )}
                         {podeVerUnidade('Recife') && (
                             <MenuItem icon={<Truck size={20} />} label="Painel Recife" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_recife'); }} />
                         )}

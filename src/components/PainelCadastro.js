@@ -68,6 +68,7 @@ export default function PainelCadastro({ user, socket }) {
     // Em Espera: expandir/colapsar e filtro
     const [expandidoEspera, setExpandidoEspera] = useState(null);
     const [filtroEspera, setFiltroEspera] = useState('');
+    const [filtroOperacao, setFiltroOperacao] = useState('');
 
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
@@ -545,6 +546,17 @@ export default function PainelCadastro({ user, socket }) {
             {/* ABA: NA OPERAÇÃO */}
             {abaAtiva === 'operacao' && (
                 <>
+                    {/* Barra de filtro */}
+                    <div style={{ position: 'relative', marginBottom: '14px' }}>
+                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                        <input
+                            className="input-internal"
+                            placeholder="Filtrar por nome do motorista..."
+                            value={filtroOperacao}
+                            onChange={e => setFiltroOperacao(e.target.value)}
+                            style={{ paddingLeft: '30px', fontSize: '13px', width: '100%' }}
+                        />
+                    </div>
                     {motoristasOperacao.length === 0 ? (
                         <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
                             <Truck size={48} style={{ opacity: 0.3, marginBottom: '16px', margin: '0 auto' }} />
@@ -552,11 +564,10 @@ export default function PainelCadastro({ user, socket }) {
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', alignItems: 'start' }}>
-                            {[...motoristasOperacao].sort((a, b) => {
-                                const ORDEM = ['NÃO CONFERIDO', 'PENDENTE', 'LIBERADO'];
-                                const sA = (edicoesOp[a.id] || {}).situacao_cad || 'NÃO CONFERIDO';
-                                const sB = (edicoesOp[b.id] || {}).situacao_cad || 'NÃO CONFERIDO';
-                                return ORDEM.indexOf(sA) - ORDEM.indexOf(sB);
+                            {motoristasOperacao.filter(m => {
+                                if (!filtroOperacao) return true;
+                                const q = filtroOperacao.toLowerCase();
+                                return (m.motorista || m.nome_motorista || '').toLowerCase().includes(q);
                             }).map(m => {
                                 const ed = edicoesOp[m.id] || {};
                                 const situacao = ed.situacao_cad || 'NÃO CONFERIDO';
