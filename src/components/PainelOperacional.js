@@ -95,7 +95,7 @@ export default function PainelOperacional({
     termoBusca, setTermoBusca, user,
     funcoes
 }) {
-    const { podeEditar, updateList, socket, removerVeiculo, mostrarNotificacao } = funcoes;
+    const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') {
@@ -1178,7 +1178,7 @@ export default function PainelOperacional({
                                                     )}
 
                                                     {/* Botão Liberado p/ CTE */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
                                                         <button
                                                             onClick={() => setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
                                                             style={{
@@ -1194,6 +1194,12 @@ export default function PainelOperacional({
                                                         >
                                                             <CheckCircle size={13} /> LIBERADO P/ CT-e
                                                         </button>
+                                                    )}
+                                                    {/* Feedback: CT-e já liberado */}
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                        <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <CheckCircle size={12} /> CT-e liberado
+                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -1238,9 +1244,9 @@ export default function PainelOperacional({
                     textCancel="Cancelar"
                     variante="info"
                     onConfirm={() => {
-                        const { realIndex: ri, campoStatusAlvo: campo, origem: o } = confirmarLiberadoCte;
+                        const { realIndex: ri, origem: o } = confirmarLiberadoCte;
                         setConfirmarLiberadoCte(null);
-                        updateList(lista, setLista, ri, campo, 'LIBERADO P/ CT-e', o);
+                        liberarParaCte(lista, setLista, ri, o);
                     }}
                     onCancel={() => setConfirmarLiberadoCte(null)}
                 />

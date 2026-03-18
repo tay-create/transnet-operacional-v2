@@ -859,6 +859,44 @@ function App({ socket }) {
         }
     }, [fila, socket, mostrarNotificacao]);
 
+    // Libera CT-e: marca flag cte_antecipado_*, emite alerta para Conhecimento, mas NÃO muda o status do card.
+    const liberarParaCte = useCallback(async (lista, setLista, index, origem) => {
+        const novaLista = [...lista];
+        const itemAtual = { ...novaLista[index] };
+        const agora = new Date().toISOString();
+        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
+        const valorAnterior = itemAtual[campo];
+
+        itemAtual[campo] = agora;
+        novaLista[index] = itemAtual;
+        setLista(novaLista);
+
+        const coletaValida = (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
+            (itemAtual.coletaMoreno && itemAtual.coletaMoreno.trim()) ||
+            (itemAtual.coleta && itemAtual.coleta.trim());
+
+        if (coletaValida && itemAtual.motorista?.trim()) {
+            socket.emit('enviar_alerta', {
+                tipo: 'aceite_cte_pendente',
+                origem,
+                mensagem: `CT-e Liberado (${coletaValida})`,
+                dadosVeiculo: itemAtual
+            });
+        }
+
+        try {
+            if (itemAtual.id) {
+                await api.put(`/veiculos/${itemAtual.id}`, itemAtual);
+                mostrarNotificacao('✅ CT-e liberado — alerta enviado para Conhecimento.');
+            }
+        } catch (e) {
+            mostrarNotificacao('⚠️ Erro ao salvar liberação de CT-e.');
+            setLista(prev => prev.map(item =>
+                item.id === itemAtual.id ? { ...item, [campo]: valorAnterior } : item
+            ));
+        }
+    }, [socket, mostrarNotificacao]);
+
     const removerVeiculo = (id) => {
         setConfirmarRemover({
             mensagem: 'Tem certeza que deseja excluir este veículo permanentemente?',
@@ -1148,7 +1186,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, liberarParaCte, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
@@ -1161,7 +1199,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, liberarParaCte, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
