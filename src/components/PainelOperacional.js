@@ -6,6 +6,7 @@ import {
     CheckCircle, Clock, FileText, Warehouse, Truck
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
+import ModalConfirm from './ModalConfirm';
 import ModalImagem from './ModalImagem';
 import ModalColetas from './ModalColetas';
 import SLATimeline from './SLATimeline';
@@ -94,7 +95,7 @@ export default function PainelOperacional({
     termoBusca, setTermoBusca, user,
     funcoes
 }) {
-    const { podeEditar, updateList, liberarCteAntecipado, socket, removerVeiculo, mostrarNotificacao } = funcoes;
+    const { podeEditar, updateList, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') {
@@ -127,6 +128,7 @@ export default function PainelOperacional({
     const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [modalPausaAberto, setModalPausaAberto] = useState(false);
+    const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -297,9 +299,12 @@ export default function PainelOperacional({
         // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
         const meuStatus = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
 
-        const bateuBusca = (item.coleta && item.coleta.toLowerCase().includes(termoBusca.toLowerCase())) ||
-            (item.motorista && item.motorista.toLowerCase().includes(termoBusca.toLowerCase())) ||
-            (meuStatus && meuStatus.toLowerCase().includes(termoBusca.toLowerCase()));
+        const buscaLower = termoBusca.toLowerCase();
+        const bateuBusca = (item.coleta && item.coleta.toLowerCase().includes(buscaLower)) ||
+            (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
+            (item.coletaMoreno && item.coletaMoreno.toLowerCase().includes(buscaLower)) ||
+            (item.motorista && item.motorista.toLowerCase().includes(buscaLower)) ||
+            (meuStatus && meuStatus.toLowerCase().includes(buscaLower));
 
 
         const bateuOperacao = !filtroOperacao || (item.operacao || '') === filtroOperacao;
@@ -971,7 +976,7 @@ export default function PainelOperacional({
                                                             }}
                                                             style={{ background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px', color: corStatus.text, fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
                                                         >
-                                                            {OPCOES_STATUS.map(s => (
+                                                            {OPCOES_STATUS.filter(s => s !== 'LIBERADO P/ CT-e').map(s => (
                                                                 <option key={s} value={s} style={{ color: 'black' }}>{s}</option>
                                                             ))}
                                                         </select>
@@ -1173,9 +1178,9 @@ export default function PainelOperacional({
                                                     )}
 
                                                     {/* Botão Liberado p/ CTE */}
-                                                    {valorStatusAtual === 'CARREGADO' && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && (
                                                         <button
-                                                            onClick={() => updateList(lista, setLista, realIndex, campoStatusAlvo, 'LIBERADO P/ CT-e', origem)}
+                                                            onClick={() => setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
                                                             style={{
                                                                 padding: '6px 14px', borderRadius: '8px',
                                                                 background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
@@ -1189,30 +1194,6 @@ export default function PainelOperacional({
                                                         >
                                                             <CheckCircle size={13} /> LIBERADO P/ CT-e
                                                         </button>
-                                                    )}
-                                                    {/* Botão antecipado: disponível em EM CARREGAMENTO se ainda não liberado */}
-                                                    {valorStatusAtual === 'EM CARREGAMENTO' && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
-                                                        <button
-                                                            onClick={() => liberarCteAntecipado(lista, setLista, realIndex, origem)}
-                                                            style={{
-                                                                padding: '6px 14px', borderRadius: '8px',
-                                                                background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
-                                                                border: 'none', color: 'white',
-                                                                fontSize: '11px', fontWeight: '700',
-                                                                cursor: 'pointer', letterSpacing: '0.5px',
-                                                                boxShadow: '0 2px 10px rgba(168,85,247,0.4)',
-                                                                display: 'flex', alignItems: 'center', gap: '5px'
-                                                            }}
-                                                            title="Liberar CT-e antecipadamente (status avança ao chegar em CARREGADO)"
-                                                        >
-                                                            <CheckCircle size={13} /> LIBERADO P/ CT-e
-                                                        </button>
-                                                    )}
-                                                    {/* Feedback: CT-e já liberado antecipadamente, aguardando CARREGADO */}
-                                                    {valorStatusAtual === 'EM CARREGAMENTO' && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
-                                                        <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <CheckCircle size={12} /> CT-e liberado
-                                                        </span>
                                                     )}
                                                 </div>
                                             </div>
@@ -1245,6 +1226,23 @@ export default function PainelOperacional({
                     veiculo={veiculoSelecionado.item}
                     onClose={() => { setModalChecklistAberto(false); setVeiculoSelecionado(null); }}
                     onSucesso={(msg) => adicionarToast(msg, 'sucesso')}
+                />
+            )}
+
+            {/* Modal de Confirmação — Liberar p/ CT-e */}
+            {confirmarLiberadoCte && (
+                <ModalConfirm
+                    titulo="Liberar para CT-e"
+                    mensagem="Confirma a liberação deste veículo para emissão do CT-e?"
+                    textConfirm="Liberar"
+                    textCancel="Cancelar"
+                    variante="info"
+                    onConfirm={() => {
+                        const { realIndex: ri, campoStatusAlvo: campo, origem: o } = confirmarLiberadoCte;
+                        setConfirmarLiberadoCte(null);
+                        updateList(lista, setLista, ri, campo, 'LIBERADO P/ CT-e', o);
+                    }}
+                    onCancel={() => setConfirmarLiberadoCte(null)}
                 />
             )}
 

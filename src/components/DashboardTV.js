@@ -344,7 +344,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     Status de Embarque Geral
                 </h3>
                 <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={dadosBarrasStatus} margin={{ top: 5, right: 20, left: -15, bottom: 5 }}>
+                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 5 }}>
                         <XAxis dataKey="name" tick={{ fontSize: 10, fill: t.textMuted }} />
                         <YAxis tick={{ fontSize: 10, fill: t.textMuted }} allowDecimals={false} />
                         <Tooltip
@@ -367,21 +367,17 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                             formatter={(value) => <span style={{ color: value === 'Recife' ? '#3b82f6' : '#f59e0b', fontWeight: '700' }}>{value}</span>}
                         />
                         <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]}>
-                            <LabelList dataKey="Recife" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
-                                const { x, y, width, height, value, payload } = props;
-                                if (!value || value <= 0 || !payload) return null;
-                                const total = (payload.Recife || 0) + (payload.Moreno || 0);
-                                const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
-                                return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;
+                            <LabelList dataKey="Recife" position="top" fill="#a5b4fc" fontSize={10} fontWeight="bold" content={(props) => {
+                                const { x, y, width, value } = props;
+                                if (!value || value <= 0) return null;
+                                return <text x={x + width / 2} y={y - 4} fill="#a5b4fc" textAnchor="middle" dominantBaseline="auto" fontSize={10} fontWeight="bold">{value}</text>;
                             }} />
                         </Bar>
                         <Bar dataKey="Moreno" fill="#f59e0b" radius={[3, 3, 0, 0]}>
-                            <LabelList dataKey="Moreno" position="center" fill="#ffffff" fontSize={10} fontWeight="bold" content={(props) => {
-                                const { x, y, width, height, value, payload } = props;
-                                if (!value || value <= 0 || !payload) return null;
-                                const total = (payload.Recife || 0) + (payload.Moreno || 0);
-                                const pct = total > 0 ? ((value / total) * 100).toFixed(0) + '%' : '';
-                                return <text x={x + width / 2} y={y + height / 2} fill="#ffffff" textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight="bold">{value} ({pct})</text>;
+                            <LabelList dataKey="Moreno" position="top" fill="#fde68a" fontSize={10} fontWeight="bold" content={(props) => {
+                                const { x, y, width, value } = props;
+                                if (!value || value <= 0) return null;
+                                return <text x={x + width / 2} y={y - 4} fill="#fde68a" textAnchor="middle" dominantBaseline="auto" fontSize={10} fontWeight="bold">{value}</text>;
                             }} />
                         </Bar>
                     </BarChart>

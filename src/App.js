@@ -859,46 +859,6 @@ function App({ socket }) {
         }
     }, [fila, socket, mostrarNotificacao]);
 
-    // Libera CT-e antecipadamente enquanto ainda está em EM CARREGAMENTO.
-    // Salva o timestamp, dispara o alerta para Conhecimento, mas NÃO muda o status —
-    // o status avança automaticamente para LIBERADO P/ CT-e quando chegar em CARREGADO (backend).
-    const liberarCteAntecipado = useCallback(async (lista, setLista, index, origem) => {
-        const novaLista = [...lista];
-        const itemAtual = { ...novaLista[index] };
-        const agora = new Date().toISOString();
-        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
-        const valorAnterior = itemAtual[campo]; // captura antes da mutação para rollback preciso
-
-        itemAtual[campo] = agora;
-        novaLista[index] = itemAtual;
-        setLista(novaLista);
-
-        const coletaValida = (itemAtual.coleta && itemAtual.coleta.trim()) ||
-            (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
-            (itemAtual.coletaMoreno && itemAtual.coletaMoreno.trim());
-
-        if (coletaValida && itemAtual.motorista?.trim()) {
-            socket.emit('enviar_alerta', {
-                tipo: 'aceite_cte_pendente',
-                origem,
-                mensagem: `CT-e Liberado (${coletaValida})`,
-                dadosVeiculo: itemAtual
-            });
-        }
-
-        try {
-            if (itemAtual.id) {
-                await api.put(`/veiculos/${itemAtual.id}`, itemAtual);
-            }
-        } catch (e) {
-            mostrarNotificacao('⚠️ Erro ao salvar liberação antecipada de CT-e.');
-            // Rollback preciso: restaura apenas o campo alterado no item correto
-            setLista(prev => prev.map(item =>
-                item.id === itemAtual.id ? { ...item, [campo]: valorAnterior } : item
-            ));
-        }
-    }, [socket, mostrarNotificacao]);
-
     const removerVeiculo = (id) => {
         setConfirmarRemover({
             mensagem: 'Tem certeza que deseja excluir este veículo permanentemente?',
@@ -1188,7 +1148,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, liberarCteAntecipado, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
@@ -1201,7 +1161,7 @@ function App({ socket }) {
                         termoBusca={termoBusca}
                         setTermoBusca={setTermoBusca}
                         user={user}
-                        funcoes={{ podeEditar, updateList, liberarCteAntecipado, removerVeiculo, socket, mostrarNotificacao }}
+                        funcoes={{ podeEditar, updateList, removerVeiculo, socket, mostrarNotificacao }}
                     />
                 )}
 
