@@ -686,17 +686,21 @@ function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno =
         { key: 'deltaRxM',    label: 'DELTA R/M',       cor: '#f472b6', match: v => classificarOperacao(v.operacao) === 'deltaRxM' },
     ];
 
-    // Gerar dias do mês que têm veículos
-    const diasComVeiculos = [];
-    const d = new Date(primeiroDiaMes);
-    while (d <= ultimoDiaMes) {
-        diasComVeiculos.push(fmt(new Date(d)));
-        d.setDate(d.getDate() + 1);
+    // Janela deslizante: D-2, D-1, hoje, D+1, D+2
+    const janela5Dias = [];
+    for (let i = -2; i <= 2; i++) {
+        const dj = new Date(dataBrasilia);
+        dj.setDate(dataBrasilia.getDate() + i);
+        janela5Dias.push(fmt(dj));
     }
+    const veiculosJanela = veiculos.filter(v => {
+        const dataCard = v.data_prevista || v.data_criacao || '';
+        return dataCard >= janela5Dias[0] && dataCard <= janela5Dias[4];
+    });
 
-    // Montar linhas da tabela
-    const linhasTabela = diasComVeiculos.map(dia => {
-        const veicsDia = veiculosMesAtual.filter(v => (v.data_prevista || v.data_criacao || '') === dia);
+    // Montar linhas da tabela — todos os 5 dias sempre aparecem
+    const linhasTabela = janela5Dias.map(dia => {
+        const veicsDia = veiculosJanela.filter(v => (v.data_prevista || v.data_criacao || '') === dia);
         const cells = {};
         let total = 0;
         COLUNAS_OP.forEach(col => {
@@ -705,7 +709,7 @@ function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno =
             total += count;
         });
         return { dia, cells, total };
-    }).filter(l => l.total > 0);
+    });
 
     // Totais por coluna
     const totaisColunas = {};

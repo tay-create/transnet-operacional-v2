@@ -111,7 +111,11 @@ export default function PainelOperacional({
         const hoje = obterDataBrasilia();
         return (salvo && salvo >= hoje) ? salvo : hoje;
     });
-    const [dataFim, setDataFim] = useState(() => localStorage.getItem('filtro_data_fim_' + origem) || obterDataBrasilia());
+    const [dataFim, setDataFim] = useState(() => {
+        const salvo = localStorage.getItem('filtro_data_fim_' + origem);
+        const hoje = obterDataBrasilia();
+        return (salvo && salvo >= hoje) ? salvo : hoje;
+    });
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
