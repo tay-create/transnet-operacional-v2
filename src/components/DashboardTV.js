@@ -213,7 +213,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 3 && <TelaPaletesDiario paletes={paletesHoje} t={t} tema={tema} />}
-                {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} paletes={paletesHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} paletes={paletesHoje} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
             {/* Rodape */}
@@ -632,8 +632,9 @@ function normalizarDataStr(d) {
     return d.substring(0, 10);
 }
 
-function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno = [], t, tema, ocorrenciasHoje = [] }) {
+function TelaFluxoMensal({ veiculos, paletes = [], t, tema, ocorrenciasHoje = [] }) {
     const [ocorrenciasMes, setOcorrenciasMes] = useState([]);
+    const [ctesMes, setCtesMes] = useState([]);
 
     const agora = new Date();
     const dataBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -659,6 +660,12 @@ function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno =
                     (o.data_criacao || '').substring(0, 10) <= ultimoDiaMesStr
                 ));
             }
+        }).catch(() => { });
+    }, [primeiroDiaMesStr, ultimoDiaMesStr]);
+
+    useEffect(() => {
+        api.get(`/ctes?dataInicio=${primeiroDiaMesStr}&dataFim=${ultimoDiaMesStr}`).then(r => {
+            if (r.data?.success) setCtesMes(r.data.ctes || []);
         }).catch(() => { });
     }, [primeiroDiaMesStr, ultimoDiaMesStr]);
 
@@ -708,7 +715,7 @@ function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno =
     ].filter(d => d.value > 0);
 
     // ── CT-es do mês ──
-    const todosCtes = [...ctesRecife, ...ctesMoreno];
+    const todosCtes = ctesMes;
     const ctesEmitidosMes = todosCtes.filter(c => {
         if (c.status !== 'Emitido') return false;
         const d = normalizarDataStr(c.timestamps?.fim_emissao || c.data_entrada_cte || '');
@@ -799,8 +806,8 @@ function TelaFluxoMensal({ veiculos, paletes = [], ctesRecife = [], ctesMoreno =
                         <div style={{ fontSize: '11px', fontWeight: '800', color: '#67e8f9', textTransform: 'uppercase', letterSpacing: '1.5px' }}>CT-es Emitidos</div>
                         <div style={{ fontSize: '10px', color: t.textDim, marginTop: '2px' }}>No mês</div>
                         <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                            <span style={{ fontSize: '11px', color: '#22d3ee' }}>{ctesRecife.filter(c => c.status === 'Emitido').length} Recife</span>
-                            <span style={{ fontSize: '11px', color: '#a5f3fc' }}>{ctesMoreno.filter(c => c.status === 'Emitido').length} Moreno</span>
+                            <span style={{ fontSize: '11px', color: '#22d3ee' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem === 'Recife').length} Recife</span>
+                            <span style={{ fontSize: '11px', color: '#a5f3fc' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem !== 'Recife').length} Moreno</span>
                         </div>
                     </div>
                 </div>
