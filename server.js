@@ -1097,6 +1097,20 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conh
 app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         const { origem, dados } = req.body;
+
+        // Proteção contra duplicatas: mesmo motorista + número de liberação com status ativo
+        if (dados.motorista && dados.numero_liberacao) {
+            const duplicado = await dbGet(
+                `SELECT id FROM ctes_ativos
+                 WHERE motorista = $1 AND numero_liberacao = $2
+                 AND status != 'Emitido'`,
+                [dados.motorista, dados.numero_liberacao]
+            );
+            if (duplicado) {
+                return res.status(409).json({ success: false, message: 'CT-e já registrado para este motorista e número de liberação.' });
+            }
+        }
+
         const status = dados.status || 'Aguardando Emissão';
         const result = await dbRun(
             `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou)
@@ -1341,8 +1355,8 @@ app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
 });
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
 
-// Buscar usuário por nome (usado no fluxo de recuperação de senha — requer login)
-app.get('/usuarios/buscar', authMiddleware, async (req, res) => {
+// Buscar usuário por nome (usado no fluxo de recuperação de senha — público, sem login)
+app.get('/usuarios/buscar', async (req, res) => {
     try {
         const { nome } = req.query;
         if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
@@ -1494,10 +1508,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             `UPDATE marcacoes_placas
                              SET viagens_realizadas = viagens_realizadas + 1,
                                  status_operacional = 'EM VIAGEM',
-                                 data_contratacao = COALESCE(data_contratacao, ?),
-                                 situacao_cad = 'ARQUIVADO',
-                                 chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
-                                 num_liberacao_cad = NULL, data_liberacao_cad = NULL
+                                 data_contratacao = COALESCE(data_contratacao, ?)
                              WHERE telefone = ? AND (is_frota IS NULL OR is_frota = 0)`,
                             [agora, telefoneMotorista]
                         );
@@ -1511,10 +1522,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             `UPDATE marcacoes_placas
                              SET viagens_realizadas = viagens_realizadas + 1,
                                  status_operacional = 'EM VIAGEM',
-                                 data_contratacao = COALESCE(data_contratacao, ?),
-                                 situacao_cad = 'ARQUIVADO',
-                                 chk_cnh_cad = '0', chk_antt_cad = '0', chk_tacografo_cad = '0', chk_crlv_cad = '0',
-                                 num_liberacao_cad = NULL, data_liberacao_cad = NULL
+                                 data_contratacao = COALESCE(data_contratacao, ?)
                              WHERE nome_motorista = ? AND (is_frota IS NULL OR is_frota = 0)`,
                             [agora, veiculo.motorista]
                         );

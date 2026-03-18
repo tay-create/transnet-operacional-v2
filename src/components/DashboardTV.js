@@ -397,6 +397,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
 function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, tema, ocorrenciasHoje = [] }) {
     const veiculosRecife = veiculos.filter(v => ehOperacaoRecife(v.operacao));
     const totalRecife = veiculosRecife.length;
+    const [hoveredDocaR, setHoveredDocaR] = useState(null);
 
     // Sub-contadores
     const contOp = { delta: 0, consolidado: 0, deltaRxM: 0 };
@@ -443,6 +444,14 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
         if (c.doca && c.doca !== 'SELECIONE') {
             docaStatusMap[c.doca] = 'FULGAZ';
         }
+    });
+
+    // Mapa doca → veículo para tooltip
+    const docaVeiculoMapR = {};
+    veiculosRecife.forEach(v => {
+        const doca = v.doca_recife;
+        if (!doca || doca === 'SELECIONE') return;
+        docaVeiculoMapR[doca] = { motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' };
     });
 
     // Fluxo CT-e para Recife
@@ -496,6 +505,8 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                 const bgCor = livre ? 'rgba(52,211,153,0.10)' : (cor ? `${cor.border}20` : 'transparent');
                                 const borderCor = livre ? '#34d399' : (cor ? cor.border : 'transparent');
                                 const textCor = livre ? '#34d399' : (cor ? cor.text : 'inherit');
+                                const veiculo = docaVeiculoMapR[doca];
+                                const isHovered = hoveredDocaR === doca;
 
                                 if (statusDoca === 'FULGAZ') {
                                     return (
@@ -504,8 +515,11 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                             background: tema === 'light' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.2)',
                                             border: `1px solid ${tema === 'light' ? '#dc2626' : '#ef4444'}`,
                                             boxShadow: tema === 'light' ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 0 12px rgba(239, 68, 68, 0.4)',
-                                            transition: 'all 0.5s ease-in-out'
-                                        }}>
+                                            transition: 'all 0.5s ease-in-out', position: 'relative', cursor: 'default'
+                                        }}
+                                            onMouseEnter={() => setHoveredDocaR(doca)}
+                                            onMouseLeave={() => setHoveredDocaR(null)}
+                                        >
                                             <div style={{
                                                 fontSize: '11px', fontWeight: '900',
                                                 color: tema === 'light' ? '#991b1b' : '#fca5a5',
@@ -516,6 +530,19 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                                 color: tema === 'light' ? '#dc2626' : '#ef4444',
                                                 marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
                                             }}>CONTAINER</div>
+                                            {isHovered && veiculo && (
+                                                <div style={{
+                                                    position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
+                                                    background: tema === 'light' ? '#1e293b' : '#0f172a',
+                                                    border: '1px solid #3b82f6', borderRadius: '8px',
+                                                    padding: '8px 12px', zIndex: 999, whiteSpace: 'nowrap',
+                                                    boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                                                    pointerEvents: 'none'
+                                                }}>
+                                                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
+                                                    {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 }
@@ -525,8 +552,12 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                         padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
                                         background: bgCor, border: `1px solid ${borderCor}${tema === 'light' ? '80' : '50'}`,
                                         transition: 'all 0.5s ease-in-out',
-                                        boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
-                                    }}>
+                                        boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none',
+                                        position: 'relative', cursor: veiculo ? 'default' : 'default'
+                                    }}
+                                        onMouseEnter={() => setHoveredDocaR(doca)}
+                                        onMouseLeave={() => setHoveredDocaR(null)}
+                                    >
                                         <div style={{
                                             fontSize: '12px', fontWeight: '700', color: textCor,
                                             ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
@@ -536,6 +567,19 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                             color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
                                             marginTop: '2px', fontWeight: livre ? '700' : 'normal'
                                         }}>{statusDoca || 'Livre'}</div>
+                                        {isHovered && veiculo && (
+                                            <div style={{
+                                                position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
+                                                background: tema === 'light' ? '#1e293b' : '#0f172a',
+                                                border: '1px solid #3b82f6', borderRadius: '8px',
+                                                padding: '8px 12px', zIndex: 999, whiteSpace: 'nowrap',
+                                                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                                                pointerEvents: 'none'
+                                            }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
+                                                {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -1095,6 +1139,7 @@ function StatusBars({ dados, t }) {
 function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, tema, ocorrenciasHoje = [] }) {
     const veiculosMoreno = veiculos.filter(v => ehOperacaoMoreno(v.operacao));
     const totalMoreno = veiculosMoreno.length;
+    const [hoveredDocaM, setHoveredDocaM] = useState(null);
 
     // Sub-contadores
     const contOp = { porcelana: 0, eletrik: 0, deltaMoreno: 0, deltaRxM: 0 };
@@ -1143,6 +1188,14 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         }
     });
 
+    // Mapa doca → veículo para tooltip
+    const docaVeiculoMapM = {};
+    veiculosMoreno.forEach(v => {
+        const doca = v.doca_moreno;
+        if (!doca || doca === 'SELECIONE') return;
+        docaVeiculoMapM[doca] = { motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' };
+    });
+
     // Fluxo CT-e para Moreno
     const aguardandoCte = veiculosMoreno.filter(v => v.status_moreno === 'LIBERADO P/ CT-e').length;
     const emEmissaoCte = ctesMoreno.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
@@ -1157,6 +1210,8 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         const bgCor = livre ? 'rgba(52,211,153,0.10)' : (cor ? `${cor.border}20` : 'transparent');
         const borderCor = livre ? '#34d399' : (cor ? cor.border : 'transparent');
         const textCor = livre ? '#34d399' : (cor ? cor.text : 'inherit');
+        const veiculo = docaVeiculoMapM[doca];
+        const isHovered = hoveredDocaM === doca;
 
         if (statusDoca === 'FULGAZ') {
             return (
@@ -1165,8 +1220,11 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                     background: tema === 'light' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(239, 68, 68, 0.2)',
                     border: `1px solid ${tema === 'light' ? '#dc2626' : '#ef4444'}`,
                     boxShadow: tema === 'light' ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 0 12px rgba(239, 68, 68, 0.4)',
-                    transition: 'all 0.5s ease-in-out'
-                }}>
+                    transition: 'all 0.5s ease-in-out', position: 'relative', cursor: 'default'
+                }}
+                    onMouseEnter={() => setHoveredDocaM(doca)}
+                    onMouseLeave={() => setHoveredDocaM(null)}
+                >
                     <div style={{
                         fontSize: '11px', fontWeight: '900',
                         color: tema === 'light' ? '#991b1b' : '#fca5a5',
@@ -1177,6 +1235,19 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         color: tema === 'light' ? '#dc2626' : '#ef4444',
                         marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
                     }}>CONTAINER</div>
+                    {isHovered && veiculo && (
+                        <div style={{
+                            position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
+                            background: tema === 'light' ? '#1e293b' : '#0f172a',
+                            border: '1px solid #fbbf24', borderRadius: '8px',
+                            padding: '8px 12px', zIndex: 999, whiteSpace: 'nowrap',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                            pointerEvents: 'none'
+                        }}>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
+                            {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -1186,8 +1257,12 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                 padding: '10px 6px', borderRadius: '10px', textAlign: 'center',
                 background: bgCor, border: `1px solid ${borderCor}${tema === 'light' ? '80' : '50'}`,
                 transition: 'all 0.5s ease-in-out',
-                boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none'
-            }}>
+                boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none',
+                position: 'relative', cursor: 'default'
+            }}
+                onMouseEnter={() => setHoveredDocaM(doca)}
+                onMouseLeave={() => setHoveredDocaM(null)}
+            >
                 <div style={{
                     fontSize: '11px', fontWeight: '700', color: textCor,
                     ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
@@ -1197,6 +1272,19 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                     color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
                     marginTop: '2px', fontWeight: livre ? '700' : 'normal'
                 }}>{statusDoca || 'Livre'}</div>
+                {isHovered && veiculo && (
+                    <div style={{
+                        position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
+                        background: tema === 'light' ? '#1e293b' : '#0f172a',
+                        border: '1px solid #fbbf24', borderRadius: '8px',
+                        padding: '8px 12px', zIndex: 999, whiteSpace: 'nowrap',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                        pointerEvents: 'none'
+                    }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
+                        {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                    </div>
+                )}
             </div>
         );
     };

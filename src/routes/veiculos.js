@@ -847,7 +847,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             pausas.push({ inicio: new Date().toISOString(), fim: null, motivo: motivo || '', unidade });
             await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
 
-            io.emit('receber_atualizacao', { tipo: 'atualizar_veiculo', id: Number(veiculo_id) });
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculo_id) });
             console.log(`⏸ [Pausa] Veículo #${veiculo_id} pausado por ${req.user?.nome || 'desconhecido'} | Motivo: "${motivo}"`);
             await registrarLog('PAUSA_INICIADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, motivo);
 
@@ -875,7 +875,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             pausas[idx].fim = new Date().toISOString();
             await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
 
-            io.emit('receber_atualizacao', { tipo: 'atualizar_veiculo', id: Number(veiculo_id) });
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculo_id) });
             console.log(`▶ [Retomada] Veículo #${veiculo_id} retomado por ${req.user?.nome || 'desconhecido'}`);
             await registrarLog('PAUSA_FINALIZADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, null);
 

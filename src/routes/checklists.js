@@ -46,23 +46,7 @@ module.exports = function createChecklistsRouter(io) {
 
     router.get('/api/checklists', authMiddleware, async (req, res) => {
         try {
-            const cidade = req.user.cidade;
-            const cargo = req.user.cargo;
-            const filtrarPorCidade = ['Conferente', 'Encarregado'].includes(cargo);
-            let checklists;
-            if (filtrarPorCidade && cidade && cidade !== 'Ambas') {
-                const cidadeFiltro = cidade === 'Moreno'
-                    ? `(v.inicio_rota = 'Moreno' OR (v.coletamoreno IS NOT NULL AND v.coletamoreno != ''))`
-                    : `(v.coletarecife IS NOT NULL AND v.coletarecife != '')`;
-                checklists = await dbAll(
-                    `SELECT c.* FROM checklists_carreta c
-                     JOIN veiculos v ON v.id = c.veiculo_id
-                     WHERE ${cidadeFiltro}
-                     ORDER BY c.id DESC`
-                );
-            } else {
-                checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
-            }
+            const checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
             const formatted = checklists.map(c => ({
                 ...c,
                 placa_confere: c.placa_confere === 1
