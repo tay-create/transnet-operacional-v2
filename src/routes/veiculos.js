@@ -130,6 +130,18 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const v = req.body;
             const data_criacao = obterDataHoraBrasilia();
 
+            // Validar coleta obrigatória conforme unidade da operação
+            const temColetaRecife = (v.coletaRecife || '').trim().length > 0;
+            const temColetaMoreno = (v.coletaMoreno || '').trim().length > 0;
+            const ehRecife = v.operacao && /RECIFE/i.test(v.operacao);
+            const ehMoreno = v.operacao && /MORENO/i.test(v.operacao);
+            if (ehRecife && !temColetaRecife) {
+                return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
+            }
+            if (ehMoreno && !temColetaMoreno) {
+                return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
+            }
+
             // Herdar dados de checklist/liberação do cadastro do motorista do frontend como fallback, 
             // mas tentar buscar o mais atualizado pelo telefone, se existir
             let chk_cnh = v.chk_cnh ? 1 : 0, chk_antt = v.chk_antt ? 1 : 0, chk_tacografo = v.chk_tacografo ? 1 : 0, chk_crlv = v.chk_crlv ? 1 : 0;
