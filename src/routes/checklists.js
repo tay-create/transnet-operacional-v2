@@ -53,7 +53,7 @@ module.exports = function createChecklistsRouter(io) {
             if (filtrarPorCidade && cidade && cidade !== 'Ambas') {
                 const cidadeFiltro = cidade === 'Moreno'
                     ? `(v.inicio_rota = 'Moreno' OR (v.coletamoreno IS NOT NULL AND v.coletamoreno != ''))`
-                    : `(v.inicio_rota = 'Recife' AND (v.coletamoreno IS NULL OR v.coletamoreno = ''))`;
+                    : `(v.coletarecife IS NOT NULL AND v.coletarecife != '')`;
                 checklists = await dbAll(
                     `SELECT c.* FROM checklists_carreta c
                      JOIN veiculos v ON v.id = c.veiculo_id
