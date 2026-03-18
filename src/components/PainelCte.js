@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Copy } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
@@ -13,10 +13,15 @@ export default function PainelCte({
     filtroDataFimCte,
     setFiltroDataInicioCte,
     setFiltroDataFimCte,
+    carregarCtes,
     updateListCte,
     podeEditar,
     setToastCopiaMsg
 }) {
+    // Rebuscar do backend quando as datas mudam
+    useEffect(() => {
+        if (carregarCtes) carregarCtes(filtroDataInicioCte, filtroDataFimCte);
+    }, [filtroDataInicioCte, filtroDataFimCte]); // eslint-disable-line
     const isRecife = abaAtiva === 'cte_recife';
     const listaCtes = isRecife ? ctesRecife : ctesMoreno;
     const setListaAtual = isRecife ? setCtesRecife : setCtesMoreno;

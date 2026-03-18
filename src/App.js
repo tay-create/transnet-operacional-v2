@@ -484,9 +484,10 @@ function App({ socket }) {
     };
 
     // Busca CT-es ativos do banco SQLite
-    const carregarCtes = async () => {
+    const carregarCtes = async (dataInicio, dataFim) => {
         try {
-            const response = await api.get('/ctes');
+            const params = dataInicio && dataFim ? `?dataInicio=${dataInicio}&dataFim=${dataFim}` : '';
+            const response = await api.get(`/ctes${params}`);
             if (response.data.success) {
                 const todos = response.data.ctes || [];
                 setCtesRecife(todos.filter(c => c.origem === 'Recife'));
@@ -1252,6 +1253,7 @@ function App({ socket }) {
                         filtroDataFimCte={filtroDataFimCte}
                         setFiltroDataInicioCte={setFiltroDataInicioCte}
                         setFiltroDataFimCte={setFiltroDataFimCte}
+                        carregarCtes={carregarCtes}
                         updateListCte={updateListCte}
                         podeEditar={podeEditar}
                         setToastCopiaMsg={setToastCopiaMsg}

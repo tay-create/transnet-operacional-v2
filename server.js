@@ -1063,9 +1063,11 @@ app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Plane
 app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
         const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
+        const dataInicio = req.query.dataInicio || hoje;
+        const dataFim = req.query.dataFim || hoje;
         const rows = await dbAll(
-            "SELECT * FROM ctes_ativos WHERE data_criacao::date = $1::date ORDER BY id ASC",
-            [hoje]
+            "SELECT * FROM ctes_ativos WHERE data_criacao::date BETWEEN $1::date AND $2::date ORDER BY id ASC",
+            [dataInicio, dataFim]
         );
         const lista = rows.map(row => {
             try {
