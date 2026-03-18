@@ -1062,7 +1062,11 @@ app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Plane
 // Listar todos os CT-es ativos
 app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
-        const rows = await dbAll("SELECT * FROM ctes_ativos ORDER BY id ASC");
+        const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
+        const rows = await dbAll(
+            "SELECT * FROM ctes_ativos WHERE data_criacao::date = $1::date ORDER BY id ASC",
+            [hoje]
+        );
         const lista = rows.map(row => {
             try {
                 const dados = JSON.parse(row.dados_json);
