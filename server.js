@@ -1809,10 +1809,15 @@ async function verificarExpiracaoLiberacoes() {
 
         const motoristas = await dbAll(
             `SELECT id, nome_motorista, placa1, num_liberacao_cad, data_liberacao_cad, disponibilidade
-             FROM marcacoes_placas
+             FROM marcacoes_placas mp
              WHERE data_liberacao_cad IS NOT NULL
                AND (disponibilidade IS NULL OR disponibilidade NOT IN ('Contratado', 'Indisponível'))
-               AND situacao_cad = 'LIBERADO'`
+               AND situacao_cad = 'LIBERADO'
+               AND NOT EXISTS (
+                   SELECT 1 FROM veiculos v
+                   WHERE LOWER(TRIM(v.motorista)) = LOWER(TRIM(mp.nome_motorista))
+                     AND v.status_cte = 'Emitido'
+               )`
         );
 
         for (const m of motoristas) {

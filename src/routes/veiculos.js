@@ -342,7 +342,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 const mudouParaCarregamentoMoreno =
                     v.status_moreno === 'EM CARREGAMENTO' &&
                     veiculoAntigo.status_moreno !== 'EM CARREGAMENTO';
-                if ((mudouParaCarregamentoRecife || mudouParaCarregamentoMoreno) && situacao === 'LIBERADO') {
+                if ((mudouParaCarregamentoRecife || mudouParaCarregamentoMoreno) && situacao === 'LIBERADO' && veiculoAntigo.status_cte !== 'Emitido') {
                     const dataLib = veiculoAntigo.data_liberacao || dadosAntigos.data_liberacao;
                     if (dataLib) {
                         const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';

@@ -299,14 +299,17 @@ module.exports = function createChecklistsRouter(io) {
                         }
 
                         // Verificar expiração de 24h da liberação (coluna tem prioridade sobre dados_json)
-                        const dataLib = veiculo.data_liberacao || dados.data_liberacao;
-                        if (dataLib) {
-                            const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
-                            const idadeMs = Date.now() - new Date(dataLibStr).getTime();
-                            if (idadeMs > 24 * 60 * 60 * 1000) {
-                                const horas = Math.floor(idadeMs / 3600000);
-                                console.warn(`🔒 [Conferente/${cidade}] BLOQUEADO - Veículo #${veiculoId} (${veiculo.motorista}): Liberação expirada há ${horas}h`);
-                                return res.status(403).json({ success: false, expired: true, message: 'Liberação expirada (mais de 24h). Solicite renovação no Cadastro.' });
+                        // Pula verificação se CT-e já foi emitido
+                        if (veiculo.status_cte !== 'Emitido') {
+                            const dataLib = veiculo.data_liberacao || dados.data_liberacao;
+                            if (dataLib) {
+                                const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
+                                const idadeMs = Date.now() - new Date(dataLibStr).getTime();
+                                if (idadeMs > 24 * 60 * 60 * 1000) {
+                                    const horas = Math.floor(idadeMs / 3600000);
+                                    console.warn(`🔒 [Conferente/${cidade}] BLOQUEADO - Veículo #${veiculoId} (${veiculo.motorista}): Liberação expirada há ${horas}h`);
+                                    return res.status(403).json({ success: false, expired: true, message: 'Liberação expirada (mais de 24h). Solicite renovação no Cadastro.' });
+                                }
                             }
                         }
                     }
@@ -507,14 +510,17 @@ module.exports = function createChecklistsRouter(io) {
                 }
 
                 // Trava de expiração 24h (coluna tem prioridade sobre dados_json)
-                const dataLib = veiculo.data_liberacao || dados.data_liberacao;
-                if (dataLib) {
-                    const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
-                    if ((Date.now() - new Date(dataLibStr).getTime()) > 24 * 60 * 60 * 1000) {
-                        return res.status(403).json({
-                            success: false,
-                            message: 'Liberação expirada (mais de 24h). Solicite renovação no Cadastro.'
-                        });
+                // Pula verificação se CT-e já foi emitido
+                if (veiculo.status_cte !== 'Emitido') {
+                    const dataLib = veiculo.data_liberacao || dados.data_liberacao;
+                    if (dataLib) {
+                        const dataLibStr = dataLib.endsWith('Z') ? dataLib : dataLib + 'Z';
+                        if ((Date.now() - new Date(dataLibStr).getTime()) > 24 * 60 * 60 * 1000) {
+                            return res.status(403).json({
+                                success: false,
+                                message: 'Liberação expirada (mais de 24h). Solicite renovação no Cadastro.'
+                            });
+                        }
                     }
                 }
             }
