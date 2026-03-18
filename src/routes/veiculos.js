@@ -909,5 +909,59 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         }
     });
 
+    // ── Finalizar Operação (manual) ────────────────────────────────────────
+    // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
+    router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+        try {
+            const { unidade } = req.body; // 'Recife' ou 'Moreno'
+            if (!unidade || !['Recife', 'Moreno'].includes(unidade)) {
+                return res.status(400).json({ success: false, message: 'Unidade inválida.' });
+            }
+
+            // Calcular próximo dia útil (pula domingo)
+            const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const prox = new Date(agora);
+            prox.setDate(prox.getDate() + 1);
+            if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // domingo → segunda
+            const amanhaStr = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, '0')}-${String(prox.getDate()).padStart(2, '0')}`;
+
+            const campoStatus = unidade === 'Recife' ? 'status_recife' : 'status_moreno';
+            const statusParaAvancar = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
+
+            const query = `
+                UPDATE veiculos
+                SET data_prevista = ?
+                WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
+                  AND data_prevista < ?
+            `;
+            const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, amanhaStr]);
+
+            // Avançar CT-es "Aguardando Emissão" associados
+            const ctesAguardando = await dbAll("SELECT id, dados_json FROM ctes_ativos WHERE status = 'Aguardando Emissão'");
+            let ctesAtualizados = 0;
+            for (const cte of ctesAguardando) {
+                try {
+                    const dados = JSON.parse(cte.dados_json);
+                    dados.data_entrada_cte = new Date(amanhaStr + 'T12:00:00').toLocaleDateString('pt-BR');
+                    await dbRun("UPDATE ctes_ativos SET dados_json = ? WHERE id = ?", [JSON.stringify(dados), cte.id]);
+                    ctesAtualizados++;
+                } catch (_) {}
+            }
+
+            console.log(`[FINALIZAR] ${unidade}: ${resultado.changes} veículos → ${amanhaStr} | CT-es avançados: ${ctesAtualizados} | por ${req.user.nome}`);
+            io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
+
+            res.json({
+                success: true,
+                message: `${resultado.changes} veículo(s) avançado(s) para ${amanhaStr.split('-').reverse().join('/')}`,
+                veiculosAvancados: resultado.changes,
+                ctesAvancados: ctesAtualizados
+            });
+        } catch (e) {
+            console.error('Erro ao finalizar operação:', e);
+            res.status(500).json({ success: false, message: 'Erro ao finalizar operação.' });
+        }
+    });
+
     return router;
 };

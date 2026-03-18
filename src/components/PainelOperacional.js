@@ -129,6 +129,8 @@ export default function PainelOperacional({
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [modalPausaAberto, setModalPausaAberto] = useState(false);
     const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
+    const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
+    const [finalizando, setFinalizando] = useState(false);
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -421,6 +423,28 @@ export default function PainelOperacional({
                                         </button>
                                     );
                                 })()}
+                                {podeEditarNaUnidade('operacao') && (
+                                    <button
+                                        onClick={() => setConfirmarFinalizar(true)}
+                                        title="Finalizar operação: avança cards pendentes para o próximo dia útil"
+                                        style={{
+                                            marginLeft: '8px',
+                                            padding: '4px 12px',
+                                            fontSize: '11px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            background: 'rgba(239,68,68,0.15)',
+                                            border: '1px solid rgba(239,68,68,0.4)',
+                                            color: '#f87171',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontWeight: '700'
+                                        }}
+                                    >
+                                        ✕ FINALIZAR
+                                    </button>
+                                )}
                             </h2>
                             <div style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
                                 <span className="badge-neon-pill" style={{ display: 'inline-block' }}>
@@ -1249,6 +1273,32 @@ export default function PainelOperacional({
                         liberarParaCte(lista, setLista, ri, o);
                     }}
                     onCancel={() => setConfirmarLiberadoCte(null)}
+                />
+            )}
+
+            {/* Modal de Confirmação — Finalizar Operação */}
+            {confirmarFinalizar && (
+                <ModalConfirm
+                    titulo={`Finalizar Operação — ${origem}`}
+                    mensagem="Isso vai avançar todos os veículos pendentes (Aguardando até Em Carregamento) para o próximo dia útil. Deseja continuar?"
+                    textConfirm={finalizando ? 'Aguarde...' : 'Finalizar'}
+                    textCancel="Cancelar"
+                    variante="perigo"
+                    onConfirm={async () => {
+                        if (finalizando) return;
+                        setFinalizando(true);
+                        try {
+                            const r = await api.post('/veiculos/finalizar-operacao', { unidade: origem });
+                            mostrarNotificacao?.(`✅ ${r.data.message}`);
+                            setConfirmarFinalizar(false);
+                        } catch (err) {
+                            const msg = err.response?.data?.message || 'Erro ao finalizar operação.';
+                            mostrarNotificacao?.(`⚠️ ${msg}`);
+                        } finally {
+                            setFinalizando(false);
+                        }
+                    }}
+                    onCancel={() => { if (!finalizando) setConfirmarFinalizar(false); }}
                 />
             )}
 
