@@ -33,7 +33,7 @@ export default function ConferenteLogin({ onLoginSuccess }) {
 
             const userData = data.usuario || data.user;
             if (data.success && userData) {
-                if (!['Conferente', 'Encarregado'].includes(userData.cargo)) {
+                if (!['Conferente', 'Encarregado', 'Coordenador'].includes(userData.cargo)) {
                     setErro('Acesso restrito a conferentes. Entre com uma conta de conferente.');
                     setLoading(false);
                     return;
