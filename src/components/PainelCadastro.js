@@ -218,6 +218,7 @@ export default function PainelCadastro({ user, socket }) {
     }
 
     async function salvar(id) {
+        if (salvando === id) return;
         setSalvando(id);
         try {
             const dados = edicoes[id] || {};
@@ -265,6 +266,7 @@ export default function PainelCadastro({ user, socket }) {
     }
 
     async function salvarOperacao(id) {
+        if (salvandoOp === id) return;
         setSalvandoOp(id);
         try {
             const dados = edicoesOp[id] || {};
@@ -306,6 +308,7 @@ export default function PainelCadastro({ user, socket }) {
     }
 
     async function salvarFrota(id) {
+        if (salvandoFrota === id) return;
         setSalvandoFrota(id);
         try {
             const dados = edicoesFrota[id] || {};
