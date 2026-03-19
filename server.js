@@ -711,7 +711,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
             enviarNotificacao('notificacao_direcionada', {
                 mensagem: `Checklist de ${placaDesc} atualizado — ${situacao}`,
                 situacao,
-                cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado'],
+                cargos_alvo: ['Cadastro', 'Encarregado'],
                 data_criacao: new Date().toISOString()
             });
         }
@@ -855,7 +855,7 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
         enviarNotificacao('notificacao_direcionada', {
             mensagem: `Checklist de ${motoristaNome} atualizado — ${situacao}`,
             situacao,
-            cargos_alvo: ['Coordenador', 'Cadastro', 'Encarregado'],
+            cargos_alvo: ['Cadastro', 'Encarregado'],
             veiculoId: Number(req.params.id),
             data_criacao: new Date().toISOString()
         });
