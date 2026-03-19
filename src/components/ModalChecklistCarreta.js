@@ -149,7 +149,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             const msg = res.data?.status === 'APROVADO'
                 ? 'Checklist aprovado automaticamente!'
                 : 'Checklist enviado e pendente de aprovação!';
-            if (onSucesso) onSucesso(msg);
+            if (onSucesso) onSucesso(msg, res.data?.status);
             if (!backMode && onClose) onClose();
         } catch (err) {
             setErro(err.response?.data?.message || 'Erro ao enviar checklist. Tente novamente.');
