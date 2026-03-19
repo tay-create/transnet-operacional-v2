@@ -1,6 +1,6 @@
 {
   "name": "aplicativo-transnet",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "private": true,
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -59,6 +59,7 @@
   "build": {
     "appId": "com.transnet.operacional",
     "productName": "Transnet Operacional",
+    "artifactName": "Transnet.Operacional.${version}.${ext}",
     "extends": null,
     "files": [
       "electron/main.js",
