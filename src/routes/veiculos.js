@@ -952,7 +952,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
     // ── Finalizar Operação (manual) ────────────────────────────────────────
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
-    router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
         try {
             const { unidade, confirmarMisto } = req.body; // 'Recife' ou 'Moreno'
             if (!unidade || !['Recife', 'Moreno'].includes(unidade)) {

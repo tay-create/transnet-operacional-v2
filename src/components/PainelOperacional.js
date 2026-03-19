@@ -432,10 +432,10 @@ export default function PainelOperacional({
                                         </button>
                                     );
                                 })()}
-                                {podeEditarNaUnidade('operacao') && (
+                                {origem === 'Recife' && (podeEditarNaUnidade('operacao') || user.cargo === 'Conhecimento') && (
                                     <button
                                         onClick={() => setConfirmarFinalizar(true)}
-                                        title="Finalizar operação: avança cards pendentes para o próximo dia útil"
+                                        title="Finalizar operação: avança cards pendentes para o próximo dia útil (ambas as unidades)"
                                         style={{
                                             marginLeft: '8px',
                                             padding: '4px 12px',
@@ -1281,11 +1281,11 @@ export default function PainelOperacional({
                 />
             )}
 
-            {/* Modal de Confirmação — Finalizar Operação */}
+            {/* Modal de Confirmação — Finalizar Operação (ambas unidades) */}
             {confirmarFinalizar && (
                 <ModalConfirm
-                    titulo={`Finalizar Operação — ${origem}`}
-                    mensagem="Isso vai avançar todos os veículos pendentes (Aguardando até Em Carregamento) para o próximo dia útil. Deseja continuar?"
+                    titulo="Finalizar Operação — Recife + Moreno"
+                    mensagem="Isso vai avançar todos os veículos pendentes (Aguardando até Em Carregamento) de AMBAS as unidades para o próximo dia útil. Deseja continuar?"
                     textConfirm={finalizando ? 'Aguarde...' : 'Finalizar'}
                     textCancel="Cancelar"
                     variante="perigo"
@@ -1293,14 +1293,14 @@ export default function PainelOperacional({
                         if (finalizando) return;
                         setFinalizando(true);
                         try {
-                            const r = await api.post('/veiculos/finalizar-operacao', { unidade: origem });
-                            if (r.data.requerConfirmacao) {
-                                setConfirmarFinalizar(false);
-                                setConfirmarMisto({ conflitos: r.data.conflitos, detalhes: r.data.detalhes || [] });
-                            } else {
-                                mostrarNotificacao?.(`✅ ${r.data.message}`);
-                                setConfirmarFinalizar(false);
-                            }
+                            // Finaliza Recife
+                            const r1 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Recife', confirmarMisto: true });
+                            // Finaliza Moreno
+                            const r2 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Moreno', confirmarMisto: true });
+                            const totalRec = r1.data.veiculosAvancados || 0;
+                            const totalMor = r2.data.veiculosAvancados || 0;
+                            mostrarNotificacao?.(`✅ Finalizado! Recife: ${totalRec} veículo(s) | Moreno: ${totalMor} veículo(s)`);
+                            setConfirmarFinalizar(false);
                         } catch (err) {
                             const msg = err.response?.data?.message || 'Erro ao finalizar operação.';
                             mostrarNotificacao?.(`⚠️ ${msg}`);
@@ -1309,32 +1309,6 @@ export default function PainelOperacional({
                         }
                     }}
                     onCancel={() => { if (!finalizando) setConfirmarFinalizar(false); }}
-                />
-            )}
-
-            {/* Modal de Confirmação — Status Misto */}
-            {confirmarMisto && (
-                <ModalConfirm
-                    titulo={`Atenção — Veículos em Andamento (${origem})`}
-                    mensagem={`${confirmarMisto.conflitos} veículo(s) ainda estão em processamento na outra unidade. Avançar irá reprogramá-los para o próximo dia útil. Deseja continuar mesmo assim?`}
-                    textConfirm={finalizando ? 'Aguarde...' : 'Avançar mesmo assim'}
-                    textCancel="Cancelar"
-                    variante="perigo"
-                    onConfirm={async () => {
-                        if (finalizando) return;
-                        setFinalizando(true);
-                        try {
-                            const r = await api.post('/veiculos/finalizar-operacao', { unidade: origem, confirmarMisto: true });
-                            mostrarNotificacao?.(`✅ ${r.data.message}`);
-                            setConfirmarMisto(null);
-                        } catch (err) {
-                            const msg = err.response?.data?.message || 'Erro ao finalizar operação.';
-                            mostrarNotificacao?.(`⚠️ ${msg}`);
-                        } finally {
-                            setFinalizando(false);
-                        }
-                    }}
-                    onCancel={() => { if (!finalizando) setConfirmarMisto(null); }}
                 />
             )}
 
