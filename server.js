@@ -36,13 +36,13 @@ app.set('trust proxy', 1);
 // Mapeamento estático: tipo de notificação → cargos que a recebem
 const DESTINATARIOS_NOTIFICACAO = {
     'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
-    'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
+    'veiculo_carregado':   ['Planejamento'],
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
-    'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
-    'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
-    'nova_marcacao_coord': ['Coordenador'],
-    'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
+    'nova_ocorrencia':     ['Pos Embarque'],
+    'nova_marcacao':       ['Pos Embarque'],
+    'nova_marcacao_coord': [],
+    'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
 };
 
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
