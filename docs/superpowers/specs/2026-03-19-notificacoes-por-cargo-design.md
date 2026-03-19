@@ -11,15 +11,17 @@ Restringir quais tipos de notificação cada cargo recebe, eliminando ruído e g
 
 - **Cadastro** — deve receber apenas: Ger. Risco (liberações) e Liberar p/ Doca
 - **Conhecimento** — deve receber apenas: Ger. Risco (liberações), Liberar p/ Doca e Aceite CT-e
-- **Coordenador** — não deve mais receber notificações de marcação de placa (`nova_marcacao_coord`)
+- **Coordenador** — não deve mais receber notificações de marcação de placa
 
 ## Mudanças no mapa de destinatários
 
-Dois arquivos mantêm mapas paralelos de destinatários por tipo de notificação:
-- **Frontend:** `src/App.js` → `DESTINATARIOS_ALERTA`
-- **Backend:** `server.js` → `DESTINATARIOS_NOTIFICACAO`
+Dois arquivos mantêm mapas paralelos de destinatários:
+- **Frontend:** `src/App.js` → `DESTINATARIOS_ALERTA` (filtra no cliente via `handleReceberAlerta`)
+- **Backend:** `server.js` → `DESTINATARIOS_NOTIFICACAO` (filtra ao servir GET `/notificacoes`)
 
-Ambos devem ser atualizados de forma idêntica:
+> **Nota:** o tipo `doca` é emitido pelo frontend via `socket.emit('enviar_alerta', ...)`, portanto só precisa ser adicionado ao mapa do frontend. Adicioná-lo ao backend é uma no-op para o fluxo em tempo real (mas pode ser feito por simetria documental).
+
+### Frontend — `src/App.js` `DESTINATARIOS_ALERTA`
 
 | Tipo | Antes | Depois |
 |---|---|---|
@@ -31,9 +33,13 @@ Ambos devem ser atualizados de forma idêntica:
 | `aviso` | `['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional']` | `['Planejamento', 'Encarregado', 'Aux. Operacional']` |
 | `aceite_cte_pendente` | `['Conhecimento', 'Planejamento']` | *(sem mudança)* |
 
+### Backend — `server.js` `DESTINATARIOS_NOTIFICACAO`
+
+Mesmas mudanças acima, exceto `doca` (não se aplica ao fluxo de persistência).
+
 ## Mudanças nos eventos `notificacao_direcionada`
 
-Esses eventos definem `cargos_alvo` diretamente no payload, sem passar pelos mapas acima.
+Esses eventos definem `cargos_alvo` diretamente no payload, independente dos mapas acima.
 
 ### `server.js` — checklist atualizado (2 pontos)
 
@@ -47,8 +53,21 @@ Esses eventos definem `cargos_alvo` diretamente no payload, sem passar pelos map
 
 ### `src/routes/checklists.js` — status conferente LIBERADO P/ DOCA
 
-- **~linha 399**: `cargosAlvo.push('Cadastro', 'Conhecimento')` com base inicial `['Auxiliar Operacional']`
-  → Mudar base para `[]` quando status for LIBERADO P/ DOCA, resultando em `['Cadastro', 'Conhecimento']`
+Código atual:
+```js
+const cargosAlvo = ['Auxiliar Operacional'];
+if (novoStatus === 'LIBERADO P/ DOCA') {
+    cargosAlvo.push('Cadastro', 'Conhecimento');
+}
+```
+
+`Auxiliar Operacional` não deve receber o evento LIBERADO P/ DOCA (repete o fluxo do `doca`, que é exclusivo para Cadastro e Conhecimento). Mudança: quando `novoStatus === 'LIBERADO P/ DOCA'`, o array deve ser `['Cadastro', 'Conhecimento']` sem incluir `Aux. Operacional`.
+
+```js
+const cargosAlvo = novoStatus === 'LIBERADO P/ DOCA'
+    ? ['Cadastro', 'Conhecimento']
+    : ['Auxiliar Operacional'];
+```
 
 ## Resultado esperado por cargo
 
@@ -56,10 +75,11 @@ Esses eventos definem `cargos_alvo` diretamente no payload, sem passar pelos map
 |---|---|
 | Cadastro | `doca`, `liberacao_expirada`, `liberacao_vencendo`, checklist atualizado |
 | Conhecimento | `doca`, `aceite_cte_pendente`, `liberacao_expirada`, `liberacao_vencendo` |
-| Coordenador | `admin_cadastro`, `admin_senha`, `nova_marcacao_coord` (vazio), `admin_config_mudou` |
+| Coordenador | `admin_cadastro`, `admin_senha`, `admin_config_mudou`, `programacao_gerada` |
 | Pos Embarque | `nova_marcacao`, `nova_ocorrencia` |
 | Planejamento | `aceite_cte_pendente`, `veiculo_carregado`, `aviso`, `programacao_gerada` |
 | Encarregado | `aviso`, checklist atualizado, `liberacao_expirada`, `liberacao_vencendo` |
+| Aux. Operacional | `aviso`, `status_conferente` (outros status, não LIBERADO P/ DOCA) |
 
 ## Arquivos a modificar
 
