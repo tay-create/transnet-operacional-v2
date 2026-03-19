@@ -392,11 +392,12 @@ module.exports = function createChecklistsRouter(io) {
                 const coletaInfo = coletaNum ? ` | Coleta: ${coletaNum}` : '';
 
                 // Todos os status → notifica Auxiliar Operacional
-                const cargosAlvo = ['Auxiliar Operacional'];
+                const cargosAlvo = novoStatus === 'LIBERADO P/ DOCA'
+                    ? ['Cadastro', 'Conhecimento']
+                    : ['Auxiliar Operacional'];
 
                 // LIBERADO P/ DOCA → também notifica Cadastro e Conhecimento
                 if (novoStatus === 'LIBERADO P/ DOCA') {
-                    cargosAlvo.push('Cadastro', 'Conhecimento');
                     io.emit('conferente_novo_veiculo', {
                         veiculoId,
                         motorista: motoristaNome,

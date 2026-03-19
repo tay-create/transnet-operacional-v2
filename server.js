@@ -1847,7 +1847,7 @@ async function verificarExpiracaoLiberacoes() {
                     await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
                         tipo: 'liberacao_expirada',
-                        cargos_alvo: ['Cadastro', 'Encarregado', 'Planejamento'],
+                        cargos_alvo: ['Cadastro', 'Conhecimento', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
@@ -1870,7 +1870,7 @@ async function verificarExpiracaoLiberacoes() {
                     await enviarNotificacao('notificacao_direcionada', {
                         mensagem: msg,
                         tipo: 'liberacao_vencendo',
-                        cargos_alvo: ['Cadastro', 'Encarregado', 'Planejamento'],
+                        cargos_alvo: ['Cadastro', 'Conhecimento', 'Encarregado', 'Planejamento'],
                         motorista: nome,
                         placa,
                         num_liberacao: m.num_liberacao_cad,
