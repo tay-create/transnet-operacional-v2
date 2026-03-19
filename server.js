@@ -2012,6 +2012,7 @@ app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planej
             [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '']
         );
         await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
+        io.emit('saldo_paletes_update');
         res.json({ success: true, id: result.lastID || result.id });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -2035,6 +2036,7 @@ app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordena
             [devPbr, devDesc, todosDevolvidos, id]
         );
         await registrarLog('PALETE_DEVOLUCAO', req.user?.nome || '?', id, 'palete', null, null, `PBR: ${devPbr}, Desc: ${devDesc}`);
+        io.emit('saldo_paletes_update');
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -2043,6 +2045,7 @@ app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador']),
     try {
         await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
         await registrarLog('PALETE_DELETADO', req.user?.nome || '?', req.params.id, 'palete', null, null, null);
+        io.emit('saldo_paletes_update');
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

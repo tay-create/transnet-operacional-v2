@@ -66,7 +66,7 @@ const PRIORIDADE_STATUS = {
     'EM CARREGAMENTO': 3, 'CARREGADO': 4, 'LIBERADO P/ CT-e': 5
 };
 
-export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair }) {
+export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
     const [tempoRotacao, setTempoRotacao] = useState(20);
@@ -117,12 +117,30 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 if (!unmounted && r.data?.success) setPaletesHoje(r.data.registros || []);
             }).catch(() => { });
         };
-        fetchDocas();
-        fetchOcorrencias();
-        fetchPaletes();
-        const pollTimer = setInterval(() => { fetchDocas(); fetchOcorrencias(); fetchPaletes(); }, 10000);
-        return () => { unmounted = true; clearInterval(pollTimer); };
-    }, []);
+
+        // Carga inicial
+        fetchDocas(); fetchOcorrencias(); fetchPaletes();
+
+        // Atualizar via socket em vez de polling
+        const handleDocas = () => { if (!unmounted) fetchDocas(); };
+        const handleOcorrencias = () => { if (!unmounted) fetchOcorrencias(); };
+        const handlePaletes = () => { if (!unmounted) fetchPaletes(); };
+
+        if (socket) {
+            socket.on('docas_interditadas_update', handleDocas);
+            socket.on('ocorrencias_update', handleOcorrencias);
+            socket.on('saldo_paletes_update', handlePaletes);
+        }
+
+        return () => {
+            unmounted = true;
+            if (socket) {
+                socket.off('docas_interditadas_update', handleDocas);
+                socket.off('ocorrencias_update', handleOcorrencias);
+                socket.off('saldo_paletes_update', handlePaletes);
+            }
+        };
+    }, [socket]);
 
     useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });

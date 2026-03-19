@@ -43,6 +43,7 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
                     criador,
                     data_criacao: new Date().toISOString()
                 });
+                io.emit('ocorrencias_update');
             }
 
             res.json({ success: true, id: result.lastID });
@@ -73,7 +74,10 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
     router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
         try {
             await dbRun("DELETE FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
-            if (io) io.emit('receber_atualizacao', { tipo: 'ocorrencia_deletada', id: req.params.id });
+            if (io) {
+                io.emit('receber_atualizacao', { tipo: 'ocorrencia_deletada', id: req.params.id });
+                io.emit('ocorrencias_update');
+            }
             res.json({ success: true });
         } catch (e) {
             console.error('Erro ao buscar ocorrências:', e);

@@ -1167,6 +1167,7 @@ function App({ socket }) {
                     listaVeiculos={listaVeiculos}
                     ctesRecife={ctesRecifeHoje}
                     ctesMoreno={ctesMorenoHoje}
+                    socket={socket}
                     onSair={() => {
                         if (temAcesso('operacao') && podeVerUnidade('Recife')) setAbaAtiva('op_recife');
                         else if (temAcesso('operacao') && podeVerUnidade('Moreno')) setAbaAtiva('op_moreno');
