@@ -39,12 +39,13 @@ const DESTINATARIOS_ALERTA = {
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
     'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
-    'veiculo_carregado':   ['Conhecimento', 'Planejamento'],
+    'veiculo_carregado':   ['Planejamento'],
     'checklist_pendente':  [],
-    'aviso':               ['Planejamento', 'Conhecimento', 'Encarregado', 'Aux. Operacional'],
-    'nova_ocorrencia':     ['Pos Embarque', 'Cadastro'],
-    'nova_marcacao':       ['Pos Embarque', 'Cadastro'],
-    'nova_marcacao_coord': ['Coordenador'],
+    'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
+    'nova_ocorrencia':     ['Pos Embarque'],
+    'nova_marcacao':       ['Pos Embarque'],
+    'nova_marcacao_coord': [],
+    'doca':                ['Cadastro', 'Conhecimento'],
 };
 
 console.log("🚀 [App] Carregando v0.2.9");
