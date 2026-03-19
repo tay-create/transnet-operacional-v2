@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
@@ -285,7 +285,7 @@ export default function PainelOperacional({
 
 
     // --- LÓGICA DE FILTROS ---
-    const itensFiltrados = lista.filter(item => {
+    const itensFiltrados = useMemo(() => lista.filter(item => {
         const itemData = item.data_prevista || obterDataBrasilia();
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
@@ -313,7 +313,13 @@ export default function PainelOperacional({
         const bateuOperacao = !filtroOperacao || (item.operacao || '') === filtroOperacao;
 
         return ehDataCerta && bateuBusca && bateuOperacao;
-    });
+    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, origem]); // eslint-disable-line
+
+    const ORDEM_STATUS = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+    const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
+        const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+        return ORDEM_STATUS.indexOf(a[campo] || 'AGUARDANDO') - ORDEM_STATUS.indexOf(b[campo] || 'AGUARDANDO');
+    }), [itensFiltrados, origem]); // eslint-disable-line
 
     const getEstiloRota = (valor) => ({
         background: 'transparent',
@@ -546,11 +552,7 @@ export default function PainelOperacional({
                                 </div>
                             ))}
 
-                            {[...itensFiltrados].sort((a, b) => {
-                                const ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
-                                const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
-                                return ORDEM.indexOf(a[campo] || 'AGUARDANDO') - ORDEM.indexOf(b[campo] || 'AGUARDANDO');
-                            }).map((item) => {
+                            {itensOrdenados.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
