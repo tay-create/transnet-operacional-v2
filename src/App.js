@@ -347,6 +347,7 @@ function App({ socket }) {
         }
         else if (data.tipo === 'atualiza_fila') setFila(prev => prev.map(f => f.id === data.id ? { ...f, ...data } : f));
         else if (data.tipo === 'remove_fila') setFila(prev => prev.filter(f => f.id !== data.id));
+        else if (data.tipo === 'reordenar_fila' && Array.isArray(data.ordem)) setFila(data.ordem);
 
         // ATUALIZAÇÃO DO AVATAR
         else if (data.tipo === 'avatar_mudou') {
