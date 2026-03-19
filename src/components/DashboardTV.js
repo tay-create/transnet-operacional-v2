@@ -283,12 +283,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const dadosBarrasStatus = OPCOES_STATUS.map(s => ({
         name: s.replace('LIBERADO P/ ', 'LIB ').replace('EM ', ''),
         fullName: s,
-        Recife: s === 'LIBERADO P/ CT-e'
-            ? veiculos.filter(v => ehOperacaoRecife(v.operacao) && v.cte_antecipado_recife).length
-            : veiculos.filter(v => ehOperacaoRecife(v.operacao) && v.status_recife === s).length,
-        Moreno: s === 'LIBERADO P/ CT-e'
-            ? veiculos.filter(v => ehOperacaoMoreno(v.operacao) && v.cte_antecipado_moreno).length
-            : veiculos.filter(v => ehOperacaoMoreno(v.operacao) && v.status_moreno === s).length,
+        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && v.status_recife === s).length,
+        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && v.status_moreno === s).length,
     }));
 
     return (
