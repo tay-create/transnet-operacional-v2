@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2
+    Loader, Timer, Edit2, ArrowRightLeft
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -98,6 +98,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [modalOcorrencia, setModalOcorrencia] = useState(false);
     const [modalPausa, setModalPausa] = useState(false);
     const [modalAlterarStatus, setModalAlterarStatus] = useState(false);
+    const [confirmTransfer, setConfirmTransfer] = useState(false);
+    const [salvandoTransfer, setSalvandoTransfer] = useState(false);
     const [statusManual, setStatusManual] = useState(v.status || STATUS_CONFERENTE[0]);
     const [horaManual, setHoraManual] = useState(() => {
         const now = new Date();
@@ -173,6 +175,25 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
             setErro(err.response?.data?.message || 'Erro ao alterar status.');
         } finally {
             setSalvando(false);
+        }
+    };
+
+    const executarTransferencia = async () => {
+        setSalvandoTransfer(true);
+        setErro('');
+        try {
+            const res = await api.post('/api/conferente/transferencia', {
+                veiculoId: v.id,
+                unidade: v.unidade
+            });
+            if (res.data.success) {
+                setConfirmTransfer(false);
+                onAtualizarStatus(v.id, 'CARREGADO', docaSelecionada);
+            }
+        } catch (err) {
+            setErro(err.response?.data?.message || 'Erro na transferência.');
+        } finally {
+            setSalvandoTransfer(false);
         }
     };
 
@@ -303,6 +324,50 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                         >
                             <ClipboardCheck size={14} /> CHECKLIST DA CARRETA
                         </button>
+                    )}
+
+                    {/* Botão Transferência — pula direto para CARREGADO */}
+                    {v.status !== 'CARREGADO' && (
+                        confirmTransfer ? (
+                            <div style={{
+                                padding: '12px', borderRadius: '10px',
+                                background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.35)',
+                                display: 'flex', flexDirection: 'column', gap: '8px'
+                            }}>
+                                <div style={{ fontSize: '12px', color: '#c4b5fd', textAlign: 'center' }}>
+                                    Confirma transferência para <strong>CARREGADO</strong>?
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={() => setConfirmTransfer(false)}
+                                        disabled={salvandoTransfer}
+                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={executarTransferencia}
+                                        disabled={salvandoTransfer}
+                                        style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: salvandoTransfer ? 'rgba(168,85,247,0.3)' : 'linear-gradient(135deg, #a855f7, #7c3aed)', color: 'white', fontSize: '12px', cursor: salvandoTransfer ? 'not-allowed' : 'pointer', fontWeight: '700' }}
+                                    >
+                                        {salvandoTransfer ? 'Aguarde...' : 'Confirmar'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setConfirmTransfer(true)}
+                                style={{
+                                    width: '100%', padding: '9px',
+                                    borderRadius: '10px', border: '1px solid rgba(168,85,247,0.35)',
+                                    background: 'rgba(168,85,247,0.08)', color: '#c4b5fd',
+                                    fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                                }}
+                            >
+                                <ArrowRightLeft size={14} /> TRANSFERÊNCIA
+                            </button>
+                        )
                     )}
 
                     {/* Botão de ocorrência */}

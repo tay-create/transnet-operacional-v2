@@ -424,6 +424,84 @@ module.exports = function createChecklistsRouter(io) {
         }
     });
 
+    // ── Conferente: Transferência (pula direto para CARREGADO, sem validações) ──
+    router.post('/api/conferente/transferencia', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
+        try {
+            const { veiculoId, unidade } = req.body;
+            const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
+            const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
+            const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
+            const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
+
+            const veiculo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [veiculoId]);
+            if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+
+            const statusAtual = veiculo[statusField];
+            if (statusAtual === 'CARREGADO') return res.json({ success: true, message: 'Já está CARREGADO.' });
+
+            const agora = new Date().toISOString();
+            const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
+            const prefix = cidade === 'Moreno' ? 'moreno' : 'recife';
+
+            let ts = {};
+            try { ts = JSON.parse(veiculo.timestamps_status || '{}'); } catch { }
+            let tempos = {};
+            try { tempos = JSON.parse(veiculo[temposField] || '{}'); } catch { }
+
+            // Preencher timestamps intermediários faltantes para manter SLA consistente
+            if (!ts[`separacao_${prefix}_at`]) ts[`separacao_${prefix}_at`] = agora;
+            if (!ts[`lib_doca_${prefix}_at`]) ts[`lib_doca_${prefix}_at`] = agora;
+            if (!ts[`carregamento_${prefix}_at`]) ts[`carregamento_${prefix}_at`] = agora;
+            ts[`carregado_${prefix}_at`] = agora;
+
+            if (!tempos.t_inicio_carregamento) tempos.t_inicio_carregamento = agoraHHMM;
+            tempos.t_inicio_carregado = agoraHHMM;
+
+            await dbRun(
+                `UPDATE veiculos SET ${statusField} = 'CARREGADO', timestamps_status = ?, ${temposField} = ? WHERE id = ?`,
+                [JSON.stringify(ts), JSON.stringify(tempos), veiculoId]
+            );
+
+            console.log(`🔄 [Transferência/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || '?'}): ${statusAtual} → CARREGADO por ${req.user?.nome || 'conferente'}`);
+
+            // Buscar dados atualizados para socket
+            const atualizado = await dbGet('SELECT * FROM veiculos WHERE id = ?', [veiculoId]);
+            let dadosJson = {};
+            try { dadosJson = JSON.parse(atualizado?.dados_json || '{}'); } catch { }
+            io.emit('receber_atualizacao', {
+                tipo: 'atualiza_veiculo',
+                id: Number(veiculoId),
+                ...(atualizado || {}),
+                rotaRecife: atualizado?.rota_recife || '',
+                rotaMoreno: atualizado?.rota_moreno || '',
+                coletaRecife: atualizado?.coletarecife || '',
+                coletaMoreno: atualizado?.coletamoreno || '',
+                tempos_recife: (() => { try { return JSON.parse(atualizado?.tempos_recife || '{}'); } catch { return {}; } })(),
+                tempos_moreno: (() => { try { return JSON.parse(atualizado?.tempos_moreno || '{}'); } catch { return {}; } })(),
+                status_coleta: (() => { try { return JSON.parse(atualizado?.status_coleta || '{}'); } catch { return {}; } })(),
+                imagens: (() => { try { return JSON.parse(atualizado?.imagens || '[]'); } catch { return []; } })(),
+                timestamps_status: (() => { try { return JSON.parse(atualizado?.timestamps_status || '{}'); } catch { return {}; } })(),
+                placa1Motorista: dadosJson.placa1Motorista || '',
+                placa2Motorista: dadosJson.placa2Motorista || '',
+                telefoneMotorista: dadosJson.telefoneMotorista || '',
+            });
+
+            // Notificar
+            const motoristaNome = veiculo.motorista || 'Motorista';
+            const coletaNum = cidade === 'Moreno' ? (veiculo.coletamoreno || '') : (veiculo.coletarecife || '');
+            io.emit('notificacao_direcionada', {
+                tipo: 'status_conferente',
+                mensagem: `[${cidade}] TRANSFERÊNCIA — ${motoristaNome} → CARREGADO${coletaNum ? ` | Coleta: ${coletaNum}` : ''}`,
+                cargos_alvo: ['Auxiliar Operacional', 'Planejamento']
+            });
+
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Erro na transferência:', e);
+            res.status(500).json({ success: false, message: 'Erro ao processar transferência.' });
+        }
+    });
+
     // ── Conferente: Lista de Embarques ──
     router.get('/api/conferente/embarques', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
         try {
