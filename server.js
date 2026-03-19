@@ -1033,7 +1033,14 @@ app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento'
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
         const meuCargo = req.user?.cargo || '';
-        const rows = await dbAll("SELECT * FROM notificacoes ORDER BY id DESC");
+        const userId = req.user?.id;
+        // Exclui notificações que este usuário já dispensou
+        const rows = await dbAll(
+            `SELECT n.* FROM notificacoes n
+             WHERE NOT EXISTS (SELECT 1 FROM notificacoes_lidas nl WHERE nl.notificacao_id = n.id AND nl.user_id = $1)
+             ORDER BY n.id DESC`,
+            [userId]
+        );
         const lista = (rows || []).map(row => {
             try {
                 return { idInterno: row.id, ...JSON.parse(row.dados_json) };
@@ -1055,9 +1062,21 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
 app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         const id = Number(req.params.id);
+        const userId = req.user && req.user.id;
+        const global = req.query.global === 'true'; // ex: aceitar CT-e remove para todos
         if (!isNaN(id)) {
-            await dbRun("DELETE FROM notificacoes WHERE id = ?", [id]);
-            io.emit('notificacao_removida', { id });
+            if (global) {
+                // Remoção global (CT-e aceito, etc): deleta do banco + avisa todos
+                await dbRun("DELETE FROM notificacoes WHERE id = $1", [id]);
+                await dbRun("DELETE FROM notificacoes_lidas WHERE notificacao_id = $1", [id]);
+                io.emit('notificacao_removida', { id });
+            } else if (userId) {
+                // Per-user dismissal: marca como lida para este usuário apenas
+                await dbRun(
+                    "INSERT INTO notificacoes_lidas (notificacao_id, user_id) VALUES ($1, $2) ON CONFLICT (notificacao_id, user_id) DO NOTHING",
+                    [id, userId]
+                );
+            }
         }
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
@@ -1805,7 +1824,14 @@ cron.schedule('0 17 * * 1-5', () => gerarProgramacaoDiaria('17h'), { scheduled: 
 // Guarda controle de alertas já enviados para não duplicar
 const alertasJaEnviados = new Set(); // chave: `${id}_2h` ou `${id}_exp`
 // Limpar o Set uma vez por dia (motoristas removidos do banco não limpam automaticamente)
-setInterval(() => { alertasJaEnviados.clear(); }, 24 * 60 * 60 * 1000);
+setInterval(async () => {
+    alertasJaEnviados.clear();
+    // Limpar notificações antigas (>7 dias) e seus registros de leitura
+    try {
+        await dbRun("DELETE FROM notificacoes_lidas WHERE notificacao_id IN (SELECT id FROM notificacoes WHERE data_criacao < NOW() - INTERVAL '7 days')");
+        await dbRun("DELETE FROM notificacoes WHERE data_criacao < NOW() - INTERVAL '7 days'");
+    } catch (e) { console.error('[CLEANUP] Erro ao limpar notificações antigas:', e); }
+}, 24 * 60 * 60 * 1000);
 
 async function verificarExpiracaoLiberacoes() {
     try {
@@ -1834,11 +1860,21 @@ async function verificarExpiracaoLiberacoes() {
             const nome = m.nome_motorista;
 
             if (restanteMs <= 0) {
-                // EXPIRADO
+                // EXPIRADO — verificar se já existe notificação no BD (não apenas em memória)
                 const chave = `${m.id}_exp`;
                 if (!alertasJaEnviados.has(chave)) {
+                    // Checar no BD se já existe notificação liberacao_expirada para este motorista
+                    const existeNoBd = await dbGet(
+                        `SELECT id FROM notificacoes WHERE dados_json LIKE $1 AND dados_json LIKE '%"tipo":"liberacao_expirada"%'`,
+                        [`%"motorista":"${nome.replace(/'/g, "''")}"%`]
+                    );
+                    if (existeNoBd) {
+                        // Já existe no BD — apenas adicionar à memória para não checar novamente
+                        alertasJaEnviados.add(chave);
+                        continue;
+                    }
+
                     alertasJaEnviados.add(chave);
-                    // Remove o alerta de "2h" da memória para reenviar no próximo ciclo se necessário
                     alertasJaEnviados.delete(`${m.id}_2h`);
 
                     const msg = `⛔ LIBERAÇÃO EXPIRADA — ${nome} (${placa}) — Lib. Nº ${m.num_liberacao_cad || 'S/N'}. Solicite renovação!`;
@@ -1858,6 +1894,16 @@ async function verificarExpiracaoLiberacoes() {
                 // FALTAM MENOS DE 2 HORAS
                 const chave = `${m.id}_2h`;
                 if (!alertasJaEnviados.has(chave)) {
+                    // Checar no BD se já existe notificação liberacao_vencendo para este motorista
+                    const existeNoBd = await dbGet(
+                        `SELECT id FROM notificacoes WHERE dados_json LIKE $1 AND dados_json LIKE '%"tipo":"liberacao_vencendo"%'`,
+                        [`%"motorista":"${nome.replace(/'/g, "''")}"%`]
+                    );
+                    if (existeNoBd) {
+                        alertasJaEnviados.add(chave);
+                        continue;
+                    }
+
                     alertasJaEnviados.add(chave);
 
                     const hRestante = Math.floor(restanteMs / 3600000);

@@ -460,7 +460,7 @@ function App({ socket }) {
             }
         });
 
-        // Remove notificação do estado local quando outro usuário a aceita/deleta
+        // Remove notificação globalmente (ex: CT-e aceito por outro usuário)
         socket.on('notificacao_removida', ({ id }) => {
             removerNotificacao(id);
         });
@@ -685,9 +685,10 @@ function App({ socket }) {
         const origemLabel = user.cidade === 'Moreno' ? 'MORENO' : 'RECIFE';
         mostrarNotificacao(`✅ CT-e Aceito! Enviado para ${origemLabel}.`);
 
-        // Remover notificação do backend e do state via handle unificado
+        // Remover notificação globalmente (CT-e aceito = remove para todos)
         try {
-            await handleRemoverNotificacao(idInterno);
+            removerNotificacao(idInterno);
+            await api.delete(`/notificacoes/${idInterno}?global=true`);
         } catch (error) {
             console.error("Erro ao remover notificação:", error);
         } finally {

@@ -52,6 +52,8 @@ const inicializarBanco = async () => {
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_veiculos_data ON veiculos (data_criacao)`);
 
         await dbRun(`CREATE TABLE IF NOT EXISTS notificacoes (id SERIAL PRIMARY KEY, dados_json TEXT, data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS notificacoes_lidas (id SERIAL PRIMARY KEY, notificacao_id INTEGER NOT NULL, user_id INTEGER NOT NULL, data_leitura TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+        try { await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_lidas_unique ON notificacoes_lidas (notificacao_id, user_id)`); } catch (_) { }
         await dbRun(`CREATE TABLE IF NOT EXISTS fila (id SERIAL PRIMARY KEY, dados_json TEXT)`);
         await dbRun(`CREATE TABLE IF NOT EXISTS checklists_carreta (
             id SERIAL PRIMARY KEY,
