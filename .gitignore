@@ -29,3 +29,7 @@ node_modules/
 .env
 dist/
 release/
+
+# Scripts locais com credenciais hardcoded
+upd.js
+update_paulo.js
