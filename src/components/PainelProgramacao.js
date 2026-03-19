@@ -16,6 +16,22 @@ const CORES_OPERACAO = {
     Porcelana: '#a78bfa',
 };
 
+const isNovoFormato = (dados) =>
+    Object.values(dados).some(d => d.reprogramado_recife !== undefined);
+
+const renderSplit = (recife, moreno, corRecife = '#38bdf8', corMoreno = '#fbbf24') => {
+    if (recife === 0 && moreno === 0) return <span style={{ color: '#475569' }}>—</span>;
+    if (recife === 0) return <span style={{ color: corMoreno }}>Moreno: {moreno}</span>;
+    if (moreno === 0) return <span style={{ color: corRecife }}>Recife: {recife}</span>;
+    return (
+        <span>
+            <span style={{ color: corRecife }}>Recife: {recife}</span>
+            <span style={{ color: '#475569', margin: '0 4px' }}>/</span>
+            <span style={{ color: corMoreno }}>Moreno: {moreno}</span>
+        </span>
+    );
+};
+
 export default function PainelProgramacao() {
     const [programacoes, setProgramacoes] = useState([]);
     const [carregando, setCarregando] = useState(false);
@@ -137,20 +153,25 @@ export default function PainelProgramacao() {
                         {programacoesFiltradas.map(prog => {
                             const dados = prog.dados_json || {};
 
-                            let totalRecife = 0, totalMoreno = 0, totalRepro = 0;
-                            let totalRecifeRepro = 0, totalMorenoRepro = 0;
+                            let totalRecife = 0, totalMoreno = 0;
+                            let totalReproRecife = 0, totalReproMoreno = 0;
+                            // legado — mantidos para o Gráfico 2 no formato antigo
+                            let totalRepro = 0, totalRecifeRepro = 0, totalMorenoRepro = 0;
+
+                            const novoFmt = isNovoFormato(dados);
 
                             // Calcular totais por unidade para os gráficos
                             OPERACOES.forEach(op => {
                                 const d = dados[op] || { recife: 0, moreno: 0, reprogramado: 0 };
                                 totalRecife += d.recife || 0;
                                 totalMoreno += d.moreno || 0;
-                                totalRepro += d.reprogramado || 0;
-
-                                if (UNIDADE_RECIFE.includes(op)) {
-                                    totalRecifeRepro += d.reprogramado || 0;
+                                if (novoFmt) {
+                                    totalReproRecife += d.reprogramado_recife || 0;
+                                    totalReproMoreno += d.reprogramado_moreno || 0;
                                 } else {
-                                    totalMorenoRepro += d.reprogramado || 0;
+                                    totalRepro += d.reprogramado || 0;
+                                    if (UNIDADE_RECIFE.includes(op)) totalRecifeRepro += d.reprogramado || 0;
+                                    else totalMorenoRepro += d.reprogramado || 0;
                                 }
                             });
 
@@ -169,10 +190,15 @@ export default function PainelProgramacao() {
                             ].filter(i => i.value > 0);
 
                             // Dados gráfico 2: Reprogramados por Unidade
-                            const dadosGrafico2 = [
-                                { name: 'Recife', value: totalRecifeRepro },
-                                { name: 'Moreno', value: totalMorenoRepro },
-                            ].filter(i => i.value > 0);
+                            const dadosGrafico2 = novoFmt
+                                ? [
+                                    { name: 'Recife', value: totalReproRecife },
+                                    { name: 'Moreno', value: totalReproMoreno },
+                                  ].filter(i => i.value > 0)
+                                : [
+                                    { name: 'Recife', value: totalRecifeRepro },
+                                    { name: 'Moreno', value: totalMorenoRepro },
+                                  ].filter(i => i.value > 0);
 
                             const tooltipStyle = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' };
 
@@ -199,7 +225,7 @@ export default function PainelProgramacao() {
                                                     <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                         <th style={{ padding: '12px 20px', color: '#94a3b8', fontWeight: 'bold' }}>OPERAÇÃO</th>
                                                         <th style={{ padding: '12px 20px', color: '#94a3b8', fontWeight: 'bold', textAlign: 'center' }}>QUANTIDADE</th>
-                                                        <th style={{ padding: '12px 20px', color: '#f43f5e', fontWeight: 'bold', textAlign: 'center' }}>REPROGRAMADOS (D-1)</th>
+                                                        <th style={{ padding: '12px 20px', color: '#f43f5e', fontWeight: 'bold', textAlign: 'center' }}>REPROGRAMADOS</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -212,19 +238,19 @@ export default function PainelProgramacao() {
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: CORES_OPERACAO[op], flexShrink: 0, display: 'inline-block' }} />
                                                                         <span style={{ color: '#f1f5f9', fontWeight: '500' }}>{op}</span>
-                                                                        <span style={{
-                                                                            fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px',
-                                                                            background: unidade === 'Recife' ? 'rgba(56,189,248,0.1)' : 'rgba(251,191,36,0.1)',
-                                                                            color: unidade === 'Recife' ? '#38bdf8' : '#fbbf24',
-                                                                            border: `1px solid ${unidade === 'Recife' ? 'rgba(56,189,248,0.2)' : 'rgba(251,191,36,0.2)'}`
-                                                                        }}>{unidade}</span>
                                                                     </div>
                                                                 </td>
                                                                 <td style={{ padding: '12px 20px', textAlign: 'center', color: '#e2e8f0' }}>
-                                                                    {(d.recife || 0) + (d.moreno || 0)}
+                                                                    {novoFmt
+                                                                        ? renderSplit(d.recife || 0, d.moreno || 0)
+                                                                        : (d.recife || 0) + (d.moreno || 0)
+                                                                    }
                                                                 </td>
-                                                                <td style={{ padding: '12px 20px', textAlign: 'center', color: (d.reprogramado || 0) > 0 ? '#fca5a5' : '#64748b' }}>
-                                                                    {d.reprogramado || 0}
+                                                                <td style={{ padding: '12px 20px', textAlign: 'center', color: (d.reprogramado || d.reprogramado_recife || d.reprogramado_moreno || 0) > 0 ? '#fca5a5' : '#64748b' }}>
+                                                                    {novoFmt
+                                                                        ? renderSplit(d.reprogramado_recife || 0, d.reprogramado_moreno || 0, '#fca5a5', '#fca5a5')
+                                                                        : (d.reprogramado || 0)
+                                                                    }
                                                                 </td>
                                                             </tr>
                                                         );
@@ -233,8 +259,18 @@ export default function PainelProgramacao() {
                                                 <tfoot>
                                                     <tr style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                                         <td style={{ padding: '12px 20px', fontWeight: 'bold', color: '#f8fafc' }}>TOTAL GERAL</td>
-                                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#94a3b8' }}>{totalRecife + totalMoreno}</td>
-                                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#f43f5e' }}>{totalRepro}</td>
+                                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#94a3b8' }}>
+                                                            {novoFmt
+                                                                ? renderSplit(totalRecife, totalMoreno)
+                                                                : totalRecife + totalMoreno
+                                                            }
+                                                        </td>
+                                                        <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#f43f5e' }}>
+                                                            {novoFmt
+                                                                ? renderSplit(totalReproRecife, totalReproMoreno, '#fca5a5', '#fca5a5')
+                                                                : totalRepro
+                                                            }
+                                                        </td>
                                                     </tr>
                                                 </tfoot>
                                             </table>
