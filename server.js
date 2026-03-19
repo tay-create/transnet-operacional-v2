@@ -1742,8 +1742,8 @@ async function gerarProgramacaoDiaria(turno) {
             SELECT id, unidade, operacao, data_criacao, data_prevista, status_recife, status_moreno,
                    coletaRecife, coletaMoreno
             FROM veiculos
-            WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
-              AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
+            WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'LIBERADO P/ CT-e', 'CARREGADO'))
+              AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'LIBERADO P/ CT-e', 'CARREGADO'))
         `);
 
         // YYYY-MM-DD local
