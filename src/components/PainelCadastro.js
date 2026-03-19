@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ShieldCheck, CheckCircle, XCircle, AlertTriangle, Clock, Save, RefreshCw, Truck, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import api from '../services/apiService';
 
@@ -74,6 +74,8 @@ export default function PainelCadastro({ user, socket }) {
     const dataHojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
     const [dataInicioOp, setDataInicioOp] = useState(dataHojeStr);
     const [dataFimOp, setDataFimOp] = useState(dataHojeStr);
+    const dataInicioOpRef = useRef(dataHojeStr);
+    const dataFimOpRef = useRef(dataHojeStr);
 
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
@@ -185,7 +187,7 @@ export default function PainelCadastro({ user, socket }) {
             const handleRefresh = (data) => {
                 if (data?.tipo === 'refresh_geral' || data?.tipo === 'cadastro_situacao_atualizada' || data?.tipo === 'cadastro_cte_emitido') {
                     carregarMotoristas();
-                    carregarMotoristasOperacao(dataInicioOp, dataFimOp);
+                    carregarMotoristasOperacao(dataInicioOpRef.current, dataFimOpRef.current);
                     carregarMotoristasFrota();
                 }
             };
@@ -198,8 +200,10 @@ export default function PainelCadastro({ user, socket }) {
         return () => clearInterval(interval);
     }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]); // eslint-disable-line
 
-    // Rebuscar Na Operação quando datas mudam
+    // Rebuscar Na Operação quando datas mudam + sincronizar refs
     useEffect(() => {
+        dataInicioOpRef.current = dataInicioOp;
+        dataFimOpRef.current = dataFimOp;
         carregarMotoristasOperacao(dataInicioOp, dataFimOp);
     }, [dataInicioOp, dataFimOp]); // eslint-disable-line
 
