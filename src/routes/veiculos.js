@@ -913,7 +913,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
     router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
         try {
-            const { unidade } = req.body; // 'Recife' ou 'Moreno'
+            const { unidade, confirmarMisto } = req.body; // 'Recife' ou 'Moreno'
             if (!unidade || !['Recife', 'Moreno'].includes(unidade)) {
                 return res.status(400).json({ success: false, message: 'Unidade inválida.' });
             }
@@ -927,6 +927,37 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const campoStatus = unidade === 'Recife' ? 'status_recife' : 'status_moreno';
             const statusParaAvancar = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
+
+            // Se não confirmou mistos, verificar conflitos antes de avançar
+            if (!confirmarMisto) {
+                const campoStatusOutro = unidade === 'Recife' ? 'status_moreno' : 'status_recife';
+                // statusNaoFinalizados: veículos ainda em andamento na outra unidade
+                const statusNaoFinalizados = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
+
+                // Parâmetros: $1–$4 = statusParaAvancar, $5 = amanhaStr, $6–$9 = statusNaoFinalizados
+                const conflitosQuery = `
+                    SELECT COUNT(*) as total,
+                           STRING_AGG(COALESCE(operacao, 'Sem operação'), ', ') as operacoes
+                    FROM veiculos
+                    WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
+                      AND data_prevista < ?
+                      AND ${campoStatusOutro} IN (${statusNaoFinalizados.map(() => '?').join(',')})
+                `;
+                const conflitosResult = await dbGet(conflitosQuery, [
+                    ...statusParaAvancar,   // $1–$4
+                    amanhaStr,              // $5
+                    ...statusNaoFinalizados // $6–$9
+                ]);
+
+                if (conflitosResult && parseInt(conflitosResult.total) > 0) {
+                    return res.json({
+                        success: true,
+                        requerConfirmacao: true,
+                        conflitos: parseInt(conflitosResult.total),
+                        detalhes: conflitosResult.operacoes ? conflitosResult.operacoes.split(', ') : []
+                    });
+                }
+            }
 
             const query = `
                 UPDATE veiculos
