@@ -463,6 +463,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     // Mapa doca → veículo para tooltip
     const docaVeiculoMapR = {};
     veiculosRecife.forEach(v => {
+        if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_recife;
         if (!doca || doca === 'SELECIONE') return;
         docaVeiculoMapR[doca] = { motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' };
@@ -1208,6 +1209,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
     // Mapa doca → veículo para tooltip
     const docaVeiculoMapM = {};
     veiculosMoreno.forEach(v => {
+        if (v.status_moreno === 'CARREGADO' || v.status_moreno === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_moreno;
         if (!doca || doca === 'SELECIONE') return;
         docaVeiculoMapM[doca] = { motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' };
