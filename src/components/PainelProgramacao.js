@@ -3,6 +3,7 @@ import api from '../services/apiService';
 import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { obterDataBrasilia } from '../utils/helpers';
+import RelatorioImpressao from './RelatorioImpressao';
 
 // Mapeamento de operação → unidade
 const UNIDADE_RECIFE = ['Delta', 'Consolidados'];
@@ -62,13 +63,13 @@ export default function PainelProgramacao() {
 
     const handleExportPDF = async () => {
         const html2pdf = (await import('html2pdf.js')).default;
-        const elemento = document.getElementById('relatorio-programacao');
+        const elemento = document.getElementById('relatorio-impressao-print');
         if (!elemento) return;
         html2pdf().set({
             margin: 10,
             filename: `Programacao_Diaria_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`,
             image: { type: 'jpeg', quality: 1.0 },
-            html2canvas: { scale: 2, useCORS: true },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
         }).from(elemento).save();
     };
@@ -372,6 +373,17 @@ export default function PainelProgramacao() {
                         })}
                     </div>
                 )}
+            </div>
+
+            {/* Componente oculto para exportação PDF */}
+            <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1100px' }}>
+                <div id="relatorio-impressao-print">
+                    <RelatorioImpressao
+                        programacoes={programacoesFiltradas}
+                        dataInicio={dataInicio}
+                        dataFim={dataFim}
+                    />
+                </div>
             </div>
         </div>
     );
