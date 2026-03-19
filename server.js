@@ -1739,7 +1739,7 @@ async function gerarProgramacaoDiaria(turno) {
     try {
         console.log(`[CRON] Iniciando Programação Diária - Turno: ${turno}`);
         const rows = await dbAll(`
-            SELECT id, unidade, operacao, data_criacao, status_recife, status_moreno,
+            SELECT id, unidade, operacao, data_criacao, data_prevista, status_recife, status_moreno,
                    coletaRecife, coletaMoreno
             FROM veiculos
             WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'))
@@ -1750,10 +1750,10 @@ async function gerarProgramacaoDiaria(turno) {
         const hojeStr = new Date().toLocaleString("en-CA", { timeZone: "America/Sao_Paulo" }).split(',')[0];
 
         const totais = {
-            Delta: { recife: 0, moreno: 0, reprogramado: 0 },
-            Porcelana: { recife: 0, moreno: 0, reprogramado: 0 },
-            Eletrik: { recife: 0, moreno: 0, reprogramado: 0 },
-            Consolidados: { recife: 0, moreno: 0, reprogramado: 0 }
+            Delta:        { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
+            Porcelana:    { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
+            Eletrik:      { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
+            Consolidados: { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
         };
 
         rows.forEach(v => {
@@ -1764,13 +1764,19 @@ async function gerarProgramacaoDiaria(turno) {
             else if (op.includes('ELETRIK')) cliente = 'Eletrik';
 
             const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
-            const dataC = typeof v.data_criacao === 'string' ? v.data_criacao.substring(0, 10) : '';
 
-            // Se for anterior a hoje -> Reprogramado
-            if (dataC && dataC < hojeStr) {
-                totais[cliente].reprogramado += 1;
+            // Usar data_prevista como referência; fallback para data_criacao
+            const dataRef = ((v.data_prevista || v.data_criacao) || '').substring(0, 10);
+
+            if (dataRef && dataRef < hojeStr) {
+                // Reprogramado: veículo previsto para antes de hoje ainda em aberto
+                if (un === 'moreno') {
+                    totais[cliente].reprogramado_moreno += 1;
+                } else {
+                    totais[cliente].reprogramado_recife += 1;
+                }
             } else {
-                // Se for de hoje ou vazio
+                // Lançado hoje (ou sem data)
                 totais[cliente][un] += 1;
             }
         });
