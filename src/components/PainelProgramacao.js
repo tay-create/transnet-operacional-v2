@@ -5,9 +5,6 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 import { obterDataBrasilia } from '../utils/helpers';
 import RelatorioImpressao from './RelatorioImpressao';
 
-// Mapeamento de operação → unidade
-const UNIDADE_RECIFE = ['Delta', 'Consolidados'];
-const UNIDADE_MORENO = ['Eletrik', 'Porcelana'];
 const OPERACOES = ['Delta', 'Porcelana', 'Eletrik', 'Consolidados'];
 
 const CORES_OPERACAO = {
@@ -20,18 +17,6 @@ const CORES_OPERACAO = {
 const isNovoFormato = (dados) =>
     Object.values(dados).some(d => d.reprogramado_recife !== undefined);
 
-const renderSplit = (recife, moreno, corRecife = '#38bdf8', corMoreno = '#fbbf24') => {
-    if (recife === 0 && moreno === 0) return <span style={{ color: '#475569' }}>—</span>;
-    if (recife === 0) return <span style={{ color: corMoreno }}>Moreno: {moreno}</span>;
-    if (moreno === 0) return <span style={{ color: corRecife }}>Recife: {recife}</span>;
-    return (
-        <span>
-            <span style={{ color: corRecife }}>Recife: {recife}</span>
-            <span style={{ color: '#475569', margin: '0 4px' }}>/</span>
-            <span style={{ color: corMoreno }}>Moreno: {moreno}</span>
-        </span>
-    );
-};
 
 export default function PainelProgramacao() {
     const [programacoes, setProgramacoes] = useState([]);
@@ -156,8 +141,7 @@ export default function PainelProgramacao() {
 
                             let totalRecife = 0, totalMoreno = 0;
                             let totalReproRecife = 0, totalReproMoreno = 0;
-                            // legado — mantidos para o Gráfico 2 no formato antigo
-                            let totalRepro = 0, totalRecifeRepro = 0, totalMorenoRepro = 0;
+                            let totalRepro = 0;
 
                             const novoFmt = isNovoFormato(dados);
 
@@ -171,35 +155,8 @@ export default function PainelProgramacao() {
                                     totalReproMoreno += d.reprogramado_moreno || 0;
                                 } else {
                                     totalRepro += d.reprogramado || 0;
-                                    if (UNIDADE_RECIFE.includes(op)) totalRecifeRepro += d.reprogramado || 0;
-                                    else totalMorenoRepro += d.reprogramado || 0;
                                 }
                             });
-
-                            // Dados gráfico 1: Operações por Unidade
-                            const totalRecifeOp = UNIDADE_RECIFE.reduce((acc, op) => {
-                                const d = dados[op] || { recife: 0, moreno: 0 };
-                                return acc + (d.recife || 0) + (d.moreno || 0);
-                            }, 0);
-                            const totalMorenoOp = UNIDADE_MORENO.reduce((acc, op) => {
-                                const d = dados[op] || { recife: 0, moreno: 0 };
-                                return acc + (d.recife || 0) + (d.moreno || 0);
-                            }, 0);
-                            const dadosGrafico1 = [
-                                { name: 'Recife', value: totalRecifeOp },
-                                { name: 'Moreno', value: totalMorenoOp },
-                            ].filter(i => i.value > 0);
-
-                            // Dados gráfico 2: Reprogramados por Unidade
-                            const dadosGrafico2 = novoFmt
-                                ? [
-                                    { name: 'Recife', value: totalReproRecife },
-                                    { name: 'Moreno', value: totalReproMoreno },
-                                  ].filter(i => i.value > 0)
-                                : [
-                                    { name: 'Recife', value: totalRecifeRepro },
-                                    { name: 'Moreno', value: totalMorenoRepro },
-                                  ].filter(i => i.value > 0);
 
                             const tooltipStyle = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' };
 
@@ -225,14 +182,13 @@ export default function PainelProgramacao() {
                                                 <thead>
                                                     <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                         <th style={{ padding: '12px 20px', color: '#94a3b8', fontWeight: 'bold' }}>OPERAÇÃO</th>
-                                                        <th style={{ padding: '12px 20px', color: '#94a3b8', fontWeight: 'bold', textAlign: 'center' }}>QUANTIDADE</th>
+                                                        <th style={{ padding: '12px 20px', color: '#94a3b8', fontWeight: 'bold', textAlign: 'center' }}>PROGRAMADOS</th>
                                                         <th style={{ padding: '12px 20px', color: '#f43f5e', fontWeight: 'bold', textAlign: 'center' }}>REPROGRAMADOS</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {OPERACOES.map((op, i) => {
                                                         const d = dados[op] || { recife: 0, moreno: 0, reprogramado: 0 };
-                                                        const unidade = UNIDADE_RECIFE.includes(op) ? 'Recife' : 'Moreno';
                                                         return (
                                                             <tr key={op} style={{ borderBottom: i === OPERACOES.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.02)' }}>
                                                                 <td style={{ padding: '12px 20px' }}>
@@ -242,17 +198,18 @@ export default function PainelProgramacao() {
                                                                     </div>
                                                                 </td>
                                                                 <td style={{ padding: '12px 20px', textAlign: 'center', color: '#e2e8f0' }}>
-                                                                    {novoFmt
-                                                                        ? renderSplit(d.recife || 0, d.moreno || 0)
-                                                                        : (d.recife || 0) + (d.moreno || 0)
-                                                                    }
+                                                                    {(d.recife || 0) + (d.moreno || 0)}
                                                                 </td>
-                                                                <td style={{ padding: '12px 20px', textAlign: 'center', color: (d.reprogramado || d.reprogramado_recife || d.reprogramado_moreno || 0) > 0 ? '#fca5a5' : '#64748b' }}>
-                                                                    {novoFmt
-                                                                        ? renderSplit(d.reprogramado_recife || 0, d.reprogramado_moreno || 0, '#fca5a5', '#fca5a5')
-                                                                        : (d.reprogramado || 0)
-                                                                    }
-                                                                </td>
+                                                                {(() => {
+                                                                    const totalRepro = novoFmt
+                                                                        ? (d.reprogramado_recife || 0) + (d.reprogramado_moreno || 0)
+                                                                        : (d.reprogramado || 0);
+                                                                    return (
+                                                                        <td style={{ padding: '12px 20px', textAlign: 'center', color: totalRepro > 0 ? '#fca5a5' : '#64748b' }}>
+                                                                            {totalRepro || '—'}
+                                                                        </td>
+                                                                    );
+                                                                })()}
                                                             </tr>
                                                         );
                                                     })}
@@ -261,50 +218,49 @@ export default function PainelProgramacao() {
                                                     <tr style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                                         <td style={{ padding: '12px 20px', fontWeight: 'bold', color: '#f8fafc' }}>TOTAL GERAL</td>
                                                         <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#94a3b8' }}>
-                                                            {novoFmt
-                                                                ? renderSplit(totalRecife, totalMoreno)
-                                                                : totalRecife + totalMoreno
-                                                            }
+                                                            {totalRecife + totalMoreno}
                                                         </td>
                                                         <td style={{ padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', color: '#f43f5e' }}>
-                                                            {novoFmt
-                                                                ? renderSplit(totalReproRecife, totalReproMoreno, '#fca5a5', '#fca5a5')
-                                                                : totalRepro
-                                                            }
+                                                            {novoFmt ? (totalReproRecife + totalReproMoreno) : totalRepro}
                                                         </td>
                                                     </tr>
                                                 </tfoot>
                                             </table>
                                         </div>
 
-                                        {/* Gráficos lado a lado */}
-                                        <div style={{ flex: '1 1 45%', minWidth: '340px', display: 'flex', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
-
-                                            {/* Gráfico 1: Operações por Unidade */}
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <h4 style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    <PieChartIcon size={12} /> Operações / Unidade
-                                                </h4>
-                                                {dadosGrafico1.length === 0 ? (
-                                                    <span style={{ fontSize: '11px', color: '#475569' }}>Sem dados</span>
-                                                ) : (
+                                        {/* Gráfico único: Programados vs Reprogramados */}
+                                        <div style={{ flex: '1 1 45%', minWidth: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <h4 style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                <PieChartIcon size={12} /> Programados vs Reprogramados
+                                            </h4>
+                                            {(() => {
+                                                const totalProg = totalRecife + totalMoreno;
+                                                const totalReprog = novoFmt ? (totalReproRecife + totalReproMoreno) : totalRepro;
+                                                const dadosGraficoUnico = [
+                                                    { name: 'Programados', value: totalProg },
+                                                    { name: 'Reprogramados', value: totalReprog },
+                                                ].filter(i => i.value > 0);
+                                                if (dadosGraficoUnico.length === 0) {
+                                                    return <span style={{ fontSize: '11px', color: '#475569' }}>Sem dados</span>;
+                                                }
+                                                return (
                                                     <ResponsiveContainer width="100%" height={180}>
                                                         <PieChart>
                                                             <Pie
-                                                                data={dadosGrafico1}
+                                                                data={dadosGraficoUnico}
                                                                 cx="50%" cy="50%"
                                                                 innerRadius={40} outerRadius={65}
                                                                 dataKey="value"
                                                                 stroke="none"
                                                             >
-                                                                <Cell fill="#38bdf8" />
-                                                                <Cell fill="#fbbf24" />
+                                                                <Cell fill="#3b82f6" />
+                                                                <Cell fill="#dc2626" />
                                                             </Pie>
                                                             <Tooltip
                                                                 contentStyle={tooltipStyle}
                                                                 itemStyle={{ color: '#f1f5f9' }}
                                                                 formatter={(value, name) => {
-                                                                    const total = dadosGrafico1.reduce((a, i) => a + i.value, 0);
+                                                                    const total = dadosGraficoUnico.reduce((a, i) => a + i.value, 0);
                                                                     const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
                                                                     return [`${value} (${pct}%)`, name];
                                                                 }}
@@ -320,52 +276,8 @@ export default function PainelProgramacao() {
                                                             />
                                                         </PieChart>
                                                     </ResponsiveContainer>
-                                                )}
-                                            </div>
-
-                                            {/* Gráfico 2: Reprogramados por Unidade */}
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 8px' }}>
-                                                <h4 style={{ margin: '0 0 8px 0', color: '#94a3b8', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    <PieChartIcon size={12} color="#f43f5e" /> Reprogramados / Unidade
-                                                </h4>
-                                                {dadosGrafico2.length === 0 ? (
-                                                    <span style={{ fontSize: '11px', color: '#475569' }}>Sem reprogramações</span>
-                                                ) : (
-                                                    <ResponsiveContainer width="100%" height={180}>
-                                                        <PieChart>
-                                                            <Pie
-                                                                data={dadosGrafico2}
-                                                                cx="50%" cy="50%"
-                                                                innerRadius={40} outerRadius={65}
-                                                                dataKey="value"
-                                                                stroke="none"
-                                                            >
-                                                                <Cell fill="#ef4444" />
-                                                                <Cell fill="#f97316" />
-                                                            </Pie>
-                                                            <Tooltip
-                                                                contentStyle={tooltipStyle}
-                                                                itemStyle={{ color: '#f1f5f9' }}
-                                                                formatter={(value, name) => {
-                                                                    const total = dadosGrafico2.reduce((a, i) => a + i.value, 0);
-                                                                    const pct = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
-                                                                    return [`${value} (${pct}%)`, name];
-                                                                }}
-                                                            />
-                                                            <Legend
-                                                                iconType="circle" iconSize={8}
-                                                                wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
-                                                                formatter={(value, entry) => (
-                                                                    <span style={{ color: entry.color, fontWeight: '700' }}>
-                                                                        {value}: {entry.payload.value}
-                                                                    </span>
-                                                                )}
-                                                            />
-                                                        </PieChart>
-                                                    </ResponsiveContainer>
-                                                )}
-                                            </div>
-
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
