@@ -801,23 +801,28 @@ function App({ socket }) {
         // Lógica de Sockets e Alertas (Apenas para veículos do Painel)
         if (!ehFila) {
             if (campo.includes('status') && valor === 'LIBERADO P/ CT-e') {
-                console.log(`📡 [updateList] Tentando disparar alerta de CT-e. Coleta: ${itemAtual.coletaRecife || itemAtual.coletaMoreno || itemAtual.coleta} | Motorista: ${itemAtual.motorista}`);
-                // Buscar coleta válida: campo principal, ou coletaRecife/coletaMoreno
-                const coletaValida = (itemAtual.coleta && itemAtual.coleta.trim()) ||
-                    (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
-                    (itemAtual.coletaMoreno && itemAtual.coletaMoreno.trim());
-                const motoristaValido = itemAtual.motorista && itemAtual.motorista.trim();
+                // Buscar dados atualizados do servidor para garantir coleta correta no alerta
+                let dadosAlerta = itemAtual;
+                try {
+                    const resp = await api.get(`/veiculos/${itemAtual.id}`);
+                    if (resp.data?.success && resp.data.veiculo) dadosAlerta = resp.data.veiculo;
+                } catch (_) { }
 
-                if (!coletaValida || !motoristaValido) {
-                    mostrarNotificacao("⚠️ Falta dados de Coleta/Motorista!");
-                    return;
+                const coletaValida = (dadosAlerta.coleta && dadosAlerta.coleta.trim()) ||
+                    (dadosAlerta.coletaRecife && dadosAlerta.coletaRecife.trim()) ||
+                    (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim());
+                const motoristaValido = dadosAlerta.motorista && dadosAlerta.motorista.trim();
+
+                if (motoristaValido) {
+                    socket.emit('enviar_alerta', {
+                        tipo: 'aceite_cte_pendente',
+                        origem,
+                        mensagem: `CT-e Liberado${coletaValida ? ` (${coletaValida})` : ` — ${motoristaValido}`}`,
+                        dadosVeiculo: dadosAlerta
+                    });
+                } else {
+                    mostrarNotificacao("⚠️ CT-e liberado, mas alerta não enviado (motorista ausente).");
                 }
-                socket.emit('enviar_alerta', {
-                    tipo: 'aceite_cte_pendente',
-                    origem,
-                    mensagem: `CT-e Liberado (${coletaValida})`,
-                    dadosVeiculo: itemAtual
-                });
             }
 
             if (campo.includes('status') && valor === 'CARREGADO') {
@@ -873,23 +878,35 @@ function App({ socket }) {
         novaLista[index] = itemAtual;
         setLista(novaLista);
 
-        const coletaValida = (itemAtual.coletaRecife && itemAtual.coletaRecife.trim()) ||
-            (itemAtual.coletaMoreno && itemAtual.coletaMoreno.trim()) ||
-            (itemAtual.coleta && itemAtual.coleta.trim());
-
-        if (coletaValida && itemAtual.motorista?.trim()) {
-            socket.emit('enviar_alerta', {
-                tipo: 'aceite_cte_pendente',
-                origem,
-                mensagem: `CT-e Liberado (${coletaValida})`,
-                dadosVeiculo: itemAtual
-            });
-        }
-
         try {
             if (itemAtual.id) {
                 await api.put(`/veiculos/${itemAtual.id}`, itemAtual);
-                mostrarNotificacao('✅ CT-e liberado — alerta enviado para Conhecimento.');
+
+                // Buscar dados atualizados do servidor para garantir coleta correta no alerta
+                let dadosParaAlerta = itemAtual;
+                try {
+                    const resp = await api.get(`/veiculos/${itemAtual.id}`);
+                    if (resp.data?.success && resp.data.veiculo) {
+                        dadosParaAlerta = resp.data.veiculo;
+                    }
+                } catch (_) { /* usa dados locais como fallback */ }
+
+                const coletaValida = (dadosParaAlerta.coletaRecife && dadosParaAlerta.coletaRecife.trim()) ||
+                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim()) ||
+                    (dadosParaAlerta.coleta && dadosParaAlerta.coleta.trim());
+                const motorista = dadosParaAlerta.motorista?.trim();
+
+                if (motorista) {
+                    socket.emit('enviar_alerta', {
+                        tipo: 'aceite_cte_pendente',
+                        origem,
+                        mensagem: `CT-e Liberado${coletaValida ? ` (${coletaValida})` : ` — ${motorista}`}`,
+                        dadosVeiculo: dadosParaAlerta
+                    });
+                    mostrarNotificacao('✅ CT-e liberado — alerta enviado para Conhecimento.');
+                } else {
+                    mostrarNotificacao('⚠️ CT-e liberado, mas alerta não enviado (motorista ausente).');
+                }
             }
         } catch (e) {
             mostrarNotificacao('⚠️ Erro ao salvar liberação de CT-e.');

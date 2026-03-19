@@ -741,7 +741,48 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
-            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), ...v });
+            // Ler dados atualizados do banco (fonte de verdade) para emitir via socket
+            const atualizado = await dbGet(`
+                SELECT v.*,
+                       (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
+                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                FROM veiculos v WHERE v.id = ?
+            `, [req.params.id]);
+            if (atualizado) {
+                const dj = (() => { try { return JSON.parse(atualizado.dados_json || '{}'); } catch { return {}; } })();
+                const veiculoSocket = {
+                    ...atualizado,
+                    rotaRecife: atualizado.rota_recife,
+                    rotaMoreno: atualizado.rota_moreno,
+                    coletaRecife: atualizado.coletarecife || '',
+                    coletaMoreno: atualizado.coletamoreno || '',
+                    tempos_recife: (() => { try { return JSON.parse(atualizado.tempos_recife || '{}'); } catch { return {}; } })(),
+                    tempos_moreno: (() => { try { return JSON.parse(atualizado.tempos_moreno || '{}'); } catch { return {}; } })(),
+                    status_coleta: (() => { try { return JSON.parse(atualizado.status_coleta || '{}'); } catch { return {}; } })(),
+                    imagens: (() => { try { return JSON.parse(atualizado.imagens || '[]'); } catch { return []; } })(),
+                    timestamps_status: (() => { try { return JSON.parse(atualizado.timestamps_status || '{}'); } catch { return {}; } })(),
+                    observacao: atualizado.observacao || '',
+                    numero_coleta: atualizado.numero_coleta || '',
+                    numero_cte: atualizado.numero_cte || '',
+                    chave_cte: atualizado.chave_cte || '',
+                    situacao_cadastro: atualizado.situacao_cadastro || 'NÃO CONFERIDO',
+                    numero_liberacao: atualizado.numero_liberacao || '',
+                    data_liberacao: atualizado.data_liberacao || null,
+                    chk_cnh: atualizado.chk_cnh ? 1 : 0,
+                    chk_antt: atualizado.chk_antt ? 1 : 0,
+                    chk_tacografo: atualizado.chk_tacografo ? 1 : 0,
+                    chk_crlv: atualizado.chk_crlv ? 1 : 0,
+                    tipoVeiculo: dj.tipoVeiculo || '',
+                    placa1Motorista: dj.placa1Motorista || '',
+                    placa2Motorista: dj.placa2Motorista || '',
+                    telefoneMotorista: dj.telefoneMotorista || atualizado.telefone_bd || '',
+                    telefone: atualizado.telefone_bd || dj.telefoneMotorista || '',
+                    isFrotaMotorista: dj.isFrotaMotorista || atualizado.is_frota_bd === 1 || false,
+                };
+                io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), ...veiculoSocket });
+            } else {
+                io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), ...v });
+            }
 
             // ── Notificar conferente quando veículo chega em "LIBERADO P/ DOCA" ──
             if (veiculoAntigo) {
