@@ -165,7 +165,7 @@ export default function PainelOperacional({
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
     }, []);
 
-    // Polling de motoristas disponíveis a cada 15 segundos
+    // Carregar motoristas disponíveis e manter atualizado via socket
     useEffect(() => {
         const buscarMotoristas = () => {
             if (!useAuthStore.getState().isAuthenticated) return;
@@ -186,9 +186,11 @@ export default function PainelOperacional({
                 .catch(() => { });
         };
         buscarMotoristas();
-        const interval = setInterval(buscarMotoristas, 15000);
-        return () => clearInterval(interval);
-    }, [adicionarToast]);
+        if (socket) {
+            socket.on('marcacao_atualizada', buscarMotoristas);
+            return () => socket.off('marcacao_atualizada', buscarMotoristas);
+        }
+    }, [adicionarToast, socket]);
 
 
 
