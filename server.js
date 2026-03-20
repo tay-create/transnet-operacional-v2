@@ -1835,11 +1835,12 @@ async function gerarProgramacaoDiaria(turno) {
             rows = await dbAll(`
                 SELECT id, unidade, operacao
                 FROM veiculos
-                WHERE NOT (
+                WHERE LEFT(data_prevista, 10) <= ?
+                  AND NOT (
                     COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                     AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                   )
-            `, []);
+            `, [hojeStr]);
 
             rows.forEach(v => {
                 const op = (v.operacao || '').toUpperCase();
