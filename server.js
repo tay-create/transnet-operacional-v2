@@ -1048,6 +1048,8 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
                 return { idInterno: row.id, mensagem: "Erro ao processar notificação" };
             }
         }).filter(n => {
+            // Filtrar por destinatário específico (ex: operador Conhecimento selecionado no modal CT-e)
+            if (n.destinatario_id && n.destinatario_id !== userId) return false;
             // Filtrar por cargo
             if (n.tipo) {
                 const alvo = DESTINATARIOS_NOTIFICACAO[n.tipo];
@@ -1396,6 +1398,14 @@ app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
     }
 });
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
+
+// Listar operadores com cargo Conhecimento (para modal de seleção CT-e)
+app.get('/api/usuarios/conhecimento', authMiddleware, async (req, res) => {
+    try {
+        const rows = await dbAll("SELECT id, nome, cidade FROM usuarios WHERE cargo = 'Conhecimento' ORDER BY nome", []);
+        res.json({ success: true, usuarios: rows || [] });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
 
 // Buscar usuário por nome (usado no fluxo de recuperação de senha — público, sem login)
 app.get('/usuarios/buscar', async (req, res) => {

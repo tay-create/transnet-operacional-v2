@@ -261,6 +261,12 @@ function App({ socket }) {
             return;
         }
 
+        // Filtrar por destinatário específico (ex: operador Conhecimento selecionado no modal CT-e)
+        if (dados.destinatario_id && dados.destinatario_id !== userRef.current?.id) {
+            console.log(`🚫 Alerta ignorado: destinatário ${dados.destinatario_id} não sou eu (${userRef.current?.id}).`);
+            return;
+        }
+
         // Filtrar por unidade: se a notificação tem origem, só exibe para usuários da mesma cidade (Coordenador vê tudo)
         const minhaCidade = userRef.current?.cidade || '';
         if (dados.origem && meuCargo !== 'Coordenador' && minhaCidade && dados.origem !== minhaCidade) {
@@ -881,8 +887,8 @@ function App({ socket }) {
         }
     }, [fila, socket, mostrarNotificacao]);
 
-    // Libera CT-e: marca flag cte_antecipado_*, emite alerta para Conhecimento, mas NÃO muda o status do card.
-    const liberarParaCte = useCallback(async (lista, setLista, index, origem) => {
+    // Libera CT-e: marca flag cte_antecipado_*, emite alerta para o operador Conhecimento selecionado.
+    const liberarParaCte = useCallback(async (lista, setLista, index, origem, operadorId, operadorNome) => {
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[index] };
         const agora = new Date().toISOString();
@@ -918,10 +924,12 @@ function App({ socket }) {
                     socket.emit('enviar_alerta', {
                         tipo: 'aceite_cte_pendente',
                         origem,
+                        destinatario_id: operadorId || null,
+                        destinatario_nome: operadorNome || null,
                         mensagem: `CT-e Liberado${coletaValida ? ` (${coletaValida})` : ` — ${motorista}`}`,
                         dadosVeiculo: dadosParaAlerta
                     });
-                    mostrarNotificacao('✅ CT-e liberado — alerta enviado para Conhecimento.');
+                    mostrarNotificacao(`✅ CT-e liberado — enviado para ${operadorNome || 'Conhecimento'}.`);
                 } else {
                     mostrarNotificacao('⚠️ CT-e liberado, mas alerta não enviado (motorista ausente).');
                 }

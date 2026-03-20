@@ -129,10 +129,18 @@ export default function PainelOperacional({
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [modalPausaAberto, setModalPausaAberto] = useState(false);
     const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
+    const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
+    const [operadorSelecionado, setOperadorSelecionado] = useState(null);
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [finalizando, setFinalizando] = useState(false);
     const qtdMotoristasPrev = useRef(null);
+
+    useEffect(() => {
+        api.get('/api/usuarios/conhecimento').then(r => {
+            if (r.data?.success) setOperadoresConhecimento(r.data.usuarios);
+        }).catch(() => {});
+    }, []);
 
     useEffect(() => {
         api.get('/api/docas-interditadas').then(r => {
@@ -1295,21 +1303,64 @@ export default function PainelOperacional({
                 />
             )}
 
-            {/* Modal de Confirmação — Liberar p/ CT-e */}
+            {/* Modal — Liberar p/ CT-e (seleção de operador Conhecimento) */}
             {confirmarLiberadoCte && (
-                <ModalConfirm
-                    titulo="Liberar para CT-e"
-                    mensagem="Confirma a liberação deste veículo para emissão do CT-e?"
-                    textConfirm="Liberar"
-                    textCancel="Cancelar"
-                    variante="info"
-                    onConfirm={() => {
-                        const { realIndex: ri, origem: o } = confirmarLiberadoCte;
-                        setConfirmarLiberadoCte(null);
-                        liberarParaCte(lista, setLista, ri, o);
-                    }}
-                    onCancel={() => setConfirmarLiberadoCte(null)}
-                />
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(56,189,248,0.3)', borderRadius: '14px', boxShadow: '0 20px 50px rgba(0,0,0,0.9)', width: '100%', maxWidth: '420px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 20px', background: 'rgba(56,189,248,0.12)', borderBottom: '1px solid rgba(56,189,248,0.3)' }}>
+                            <FileText size={20} style={{ color: '#38bdf8' }} />
+                            <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '15px', flex: 1 }}>Liberar para CT-e</span>
+                            <button onClick={() => { setConfirmarLiberadoCte(null); setOperadorSelecionado(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px' }}><X size={16} /></button>
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 14px 0' }}>Selecione o operador que receberá o CT-e:</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {operadoresConhecimento.map(op => (
+                                    <button
+                                        key={op.id}
+                                        onClick={() => setOperadorSelecionado(op)}
+                                        style={{
+                                            padding: '12px 16px', borderRadius: '10px', cursor: 'pointer',
+                                            background: operadorSelecionado?.id === op.id ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.04)',
+                                            border: operadorSelecionado?.id === op.id ? '2px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            transition: 'all 0.15s',
+                                        }}
+                                    >
+                                        <div style={{ textAlign: 'left' }}>
+                                            <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '13px' }}>{op.nome}</div>
+                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{op.cidade}</div>
+                                        </div>
+                                        {operadorSelecionado?.id === op.id && <CheckCircle size={18} style={{ color: '#38bdf8' }} />}
+                                    </button>
+                                ))}
+                                {operadoresConhecimento.length === 0 && (
+                                    <p style={{ color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>Nenhum operador encontrado.</p>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                            <button onClick={() => { setConfirmarLiberadoCte(null); setOperadorSelecionado(null); }} style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#94a3b8' }}>Cancelar</button>
+                            <button
+                                disabled={!operadorSelecionado}
+                                onClick={() => {
+                                    const { realIndex: ri, origem: o } = confirmarLiberadoCte;
+                                    const opId = operadorSelecionado.id;
+                                    const opNome = operadorSelecionado.nome;
+                                    setConfirmarLiberadoCte(null);
+                                    setOperadorSelecionado(null);
+                                    liberarParaCte(lista, setLista, ri, o, opId, opNome);
+                                }}
+                                style={{
+                                    padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: operadorSelecionado ? 'pointer' : 'not-allowed',
+                                    background: operadorSelecionado ? '#0ea5e9' : '#1e293b', border: 'none',
+                                    color: operadorSelecionado ? '#fff' : '#475569',
+                                    opacity: operadorSelecionado ? 1 : 0.6,
+                                }}
+                            >Liberar</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Modal de Confirmação — Finalizar Operação (ambas unidades) */}
