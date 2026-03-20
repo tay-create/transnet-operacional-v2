@@ -959,8 +959,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return res.status(400).json({ success: false, message: 'Unidade inválida.' });
             }
 
-            // Calcular próximo dia útil (pula domingo)
+            // Calcular hoje e próximo dia útil (pula domingo)
             const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
             const prox = new Date(agora);
             prox.setDate(prox.getDate() + 1);
             if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // domingo → segunda
@@ -972,22 +973,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Se não confirmou mistos, verificar conflitos antes de avançar
             if (!confirmarMisto) {
                 const campoStatusOutro = unidade === 'Recife' ? 'status_moreno' : 'status_recife';
-                // statusNaoFinalizados: veículos ainda em andamento na outra unidade
                 const statusNaoFinalizados = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
 
-                // Parâmetros: $1–$4 = statusParaAvancar, $5 = amanhaStr, $6–$9 = statusNaoFinalizados
                 const conflitosQuery = `
                     SELECT COUNT(*) as total,
                            STRING_AGG(COALESCE(operacao, 'Sem operação'), ', ') as operacoes
                     FROM veiculos
                     WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
-                      AND data_prevista < ?
+                      AND data_prevista = ?
                       AND ${campoStatusOutro} IN (${statusNaoFinalizados.map(() => '?').join(',')})
                 `;
                 const conflitosResult = await dbGet(conflitosQuery, [
-                    ...statusParaAvancar,   // $1–$4
-                    amanhaStr,              // $5
-                    ...statusNaoFinalizados // $6–$9
+                    ...statusParaAvancar,
+                    hojeStr,
+                    ...statusNaoFinalizados
                 ]);
 
                 if (conflitosResult && parseInt(conflitosResult.total) > 0) {
@@ -1000,13 +999,14 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
+            // Avança apenas veículos do dia de hoje (não toca dias anteriores)
             const query = `
                 UPDATE veiculos
                 SET data_prevista = ?
                 WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
-                  AND data_prevista < ?
+                  AND data_prevista = ?
             `;
-            const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, amanhaStr]);
+            const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, hojeStr]);
 
             // Avançar CT-es "Aguardando Emissão" associados
             const ctesAguardando = await dbAll("SELECT id, dados_json FROM ctes_ativos WHERE status = 'Aguardando Emissão'");
