@@ -426,7 +426,21 @@
 
   O componente atual exibe `turno` diretamente (ex.: `{p.turno}`). Como os novos valores são `'Inicial'` e `'Final'`, strings legíveis por si sós, **nenhuma mudança de display é necessária**. Apenas confirmar visualmente que não há conversão hardcoded de `'10h'`/`'17h'` que precisaria ser atualizada.
 
-- [ ] **Step 5: Build**
+- [ ] **Step 5: Atualizar subtitle do painel**
+
+  Localizar o texto estático que descreve o painel (por volta da linha 79 em `PainelProgramacao.js`). Ele referencia os turnos antigos `"10h e 17h"`. Substituir por texto que reflita o novo fluxo manual:
+
+  ```
+  // ANTES (exemplo):
+  "extraído nos turnos das 10h e 17h"
+
+  // DEPOIS:
+  "gerado manualmente pelos botões Gerar Inicial e Gerar Final"
+  ```
+
+  Se o texto for diferente, adaptar conforme necessário mantendo o mesmo tom.
+
+- [ ] **Step 6: Build**
 
   ```bash
   wsl -d Ubuntu -- bash -c "cd /home/transnet/projects/transnet-operacional-v2 && npm run build 2>&1 | tail -5"
@@ -434,13 +448,13 @@
 
   Esperado: `Compiled successfully`.
 
-- [ ] **Step 6: Restart PM2**
+- [ ] **Step 7: Restart PM2**
 
   ```bash
   wsl -d Ubuntu -- bash -c "cd /home/transnet/projects/transnet-operacional-v2 && pm2 restart transnet --update-env"
   ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
   ```bash
   wsl -d Ubuntu -- bash -c "cd /home/transnet/projects/transnet-operacional-v2 && git add src/components/PainelProgramacao.js && git commit -m 'feat: botões Gerar Inicial/Final no PainelProgramacao'"
