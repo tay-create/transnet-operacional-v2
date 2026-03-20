@@ -442,8 +442,8 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
         if (!doca || doca === 'SELECIONE' || !docaStatusMap.hasOwnProperty(doca)) return;
         const statusAtual = v.status_recife || 'AGUARDANDO';
 
-        // REGRA DE NEGÓCIO: Se status for "CARREGADO" ou "LIBERADO P/ CT-e", a doca NÃO está ocupada
-        if (statusAtual === 'CARREGADO' || statusAtual === 'LIBERADO P/ CT-e' || v.cte_antecipado_recife) {
+        // REGRA DE NEGÓCIO: Se status real for "CARREGADO" ou "LIBERADO P/ CT-e", a doca NÃO está ocupada
+        if (statusAtual === 'CARREGADO' || statusAtual === 'LIBERADO P/ CT-e') {
             return; // Não contabilizar essa doca como ocupada
         }
 
@@ -464,7 +464,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     // Mapa doca → veículo para tooltip
     const docaVeiculoMapR = {};
     veiculosRecife.forEach(v => {
-        if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e' || v.cte_antecipado_recife) return;
+        if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_recife;
         if (!doca || doca === 'SELECIONE') return;
         docaVeiculoMapR[doca] = { motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' };
@@ -1190,8 +1190,8 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         if (!doca || doca === 'SELECIONE' || !docaStatusMap.hasOwnProperty(doca)) return;
         const statusAtual = v.status_moreno || 'AGUARDANDO';
 
-        // REGRA DE NEGOCIO: Se status for "CARREGADO", "LIBERADO P/ CT-e" ou "CT-e Antecipado", a doca NAO esta ocupada
-        if (statusAtual === 'CARREGADO' || statusAtual === 'LIBERADO P/ CT-e' || v.cte_antecipado_moreno) {
+        // REGRA DE NEGOCIO: Se status real for "CARREGADO" ou "LIBERADO P/ CT-e", a doca NAO esta ocupada
+        if (statusAtual === 'CARREGADO' || statusAtual === 'LIBERADO P/ CT-e') {
             return; // Nao contabilizar
         }
 
@@ -1211,7 +1211,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
     // Mapa doca → veículo para tooltip
     const docaVeiculoMapM = {};
     veiculosMoreno.forEach(v => {
-        if (v.status_moreno === 'CARREGADO' || v.status_moreno === 'LIBERADO P/ CT-e' || v.cte_antecipado_moreno) return;
+        if (v.status_moreno === 'CARREGADO' || v.status_moreno === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_moreno;
         if (!doca || doca === 'SELECIONE') return;
         docaVeiculoMapM[doca] = { motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' };
