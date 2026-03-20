@@ -260,12 +260,23 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const result = await dbRun(query, values);
 
             // Atualizar status da marcação para 'Contratado' ou 'EM ROTA' (congela tempo de espera informando data_contratacao)
+            // Frota própria (is_frota=1) NÃO muda status — pode carregar múltiplas vezes por dia
             const agora = obterDataHoraBrasilia();
             if (v.id_marcacao) {
-                await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
+                const marc = await dbGet("SELECT is_frota FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
+                if (marc && marc.is_frota === 1) {
+                    await dbRun("UPDATE marcacoes_placas SET data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
+                } else {
+                    await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
+                }
                 io.emit('marcacao_atualizada');
             } else if (telefoneMotorista) {
-                await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
+                const marc = await dbGet("SELECT is_frota FROM marcacoes_placas WHERE telefone = ?", [telefoneMotorista]);
+                if (marc && marc.is_frota === 1) {
+                    await dbRun("UPDATE marcacoes_placas SET data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
+                } else {
+                    await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
+                }
                 io.emit('marcacao_atualizada');
             }
 
