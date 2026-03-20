@@ -1088,6 +1088,29 @@ export default function PainelOperacional({
                                                 })()
                                             }
 
+                                            {/* Botão Liberar Checklist (Coordenador/Planejamento) */}
+                                            {['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!window.confirm(`Liberar checklist do veículo ${item.motorista}? O conferente poderá refazer o checklist.`)) return;
+                                                        try {
+                                                            await api.delete(`/api/checklists/veiculo/${item.id}`);
+                                                            mostrarNotificacao?.('✅ Checklist liberado para refazer.');
+                                                        } catch {
+                                                            mostrarNotificacao?.('⚠️ Erro ao liberar checklist.');
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        padding: '5px 10px', fontSize: '10px', fontWeight: 700,
+                                                        background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)',
+                                                        color: '#c084fc', borderRadius: '6px', cursor: 'pointer',
+                                                        display: 'flex', alignItems: 'center', gap: '5px'
+                                                    }}
+                                                >
+                                                    🔓 LIBERAR CHECKLIST
+                                                </button>
+                                            )}
+
                                             {/* Campo de Imagens */}
                                             <div>
                                                 <label className="label-tech-sm"><Image size={10} style={{ display: 'inline', marginRight: '2px' }} /> IMAGENS</label>

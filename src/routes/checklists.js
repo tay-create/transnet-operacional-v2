@@ -146,6 +146,22 @@ module.exports = function createChecklistsRouter(io) {
         }
     });
 
+    // ── Reset Checklist (Coordenador libera para conferente refazer) ──
+    router.delete('/api/checklists/veiculo/:veiculoId', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+        try {
+            const veiculoId = Number(req.params.veiculoId);
+            await dbRun("DELETE FROM checklists_carreta WHERE veiculo_id = ?", [veiculoId]);
+            console.log(`🔄 [Checklist Reset] Veículo #${veiculoId} — checklist liberado por ${req.user?.nome || '?'}`);
+            // Notificar conferentes que o checklist foi liberado
+            io.emit('conferente_checklist_resultado', { veiculoId, status: 'RESET' });
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: veiculoId });
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Erro ao resetar checklist:', e);
+            res.status(500).json({ success: false, message: 'Erro ao resetar checklist.' });
+        }
+    });
+
     // ── Conferente: Veículos ativos na operação (todos os status até CARREGADO) ──
     router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador', 'Encarregado']), async (req, res) => {
         try {
