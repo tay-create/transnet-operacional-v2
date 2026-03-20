@@ -111,6 +111,8 @@ export default function GestaoMarcacoes({ socket }) {
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
+    const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
+    const ITENS_POR_PAGINA = 25;
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
@@ -542,11 +544,11 @@ export default function GestaoMarcacoes({ socket }) {
                                 style={{ ...s.input, flex: 1, minWidth: '180px', maxWidth: '260px' }}
                                 placeholder="Buscar por nome ou telefone..."
                                 value={buscaMarcacoes}
-                                onChange={e => setBuscaMarcacoes(e.target.value)}
+                                onChange={e => { setBuscaMarcacoes(e.target.value); setPaginaMarcacoes(1); }}
                             />
                             <select
                                 value={filtroEstado}
-                                onChange={e => setFiltroEstado(e.target.value)}
+                                onChange={e => { setFiltroEstado(e.target.value); setPaginaMarcacoes(1); }}
                                 style={{
                                     ...s.input,
                                     minWidth: '130px', maxWidth: '180px',
@@ -593,18 +595,21 @@ export default function GestaoMarcacoes({ socket }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {marcacoes.filter(m => {
-                                        if (m.is_frota) return false;
-                                        if (filtroEstado) {
-                                            const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
-                                            if (!estados.includes(filtroEstado)) return false;
-                                        }
-                                        if (!buscaMarcacoes) return true;
-                                        const q = buscaMarcacoes.toLowerCase();
-                                        const soNumeros = buscaMarcacoes.replace(/\D/g, '');
-                                        return m.nome_motorista?.toLowerCase().includes(q) ||
-                                            (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
-                                    }).map(m => {
+                                    {(() => {
+                                        const filtradas = marcacoes.filter(m => {
+                                            if (m.is_frota) return false;
+                                            if (filtroEstado) {
+                                                const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
+                                                if (!estados.includes(filtroEstado)) return false;
+                                            }
+                                            if (!buscaMarcacoes) return true;
+                                            const q = buscaMarcacoes.toLowerCase();
+                                            const soNumeros = buscaMarcacoes.replace(/\D/g, '');
+                                            return m.nome_motorista?.toLowerCase().includes(q) ||
+                                                (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
+                                        });
+                                        const inicio = (paginaMarcacoes - 1) * ITENS_POR_PAGINA;
+                                        return filtradas.slice(inicio, inicio + ITENS_POR_PAGINA).map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
@@ -745,9 +750,48 @@ export default function GestaoMarcacoes({ socket }) {
                                                 </td>
                                             </tr>
                                         );
-                                    })}
+                                    });
+                                    })()}
                                 </tbody>
                             </table>
+                            {/* Paginação */}
+                            {(() => {
+                                const filtradas = marcacoes.filter(m => {
+                                    if (m.is_frota) return false;
+                                    if (filtroEstado) {
+                                        const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
+                                        if (!estados.includes(filtroEstado)) return false;
+                                    }
+                                    if (!buscaMarcacoes) return true;
+                                    const q = buscaMarcacoes.toLowerCase();
+                                    const soNumeros = buscaMarcacoes.replace(/\D/g, '');
+                                    return m.nome_motorista?.toLowerCase().includes(q) ||
+                                        (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
+                                });
+                                const totalPaginas = Math.ceil(filtradas.length / ITENS_POR_PAGINA);
+                                if (totalPaginas <= 1) return null;
+                                return (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                                        <button
+                                            onClick={() => setPaginaMarcacoes(p => Math.max(1, p - 1))}
+                                            disabled={paginaMarcacoes <= 1}
+                                            style={{ padding: '6px 12px', fontSize: '12px', background: paginaMarcacoes <= 1 ? '#1e293b' : '#334155', color: paginaMarcacoes <= 1 ? '#475569' : '#e2e8f0', border: '1px solid #475569', borderRadius: '6px', cursor: paginaMarcacoes <= 1 ? 'default' : 'pointer' }}
+                                        >
+                                            ← Anterior
+                                        </button>
+                                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                            Página {paginaMarcacoes} de {totalPaginas} ({filtradas.length} registros)
+                                        </span>
+                                        <button
+                                            onClick={() => setPaginaMarcacoes(p => Math.min(totalPaginas, p + 1))}
+                                            disabled={paginaMarcacoes >= totalPaginas}
+                                            style={{ padding: '6px 12px', fontSize: '12px', background: paginaMarcacoes >= totalPaginas ? '#1e293b' : '#334155', color: paginaMarcacoes >= totalPaginas ? '#475569' : '#e2e8f0', border: '1px solid #475569', borderRadius: '6px', cursor: paginaMarcacoes >= totalPaginas ? 'default' : 'pointer' }}
+                                        >
+                                            Próxima →
+                                        </button>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
                 </>
