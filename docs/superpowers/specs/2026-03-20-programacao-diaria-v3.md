@@ -137,7 +137,7 @@ Chama `gerarProgramacaoDiaria(turno)` internamente. Se `turno` não for `'Inicia
 **Idempotência — comportamento ao pressionar o botão mais de uma vez:**
 Se já existir um snapshot com o mesmo `(data_referencia, turno)`, o endpoint sobrescreve: DELETE o registro existente, depois INSERT o novo. Isso garante que pressionar "Gerar Inicial" duas vezes no mesmo dia simplesmente atualiza o snapshot com os dados mais recentes, sem duplicar registros.
 
-O valor armazenado na coluna `turno` da tabela `frota_programacao_diaria` é exatamente o string recebido no body (`'Inicial'` ou `'Final'`). O campo `data_prevista` da tabela `veiculos` é sempre não-nulo para veículos inseridos via `POST /veiculos`; registros legados com `data_prevista = NULL` não serão retornados pela query Inicial (que filtra por `LEFT(data_prevista, 10) = $1`).
+O valor armazenado na coluna `turno` da tabela `frota_programacao_diaria` é exatamente o string recebido no body (`'Inicial'` ou `'Final'`). O valor armazenado em `data_referencia` é `hojeStr` (data local no formato `YYYY-MM-DD` calculada no início de `gerarProgramacaoDiaria`). O campo `data_prevista` da tabela `veiculos` é sempre não-nulo para veículos inseridos via `POST /veiculos`; registros legados com `data_prevista = NULL` não serão retornados pela query Inicial (que filtra por `LEFT(data_prevista, 10) = $1`).
 
 #### 2d. Gravar `data_prevista_original` na criação do veículo
 
@@ -169,7 +169,7 @@ data_prevista_original: formData.data_prevista
 
 Estado: `const [gerando, setGerando] = useState(null)` — valor `'Inicial'`, `'Final'` ou `null`.
 
-Após geração bem-sucedida, chamar `carregarDados()` automaticamente.
+Após geração bem-sucedida, chamar `carregarDados()` automaticamente. (`carregarDados` é a função de busca de dados já existente no componente `PainelProgramacao.js`.)
 
 #### Função de geração
 
