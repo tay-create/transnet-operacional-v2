@@ -480,12 +480,12 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
 app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
-        const isCoordenador = req.user.cargo === 'Coordenador';
+        const semFiltroUnidade = ['Coordenador', 'Planejamento', 'Encarregado'].includes(req.user.cargo);
         const cidade = req.user.cidade;
-        const cidadeFilter = (!isCoordenador && cidade)
+        const cidadeFilter = (!semFiltroUnidade && cidade)
             ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
             : '';
-        const params = (!isCoordenador && cidade) ? [`%${cidade}%`] : [];
+        const params = (!semFiltroUnidade && cidade) ? [`%${cidade}%`] : [];
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao, data_contratacao,
