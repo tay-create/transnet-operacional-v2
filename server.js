@@ -103,9 +103,10 @@ const resetSenhaLimiter = rateLimit({
     message: { success: false, message: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' }
 });
 
-// Aumenta o limite para aceitar imagens em Base64 grandes
-const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '10mb';
+// Aumenta o limite para aceitar imagens em Base64 grandes (cards inteiros com fotos)
+const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '50mb';
 app.use(bodyParser.json({ limit: MAX_FILE_SIZE }));
+app.use(bodyParser.urlencoded({ limit: MAX_FILE_SIZE, extended: true }));
 
 // ── CORS: restrito ao frontend (defina FRONTEND_URL no .env em produção) ─────
 const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';

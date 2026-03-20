@@ -313,6 +313,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
         try {
             const v = req.body;
+            console.log(`[DEBUG veiculos.js] PUT /veiculos/${req.params.id} -> req.body.motorista: "${v.motorista}", old motorista in req: "${v.itemOriginal?.motorista}"`);
 
             // Buscar dados antigos para auditoria
             const veiculoAntigo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
