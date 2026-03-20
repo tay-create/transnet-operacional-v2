@@ -1090,8 +1090,16 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conh
         const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
         const dataInicio = req.query.dataInicio || hoje;
         const dataFim = req.query.dataFim || hoje;
+        // Busca por data_criacao OU por data_entrada_cte no JSON (que pode ser avançada pelo Finalizar)
         const rows = await dbAll(
-            "SELECT * FROM ctes_ativos WHERE data_criacao::date BETWEEN $1::date AND $2::date ORDER BY id ASC",
+            `SELECT * FROM ctes_ativos
+             WHERE data_criacao::date BETWEEN $1::date AND $2::date
+                OR (
+                    dados_json::json->>'data_entrada_cte' IS NOT NULL
+                    AND LENGTH(dados_json::json->>'data_entrada_cte') = 10
+                    AND TO_DATE(dados_json::json->>'data_entrada_cte', 'DD/MM/YYYY') BETWEEN $1::date AND $2::date
+                )
+             ORDER BY id ASC`,
             [dataInicio, dataFim]
         );
         const lista = rows.map(row => {
