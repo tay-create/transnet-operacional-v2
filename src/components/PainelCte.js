@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Copy } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
+import useAuthStore from '../store/useAuthStore';
 
 export default function PainelCte({
     abaAtiva,
@@ -27,6 +28,7 @@ export default function PainelCte({
     const setListaAtual = isRecife ? setCtesRecife : setCtesMoreno;
     const corTema = isRecife ? '#3b82f6' : '#f59e0b';
     const bgBadge = isRecife ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)';
+    const userUnidade = useAuthStore(s => s.user?.cidade);
 
     const ctesFiltrados = listaCtes.filter(cte => {
         const dataEmissao = cte.data_entrada_cte;
@@ -40,7 +42,14 @@ export default function PainelCte({
             dataComparacao = dataEmissao;
         }
 
-        return dataComparacao >= filtroDataInicioCte && dataComparacao <= filtroDataFimCte;
+        if (!(dataComparacao >= filtroDataInicioCte && dataComparacao <= filtroDataFimCte)) return false;
+
+        // Filtrar por unidade que aceitou o CT-e (retrocompatível: mostrar se campo ausente)
+        if (cte.unidade_emissao && userUnidade) {
+            return cte.unidade_emissao === userUnidade;
+        }
+
+        return true;
     });
 
     return (
