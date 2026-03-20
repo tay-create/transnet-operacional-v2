@@ -1776,11 +1776,13 @@ async function gerarProgramacaoDiaria(turno) {
         let rows;
         if (turno === 'Inicial') {
             rows = await dbAll(`
-                SELECT id, unidade, operacao, data_prevista, data_prevista_original
+                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
-                  AND (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
-                  AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
+                  AND NOT (
+                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
+                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
+                  )
             `, [hojeStr]);
 
             rows.forEach(v => {
@@ -1799,9 +1801,9 @@ async function gerarProgramacaoDiaria(turno) {
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
                 const foiReprogramado =
-                    v.data_prevista_original !== null &&
-                    v.data_prevista_original !== undefined &&
-                    v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10);
+                    v.data_prevista_original
+                        ? v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10)
+                        : (v.data_criacao && v.data_criacao.substring(0, 10) < v.data_prevista.substring(0, 10));
 
                 if (foiReprogramado) {
                     totais[cliente][`reprogramado_${un}`] += 1;
@@ -1814,8 +1816,10 @@ async function gerarProgramacaoDiaria(turno) {
             rows = await dbAll(`
                 SELECT id, unidade, operacao
                 FROM veiculos
-                WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue'))
-                  AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue'))
+                WHERE NOT (
+                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                  )
             `, []);
 
             rows.forEach(v => {

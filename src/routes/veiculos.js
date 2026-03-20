@@ -186,6 +186,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
+            // Garantir consistência: se coleta genérica existe mas o campo específico não, copiar
+            if (ehMoreno && !temColetaMoreno && v.coleta) { v.coletaMoreno = v.coleta; }
+            if (ehRecife && !temColetaRecife && v.coleta) { v.coletaRecife = v.coleta; }
+
             // Auto-extrair numero_coleta na criação
             const primeiroTagIns = (tags) => {
                 if (!tags || !tags.trim()) return '';
