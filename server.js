@@ -494,7 +494,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
                    situacao_cad, num_liberacao_cad, data_liberacao_cad,
                    estados_destino, destino_uf_cad
             FROM marcacoes_placas
-            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL' OR is_frota = 1)
               ${cidadeFilter}
             ORDER BY is_frota DESC, data_marcacao DESC
         `, params);
@@ -561,8 +561,7 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
                    comprovante_pdf, anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
                    origem_cad, destino_uf_cad, destino_cidade_cad, origem_cidade_uf
             FROM marcacoes_placas
-            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
-              AND (is_frota IS NULL OR is_frota = 0)
+            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL' OR is_frota = 1)
               ${cidadeFilter}
             ORDER BY data_marcacao DESC
         `, params);
