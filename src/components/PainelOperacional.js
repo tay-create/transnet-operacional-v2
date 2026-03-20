@@ -1088,8 +1088,8 @@ export default function PainelOperacional({
                                                 })()
                                             }
 
-                                            {/* Botão Liberar Checklist (Coordenador/Planejamento) */}
-                                            {['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && (
+                                            {/* Botão Liberar Checklist — só no CARREGADO (Coordenador/Planejamento) */}
+                                            {valorStatusAtual === 'CARREGADO' && ['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && (
                                                 <button
                                                     onClick={async () => {
                                                         if (!window.confirm(`Liberar checklist do veículo ${item.motorista}? O conferente poderá refazer o checklist.`)) return;
