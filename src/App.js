@@ -261,6 +261,13 @@ function App({ socket }) {
             return;
         }
 
+        // Filtrar por unidade: se a notificação tem origem, só exibe para usuários da mesma cidade (Coordenador vê tudo)
+        const minhaCidade = userRef.current?.cidade || '';
+        if (dados.origem && meuCargo !== 'Coordenador' && minhaCidade && dados.origem !== minhaCidade) {
+            console.log(`🚫 Alerta ignorado: origem '${dados.origem}' não é da minha cidade '${minhaCidade}'.`);
+            return;
+        }
+
         const notificacaoComId = {
             ...dados,
             idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
@@ -403,6 +410,9 @@ function App({ socket }) {
         }
         socket.on('notificacao_direcionada', (d) => {
             const meuCargo = userRef.current?.cargo || '';
+            const minhaCidade = userRef.current?.cidade || '';
+            // Filtrar por unidade (Coordenador vê tudo)
+            if (d.origem && meuCargo !== 'Coordenador' && minhaCidade && d.origem !== minhaCidade) return;
             if (d.cargos_alvo && d.cargos_alvo.includes(meuCargo)) {
                 mostrarNotificacaoRef.current(`🔔 ${d.mensagem}`);
                 adicionarNotificacao({

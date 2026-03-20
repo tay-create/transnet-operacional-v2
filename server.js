@@ -1032,6 +1032,7 @@ app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento'
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
         const meuCargo = req.user?.cargo || '';
+        const minhaCidade = req.user?.cidade || '';
         const userId = req.user?.id;
         // Exclui notificações que este usuário já dispensou
         const rows = await dbAll(
@@ -1047,10 +1048,18 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
                 return { idInterno: row.id, mensagem: "Erro ao processar notificação" };
             }
         }).filter(n => {
-            if (!n.tipo) return true;
-            const alvo = DESTINATARIOS_NOTIFICACAO[n.tipo];
-            if (!alvo) return true; // tipo desconhecido → exibir para todos
-            return alvo.includes(meuCargo);
+            // Filtrar por cargo
+            if (n.tipo) {
+                const alvo = DESTINATARIOS_NOTIFICACAO[n.tipo];
+                if (alvo && !alvo.includes(meuCargo)) return false;
+            }
+            // Filtrar por unidade: se tem origem, só mostra para a mesma cidade (Coordenador vê tudo)
+            if (n.origem && meuCargo !== 'Coordenador' && minhaCidade && n.origem !== minhaCidade) return false;
+            // notificacao_direcionada: filtrar por cargos_alvo E unidade
+            if (n.cargos_alvo) {
+                if (!n.cargos_alvo.includes(meuCargo)) return false;
+            }
+            return true;
         });
         res.json({ success: true, notificacoes: lista });
     } catch (e) {

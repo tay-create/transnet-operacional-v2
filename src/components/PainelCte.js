@@ -212,7 +212,30 @@ export default function PainelCte({
                                         return (
                                             <button
                                                 onClick={() => {
-                                                    navigator.clipboard.writeText(cte.numero_liberacao);
+                                                    const texto = String(cte.numero_liberacao || '').trim();
+                                                    if (!texto) return;
+                                                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                                                        navigator.clipboard.writeText(texto).catch(() => {
+                                                            // Fallback para execCommand
+                                                            const ta = document.createElement('textarea');
+                                                            ta.value = texto;
+                                                            ta.style.position = 'fixed';
+                                                            ta.style.opacity = '0';
+                                                            document.body.appendChild(ta);
+                                                            ta.select();
+                                                            document.execCommand('copy');
+                                                            document.body.removeChild(ta);
+                                                        });
+                                                    } else {
+                                                        const ta = document.createElement('textarea');
+                                                        ta.value = texto;
+                                                        ta.style.position = 'fixed';
+                                                        ta.style.opacity = '0';
+                                                        document.body.appendChild(ta);
+                                                        ta.select();
+                                                        document.execCommand('copy');
+                                                        document.body.removeChild(ta);
+                                                    }
                                                     setToastCopiaMsg('Número de liberação copiado!');
                                                     setTimeout(() => setToastCopiaMsg(''), 3000);
                                                 }}
