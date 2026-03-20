@@ -529,7 +529,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify(v.tempos_moreno || {}),
                 JSON.stringify(v.status_coleta || {}),
                 v.observacao || '',
-                JSON.stringify(v.imagens || []),
+                v.imagens !== undefined ? JSON.stringify(v.imagens) : (veiculoAntigo?.imagens || '[]'),
                 v.numero_cte || '',
                 v.chave_cte || '',
                 v.chk_cnh ? 1 : 0,

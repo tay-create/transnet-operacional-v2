@@ -218,7 +218,10 @@ export default function PainelOperacional({
         setLista(novaLista);
 
         if (itemAtual.id) {
-            api.put(`/veiculos/${itemAtual.id}`, itemAtual).then(() => {
+            const payload = { ...itemAtual };
+            delete payload.imagens;
+            
+            api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
                 mostrarNotificacao?.(`🚛 Motorista vinculado: ${itemAtual.motorista}`);
             }).catch((err) => {
                 console.error("Erro ao vincular motorista:", err);
@@ -244,7 +247,10 @@ export default function PainelOperacional({
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
         if (itemAtual.id) {
-            api.put(`/veiculos/${itemAtual.id}`, itemAtual).then(() => {
+            const payload = { ...itemAtual };
+            delete payload.imagens;
+
+            api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
                 mostrarNotificacao?.(`🚛 Motorista atualizado: ${itemAtual.motorista}`);
             }).catch(() => { mostrarNotificacao?.('⚠️ Erro ao salvar motorista.'); });
         }

@@ -103,8 +103,8 @@ const resetSenhaLimiter = rateLimit({
     message: { success: false, message: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' }
 });
 
-// Aumenta o limite para aceitar imagens em Base64 grandes (cards inteiros com fotos)
-const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '50mb';
+// Aumenta o limite para aceitar imagens em Base64 grandes (cards inteiros com fotos pesadas HD)
+const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '200mb';
 app.use(bodyParser.json({ limit: MAX_FILE_SIZE }));
 app.use(bodyParser.urlencoded({ limit: MAX_FILE_SIZE, extended: true }));
 

@@ -851,7 +851,9 @@ function App({ socket }) {
         try {
             if (itemAtual.id) {
                 const endpoint = ehFila ? 'fila' : 'veiculos';
-                await api.put(`/${endpoint}/${itemAtual.id}`, itemAtual);
+                const payload = { ...itemAtual };
+                delete payload.imagens; // Economiza rede e previne erro 413 (Payload Too Large)
+                await api.put(`/${endpoint}/${itemAtual.id}`, payload);
             }
         } catch (e) {
             // Reverter estado otimista apenas do item afetado sem recarregar a tela toda
@@ -881,7 +883,9 @@ function App({ socket }) {
 
         try {
             if (itemAtual.id) {
-                await api.put(`/veiculos/${itemAtual.id}`, itemAtual);
+                const payload = { ...itemAtual };
+                delete payload.imagens;
+                await api.put(`/veiculos/${itemAtual.id}`, payload);
 
                 // Buscar dados atualizados do servidor para garantir coleta correta no alerta
                 let dadosParaAlerta = itemAtual;
