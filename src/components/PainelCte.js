@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { Copy } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
-import useAuthStore from '../store/useAuthStore';
 
 export default function PainelCte({
     abaAtiva,
@@ -28,8 +27,6 @@ export default function PainelCte({
     const setListaAtual = isRecife ? setCtesRecife : setCtesMoreno;
     const corTema = isRecife ? '#3b82f6' : '#f59e0b';
     const bgBadge = isRecife ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)';
-    const userUnidade = useAuthStore(s => s.user?.cidade);
-
     const ctesFiltrados = listaCtes.filter(cte => {
         const dataEmissao = cte.data_entrada_cte;
         if (!dataEmissao) return true;
@@ -44,11 +41,8 @@ export default function PainelCte({
 
         if (!(dataComparacao >= filtroDataInicioCte && dataComparacao <= filtroDataFimCte)) return false;
 
-        // Filtrar por unidade que aceitou o CT-e (retrocompatível: mostrar se campo ausente)
-        // Usuários com cidade "Ambas" veem CT-es de todas as unidades
-        if (cte.unidade_emissao && userUnidade && userUnidade !== 'Ambas') {
-            return cte.unidade_emissao === userUnidade;
-        }
+        // A separação por unidade já é feita no App.js (ctesRecife / ctesMoreno por origem)
+        // Não filtrar por unidade_emissao aqui — um CT-e de Moreno pode ser aceito por Recife
 
         return true;
     });
