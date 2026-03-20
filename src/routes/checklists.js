@@ -429,6 +429,22 @@ module.exports = function createChecklistsRouter(io) {
                     mensagem: `[${cidade}] ${motoristaNome} → ${novoStatus} | Doca: ${docaAtual}${coletaInfo}`,
                     cargos_alvo: cargosAlvo
                 });
+
+                // CARREGADO → notifica Planejamento no sininho (alerta persistido)
+                if (novoStatus === 'CARREGADO') {
+                    try {
+                        const alertaDados = {
+                            tipo: 'veiculo_carregado',
+                            origem: cidade,
+                            mensagem: `Veículo carregado: ${motoristaNome}${coletaInfo}`,
+                            data_criacao: new Date().toISOString()
+                        };
+                        const result = await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify(alertaDados)]);
+                        io.emit('receber_alerta', { ...alertaDados, idInterno: result.lastID });
+                    } catch (e) {
+                        console.error('Erro ao emitir alerta veiculo_carregado:', e);
+                    }
+                }
             }
 
             io.emit('receber_atualizacao', socketPayload);
@@ -510,6 +526,21 @@ module.exports = function createChecklistsRouter(io) {
                 mensagem: `[${cidade}] TRANSFERÊNCIA — ${motoristaNome} → CARREGADO${coletaNum ? ` | Coleta: ${coletaNum}` : ''}`,
                 cargos_alvo: ['Auxiliar Operacional', 'Planejamento']
             });
+
+            // Notifica Planejamento no sininho (alerta persistido)
+            try {
+                const coletaInfo = coletaNum ? ` | Coleta: ${coletaNum}` : '';
+                const alertaDados = {
+                    tipo: 'veiculo_carregado',
+                    origem: cidade,
+                    mensagem: `Veículo carregado: ${motoristaNome}${coletaInfo}`,
+                    data_criacao: new Date().toISOString()
+                };
+                const result = await dbRun(`INSERT INTO notificacoes (dados_json) VALUES (?)`, [JSON.stringify(alertaDados)]);
+                io.emit('receber_alerta', { ...alertaDados, idInterno: result.lastID });
+            } catch (e) {
+                console.error('Erro ao emitir alerta veiculo_carregado (transferência):', e);
+            }
 
             res.json({ success: true });
         } catch (e) {
