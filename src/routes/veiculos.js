@@ -18,10 +18,11 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const [rows, countRow] = await Promise.all([
                 dbAll(`
-                SELECT v.*, 
+                SELECT v.*,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
-                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
-                FROM veiculos v 
+                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
+                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count
+                FROM veiculos v
                 ORDER BY v.id DESC LIMIT ? OFFSET ?
             `, [limit, offset]),
                 dbAll("SELECT COUNT(*) as total FROM veiculos")
@@ -68,6 +69,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                     telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
                     isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                    checklistFeito: parseInt(row.checklist_count) > 0,
                     dados_json: row.dados_json || '{}'
                 };
             });
