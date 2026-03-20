@@ -283,8 +283,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const dadosBarrasStatus = OPCOES_STATUS.map(s => ({
         name: s.replace('LIBERADO P/ ', 'LIB ').replace('EM ', ''),
         fullName: s,
-        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && v.status_recife === s).length,
-        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && v.status_moreno === s).length,
+        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && (v.status_recife === s || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife))).length,
+        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && (v.status_moreno === s || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno))).length,
     }));
 
     return (
@@ -428,6 +428,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     veiculosRecife.forEach(v => {
         const st = v.status_recife || 'AGUARDANDO';
         if (contStatus[st] !== undefined) contStatus[st]++;
+        if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
     });
     const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 
@@ -1175,6 +1176,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
     veiculosMoreno.forEach(v => {
         const st = v.status_moreno || 'AGUARDANDO';
         if (contStatus[st] !== undefined) contStatus[st]++;
+        if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
     });
     const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 
