@@ -853,6 +853,7 @@ function App({ socket }) {
                 const endpoint = ehFila ? 'fila' : 'veiculos';
                 const payload = { ...itemAtual };
                 delete payload.imagens; // Economiza rede e previne erro 413 (Payload Too Large)
+                delete payload.dados_json; // Remove lixo pesado salvo em transações antigas
                 await api.put(`/${endpoint}/${itemAtual.id}`, payload);
             }
         } catch (e) {
@@ -885,6 +886,7 @@ function App({ socket }) {
             if (itemAtual.id) {
                 const payload = { ...itemAtual };
                 delete payload.imagens;
+                delete payload.dados_json;
                 await api.put(`/veiculos/${itemAtual.id}`, payload);
 
                 // Buscar dados atualizados do servidor para garantir coleta correta no alerta

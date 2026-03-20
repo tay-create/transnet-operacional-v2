@@ -548,13 +548,18 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify(v.timestamps_status || {}),
                 v.cte_antecipado_recife || null,
                 v.cte_antecipado_moreno || null,
-                JSON.stringify({
-                    ...(() => { try { return JSON.parse(veiculoAntigo?.dados_json || '{}'); } catch { return {}; } })(),
-                    ...v,
-                    placa1Motorista: v.placa1Motorista,
-                    placa2Motorista: v.placa2Motorista,
-                    telefoneMotorista: v.telefoneMotorista,
-                }),
+                JSON.stringify((() => {
+                    const merged = {
+                        ...(() => { try { return JSON.parse(veiculoAntigo?.dados_json || '{}'); } catch { return {}; } })(),
+                        ...v,
+                        placa1Motorista: v.placa1Motorista,
+                        placa2Motorista: v.placa2Motorista,
+                        telefoneMotorista: v.telefoneMotorista,
+                    };
+                    delete merged.imagens;
+                    delete merged.dados_json;
+                    return merged;
+                })()),
                 req.params.id
             ];
 

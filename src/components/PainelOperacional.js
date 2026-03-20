@@ -220,6 +220,7 @@ export default function PainelOperacional({
         if (itemAtual.id) {
             const payload = { ...itemAtual };
             delete payload.imagens;
+            delete payload.dados_json;
             
             api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
                 mostrarNotificacao?.(`🚛 Motorista vinculado: ${itemAtual.motorista}`);
@@ -249,6 +250,7 @@ export default function PainelOperacional({
         if (itemAtual.id) {
             const payload = { ...itemAtual };
             delete payload.imagens;
+            delete payload.dados_json;
 
             api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
                 mostrarNotificacao?.(`🚛 Motorista atualizado: ${itemAtual.motorista}`);
