@@ -45,7 +45,8 @@ export default function PainelCte({
         if (!(dataComparacao >= filtroDataInicioCte && dataComparacao <= filtroDataFimCte)) return false;
 
         // Filtrar por unidade que aceitou o CT-e (retrocompatível: mostrar se campo ausente)
-        if (cte.unidade_emissao && userUnidade) {
+        // Usuários com cidade "Ambas" veem CT-es de todas as unidades
+        if (cte.unidade_emissao && userUnidade && userUnidade !== 'Ambas') {
             return cte.unidade_emissao === userUnidade;
         }
 
