@@ -494,10 +494,10 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
                    situacao_cad, num_liberacao_cad, data_liberacao_cad,
                    estados_destino, destino_uf_cad
             FROM marcacoes_placas
-            WHERE data_marcacao >= NOW() - INTERVAL '7 days'
+            WHERE (data_marcacao >= NOW() - INTERVAL '7 days' OR is_frota = 1)
               AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
               ${cidadeFilter}
-            ORDER BY data_marcacao DESC
+            ORDER BY is_frota DESC, data_marcacao DESC
         `, params);
         const motoristas = rows.map(r => ({
             ...r,
