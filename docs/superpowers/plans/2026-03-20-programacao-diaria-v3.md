@@ -37,6 +37,8 @@
 - **`enviarNotificacao(tipo, dados)`** — função global já existente em `server.js`; usar igual à versão atual da função.
 - **`colunasParaAdicionar`** — array em `src/database/migrations.js` linha ~119; cada item `{ tabela, coluna, tipo }`.
 - **INSERT atual de veículos** — `src/routes/veiculos.js` linha ~226; tem 32 colunas e 32 `?` placeholders.
+- **Placeholders SQL:** O wrapper `dbRun`/`dbAll` em `src/database/db.js` converte automaticamente `?` para `$1`, `$2`, etc. (via `convertSql`). **Todo SQL neste plano usa `?`** — padrão exclusivo em toda a codebase. Não usar `$N` diretamente.
+- **Roles reais do sistema:** Os cargos são `'Coordenador'`, `'Planejamento'`, `'Encarregado'`, `'Aux. Operacional'`, `'Conhecimento'`, `'Cadastro'`, `'Conferente'`, `'Pos Embarque'`, `'Dashboard Viewer'`. O spec usa nomes genéricos (`admin`, `supervisor`, `operador`) que não existem — **este plano é a fonte de verdade para os nomes de roles**.
 
 ---
 
@@ -129,7 +131,7 @@
               rows = await dbAll(`
                   SELECT id, unidade, operacao, data_prevista, data_prevista_original
                   FROM veiculos
-                  WHERE LEFT(data_prevista, 10) = $1
+                  WHERE LEFT(data_prevista, 10) = ?
                     AND (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
                     AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
               `, [hojeStr]);
@@ -177,13 +179,13 @@
 
           // Idempotência: apagar snapshot anterior do mesmo (data, turno) antes de inserir
           await dbRun(
-              'DELETE FROM frota_programacao_diaria WHERE data_referencia = $1 AND turno = $2',
+              'DELETE FROM frota_programacao_diaria WHERE data_referencia = ? AND turno = ?',
               [hojeStr, turno]
           );
 
           const dados_json = JSON.stringify(totais);
           await dbRun(
-              'INSERT INTO frota_programacao_diaria (data_referencia, turno, dados_json) VALUES ($1, $2, $3)',
+              'INSERT INTO frota_programacao_diaria (data_referencia, turno, dados_json) VALUES (?, ?, ?)',
               [hojeStr, turno, dados_json]
           );
 
@@ -196,8 +198,6 @@
       }
   }
   ```
-
-  > **Atenção:** O banco é PostgreSQL — usar `$1`, `$2`, `$3` como placeholders (não `?`). Verificar se a função original já usa `$1` ou `?`; se usar `?`, manter consistência com o padrão existente do arquivo.
 
 - [ ] **Step 2: Remover as duas linhas de cron de 10h/17h**
 
@@ -273,9 +273,7 @@
 **Arquivos:**
 - Modify: `src/routes/veiculos.js` (INSERT por volta das linhas ~226–258)
 
-**O que fazer:** Adicionar `data_prevista_original` como 33ª coluna no INSERT, recebendo `v.data_prevista_original` do body (enviado pelo frontend na Task 5). A coluna deve ser adicionada tanto na lista de colunas quanto nos values, e um `?` a mais no template (agora 33 placeholders).
-
-> **Atenção sobre placeholders:** O backend usa PostgreSQL. Verificar se o INSERT existente usa `?` ou `$N`. Se usar `?`, adicionar mais um `?`. Se usar `$N`, renumerar ou adicionar `$33`.
+**O que fazer:** Adicionar `data_prevista_original` como 33ª coluna no INSERT, recebendo `v.data_prevista_original` do body (enviado pelo frontend na Task 5). A coluna deve ser adicionada tanto na lista de colunas quanto nos values, totalizando 33 `?` placeholders (o wrapper converte para `$N` automaticamente).
 
 - [ ] **Step 1: Adicionar `data_prevista_original` ao INSERT**
 
@@ -337,6 +335,8 @@
 
 **O que fazer:** No objeto `novoItem` montado em `lancarVeiculoInteligente`, adicionar o campo `data_prevista_original` com o mesmo valor de `formLanca.data_prevista`. Isso garante que qualquer veículo criado daqui em diante tenha o campo gravado no banco.
 
+> Nota: o spec usa `formData.data_prevista` mas a variável correta em `src/App.js` é `formLanca.data_prevista` — usar `formLanca`.
+
 - [ ] **Step 1: Adicionar campo ao payload**
 
   Localizar o objeto `novoItem` (~linha 600). Após a linha `data_prevista: formLanca.data_prevista,`, adicionar:
@@ -394,6 +394,7 @@
           await carregarDados();
       } catch (e) {
           console.error('Erro ao gerar programação:', e);
+          alert('Erro ao gerar programação. Verifique o console.');
       } finally {
           setGerando(null);
       }
@@ -423,20 +424,7 @@
 
 - [ ] **Step 4: Verificar display do turno**
 
-  Procurar onde o `turno` é exibido no componente (provavelmente uma célula de tabela). Garantir que os valores `'Inicial'` e `'Final'` têm labels legíveis. Se houver um mapeamento ou fallback `turno === '10h' ? 'Turno 10h' : ...`, adicionar os novos casos:
-
-  ```js
-  // Mapeamento de turno para label
-  const labelTurno = (t) => {
-      if (t === 'Inicial') return 'Turno Inicial';
-      if (t === 'Final') return 'Turno Final';
-      if (t === '10h') return 'Turno 10h';
-      if (t === '17h') return 'Turno 17h';
-      return t;
-  };
-  ```
-
-  Se já existir tal mapeamento, apenas adicionar os dois novos cases. Se o turno já é exibido diretamente como `{p.turno}`, não há nada a fazer — o valor já é legível.
+  O componente atual exibe `turno` diretamente (ex.: `{p.turno}`). Como os novos valores são `'Inicial'` e `'Final'`, strings legíveis por si sós, **nenhuma mudança de display é necessária**. Apenas confirmar visualmente que não há conversão hardcoded de `'10h'`/`'17h'` que precisaria ser atualizada.
 
 - [ ] **Step 5: Build**
 
@@ -480,7 +468,7 @@
 - [ ] **Step 3: Criar novo veículo via NovoLançamento e confirmar `data_prevista_original`**
 
   ```bash
-  wsl -d Ubuntu -- bash -c "PGPASSWORD=124578595 psql -U postgres -d transnet -c \"SELECT id, data_prevista, data_prevista_original FROM veiculos ORDER BY id DESC LIMIT 3\""
+  wsl -d Ubuntu -- bash -c "cd /home/transnet/projects/transnet-operacional-v2 && PGPASSWORD=124578595 psql -U postgres -d transnet -c \"SELECT id, data_prevista, data_prevista_original FROM veiculos ORDER BY id DESC LIMIT 3\""
   ```
 
   O veículo mais recente deve ter `data_prevista_original` igual ao `data_prevista`.
