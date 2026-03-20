@@ -42,18 +42,6 @@ const estiloTd = {
 
 const estiloTdLeft = { ...estiloTd, textAlign: 'left' };
 
-const renderSplitPrint = (recife, moreno, corRecife = '#0369a1', corMoreno = '#b45309') => {
-    if (recife === 0 && moreno === 0) return '—';
-    if (recife === 0) return <span style={{ color: corMoreno }}>Moreno: {moreno}</span>;
-    if (moreno === 0) return <span style={{ color: corRecife }}>Recife: {recife}</span>;
-    return (
-        <span>
-            <span style={{ color: corRecife }}>Recife: {recife}</span>
-            <span style={{ color: '#94a3b8', margin: '0 3px' }}>/</span>
-            <span style={{ color: corMoreno }}>Moreno: {moreno}</span>
-        </span>
-    );
-};
 
 export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }) {
     const agora = new Date();
@@ -109,18 +97,12 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
                 {temNovo && (
                     <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
                         <div>
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>Total Lançados </span>
-                            <span style={{ color: '#0369a1', fontWeight: '700' }}>Recife: {resumoLancadosR}</span>
-                            <span style={{ color: '#94a3b8', margin: '0 4px' }}>/</span>
-                            <span style={{ color: '#b45309', fontWeight: '700' }}>Moreno: {resumoLancadosM}</span>
-                            <span style={{ color: '#64748b', fontWeight: '700' }}> = {resumoLancadosR + resumoLancadosM}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>Total Programados: </span>
+                            <span style={{ fontWeight: '700', color: '#1e293b' }}>{resumoLancadosR + resumoLancadosM}</span>
                         </div>
                         <div>
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>Total Reprogramados </span>
-                            <span style={{ color: '#dc2626', fontWeight: '700' }}>Recife: {resumoReproR}</span>
-                            <span style={{ color: '#94a3b8', margin: '0 4px' }}>/</span>
-                            <span style={{ color: '#dc2626', fontWeight: '700' }}>Moreno: {resumoReproM}</span>
-                            <span style={{ color: '#dc2626', fontWeight: '700' }}> = {resumoReproR + resumoReproM}</span>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>Total Reprogramados: </span>
+                            <span style={{ fontWeight: '700', color: '#dc2626' }}>{resumoReproR + resumoReproM}</span>
                         </div>
                     </div>
                 )}
@@ -148,7 +130,7 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
                             <thead>
                                 <tr>
                                     <th style={estiloThLeft}>Operação</th>
-                                    <th style={estiloTh}>Quantidade</th>
+                                    <th style={estiloTh}>Programados</th>
                                     <th style={{ ...estiloTh, color: '#dc2626' }}>Reprogramados</th>
                                 </tr>
                             </thead>
@@ -167,11 +149,16 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
                                         <tr key={op}>
                                             <td style={estiloTdLeft}><strong>{op}</strong></td>
                                             <td style={estiloTd}>
-                                                {novoFmt ? renderSplitPrint(lanc_r, lanc_m) : lanc_r + lanc_m}
+                                                {lanc_r + lanc_m}
                                             </td>
-                                            <td style={{ ...estiloTd, color: (novoFmt ? repro_r + repro_m : repro_leg) > 0 ? '#dc2626' : '#94a3b8' }}>
-                                                {novoFmt ? renderSplitPrint(repro_r, repro_m, '#dc2626', '#dc2626') : repro_leg}
-                                            </td>
+                                            {(() => {
+                                                const totalRepro = novoFmt ? repro_r + repro_m : repro_leg;
+                                                return (
+                                                    <td style={{ ...estiloTd, color: totalRepro > 0 ? '#dc2626' : '#94a3b8' }}>
+                                                        {totalRepro || '—'}
+                                                    </td>
+                                                );
+                                            })()}
                                         </tr>
                                     );
                                 })}
@@ -180,10 +167,10 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
                                 <tr style={{ background: '#f1f5f9', fontWeight: '700' }}>
                                     <td style={estiloTdLeft}>TOTAL GERAL</td>
                                     <td style={estiloTd}>
-                                        {novoFmt ? renderSplitPrint(totLancR, totLancM) : totLancR + totLancM}
+                                        {totLancR + totLancM}
                                     </td>
                                     <td style={{ ...estiloTd, color: '#dc2626' }}>
-                                        {novoFmt ? renderSplitPrint(totReproR, totReproM, '#dc2626', '#dc2626') : totRepro}
+                                        {novoFmt ? totReproR + totReproM : totRepro}
                                     </td>
                                 </tr>
                             </tfoot>
