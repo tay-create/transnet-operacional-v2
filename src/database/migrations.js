@@ -183,7 +183,9 @@ const inicializarBanco = async () => {
             { tabela: 'ctes_ativos', coluna: 'usuario_aceitou', tipo: 'TEXT' },
             // CT-e liberado antecipadamente (ainda em EM CARREGAMENTO)
             { tabela: 'veiculos', coluna: 'cte_antecipado_recife', tipo: 'TEXT' },
-            { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' }
+            { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' },
+            // Programação Diária v3 — data original para classificar Programado vs Reprogramado
+            { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados

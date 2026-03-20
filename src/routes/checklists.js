@@ -179,7 +179,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
                         tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, 'Recife' as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Recife' as _cidade
                      FROM veiculos WHERE status_recife IN (${placeholders}) AND data_prevista >= ? ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, hoje]
                 );
@@ -188,7 +188,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
                         tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, 'Moreno' as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Moreno' as _cidade
                      FROM veiculos WHERE status_moreno IN (${placeholders}) AND data_prevista >= ? ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, hoje]
                 );
@@ -205,7 +205,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
                         ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, ? as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, ? as _cidade
                      FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista >= ? AND ${cidadeFiltro} ORDER BY id DESC`,
                     [cidade, ...STATUS_CONFERENTE, hoje]
                 );

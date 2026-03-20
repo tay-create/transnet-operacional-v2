@@ -1760,19 +1760,10 @@ io.on('connection', (socket) => {
     socket.on('nova_atualizacao', (dados) => { io.emit('receber_atualizacao', dados); });
     socket.on('update_user_avatar', (dados) => { io.emit('receber_atualizacao', { tipo: 'avatar_mudou', ...dados }); });
 });
-// ── PROGRAMAÇÃO DIÁRIA (Cron Jobs) ──────────────────────────────
+// ── PROGRAMAÇÃO DIÁRIA (Manual) ──────────────────────────────────────
 async function gerarProgramacaoDiaria(turno) {
     try {
-        console.log(`[CRON] Iniciando Programação Diária - Turno: ${turno}`);
-        const rows = await dbAll(`
-            SELECT id, unidade, operacao, data_criacao, data_prevista, status_recife, status_moreno,
-                   coletaRecife, coletaMoreno
-            FROM veiculos
-            WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'LIBERADO P/ CT-e', 'CARREGADO'))
-              AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue', 'LIBERADO P/ CT-e', 'CARREGADO'))
-        `);
-
-        // YYYY-MM-DD local
+        console.log(`[PROG] Iniciando Programação Diária - Turno: ${turno}`);
         const hojeStr = new Date().toLocaleString("en-CA", { timeZone: "America/Sao_Paulo" }).split(',')[0];
 
         const totais = {
@@ -1782,48 +1773,89 @@ async function gerarProgramacaoDiaria(turno) {
             Consolidados: { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
         };
 
-        rows.forEach(v => {
-            let cliente = 'Consolidados';
-            const op = (v.operacao || '').toUpperCase();
-            if (op.includes('DELTA')) cliente = 'Delta';
-            else if (op.includes('PORCELANA')) cliente = 'Porcelana';
-            else if (op.includes('ELETRIK')) cliente = 'Eletrik';
+        let rows;
+        if (turno === 'Inicial') {
+            rows = await dbAll(`
+                SELECT id, unidade, operacao, data_prevista, data_prevista_original
+                FROM veiculos
+                WHERE LEFT(data_prevista, 10) = ?
+                  AND (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
+                  AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO'))
+            `, [hojeStr]);
 
-            const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
-
-            // Usar data_prevista como referência; fallback para data_criacao
-            const dataRef = ((v.data_prevista || v.data_criacao) || '').substring(0, 10);
-
-            if (dataRef && dataRef < hojeStr) {
-                // Reprogramado: veículo previsto para antes de hoje ainda em aberto
-                if (un === 'moreno') {
-                    totais[cliente].reprogramado_moreno += 1;
-                } else {
-                    totais[cliente].reprogramado_recife += 1;
+            rows.forEach(v => {
+                const op = (v.operacao || '').toUpperCase();
+                let cliente = 'Consolidados';
+                if (op.includes('/')) {
+                    cliente = 'Consolidados';
+                } else if (op.includes('DELTA')) {
+                    cliente = 'Delta';
+                } else if (op.includes('PORCELANA')) {
+                    cliente = 'Porcelana';
+                } else if (op.includes('ELETRIK')) {
+                    cliente = 'Eletrik';
                 }
-            } else {
-                // Lançado hoje (ou sem data)
-                totais[cliente][un] += 1;
-            }
-        });
 
-        // Salvar no BD
+                const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
+
+                const foiReprogramado =
+                    v.data_prevista_original !== null &&
+                    v.data_prevista_original !== undefined &&
+                    v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10);
+
+                if (foiReprogramado) {
+                    totais[cliente][`reprogramado_${un}`] += 1;
+                } else {
+                    totais[cliente][un] += 1;
+                }
+            });
+
+        } else { // Final
+            rows = await dbAll(`
+                SELECT id, unidade, operacao
+                FROM veiculos
+                WHERE (status_recife IS NULL OR status_recife NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue'))
+                  AND (status_moreno IS NULL OR status_moreno NOT IN ('FINALIZADO','Despachado','Em Trânsito','Entregue'))
+            `, []);
+
+            rows.forEach(v => {
+                const op = (v.operacao || '').toUpperCase();
+                let cliente = 'Consolidados';
+                if (op.includes('/')) {
+                    cliente = 'Consolidados';
+                } else if (op.includes('DELTA')) {
+                    cliente = 'Delta';
+                } else if (op.includes('PORCELANA')) {
+                    cliente = 'Porcelana';
+                } else if (op.includes('ELETRIK')) {
+                    cliente = 'Eletrik';
+                }
+
+                const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
+                totais[cliente][un] += 1;
+            });
+        }
+
+        // Idempotência: apagar snapshot anterior do mesmo (data, turno)
+        await dbRun(
+            'DELETE FROM frota_programacao_diaria WHERE data_referencia = ? AND turno = ?',
+            [hojeStr, turno]
+        );
+
         const dados_json = JSON.stringify(totais);
         await dbRun(
-            "INSERT INTO frota_programacao_diaria (data_referencia, turno, dados_json) VALUES (?, ?, ?)",
+            'INSERT INTO frota_programacao_diaria (data_referencia, turno, dados_json) VALUES (?, ?, ?)',
             [hojeStr, turno, dados_json]
         );
 
         enviarNotificacao('programacao_gerada', { turno, data_referencia: hojeStr, data_criacao: new Date().toISOString() });
-        console.log(`[CRON] Programação Diária (${turno}) concluída.`);
+        console.log(`[PROG] Programação Diária (${turno}) concluída. ${rows.length} veículos processados.`);
+        return { turno, data_referencia: hojeStr };
     } catch (e) {
-        console.error(`[CRON] Erro ao gerar programação diária:`, e);
+        console.error(`[PROG] Erro ao gerar programação diária:`, e);
+        throw e;
     }
 }
-
-// Rodar de seg a sex (1-5), às 10:00 e 17:00
-cron.schedule('0 10 * * 1-5', () => gerarProgramacaoDiaria('10h'), { scheduled: true, timezone: "America/Sao_Paulo" });
-cron.schedule('0 17 * * 1-5', () => gerarProgramacaoDiaria('17h'), { scheduled: true, timezone: "America/Sao_Paulo" });
 
 // ── VERIFICAÇÃO DE EXPIRAÇÃO DE LIBERAÇÕES (GR) ───────────────────────
 // Roda a cada 15 minutos para checar liberações que estão prestes a expirar (2h) ou já expiraram
@@ -1981,6 +2013,19 @@ app.get('/api/programacao-diaria', authMiddleware, async (req, res) => {
             dados_json: (() => { try { return JSON.parse(r.dados_json || '{}'); } catch { return {}; } })()
         }));
         res.json({ success: true, programacoes: programas });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
+    const { turno } = req.body;
+    if (turno !== 'Inicial' && turno !== 'Final') {
+        return res.status(400).json({ success: false, message: "turno deve ser 'Inicial' ou 'Final'" });
+    }
+    try {
+        const resultado = await gerarProgramacaoDiaria(turno);
+        res.json({ success: true, turno: resultado.turno, data_referencia: resultado.data_referencia });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
     }

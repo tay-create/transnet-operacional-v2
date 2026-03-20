@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/apiService';
+import useAuthStore from '../store/useAuthStore';
 import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { obterDataBrasilia } from '../utils/helpers';
@@ -19,8 +20,11 @@ const isNovoFormato = (dados) =>
 
 
 export default function PainelProgramacao() {
+    const { user } = useAuthStore();
+    const podeGerar = ['Coordenador', 'Planejamento', 'Conhecimento'].includes(user?.cargo);
     const [programacoes, setProgramacoes] = useState([]);
     const [carregando, setCarregando] = useState(false);
+    const [gerando, setGerando] = useState(null); // 'Inicial' | 'Final' | null
 
     const dataHoje = obterDataBrasilia();
     const [dataInicio, setDataInicio] = useState(dataHoje);
@@ -39,6 +43,19 @@ export default function PainelProgramacao() {
     };
 
     useEffect(() => { carregarDados(); }, []);
+
+    const gerarProgramacao = async (turno) => {
+        setGerando(turno);
+        try {
+            await api.post('/api/programacao-diaria/gerar', { turno });
+            await carregarDados();
+        } catch (e) {
+            console.error('Erro ao gerar programação:', e);
+            alert('Erro ao gerar programação. Verifique o console.');
+        } finally {
+            setGerando(null);
+        }
+    };
 
     const formatData = (dStr) => {
         if (!dStr) return '';
@@ -76,10 +93,42 @@ export default function PainelProgramacao() {
                         PROGRAMAÇÃO DIÁRIA DE CARREGAMENTO <span style={{ color: '#fb923c' }}>/ HISTÓRICO</span>
                     </h2>
                     <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>
-                        Resumo consolidado diário dos veículos e origens, extraído nos turnos das 10h e 17h.
+                        Resumo consolidado diário dos veículos e origens, gerado manualmente pelos botões Gerar Inicial e Gerar Final.
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {podeGerar && (
+                        <>
+                            <button
+                                onClick={() => gerarProgramacao('Inicial')}
+                                disabled={gerando === 'Inicial'}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)',
+                                    color: '#60a5fa', borderRadius: '8px', padding: '8px 14px',
+                                    cursor: gerando === 'Inicial' ? 'default' : 'pointer', fontSize: '12px',
+                                    fontWeight: '700', transition: 'all 0.2s',
+                                    opacity: gerando === 'Inicial' ? 0.6 : 1
+                                }}
+                            >
+                                {gerando === 'Inicial' ? 'Gerando...' : 'Gerar Inicial'}
+                            </button>
+                            <button
+                                onClick={() => gerarProgramacao('Final')}
+                                disabled={gerando === 'Final'}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    background: 'rgba(251,146,60,0.15)', border: '1px solid rgba(251,146,60,0.3)',
+                                    color: '#fb923c', borderRadius: '8px', padding: '8px 14px',
+                                    cursor: gerando === 'Final' ? 'default' : 'pointer', fontSize: '12px',
+                                    fontWeight: '700', transition: 'all 0.2s',
+                                    opacity: gerando === 'Final' ? 0.6 : 1
+                                }}
+                            >
+                                {gerando === 'Final' ? 'Gerando...' : 'Gerar Final'}
+                            </button>
+                        </>
+                    )}
                     <button
                         onClick={carregarDados}
                         disabled={carregando}
@@ -169,7 +218,7 @@ export default function PainelProgramacao() {
                                             {formatData(prog.data_referencia)} — Turno {prog.turno}
                                         </div>
                                         <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px' }}>
-                                            Snapshot Automático
+                                            Turno {prog.turno}
                                         </span>
                                     </div>
 

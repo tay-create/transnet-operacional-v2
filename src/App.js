@@ -616,6 +616,7 @@ function App({ socket }) {
             origem_criacao: unidadeForcada,
             inicio_rota: unidadeForcada,
             data_prevista: formLanca.data_prevista,
+            data_prevista_original: formLanca.data_prevista,
             observacao: formLanca.observacao || '',
             imagens: formLanca.imagens || [],
             id_marcacao: formLanca.id_marcacao || null,

@@ -232,8 +232,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             observacao, imagens,
             chk_cnh, chk_antt, chk_tacografo, chk_crlv,
             situacao_cadastro, numero_liberacao, data_liberacao,
-            dados_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            dados_json, data_prevista_original
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
             const values = [
                 v.placa || 'NÃO INFORMADA', v.modelo, v.motorista, v.status_recife, v.status_moreno,
@@ -254,7 +254,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     isFrotaMotorista: isFrotaMotorista, // Guarda a flag para isentar das regras de Ger Risco
                     chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                     situacao_cadastro, numero_liberacao, data_liberacao
-                })
+                }),
+                v.data_prevista_original || v.data_prevista
             ];
 
             const result = await dbRun(query, values);
