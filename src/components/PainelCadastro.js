@@ -464,7 +464,7 @@ export default function PainelCadastro({ user, socket }) {
                                             style={{ padding: '12px 16px', background: 'rgba(0,0,0,0.2)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: expandido ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
                                         >
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
                                                     {m.nome_motorista}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -620,7 +620,7 @@ export default function PainelCadastro({ user, socket }) {
                                         {/* Header do card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
                                                     {m.nome_motorista}
                                                     {m.status_cte === 'Emitido' && (
                                                         <span style={{ fontSize: '10px', fontWeight: '700', color: '#4ade80', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', padding: '1px 7px', borderRadius: '10px' }}>
@@ -885,7 +885,7 @@ export default function PainelCadastro({ user, socket }) {
                                     >
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
                                                     {m.nome_motorista} <span style={{ fontSize: '9px', background: '#059669', color: 'white', padding: '2px 4px', borderRadius: '4px' }}>FROTA</span>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>

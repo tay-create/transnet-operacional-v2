@@ -847,7 +847,7 @@ export default function PainelOperacional({
                                                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.2)'}
                                                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                                                             >
-                                                                                <strong>{m.nome_motorista}</strong>
+                                                                                <strong style={{ textTransform: 'uppercase' }}>{m.nome_motorista}</strong>
                                                                                 {m.is_frota ? ' [FROTA]' : ''} — {m.placa1}
                                                                                 {m.disponibilidade ? <span style={{ color: '#94a3b8' }}> [{m.disponibilidade}]</span> : ''}
                                                                             </div>
@@ -857,7 +857,7 @@ export default function PainelOperacional({
                                                             </div>
                                                         ) : (
                                                             <div className="motorista-hover-wrapper" style={{ position: 'relative' }}>
-                                                                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#f1f5f9', cursor: 'help' }}>{item.motorista || 'A DEFINIR'}</span>
+                                                                <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#f1f5f9', cursor: 'help', textTransform: 'uppercase' }}>{item.motorista || 'A DEFINIR'}</span>
                                                                 {/* Caixa de informacao do hover */}
                                                                 <div className="motorista-hover-card" style={{
                                                                     display: 'none', position: 'absolute', bottom: '100%', left: 0, marginBottom: '6px',
@@ -866,7 +866,7 @@ export default function PainelOperacional({
                                                                     boxShadow: '0 8px 24px rgba(0,0,0,0.6)', zIndex: 50, fontSize: '11px', color: '#cbd5e1',
                                                                     lineHeight: '1.6'
                                                                 }}>
-                                                                    <div style={{ fontWeight: '700', color: '#60a5fa', marginBottom: '4px', fontSize: '12px' }}>{item.motorista || 'Sem Nome'}</div>
+                                                                    <div style={{ fontWeight: '700', color: '#60a5fa', marginBottom: '4px', fontSize: '12px', textTransform: 'uppercase' }}>{item.motorista || 'Sem Nome'}</div>
                                                                     <div>Placa: <strong style={{ color: '#fbbf24' }}>{item.placa1Motorista || item.placa || '—'}</strong>{item.placa2Motorista ? ` / ${item.placa2Motorista} ` : ''}</div>
                                                                     <div>Telefone: <strong style={{ color: item.telefoneMotorista ? '#4ade80' : '#f87171' }}>{item.telefoneMotorista || 'NAO REGISTRADO'}</strong></div>
                                                                     {item.disponibilidadeMotorista && <div>Local: {item.disponibilidadeMotorista}</div>}

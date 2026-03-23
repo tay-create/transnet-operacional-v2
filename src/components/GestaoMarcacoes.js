@@ -341,7 +341,7 @@ export default function GestaoMarcacoes({ socket }) {
                     {/* Cabeçalho */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                         <div>
-                            <div style={{ fontSize: '17px', fontWeight: '700', color: '#f1f5f9' }}>{m.nome_motorista}</div>
+                            <div style={{ fontSize: '17px', fontWeight: '700', color: '#f1f5f9', textTransform: 'uppercase' }}>{m.nome_motorista}</div>
                             <div style={{ fontSize: '13px', color: '#60a5fa', marginTop: '2px' }}>
                                 {linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}
                             </div>
@@ -617,7 +617,7 @@ export default function GestaoMarcacoes({ socket }) {
                                             <tr key={m.id}>
                                                 <td style={s.td}>{formatarData(m.data_marcacao)}</td>
                                                 <td style={s.td}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', textTransform: 'uppercase' }}>
                                                         {m.nome_motorista}
                                                         {m.is_frota ? (
                                                             <span style={s.badgeFreota}>
@@ -850,7 +850,7 @@ export default function GestaoMarcacoes({ socket }) {
                                 {marcacoes.filter(m => m.is_frota === 1).map(m => (
                                     <tr key={m.id}>
                                         <td style={s.td}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>
                                                 {m.nome_motorista}
                                                 <span style={s.badgeFreota}><Truck size={10} /> FROTA</span>
                                             </div>
