@@ -153,7 +153,7 @@ export default function PainelProgramacao() {
             const { jsPDF } = await import('jspdf');
             const autoTable = (await import('jspdf-autotable')).default;
 
-            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
             const agora = new Date();
             const geradoEm = `${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
             const periodoLabel = dataInicio === dataFim
@@ -176,7 +176,7 @@ export default function PainelProgramacao() {
                 doc.text(`Data: ${periodoLabel}   |   Gerado em: ${geradoEm}`, 15, 22);
                 doc.setDrawColor(30, 41, 59);
                 doc.setLineWidth(0.4);
-                doc.line(15, 25, 195, 25);
+                doc.line(15, 25, 282, 25);
                 return 30;
             };
 
@@ -210,7 +210,7 @@ export default function PainelProgramacao() {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 116, 139);
-                doc.text(formatData(progInicial.data_referencia), 195, y + 7, { align: 'right' });
+                doc.text(formatData(progInicial.data_referencia), 282, y + 7, { align: 'right' });
                 y += 13;
 
                 const dados = progInicial.dados_json || {};
@@ -236,9 +236,9 @@ export default function PainelProgramacao() {
                     headStyles: { fillColor: [30, 41, 59], textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 9 },
                     bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59] },
                     columnStyles: {
-                        0: { cellWidth: 80 },
-                        1: { cellWidth: 50, halign: 'center' },
-                        2: { cellWidth: 50, halign: 'center' },
+                        0: { cellWidth: 120 },
+                        1: { cellWidth: 73, halign: 'center' },
+                        2: { cellWidth: 74, halign: 'center' },
                     },
                     didParseCell: (data) => {
                         if (data.row.index === bodyTabela.length - 1) {
@@ -262,7 +262,7 @@ export default function PainelProgramacao() {
                     return { label: op, value: (d.recife || 0) + (d.moreno || 0), cor: CORES_OPERACAO[op] };
                 });
                 const imgOp = gerarGraficoRosca(itensPorOp, 'Por Operação');
-                doc.addImage(imgOp, 'PNG', 15, y, 82, 78);
+                doc.addImage(imgOp, 'PNG', 15, y, 130, 98);
 
                 // Gráfico 2: Prog vs Reprog (somente se houver reprogramados)
                 if (totRepro > 0) {
@@ -271,7 +271,7 @@ export default function PainelProgramacao() {
                         { label: 'Reprogramados', value: totRepro, cor: '#dc2626' },
                     ];
                     const imgRepro = gerarGraficoRosca(itensRepro, 'Prog. vs Reprog.');
-                    doc.addImage(imgRepro, 'PNG', 112, y, 82, 78);
+                    doc.addImage(imgRepro, 'PNG', 152, y, 130, 98);
                 }
             }
 
@@ -289,7 +289,7 @@ export default function PainelProgramacao() {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 116, 139);
-                doc.text(formatData(progFinal.data_referencia), 195, y + 7, { align: 'right' });
+                doc.text(formatData(progFinal.data_referencia), 282, y + 7, { align: 'right' });
                 y += 13;
 
                 const dados = progFinal.dados_json || {};
@@ -310,8 +310,8 @@ export default function PainelProgramacao() {
                     headStyles: { fillColor: [251, 146, 60], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
                     bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59] },
                     columnStyles: {
-                        0: { cellWidth: 110 },
-                        1: { cellWidth: 70, halign: 'center' },
+                        0: { cellWidth: 180 },
+                        1: { cellWidth: 87, halign: 'center' },
                     },
                     didParseCell: (data) => {
                         if (data.row.index === bodyFinal.length - 1) {
@@ -328,8 +328,8 @@ export default function PainelProgramacao() {
                     return { label: op, value: (d.recife || 0) + (d.moreno || 0), cor: CORES_OPERACAO[op] };
                 });
                 const imgFinal = gerarGraficoRosca(itensFinal, 'Por Operação');
-                // Centralizar: (210 - 15_esq - 15_dir - 82) / 2 + 15 = 64
-                doc.addImage(imgFinal, 'PNG', 64, y, 82, 78);
+                // Centralizar em 297mm: (297 - 15*2 - 130) / 2 + 15 = 83.5
+                doc.addImage(imgFinal, 'PNG', 83.5, y, 130, 98);
             }
 
             // ── Página 3: Lista de Veículos ────────────────────────────────────
@@ -344,7 +344,7 @@ export default function PainelProgramacao() {
             doc.setFontSize(9);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(100, 116, 139);
-            doc.text(`${veiculosHoje.length} veículo(s)`, 195, y3 + 7, { align: 'right' });
+            doc.text(`${veiculosHoje.length} veículo(s)`, 282, y3 + 7, { align: 'right' });
             y3 += 13;
 
             const bodyVeiculos = veiculosHoje.map(v => {
@@ -377,15 +377,15 @@ export default function PainelProgramacao() {
                 bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
                 styles: { overflow: 'linebreak', cellPadding: 1.5 },
                 columnStyles: {
-                    0: { cellWidth: 18 },
-                    1: { cellWidth: 18 },
-                    2: { cellWidth: 22 },
-                    3: { cellWidth: 22 },
-                    4: { cellWidth: 32 },
-                    5: { cellWidth: 22 },
-                    6: { cellWidth: 15 },
-                    7: { cellWidth: 15 },
-                    8: { cellWidth: 16 },
+                    0: { cellWidth: 22 },
+                    1: { cellWidth: 22 },
+                    2: { cellWidth: 28 },
+                    3: { cellWidth: 28 },
+                    4: { cellWidth: 50 },
+                    5: { cellWidth: 30 },
+                    6: { cellWidth: 22 },
+                    7: { cellWidth: 22 },
+                    8: { cellWidth: 43 },
                 },
             });
 
