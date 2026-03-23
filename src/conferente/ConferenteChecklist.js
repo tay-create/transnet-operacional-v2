@@ -203,7 +203,9 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     // - Mista sem checklist → exige apenas na unidade de inicio_rota
     // - Operação única → regra normal (inicio_rota = própria unidade)
     const unidadeCard = v.unidade || 'Recife';
-    const ehUnidadeInicioRota = !v.inicio_rota || v.inicio_rota === unidadeCard;
+    // Para operação mista: checklist só na unidade de início da rota
+    // Para operação de unidade única: o card já filtrado pela API pertence a esta unidade, sem restrição de inicio_rota
+    const ehUnidadeInicioRota = !v.isMista || !v.inicio_rota || v.inicio_rota === unidadeCard;
     const precisaChecklist = v.status === 'LIBERADO P/ DOCA' && !v.isFrotaMotorista
         && !(v.isMista && v.checklistAprovado)
         && ehUnidadeInicioRota;
