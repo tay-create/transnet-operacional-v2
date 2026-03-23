@@ -78,7 +78,7 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
             {/* Cabeçalho */}
             <div style={{ borderBottom: '2px solid #1e293b', paddingBottom: '12px', marginBottom: '16px' }}>
                 <h1 style={{ margin: 0, fontSize: '16px', fontWeight: '900', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Programação Diária de Carregamento
+                    PROGRAMAÇÃO DIÁRIA DE EMBARQUES
                 </h1>
                 <div style={{ marginTop: '6px', display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748b' }}>
                     <span>
@@ -92,7 +92,7 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
             {/* Resumo Executivo */}
             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '12px 16px', marginBottom: '20px' }}>
                 <h2 style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#475569' }}>
-                    Resumo Executivo
+                    Resumo de Embarques
                 </h2>
                 {temNovo && (
                     <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
@@ -123,8 +123,7 @@ export default function RelatorioImpressao({ programacoes, dataInicio, dataFim }
                 return (
                     <div key={prog.id} style={{ marginBottom: '24px', pageBreakInside: 'avoid' }}>
                         <div style={{ background: '#1e293b', color: '#f8fafc', padding: '6px 12px', borderRadius: '4px 4px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                            <strong>{formatData(prog.data_referencia)} — Turno {prog.turno}</strong>
-                            <span style={{ fontSize: '10px', opacity: 0.7 }}>Snapshot Automático</span>
+                            <strong>{formatData(prog.data_referencia)} — Programação {prog.turno}</strong>
                         </div>
                         <table style={estiloTabela}>
                             <thead>
