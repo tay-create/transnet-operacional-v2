@@ -227,6 +227,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
+            // data_inicio_patio: herda data_marcacao (Tempo de Espera) se motorista tem marcação
+            let data_inicio_patio = null;
+            if (motoristaNome && motoristaNome !== 'A DEFINIR') {
+                if (v.id_marcacao) {
+                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
+                    data_inicio_patio = marcPatio?.data_marcacao || data_criacao;
+                } else if (telefoneMotorista) {
+                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefoneMotorista]);
+                    data_inicio_patio = marcPatio?.data_marcacao || data_criacao;
+                } else {
+                    data_inicio_patio = data_criacao;
+                }
+            }
+
             const query = `INSERT INTO veiculos (
             placa, modelo, motorista, status_recife, status_moreno,
             doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno,
@@ -236,8 +250,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             observacao, imagens,
             chk_cnh, chk_antt, chk_tacografo, chk_crlv,
             situacao_cadastro, numero_liberacao, data_liberacao,
-            dados_json, data_prevista_original
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            dados_json, data_prevista_original, data_inicio_patio
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
             const values = [
                 v.placa || 'NÃO INFORMADA', v.modelo, v.motorista, v.status_recife, v.status_moreno,
@@ -255,11 +269,12 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify({
                     ...v,
                     telefoneMotorista: telefoneMotorista,
-                    isFrotaMotorista: isFrotaMotorista, // Guarda a flag para isentar das regras de Ger Risco
+                    isFrotaMotorista: isFrotaMotorista,
                     chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                     situacao_cadastro, numero_liberacao, data_liberacao
                 }),
-                v.data_prevista_original || v.data_prevista
+                v.data_prevista_original || v.data_prevista,
+                data_inicio_patio
             ];
 
             const result = await dbRun(query, values);
@@ -510,6 +525,22 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.coleta = v.coletaRecife || v.coletaMoreno;
             }
 
+            // Se motorista está sendo atribuído agora e data_inicio_patio era null, setar
+            let data_inicio_patio_novo = veiculoAntigo?.data_inicio_patio || null;
+            const motoristaNovo = (v.motorista || '').trim();
+            const motoristaAntigo = (veiculoAntigo?.motorista || '').trim();
+            if (motoristaNovo && motoristaNovo !== 'A DEFINIR' && !data_inicio_patio_novo) {
+                // Buscar data_marcacao do motorista se disponível (herda Tempo de Espera)
+                const telefone = (v.telefoneMotorista || '').replace(/\D/g, '');
+                if (telefone) {
+                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefone]);
+                    data_inicio_patio_novo = marcPatio?.data_marcacao || obterDataHoraBrasilia();
+                } else {
+                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?)) ORDER BY data_marcacao DESC LIMIT 1", [motoristaNovo]);
+                    data_inicio_patio_novo = marcPatio?.data_marcacao || obterDataHoraBrasilia();
+                }
+            }
+
             const query = `UPDATE veiculos SET
             placa=?, modelo=?, motorista=?, status_recife=?, status_moreno=?,
             doca_recife=?, doca_moreno=?, coleta=?, coletaRecife=?, coletaMoreno=?, numero_coleta=?,
@@ -521,7 +552,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
             data_liberacao=?, timestamps_status=?,
             cte_antecipado_recife=?, cte_antecipado_moreno=?,
-            dados_json=?
+            dados_json=?, data_inicio_patio=?
             WHERE id = ?`;
 
             const values = [
@@ -565,6 +596,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     delete merged.dados_json;
                     return merged;
                 })()),
+                data_inicio_patio_novo,
                 req.params.id
             ];
 

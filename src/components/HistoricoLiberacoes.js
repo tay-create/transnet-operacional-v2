@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FolderOpen, Folder, FileText, ChevronRight, ChevronDown, RefreshCw, Search } from 'lucide-react';
+import { FolderOpen, Folder, FileText, ChevronRight, ChevronDown, RefreshCw, Search, Truck } from 'lucide-react';
 import api from '../services/apiService';
 
 function formatarDataHora(isoStr) {
@@ -18,6 +18,8 @@ function LocalEntrega({ destino_uf, destino_cidade }) {
     if (!destino_cidade && !destino_uf) return <span style={{ color: '#64748b' }}>—</span>;
     return <span>{[destino_cidade, destino_uf].filter(Boolean).join(' / ')}</span>;
 }
+
+// ── Aba Liberações ──────────────────────────────────────────────────────
 
 function RegistroRow({ reg }) {
     return (
@@ -56,7 +58,44 @@ function RegistroRow({ reg }) {
     );
 }
 
-function MotoristaPasta({ nome, primeiraLetra }) {
+// ── Aba Frota ───────────────────────────────────────────────────────────
+
+function RegistroFrotaRow({ reg }) {
+    return (
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: '140px 100px 1fr 1fr 110px',
+            gap: '8px',
+            alignItems: 'center',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            fontSize: '11px',
+            color: '#cbd5e1'
+        }}>
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: '#94a3b8' }}>
+                {formatarDataHora(reg.data_viagem)}
+            </span>
+            <span style={{ fontWeight: '700', color: '#60a5fa' }}>
+                {reg.placa || '—'}
+            </span>
+            <span style={{ color: '#fb923c' }}>
+                {reg.origem || '—'}
+            </span>
+            <span>
+                {reg.destino || '—'}
+            </span>
+            <span style={{ color: '#94a3b8', fontSize: '10px' }}>
+                {reg.operacao || '—'}
+            </span>
+        </div>
+    );
+}
+
+// ── Componentes tree genéricos (motorista e letra) ──────────────────────
+
+function MotoristaPasta({ nome, endpoint }) {
     const [aberta, setAberta] = useState(false);
     const [registros, setRegistros] = useState([]);
     const [carregando, setCarregando] = useState(false);
@@ -67,7 +106,7 @@ function MotoristaPasta({ nome, primeiraLetra }) {
         if (registros.length > 0) return;
         setCarregando(true);
         try {
-            const r = await api.get('/api/historico-liberacoes', { params: { motorista: nome } });
+            const r = await api.get(endpoint, { params: { motorista: nome } });
             if (r.data.success) setRegistros(r.data.registros);
         } catch (e) {
             console.error('Erro ao carregar registros:', e);
@@ -75,6 +114,8 @@ function MotoristaPasta({ nome, primeiraLetra }) {
             setCarregando(false);
         }
     }
+
+    const isFrota = endpoint.includes('frota');
 
     return (
         <div style={{ marginLeft: '16px' }}>
@@ -104,22 +145,43 @@ function MotoristaPasta({ nome, primeiraLetra }) {
                     )}
                     {!carregando && registros.length > 0 && (
                         <>
-                            {/* Cabeçalho */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '140px 110px 110px 1fr 90px',
-                                gap: '8px',
-                                padding: '4px 12px',
-                                fontSize: '9px', fontWeight: '700',
-                                color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px'
-                            }}>
-                                <span>Data/Hora CT-e</span>
-                                <span>Nº Coleta</span>
-                                <span>Nº Liberação</span>
-                                <span>Origem → Local Entrega</span>
-                                <span>Placa</span>
-                            </div>
-                            {registros.map(reg => <RegistroRow key={reg.id} reg={reg} />)}
+                            {isFrota ? (
+                                <>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '140px 100px 1fr 1fr 110px',
+                                        gap: '8px',
+                                        padding: '4px 12px',
+                                        fontSize: '9px', fontWeight: '700',
+                                        color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px'
+                                    }}>
+                                        <span>Data</span>
+                                        <span>Placa</span>
+                                        <span>Origem</span>
+                                        <span>Destino</span>
+                                        <span>Operação</span>
+                                    </div>
+                                    {registros.map(reg => <RegistroFrotaRow key={reg.id} reg={reg} />)}
+                                </>
+                            ) : (
+                                <>
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: '140px 110px 110px 1fr 90px',
+                                        gap: '8px',
+                                        padding: '4px 12px',
+                                        fontSize: '9px', fontWeight: '700',
+                                        color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px'
+                                    }}>
+                                        <span>Data/Hora CT-e</span>
+                                        <span>Nº Coleta</span>
+                                        <span>Nº Liberação</span>
+                                        <span>Origem → Local Entrega</span>
+                                        <span>Placa</span>
+                                    </div>
+                                    {registros.map(reg => <RegistroRow key={reg.id} reg={reg} />)}
+                                </>
+                            )}
                         </>
                     )}
                 </div>
@@ -128,7 +190,7 @@ function MotoristaPasta({ nome, primeiraLetra }) {
     );
 }
 
-function LetraPasta({ letra, total_motoristas, total_liberacoes }) {
+function LetraPasta({ letra, total_motoristas, total_count, countLabel, endpoint }) {
     const [aberta, setAberta] = useState(false);
     const [motoristas, setMotoristas] = useState([]);
     const [carregando, setCarregando] = useState(false);
@@ -139,7 +201,7 @@ function LetraPasta({ letra, total_motoristas, total_liberacoes }) {
         if (motoristas.length > 0) return;
         setCarregando(true);
         try {
-            const r = await api.get('/api/historico-liberacoes', { params: { letra } });
+            const r = await api.get(endpoint, { params: { letra } });
             if (r.data.success) setMotoristas(r.data.motoristas);
         } catch (e) {
             console.error('Erro ao carregar motoristas:', e);
@@ -178,7 +240,7 @@ function LetraPasta({ letra, total_motoristas, total_liberacoes }) {
                 </span>
                 <span style={{ flex: 1 }}>{letra}</span>
                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '400' }}>
-                    {total_motoristas} motorista{total_motoristas !== 1 ? 's' : ''} · {total_liberacoes} liberaç{total_liberacoes !== 1 ? 'ões' : 'ão'}
+                    {total_motoristas} motorista{total_motoristas !== 1 ? 's' : ''} · {total_count} {countLabel}
                 </span>
             </button>
 
@@ -188,7 +250,7 @@ function LetraPasta({ letra, total_motoristas, total_liberacoes }) {
                         <div style={{ color: '#64748b', fontSize: '11px', padding: '8px 16px' }}>Carregando...</div>
                     )}
                     {!carregando && motoristas.map(nome => (
-                        <MotoristaPasta key={nome} nome={nome} primeiraLetra={letra} />
+                        <MotoristaPasta key={nome} nome={nome} endpoint={endpoint} />
                     ))}
                 </div>
             )}
@@ -196,8 +258,12 @@ function LetraPasta({ letra, total_motoristas, total_liberacoes }) {
     );
 }
 
+// ── Componente principal ────────────────────────────────────────────────
+
 export default function HistoricoLiberacoes() {
+    const [aba, setAba] = useState('liberacoes'); // 'liberacoes' | 'frota'
     const [letras, setLetras] = useState([]);
+    const [letrasFrota, setLetrasFrota] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [busca, setBusca] = useState('');
 
@@ -213,11 +279,34 @@ export default function HistoricoLiberacoes() {
         }
     }, []);
 
-    useEffect(() => { carregarLetras(); }, [carregarLetras]);
+    const carregarLetrasFrota = useCallback(async () => {
+        setCarregando(true);
+        try {
+            const r = await api.get('/api/historico-frota');
+            if (r.data.success) setLetrasFrota(r.data.letras);
+        } catch (e) {
+            console.error('Erro ao carregar histórico frota:', e);
+        } finally {
+            setCarregando(false);
+        }
+    }, []);
 
+    useEffect(() => {
+        if (aba === 'liberacoes') carregarLetras();
+        else carregarLetrasFrota();
+    }, [aba, carregarLetras, carregarLetrasFrota]);
+
+    const dadosAtivos = aba === 'liberacoes' ? letras : letrasFrota;
     const letrasFiltradas = busca.trim()
-        ? letras.filter(l => l.primeira_letra.includes(busca.trim().toUpperCase()))
-        : letras;
+        ? dadosAtivos.filter(l => l.primeira_letra.includes(busca.trim().toUpperCase()))
+        : dadosAtivos;
+
+    const tabStyle = (ativo) => ({
+        flex: 1, padding: '9px', border: 'none', borderRadius: '7px', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+        background: ativo ? 'rgba(37,99,235,0.7)' : 'transparent',
+        color: ativo ? '#fff' : '#64748b', transition: 'all 0.2s',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+    });
 
     return (
         <div style={{ padding: '20px 25px', height: 'calc(100vh - 124px)', overflowY: 'auto' }}>
@@ -232,7 +321,7 @@ export default function HistoricoLiberacoes() {
                         HISTÓRICO DE LIBERAÇÕES <span style={{ color: '#fb923c' }}>/ GR</span>
                     </h2>
                     <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>
-                        Registro de liberações utilizadas — organizadas por motorista
+                        Registro de liberações e viagens — organizadas por motorista
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -248,7 +337,7 @@ export default function HistoricoLiberacoes() {
                         />
                     </div>
                     <button
-                        onClick={carregarLetras}
+                        onClick={() => aba === 'liberacoes' ? carregarLetras() : carregarLetrasFrota()}
                         disabled={carregando}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
@@ -264,16 +353,26 @@ export default function HistoricoLiberacoes() {
                 </div>
             </div>
 
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', padding: '4px' }}>
+                <button style={tabStyle(aba === 'liberacoes')} onClick={() => { setAba('liberacoes'); setBusca(''); }}>
+                    <FileText size={14} /> Liberações
+                </button>
+                <button style={tabStyle(aba === 'frota')} onClick={() => { setAba('frota'); setBusca(''); }}>
+                    <Truck size={14} /> Frota Própria
+                </button>
+            </div>
+
             {/* Árvore de pastas */}
-            {carregando && letras.length === 0 ? (
+            {carregando && dadosAtivos.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
                     <RefreshCw size={32} style={{ opacity: 0.4, marginBottom: '12px', animation: 'spin 1s linear infinite' }} />
                     <p>Carregando histórico...</p>
                 </div>
             ) : letrasFiltradas.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#64748b', marginTop: '60px' }}>
-                    <FileText size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-                    <p>Nenhum histórico de liberação registrado.</p>
+                    {aba === 'frota' ? <Truck size={48} style={{ opacity: 0.3, marginBottom: '16px' }} /> : <FileText size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />}
+                    <p>{aba === 'frota' ? 'Nenhum histórico de frota registrado.' : 'Nenhum histórico de liberação registrado.'}</p>
                     <p style={{ fontSize: '11px' }}>Os registros são salvos automaticamente ao emitir o CT-e.</p>
                 </div>
             ) : (
@@ -283,7 +382,9 @@ export default function HistoricoLiberacoes() {
                             key={l.primeira_letra}
                             letra={l.primeira_letra}
                             total_motoristas={l.total_motoristas}
-                            total_liberacoes={l.total_liberacoes}
+                            total_count={aba === 'frota' ? (l.total_viagens || 0) : (l.total_liberacoes || 0)}
+                            countLabel={aba === 'frota' ? (l.total_viagens === 1 ? 'viagem' : 'viagens') : (l.total_liberacoes === 1 ? 'liberação' : 'liberações')}
+                            endpoint={aba === 'frota' ? '/api/historico-frota' : '/api/historico-liberacoes'}
                         />
                     ))}
                 </div>

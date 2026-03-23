@@ -13,9 +13,17 @@ const ETAPAS = [
 function formatarTempo(ms) {
     if (ms < 0) ms = 0;
     const totalMin = Math.floor(ms / 60000);
-    const h = Math.floor(totalMin / 60);
+    const totalH = Math.floor(totalMin / 60);
     const m = totalMin % 60;
-    return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
+    if (totalH < 24) {
+        return totalH > 0 ? `${totalH}h${String(m).padStart(2, '0')}` : `${m}min`;
+    }
+    const d = Math.floor(totalH / 24);
+    const h = totalH % 24;
+    if (h === 0 && m === 0) return `${d}d`;
+    if (h === 0) return `${d}d ${m}min`;
+    if (m === 0) return `${d}d ${h}h`;
+    return `${d}d ${h}h${String(m).padStart(2, '0')}`;
 }
 
 function corSLA(ms) {
@@ -25,11 +33,27 @@ function corSLA(ms) {
     return                    { text: '#f87171', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)'  };
 }
 
-// Etapa individual: mostra tempo decorrido.
-// - Se etapa concluída (próxima etapa também tem timestamp): mostra duração estática
-// - Se etapa em andamento (última com timestamp): mostra cronômetro ao vivo
-// - Se não iniciada: não renderiza
-function EtapaCard({ label, inicioAt, fimAt, aoVivo }) {
+// Calcula o tempo total pausado (ms) que faz overlap com o intervalo [inicioMs, fimMs]
+function calcularTempoPausa(pausas, unidade, inicioMs, fimMs) {
+    if (!pausas || !pausas.length) return 0;
+    let total = 0;
+    const agora = Date.now();
+    for (const p of pausas) {
+        if (p.unidade !== unidade) continue;
+        const pInicio = new Date(p.inicio).getTime();
+        const pFim = p.fim ? new Date(p.fim).getTime() : agora;
+        // Calcula overlap entre [pInicio, pFim] e [inicioMs, fimMs]
+        const overlapInicio = Math.max(pInicio, inicioMs);
+        const overlapFim = Math.min(pFim, fimMs);
+        if (overlapFim > overlapInicio) {
+            total += (overlapFim - overlapInicio);
+        }
+    }
+    return total;
+}
+
+// Etapa individual: mostra tempo decorrido descontando pausas.
+function EtapaCard({ label, inicioAt, fimAt, aoVivo, pausaMs }) {
     const [agora, setAgora] = useState(Date.now());
 
     useEffect(() => {
@@ -42,7 +66,7 @@ function EtapaCard({ label, inicioAt, fimAt, aoVivo }) {
 
     const inicio = new Date(inicioAt).getTime();
     const fim = fimAt ? new Date(fimAt).getTime() : agora;
-    const duracao = fim - inicio;
+    const duracao = (fim - inicio) - (pausaMs || 0);
     const cor = corSLA(duracao);
 
     return (
@@ -65,8 +89,9 @@ function EtapaCard({ label, inicioAt, fimAt, aoVivo }) {
     );
 }
 
-// Badge de Total Pátio — sempre ao vivo se não finalizou (LIBERADO P/ CT-e)
-function TotalPatioCard({ dataCriacao, cteAt }) {
+// Badge de Total Pátio — NÃO desconta pausa (continua rodando)
+// Usa data_inicio_patio (herda Tempo de Espera da marcação) em vez de data_criacao
+function TotalPatioCard({ dataInicioPatio, cteAt }) {
     const [agora, setAgora] = useState(Date.now());
     const aoVivo = !cteAt;
 
@@ -76,9 +101,9 @@ function TotalPatioCard({ dataCriacao, cteAt }) {
         return () => clearInterval(id);
     }, [aoVivo]);
 
-    if (!dataCriacao) return null;
+    if (!dataInicioPatio) return null;
 
-    const inicio = new Date(dataCriacao).getTime();
+    const inicio = new Date(dataInicioPatio).getTime();
     const fim = cteAt ? new Date(cteAt).getTime() : agora;
     const duracao = fim - inicio;
     const cor = corSLA(duracao);
@@ -103,12 +128,12 @@ function TotalPatioCard({ dataCriacao, cteAt }) {
 }
 
 // Componente principal exportado
-// Props: item (objeto do veículo), unidade ('recife' | 'moreno')
-export default function SLATimeline({ item, unidade }) {
+// Props: item (objeto do veículo), unidade ('recife' | 'moreno'), pausas (array de pausas)
+export default function SLATimeline({ item, unidade, pausas }) {
     const ts = item?.timestamps_status;
-    const dataCriacao = item?.data_criacao;
+    const dataInicioPatio = item?.data_inicio_patio;
 
-    if (!ts && !dataCriacao) return null;
+    if (!ts && !dataInicioPatio) return null;
 
     // Detectar qual é a última etapa com timestamp — ela recebe cronômetro ao vivo
     const etapasComAt = ETAPAS.map((e, i) => ({
@@ -120,10 +145,11 @@ export default function SLATimeline({ item, unidade }) {
     const ultimaIdx = etapasComAt.reduce((acc, e, i) => (e.at ? i : acc), -1);
     const cteAt = ts?.[`cte_${unidade}_at`] || null;
 
-    const algumBadge = dataCriacao || etapasComAt.some(e => e.at);
+    const algumBadge = dataInicioPatio || etapasComAt.some(e => e.at);
     if (!algumBadge) return null;
 
     const cteEmitido = item?.status_cte === 'Emitido';
+    const agora = Date.now();
 
     return (
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
@@ -134,6 +160,12 @@ export default function SLATimeline({ item, unidade }) {
                     ? (cteEmitido ? (item?.datetime_cte || etapa.at) : null)
                     : (etapasComAt[i + 1]?.at || null);
                 const aoVivo = (i === ultimaIdx) && !proxAt;
+
+                // Calcular tempo pausado para esta etapa
+                const inicioMs = new Date(etapa.at).getTime();
+                const fimMs = proxAt ? new Date(proxAt).getTime() : agora;
+                const pausaMs = calcularTempoPausa(pausas || [], unidade, inicioMs, fimMs);
+
                 return (
                     <EtapaCard
                         key={etapa.label}
@@ -141,11 +173,12 @@ export default function SLATimeline({ item, unidade }) {
                         inicioAt={etapa.at}
                         fimAt={proxAt}
                         aoVivo={aoVivo}
+                        pausaMs={pausaMs}
                     />
                 );
             })}
-            {dataCriacao && (
-                <TotalPatioCard dataCriacao={dataCriacao} cteAt={cteAt} />
+            {dataInicioPatio && (
+                <TotalPatioCard dataInicioPatio={dataInicioPatio} cteAt={cteAt} />
             )}
         </div>
     );

@@ -164,6 +164,7 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'placa2Motorista', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'timestamps_status', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'pausas_status', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'data_inicio_patio', tipo: 'TEXT' },
             // Recuperação de senha via WhatsApp
             { tabela: 'usuarios', coluna: 'telefone', tipo: 'TEXT' },
             // Gerenciamento de Risco — campos salvos direto no veículo (evita dependência de marcacoes_placas)
@@ -314,6 +315,20 @@ const inicializarBanco = async () => {
         )`);
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_histlib_motorista ON historico_liberacoes (primeira_letra, motorista_nome)`); } catch (_) { }
         try { await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS idx_historico_lib_unique ON historico_liberacoes (motorista_nome, num_liberacao, num_coleta)`); } catch (_) { }
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS historico_frota (
+            id SERIAL PRIMARY KEY,
+            primeira_letra TEXT NOT NULL,
+            motorista_nome TEXT NOT NULL,
+            placa TEXT,
+            origem TEXT,
+            destino TEXT,
+            operacao TEXT,
+            veiculo_id INTEGER,
+            data_viagem TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_histfrota_motorista ON historico_frota (primeira_letra, motorista_nome)`); } catch (_) { }
 
         // Indexes para colunas frequentemente consultadas
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_data ON marcacoes_placas (data_marcacao DESC)`); } catch (_) { }

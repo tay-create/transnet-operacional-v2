@@ -134,6 +134,9 @@ export default function PainelOperacional({
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [finalizando, setFinalizando] = useState(false);
+    const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
+    const [frotaOrigem, setFrotaOrigem] = useState('');
+    const [frotaDestino, setFrotaDestino] = useState('');
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -203,6 +206,20 @@ export default function PainelOperacional({
 
 
     function selecionarMotoristaNaEdicao(item, realIndex, m) {
+        // Se motorista é FROTA, abrir modal para informar Origem/Destino antes de salvar
+        if (m.is_frota) {
+            setModalFrota({ item, marcacao: m, realIndex });
+            setFrotaOrigem('');
+            setFrotaDestino('');
+            setEditandoMotorista(null);
+            setBuscaMotoristaCard({ id: null, texto: '' });
+            return;
+        }
+
+        salvarMotoristaNoCard(item, realIndex, m, '', '');
+    }
+
+    function salvarMotoristaNoCard(item, realIndex, m, origemFrota, destinoFrota) {
         // Backup para reverter em caso de erro
         const itemOriginal = { ...lista[realIndex] };
 
@@ -222,6 +239,8 @@ export default function PainelOperacional({
         itemAtual.isFrotaMotorista = m.is_frota ? true : false;
         itemAtual.origemMotorista = m.origem_cidade_uf || '';
         itemAtual.destinoMotorista = m.destino_desejado || '';
+        if (origemFrota) itemAtual.origem_frota = origemFrota;
+        if (destinoFrota) itemAtual.destino_frota = destinoFrota;
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
 
@@ -229,14 +248,14 @@ export default function PainelOperacional({
             const payload = { ...itemAtual };
             delete payload.imagens;
             delete payload.dados_json;
-            
+
             api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
                 mostrarNotificacao?.(`🚛 Motorista vinculado: ${itemAtual.motorista}`);
             }).catch((err) => {
                 console.error("Erro ao vincular motorista:", err);
                 const msg = err.response?.data?.message || "Erro ao salvar motorista.";
                 mostrarNotificacao?.(`⚠️ ${msg}`);
-                
+
                 // Reverte o estado local em caso de erro
                 setLista(prev => {
                     const revertida = [...prev];
@@ -1204,7 +1223,7 @@ export default function PainelOperacional({
 
                                             {/* SLA Timeline */}
                                             <div style={{ marginBottom: '8px' }}>
-                                                <SLATimeline item={item} unidade={origem === 'Recife' ? 'recife' : 'moreno'} />
+                                                <SLATimeline item={item} unidade={origem === 'Recife' ? 'recife' : 'moreno'} pausas={(() => { try { return JSON.parse(item.pausas_status || '[]'); } catch { return []; } })()} />
                                             </div>
 
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1402,6 +1421,75 @@ export default function PainelOperacional({
                     onClose={() => setModalPausaAberto(false)}
                     onSucesso={(msg) => { adicionarToast(msg, 'sucesso'); setModalPausaAberto(false); }}
                 />
+            )}
+
+            {/* Modal Origem/Destino para motorista FROTA */}
+            {modalFrota && (
+                <div onClick={() => setModalFrota(null)} style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+                    zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+                }}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '420px',
+                        boxShadow: '0 24px 64px rgba(0,0,0,0.7)'
+                    }}>
+                        <div style={{ fontSize: '16px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px' }}>
+                            Motorista Frota
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '20px' }}>
+                            {modalFrota.marcacao.nome_motorista} — Informe a Origem e o Destino da viagem:
+                        </div>
+
+                        <div style={{ marginBottom: '14px' }}>
+                            <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>Origem</label>
+                            <input
+                                value={frotaOrigem}
+                                onChange={e => setFrotaOrigem(e.target.value)}
+                                placeholder="Ex: Recife-PE"
+                                style={{
+                                    width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '8px', padding: '10px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                                }}
+                                autoFocus
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>Destino</label>
+                            <input
+                                value={frotaDestino}
+                                onChange={e => setFrotaDestino(e.target.value)}
+                                placeholder="Ex: Salvador-BA"
+                                style={{
+                                    width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '8px', padding: '10px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setModalFrota(null)} style={{
+                                padding: '10px 20px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+                                background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', fontWeight: '600', cursor: 'pointer'
+                            }}>Cancelar</button>
+                            <button
+                                disabled={!frotaOrigem.trim() || !frotaDestino.trim()}
+                                onClick={() => {
+                                    const { item, marcacao, realIndex } = modalFrota;
+                                    salvarMotoristaNoCard(item, realIndex, marcacao, frotaOrigem.trim(), frotaDestino.trim());
+                                    setModalFrota(null);
+                                }}
+                                style={{
+                                    padding: '10px 20px', borderRadius: '8px', border: 'none',
+                                    background: (!frotaOrigem.trim() || !frotaDestino.trim()) ? '#1e3a5f' : '#2563eb',
+                                    color: (!frotaOrigem.trim() || !frotaDestino.trim()) ? '#475569' : '#fff',
+                                    fontSize: '13px', fontWeight: '600', cursor: (!frotaOrigem.trim() || !frotaDestino.trim()) ? 'not-allowed' : 'pointer'
+                                }}
+                            >Confirmar</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </div >

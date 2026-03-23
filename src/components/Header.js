@@ -165,7 +165,7 @@ export default function Header({
                                 {Array.isArray(notificacoes) && notificacoes.length === 0 ? (
                                     <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>Nenhum alerta recente.</div>
                                 ) : (
-                                    (Array.isArray(notificacoes) ? notificacoes : []).map((notif, index) => (
+                                    (Array.isArray(notificacoes) ? notificacoes : []).filter(notif => notif.mensagem).map((notif, index) => (
                                         <div key={index} className="notif-item" style={{
                                             borderLeft: notif.tipo === 'liberacao_expirada' ? '3px solid #ef4444'
                                                 : notif.tipo === 'liberacao_vencendo' ? '3px solid #f59e0b'

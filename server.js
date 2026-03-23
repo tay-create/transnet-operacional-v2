@@ -974,6 +974,50 @@ app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ==================== HISTÓRICO FROTA PRÓPRIA ====================
+
+app.get('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
+    try {
+        const { letra, motorista } = req.query;
+        if (motorista) {
+            const rows = await dbAll(
+                `SELECT * FROM historico_frota WHERE motorista_nome = ? ORDER BY data_viagem DESC`,
+                [motorista]
+            );
+            return res.json({ success: true, registros: rows });
+        }
+        if (letra) {
+            const rows = await dbAll(
+                `SELECT DISTINCT motorista_nome FROM historico_frota WHERE primeira_letra = ? ORDER BY motorista_nome`,
+                [letra.toUpperCase()]
+            );
+            return res.json({ success: true, motoristas: rows.map(r => r.motorista_nome) });
+        }
+        const rows = await dbAll(
+            `SELECT primeira_letra, COUNT(DISTINCT motorista_nome) as total_motoristas, COUNT(*) as total_viagens
+             FROM historico_frota GROUP BY primeira_letra ORDER BY primeira_letra`
+        );
+        res.json({ success: true, letras: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+app.post('/api/historico-frota', authMiddleware, async (req, res) => {
+    try {
+        const { motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem } = req.body;
+        if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
+
+        const nomeLimpo = (motorista_nome || '').trim().toUpperCase();
+        const primeira_letra = nomeLimpo[0] || '#';
+
+        await dbRun(
+            `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [primeira_letra, nomeLimpo, placa || '', origem || '', destino || '', operacao || '', veiculo_id || null, data_viagem || new Date().toISOString()]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
 app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
@@ -1061,6 +1105,8 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
             if (n.cargos_alvo) {
                 if (!n.cargos_alvo.includes(meuCargo)) return false;
             }
+            // Excluir notificações sem mensagem (fantasmas)
+            if (!n.mensagem || !String(n.mensagem).trim()) return false;
             return true;
         });
         res.json({ success: true, notificacoes: lista });
@@ -1601,6 +1647,31 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                     console.log(`✅ [CT-e] status_cte = 'Emitido' gravado no veículo id=${cteId}`);
                 } catch (errStatus) {
                     console.error('Erro ao gravar status_cte no veículo:', errStatus);
+                }
+
+                // Se motorista é FROTA, salvar no histórico de frota
+                try {
+                    const veiculoFull = await dbGet("SELECT motorista, operacao, placa, dados_json FROM veiculos WHERE id = ?", [cteId]);
+                    if (veiculoFull) {
+                        let djFrota = {};
+                        try { djFrota = JSON.parse(veiculoFull.dados_json || '{}'); } catch (_) {}
+                        const isFrota = String(djFrota.isFrotaMotorista) === 'true' || String(djFrota.isFrotaMotorista) === '1';
+                        if (isFrota && veiculoFull.motorista) {
+                            const nomeLimpo = veiculoFull.motorista.trim().toUpperCase();
+                            const primeiraLetraFrota = nomeLimpo[0] || '#';
+                            const placaFrota = djFrota.placa1Motorista || veiculoFull.placa || '';
+                            const origemFrota = djFrota.origem_frota || '';
+                            const destinoFrota = djFrota.destino_frota || '';
+                            await dbRun(
+                                `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [primeiraLetraFrota, nomeLimpo, placaFrota, origemFrota, destinoFrota, veiculoFull.operacao || '', cteId, new Date().toISOString()]
+                            );
+                            console.log(`📋 [Histórico Frota] ${nomeLimpo} | Placa: ${placaFrota} | ${origemFrota} → ${destinoFrota}`);
+                        }
+                    }
+                } catch (errFrota) {
+                    console.error('⚠️ Erro ao salvar histórico frota:', errFrota);
                 }
 
                 // Notificar PainelCadastro para remover card em tempo real
