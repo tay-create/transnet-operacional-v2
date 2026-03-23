@@ -63,13 +63,15 @@ export default function ConferenteApp({ socket }) {
     }, [user?.cidade, addToast, triggerRefresh]);
 
     const handleChecklistResultado = useCallback((data) => {
-        const cor = data.status === 'APROVADO' ? 'success' : 'error';
-        addToast({
-            tipo: cor,
-            mensagem: `Checklist ${data.status}: ${data.motorista}`
-        });
+        if (data.status === 'RESET') {
+            addToast({ tipo: 'info', mensagem: 'Checklist liberado para refazer.' });
+            triggerRefresh();
+        } else {
+            const cor = data.status === 'APROVADO' ? 'success' : 'error';
+            addToast({ tipo: cor, mensagem: `Checklist ${data.status}: ${data.motorista}` });
+        }
         playNotificationSound();
-    }, [addToast]);
+    }, [addToast, triggerRefresh]);
 
     // Socket listeners
     useEffect(() => {
