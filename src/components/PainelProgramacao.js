@@ -233,12 +233,12 @@ export default function PainelProgramacao() {
                     body: bodyTabela,
                     margin: { left: 15, right: 15 },
                     theme: 'grid',
-                    headStyles: { fillColor: [30, 41, 59], textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 9 },
-                    bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59] },
+                    headStyles: { fillColor: [30, 41, 59], textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 9, halign: 'center' },
+                    bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59], fontStyle: 'bold', halign: 'center' },
                     columnStyles: {
-                        0: { cellWidth: 120 },
-                        1: { cellWidth: 73, halign: 'center' },
-                        2: { cellWidth: 74, halign: 'center' },
+                        0: { cellWidth: 120, halign: 'left' },
+                        1: { cellWidth: 73 },
+                        2: { cellWidth: 74 },
                     },
                     didParseCell: (data) => {
                         if (data.row.index === bodyTabela.length - 1) {
@@ -307,11 +307,11 @@ export default function PainelProgramacao() {
                     body: bodyFinal,
                     margin: { left: 15, right: 15 },
                     theme: 'grid',
-                    headStyles: { fillColor: [251, 146, 60], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-                    bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59] },
+                    headStyles: { fillColor: [251, 146, 60], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, halign: 'center' },
+                    bodyStyles: { fontSize: 9.5, textColor: [30, 41, 59], fontStyle: 'bold', halign: 'center' },
                     columnStyles: {
-                        0: { cellWidth: 180 },
-                        1: { cellWidth: 87, halign: 'center' },
+                        0: { cellWidth: 180, halign: 'left' },
+                        1: { cellWidth: 87 },
                     },
                     didParseCell: (data) => {
                         if (data.row.index === bodyFinal.length - 1) {
@@ -373,8 +373,8 @@ export default function PainelProgramacao() {
                 body: bodyVeiculos,
                 margin: { left: 15, right: 15 },
                 theme: 'striped',
-                headStyles: { fillColor: [15, 23, 42], textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 7 },
-                bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+                headStyles: { fillColor: [15, 23, 42], textColor: [248, 250, 252], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+                bodyStyles: { fontSize: 7, textColor: [30, 41, 59], fontStyle: 'bold', halign: 'center' },
                 styles: { overflow: 'linebreak', cellPadding: 1.5 },
                 columnStyles: {
                     0: { cellWidth: 22 },
