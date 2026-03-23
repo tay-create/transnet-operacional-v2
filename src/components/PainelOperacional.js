@@ -133,6 +133,7 @@ export default function PainelOperacional({
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
+    const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
     const [finalizando, setFinalizando] = useState(false);
     const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
     const [frotaOrigem, setFrotaOrigem] = useState('');
@@ -1126,15 +1127,7 @@ export default function PainelOperacional({
                                             {/* Botão Liberar Checklist — some quando CARREGADO (Coordenador/Planejamento) */}
                                             {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && (
                                                 <button
-                                                    onClick={async () => {
-                                                        if (!window.confirm(`Liberar checklist do veículo ${item.motorista}? O conferente poderá refazer o checklist.`)) return;
-                                                        try {
-                                                            await api.delete(`/api/checklists/veiculo/${item.id}`);
-                                                            mostrarNotificacao?.('✅ Checklist liberado para refazer.');
-                                                        } catch {
-                                                            mostrarNotificacao?.('⚠️ Erro ao liberar checklist.');
-                                                        }
-                                                    }}
+                                                    onClick={() => setConfirmarLiberarChecklist({ item })}
                                                     style={{
                                                         padding: '5px 10px', fontSize: '10px', fontWeight: 700,
                                                         background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)',
@@ -1410,6 +1403,27 @@ export default function PainelOperacional({
                         }
                     }}
                     onCancel={() => { if (!finalizando) setConfirmarFinalizar(false); }}
+                />
+            )}
+
+            {/* Modal Liberar Checklist */}
+            {confirmarLiberarChecklist && (
+                <ModalConfirm
+                    titulo="Liberar Checklist"
+                    mensagem={`Liberar checklist do motorista ${confirmarLiberarChecklist.item.motorista}? O conferente poderá refazer o checklist.`}
+                    variante="aviso"
+                    textConfirm="Liberar"
+                    onConfirm={async () => {
+                        try {
+                            await api.delete(`/api/checklists/veiculo/${confirmarLiberarChecklist.item.id}`);
+                            mostrarNotificacao?.('✅ Checklist liberado para refazer.');
+                        } catch {
+                            mostrarNotificacao?.('⚠️ Erro ao liberar checklist.');
+                        } finally {
+                            setConfirmarLiberarChecklist(null);
+                        }
+                    }}
+                    onCancel={() => setConfirmarLiberarChecklist(null)}
                 />
             )}
 
