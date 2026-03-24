@@ -2390,6 +2390,121 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
 });
 // ────────────────────────────────────────────────────────────
 
+// ── Provisionamento de Frota ─────────────────────────────────────────────────
+
+const PROV_EDITORES = ['Coordenador', 'Planejamento'];
+const STATUS_VIAGEM_PROV = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'CARREGANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'];
+
+// GET /api/provisionamento/veiculos — listar veículos ativos
+app.get('/api/provisionamento/veiculos', authMiddleware, async (req, res) => {
+    try {
+        const rows = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1 ORDER BY ordem ASC, id ASC');
+        res.json({ success: true, veiculos: rows });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// POST /api/provisionamento/veiculos — cadastrar veículo
+app.post('/api/provisionamento/veiculos', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
+    try {
+        const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
+        if (!placa || !tipo_veiculo) return res.status(400).json({ success: false, message: 'Placa e tipo_veiculo são obrigatórios.' });
+        const r = await dbRun(
+            'INSERT INTO prov_veiculos (placa, carreta, tipo_veiculo, modelo, motorista, ordem) VALUES ($1,$2,$3,$4,$5,$6)',
+            [placa.trim().toUpperCase(), (carreta || '').trim().toUpperCase() || null, tipo_veiculo, modelo || null, motorista || null, ordem || 0]
+        );
+        res.json({ success: true, id: r.lastID || r.insertId });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// PUT /api/provisionamento/veiculos/:id — editar veículo
+app.put('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
+    try {
+        const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
+        await dbRun(
+            'UPDATE prov_veiculos SET placa=$1, carreta=$2, tipo_veiculo=$3, modelo=$4, motorista=$5, ordem=$6 WHERE id=$7',
+            [placa.trim().toUpperCase(), (carreta || '').trim().toUpperCase() || null, tipo_veiculo, modelo || null, motorista || null, ordem || 0, req.params.id]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// DELETE /api/provisionamento/veiculos/:id — inativar (soft delete)
+app.delete('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
+    try {
+        await dbRun('UPDATE prov_veiculos SET ativo = 0 WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// GET /api/provisionamento/semana?inicio=YYYY-MM-DD — grade completa da semana
+app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
+    try {
+        const { inicio } = req.query;
+        if (!inicio) return res.status(400).json({ success: false, message: 'Parâmetro inicio (YYYY-MM-DD) obrigatório.' });
+
+        // Calcular os 7 dias
+        const dias = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(inicio + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() + i);
+            dias.push(d.toISOString().substring(0, 10));
+        }
+
+        const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1 ORDER BY ordem ASC, id ASC');
+        const progs = await dbAll(
+            'SELECT veiculo_id, data::text as data, status, destino FROM prov_programacao WHERE data >= $1 AND data <= $2',
+            [dias[0], dias[6]]
+        );
+
+        // Montar mapa de programação
+        const programacao = {};
+        for (const p of progs) {
+            if (!programacao[p.veiculo_id]) programacao[p.veiculo_id] = {};
+            programacao[p.veiculo_id][p.data] = { status: p.status, destino: p.destino };
+        }
+
+        // Calcular totalizadores por dia
+        const totais = {};
+        for (const dia of dias) {
+            let disponiveis = 0, manutencao = 0, em_viagem = 0, trucks = 0, carretas = 0, tres_quartos = 0;
+            for (const v of veiculos) {
+                const st = (programacao[v.id]?.[dia]?.status) || 'DISPONIVEL';
+                if (st === 'DISPONIVEL') {
+                    disponiveis++;
+                    if (v.tipo_veiculo === 'TRUCK') trucks++;
+                    else if (v.tipo_veiculo === 'CARRETA') carretas++;
+                    else if (v.tipo_veiculo === '3/4') tres_quartos++;
+                } else if (st === 'MANUTENCAO') {
+                    manutencao++;
+                } else if (['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO'].includes(st)) {
+                    em_viagem++;
+                }
+            }
+            totais[dia] = { disponiveis, manutencao, em_viagem, trucks, carretas, tres_quartos };
+        }
+
+        res.json({ success: true, veiculos, dias, programacao, totais });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// PUT /api/provisionamento/status — UPSERT status de uma célula
+app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
+    try {
+        const { veiculo_id, data, status, destino } = req.body;
+        if (!veiculo_id || !data || !status) return res.status(400).json({ success: false, message: 'veiculo_id, data e status são obrigatórios.' });
+        await dbRun(
+            `INSERT INTO prov_programacao (veiculo_id, data, status, destino)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $3, destino = $4`,
+            [veiculo_id, data, status, destino || null]
+        );
+        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data, status, destino: destino || null });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Endpoints para containers bloqueando docas (Persistente no Banco)
 app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
@@ -2446,14 +2561,14 @@ app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenado
 
 // ==================== SALDO DE PALETES ====================
 
-app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
         res.json({ success: true, registros: rows });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade } = req.body;
         if (!motorista || !tipo_palete) {
@@ -2473,7 +2588,7 @@ app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planej
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const id = Number(req.params.id);
         const { qtd_devolvida_pbr, qtd_devolvida_desc, total } = req.body;
