@@ -571,13 +571,14 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
         const params = (!isCoordenador && cidade) ? [`%${cidade}%`] : [];
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                   disponibilidade, data_marcacao, data_contratacao,
+                   disponibilidade, data_marcacao, data_contratacao, is_frota,
                    chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
                    seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
                    comprovante_pdf, anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
                    origem_cad, destino_uf_cad, destino_cidade_cad, origem_cidade_uf
             FROM marcacoes_placas
-            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL' OR is_frota = 1)
+            WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+              AND (is_frota IS NULL OR is_frota = 0)
               ${cidadeFilter}
             ORDER BY data_marcacao DESC
         `, params);
