@@ -42,15 +42,15 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
             });
         }
 
-        // Verificar se já existe sessão ativa (sessão única por conta)
-        const sessaoAtiva = await dbGet(
-            'SELECT id FROM sessoes WHERE usuario_id = $1 AND ativa = TRUE LIMIT 1',
+        // Verificar limite de sessões simultâneas (máximo 2)
+        const contaSessoes = await dbGet(
+            'SELECT COUNT(*) AS count FROM sessoes WHERE usuario_id = $1 AND ativa = TRUE',
             [usuario.id]
         );
-        if (sessaoAtiva) {
+        if (parseInt(contaSessoes?.count || 0) >= 2) {
             return res.status(403).json({
                 success: false,
-                message: 'Já existe uma sessão ativa nesta conta. Faça logout no outro dispositivo ou peça ao administrador para revogar.'
+                message: 'Limite de sessões simultâneas atingido (máximo 2). Faça logout em outro dispositivo ou peça ao administrador para revogar.'
             });
         }
 
