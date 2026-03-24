@@ -864,6 +864,27 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             chk_crlv: chk_crlv_cad ? 1 : 0,
         });
 
+        // Propagar numero_liberacao para ctes_ativos e notificar PainelCte em tempo real
+        if (num_liberacao_cad && atual.motorista) {
+            await dbRun(
+                `UPDATE ctes_ativos SET numero_liberacao = $1, data_liberacao = $2
+                 WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($3)) AND status != 'Emitido'`,
+                [num_liberacao_cad, novaDataLib, atual.motorista]
+            );
+            const ctesMotorista = await dbAll(
+                `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND status != 'Emitido'`,
+                [atual.motorista]
+            );
+            for (const cte of ctesMotorista) {
+                io.emit('receber_atualizacao', {
+                    tipo: 'atualiza_cte',
+                    id: cte.id,
+                    numero_liberacao: num_liberacao_cad,
+                    data_liberacao: novaDataLib,
+                });
+            }
+        }
+
         // Notificação persistente
         const motoristaNome = atual.motorista || dj.motorista || 'Motorista';
         enviarNotificacao('notificacao_direcionada', {
