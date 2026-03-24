@@ -210,7 +210,7 @@ export default function Sidebar({
                 )}
 
                 {/* FROTA */}
-                {(temAcesso('checklist_carreta') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
+                {(temAcesso('checklist_carreta') || temAcesso('saldo_paletes') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
                     <>
                         <Divider label="Checklist" aberto={aberto} />
                         {(temAcesso('checklist_carreta') || ehCoordenador) && (
