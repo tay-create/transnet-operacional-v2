@@ -13,8 +13,12 @@ const rateLimit = require('express-rate-limit');
 const bodyParser = require('body-parser');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const cron = require('node-cron');
 const { authMiddleware, authorize, generateToken } = require('./middleware/authMiddleware');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('./src/services/emailService');
+
+const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const { validate, loginSchema, novoLancamentoSchema, cubagemSchema, cadastroUsuarioSchema } = require('./middleware/validationMiddleware');
 
 // ── Logger seguro: suprime dados sensíveis em produção ────────────────────────
@@ -102,6 +106,17 @@ const resetSenhaLimiter = rateLimit({
     legacyHeaders: false,
     message: { success: false, message: 'Muitas tentativas. Aguarde 15 minutos e tente novamente.' }
 });
+
+// Helper: página HTML simples para rotas não-React (verificação de e-mail, admin, etc.)
+const htmlSimples = (mensagem, tipo = 'info') => {
+    const cor = tipo === 'success' ? '#22c55e' : tipo === 'warn' ? '#f59e0b' : tipo === 'error' ? '#ef4444' : '#38bdf8';
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Transnet</title>
+    <style>body{font-family:sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+    .card{background:#1e293b;border:1px solid ${cor}33;border-radius:12px;padding:32px 40px;max-width:480px;text-align:center}
+    h2{color:${cor};margin-bottom:8px}p{color:#94a3b8;margin-top:8px}
+    a{color:#38bdf8;text-decoration:none}</style></head>
+    <body><div class="card"><h2>${mensagem}</h2><p><a href="/">← Voltar ao sistema</a></p></div></body></html>`;
+};
 
 // Aumenta o limite para aceitar imagens em Base64 grandes (cards inteiros com fotos pesadas HD)
 const MAX_FILE_SIZE = process.env.MAX_FILE_SIZE || '200mb';
@@ -1433,7 +1448,7 @@ app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
         if (!/^[a-zA-Z0-9._+-]+$/.test(emailPrefix)) {
             return res.status(400).json({ success: false, message: 'Prefixo de e-mail inválido.' });
         }
-        const senhaHash = await bcrypt.hash(senha || '123456', 10);
+        const senhaHash = await bcrypt.hash(senha, 10);
         await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
             ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, obterDataHoraBrasilia()]);
         enviarNotificacao('receber_alerta', { tipo: 'admin_cadastro', mensagem: `Novo cadastro: ${nome}`, data_criacao: new Date().toISOString() });
@@ -1453,14 +1468,14 @@ app.get('/api/usuarios/conhecimento', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
-// Buscar usuário por nome (usado no fluxo de recuperação de senha — público, sem login)
+// Buscar usuário por nome (usado no fluxo de recuperação de senha — retorna apenas id e nome)
 app.get('/usuarios/buscar', async (req, res) => {
     try {
         const { nome } = req.query;
         if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
-        const usuario = await dbGet("SELECT id, nome, email, cargo, telefone FROM usuarios WHERE LOWER(nome) LIKE LOWER($1)", [`%${nome.trim()}%`]);
+        const usuario = await dbGet("SELECT id, nome, email_pessoal_verificado FROM usuarios WHERE LOWER(nome) LIKE LOWER($1)", [`%${nome.trim()}%`]);
         if (!usuario) return res.json({ success: false, message: 'Usuário não encontrado.' });
-        res.json({ success: true, id: usuario.id, nome: usuario.nome, email: usuario.email, telefone: usuario.telefone || null });
+        res.json({ success: true, id: usuario.id, nome: usuario.nome, temEmailPessoal: !!usuario.email_pessoal_verificado });
     } catch (e) {
         res.status(500).json({ success: false });
     }
@@ -1544,6 +1559,193 @@ app.post('/reset-senha-token', resetSenhaLimiter, async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
+// ── Logout server-side (revoga sessão no banco) ───────────────────────────────
+app.post('/logout', authMiddleware, async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (token) {
+            await dbRun('UPDATE sessoes SET ativa = FALSE WHERE token_hash = $1', [tokenHash(token)]).catch(() => {});
+        }
+        res.json({ success: true });
+    } catch (_) {
+        res.json({ success: true }); // sempre retorna sucesso para não travar o cliente
+    }
+});
+
+// ── E-mail pessoal para recuperação de senha ──────────────────────────────────
+app.post('/usuarios/:id/email-pessoal', authMiddleware, async (req, res) => {
+    try {
+        const idAlvo = Number(req.params.id);
+        if (req.user.id !== idAlvo && req.user.cargo !== 'Coordenador') {
+            return res.status(403).json({ success: false, message: 'Sem permissão.' });
+        }
+        const { email_pessoal } = req.body;
+        if (!email_pessoal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_pessoal)) {
+            return res.status(400).json({ success: false, message: 'E-mail inválido.' });
+        }
+        await dbRun('UPDATE usuarios SET email_pessoal = $1, email_pessoal_verificado = 0 WHERE id = $2',
+            [email_pessoal.toLowerCase(), idAlvo]);
+        // Invalida tokens de verificação anteriores
+        await dbRun("UPDATE email_verification_tokens SET usado = 1 WHERE usuario_id = $1 AND tipo = 'verificacao'", [idAlvo]);
+        const token = crypto.randomUUID();
+        const expira = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await dbRun(
+            'INSERT INTO email_verification_tokens (usuario_id, token, tipo, expira_em) VALUES ($1, $2, $3, $4)',
+            [idAlvo, token, 'verificacao', expira]
+        );
+        await sendVerificationEmail(email_pessoal, token);
+        res.json({ success: true, message: 'E-mail de verificação enviado.' });
+    } catch (e) {
+        console.error('❌ [/email-pessoal]:', e);
+        res.status(500).json({ success: false, message: 'Erro ao salvar e-mail.' });
+    }
+});
+
+// Confirmar e-mail pessoal via link (rota pública — acessada pelo link no Gmail)
+app.get('/verificar-email', async (req, res) => {
+    try {
+        const { token } = req.query;
+        if (!token) return res.status(400).send(htmlSimples('❌ Token não fornecido.', 'error'));
+        const reg = await dbGet(
+            "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'verificacao' AND usado = 0", [token]
+        );
+        if (!reg || new Date(reg.expira_em) < new Date()) {
+            return res.send(htmlSimples('⚠️ Link inválido ou expirado. Solicite um novo e-mail de verificação.', 'warn'));
+        }
+        await dbRun('UPDATE usuarios SET email_pessoal_verificado = 1 WHERE id = $1', [reg.usuario_id]);
+        await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
+        res.send(htmlSimples('✅ E-mail confirmado! Você já pode usar este e-mail para recuperar sua senha.', 'success'));
+    } catch (e) {
+        res.status(500).send(htmlSimples('Erro interno. Tente novamente.', 'error'));
+    }
+});
+
+// Solicitar reset de senha por e-mail (público — substitui fluxo WhatsApp)
+app.post('/solicitar-reset-senha', resetSenhaLimiter, async (req, res) => {
+    const MSG = 'Se o e-mail estiver cadastrado e verificado, você receberá um link em breve.';
+    try {
+        const { email } = req.body;
+        if (!email) return res.json({ success: true, message: MSG });
+        const usuario = await dbGet("SELECT * FROM usuarios WHERE LOWER(email) = LOWER($1)", [email.trim()]);
+        if (!usuario || !usuario.email_pessoal || !usuario.email_pessoal_verificado) {
+            return res.json({ success: true, message: MSG });
+        }
+        // Invalida tokens de reset anteriores
+        await dbRun("UPDATE email_verification_tokens SET usado = 1 WHERE usuario_id = $1 AND tipo = 'reset'", [usuario.id]);
+        const token = crypto.randomUUID();
+        const expira = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+        await dbRun(
+            'INSERT INTO email_verification_tokens (usuario_id, token, tipo, expira_em) VALUES ($1, $2, $3, $4)',
+            [usuario.id, token, 'reset', expira]
+        );
+        await sendPasswordResetEmail(usuario.email_pessoal, token, usuario.nome);
+        logger.audit('SOLICITAR_RESET_EMAIL', `ID:${usuario.id}`);
+        res.json({ success: true, message: MSG });
+    } catch (e) {
+        console.error('❌ [/solicitar-reset-senha]:', e);
+        res.json({ success: true, message: MSG }); // não revelar erro para evitar enumeração
+    }
+});
+
+// Confirmar reset de senha via token do link de e-mail (público)
+app.post('/confirmar-reset-senha', resetSenhaLimiter, async (req, res) => {
+    try {
+        const { token, novaSenha } = req.body;
+        if (!token || !novaSenha) {
+            return res.status(400).json({ success: false, message: 'Campos obrigatórios: token e novaSenha.' });
+        }
+        if (novaSenha.length < 8) {
+            return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 8 caracteres.' });
+        }
+        const reg = await dbGet(
+            "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'reset' AND usado = 0", [token]
+        );
+        if (!reg || new Date(reg.expira_em) < new Date()) {
+            return res.status(400).json({ success: false, message: 'Link inválido ou expirado.' });
+        }
+        const hash = await bcrypt.hash(novaSenha, 10);
+        await dbRun('UPDATE usuarios SET senha = $1 WHERE id = $2', [hash, reg.usuario_id]);
+        await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
+        // Revogar todas as sessões ativas do usuário após reset de senha
+        await dbRun('UPDATE sessoes SET ativa = FALSE WHERE usuario_id = $1', [reg.usuario_id]);
+        logger.audit('CONFIRMAR_RESET_EMAIL', `ID:${reg.usuario_id}`);
+        res.json({ success: true, message: 'Senha alterada com sucesso! Faça login.' });
+    } catch (e) {
+        console.error('❌ [/confirmar-reset-senha]:', e);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+// ── Admin de sessões (force-logout — protegido por ADMIN_MASTER_PASSWORD) ─────
+const adminAuth = (req, res, next) => {
+    const key = req.query.key || req.headers['x-admin-key'];
+    if (!key || key !== process.env.ADMIN_MASTER_PASSWORD) {
+        return res.status(401).send(htmlSimples('⛔ Acesso negado. Chave inválida.', 'error'));
+    }
+    next();
+};
+
+const gerarHtmlSessoes = (sessoes, key) => {
+    const linhas = sessoes.map(s => `
+        <tr>
+            <td>${s.nome || '—'}</td>
+            <td>${s.cargo || '—'}</td>
+            <td>${s.ip || '—'}</td>
+            <td>${s.criada_em ? new Date(s.criada_em).toLocaleString('pt-BR') : '—'}</td>
+            <td>${s.ultima_atividade ? new Date(s.ultima_atividade).toLocaleString('pt-BR') : '—'}</td>
+            <td>
+                <form method="POST" action="/admin/sessoes/revogar?key=${key}" style="display:inline">
+                    <input type="hidden" name="sessao_id" value="${s.id}">
+                    <button type="submit" style="background:#dc2626;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer">Revogar</button>
+                </form>
+                <form method="POST" action="/admin/sessoes/revogar-usuario?key=${key}" style="display:inline;margin-left:6px">
+                    <input type="hidden" name="usuario_id" value="${s.usuario_id}">
+                    <button type="submit" style="background:#7c3aed;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer">Revogar Todas</button>
+                </form>
+            </td>
+        </tr>
+    `).join('');
+    return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Sessões Ativas — Transnet Admin</title>
+    <style>body{font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:24px}
+    h1{color:#38bdf8}table{width:100%;border-collapse:collapse;margin-top:16px}
+    th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #1e293b}
+    th{background:#1e293b;color:#94a3b8;font-size:12px;text-transform:uppercase}
+    tr:hover td{background:#1e293b}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px}
+    </style></head><body>
+    <h1>🔐 Sessões Ativas — Transnet Admin</h1>
+    <p style="color:#64748b">Total: <strong style="color:#e2e8f0">${sessoes.length}</strong> sessão(ões) ativa(s)</p>
+    <table><thead><tr><th>Usuário</th><th>Cargo</th><th>IP</th><th>Criada em</th><th>Última Atividade</th><th>Ação</th></tr></thead>
+    <tbody>${linhas || '<tr><td colspan="6" style="color:#64748b;text-align:center">Nenhuma sessão ativa</td></tr>'}</tbody></table>
+    <p style="margin-top:24px"><a href="/admin/sessoes?key=${key}" style="color:#38bdf8">↻ Atualizar</a></p>
+    </body></html>`;
+};
+
+app.get('/admin/sessoes', adminAuth, async (req, res) => {
+    try {
+        const sessoes = await dbAll(`
+            SELECT s.id, s.usuario_id, u.nome, u.cargo, s.ip, s.criada_em, s.ultima_atividade
+            FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
+            WHERE s.ativa = TRUE ORDER BY s.ultima_atividade DESC
+        `);
+        res.send(gerarHtmlSessoes(sessoes, req.query.key));
+    } catch (e) {
+        res.status(500).send(htmlSimples('Erro ao carregar sessões.', 'error'));
+    }
+});
+
+app.post('/admin/sessoes/revogar', adminAuth, express.urlencoded({ extended: false }), async (req, res) => {
+    const { sessao_id } = req.body;
+    if (sessao_id) await dbRun('UPDATE sessoes SET ativa = FALSE WHERE id = $1', [sessao_id]).catch(() => {});
+    res.redirect(`/admin/sessoes?key=${req.query.key}`);
+});
+
+app.post('/admin/sessoes/revogar-usuario', adminAuth, express.urlencoded({ extended: false }), async (req, res) => {
+    const { usuario_id } = req.body;
+    if (usuario_id) await dbRun('UPDATE sessoes SET ativa = FALSE WHERE usuario_id = $1', [Number(usuario_id)]).catch(() => {});
+    res.redirect(`/admin/sessoes?key=${req.query.key}`);
+});
+
 app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); });
 app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); });
 app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), async (req, res) => {
@@ -2291,4 +2493,18 @@ server.listen(PORT, () => {
     console.log(`\n🚀 SERVIDOR RODANDO NA PORTA ${PORT}`);
     console.log(`📍 API: http://localhost:${PORT}`);
     console.log(`🔐 JWT: ${process.env.JWT_SECRET ? 'Configurado via .env' : 'Usando chave padrão (MUDAR EM PRODUÇÃO!)'}\n`);
+
+    // Cleanup de sessões expiradas (1x por hora) — remove sessões com mais de 9h
+    setInterval(async () => {
+        try {
+            await dbRun("DELETE FROM sessoes WHERE criada_em < NOW() - INTERVAL '9 hours'");
+        } catch (_) {}
+    }, 60 * 60 * 1000);
+
+    // Cleanup de tokens de e-mail expirados (1x por dia)
+    setInterval(async () => {
+        try {
+            await dbRun("DELETE FROM email_verification_tokens WHERE expira_em < NOW() AND usado = 1");
+        } catch (_) {}
+    }, 24 * 60 * 60 * 1000);
 });

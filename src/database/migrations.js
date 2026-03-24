@@ -370,11 +370,38 @@ const inicializarBanco = async () => {
                 unidade TEXT
             )`);
 
-        // Tabela de tokens para recuperação de senha via WhatsApp
+        // Tabela de tokens para recuperação de senha via WhatsApp (legado — mantida para compatibilidade)
         await dbRun(`CREATE TABLE IF NOT EXISTS reset_tokens (
             id SERIAL PRIMARY KEY,
             usuario_id INTEGER NOT NULL,
             token TEXT NOT NULL,
+            expira_em TIMESTAMP NOT NULL,
+            usado INTEGER DEFAULT 0
+        )`);
+
+        // ── Sessões server-side (controle de sessão única + force-logout) ─────────
+        await dbRun(`CREATE TABLE IF NOT EXISTS sessoes (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            ip TEXT,
+            user_agent TEXT,
+            criada_em TIMESTAMP DEFAULT NOW(),
+            ultima_atividade TIMESTAMP DEFAULT NOW(),
+            ativa BOOLEAN DEFAULT TRUE
+        )`);
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_sessoes_usuario ON sessoes(usuario_id) WHERE ativa = TRUE`); } catch (_) {}
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_sessoes_hash ON sessoes(token_hash) WHERE ativa = TRUE`); } catch (_) {}
+
+        // ── E-mail pessoal para recuperação automática de senha ───────────────────
+        try { await dbRun(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_pessoal TEXT`); } catch (_) {}
+        try { await dbRun(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_pessoal_verificado INTEGER DEFAULT 0`); } catch (_) {}
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS email_verification_tokens (
+            id SERIAL PRIMARY KEY,
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            token TEXT NOT NULL UNIQUE,
+            tipo TEXT NOT NULL,
             expira_em TIMESTAMP NOT NULL,
             usado INTEGER DEFAULT 0
         )`);

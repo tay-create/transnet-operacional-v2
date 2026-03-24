@@ -3,6 +3,7 @@ import useAuthStore from '../store/useAuthStore';
 import App from '../App';
 import MarcacaoForm from '../components/MarcacaoForm';
 import LoginScreen from '../components/LoginScreen';
+import RedefinirSenha from '../components/RedefinirSenha';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
 import ChecklistLogin from '../checklist/ChecklistLogin';
@@ -23,6 +24,11 @@ function AppRouter() {
     // 1. Rota de Marcação/Cadastro (Pública/Específica)
     if (path.startsWith('/cadastro/')) {
         return <MarcacaoForm />;
+    }
+
+    // 2. Rota de Redefinição de Senha (link do e-mail — pública)
+    if (path.startsWith('/redefinir-senha')) {
+        return <RedefinirSenha />;
     }
 
     // 2. Rota do Conferente (Login separado + App dedicado)

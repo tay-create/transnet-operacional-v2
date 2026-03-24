@@ -1,9 +1,12 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize, generateToken } = require('../../middleware/authMiddleware');
 const { validate, loginSchema, cadastroUsuarioSchema } = require('../../middleware/validationMiddleware');
+
+const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 const router = express.Router();
 
@@ -39,8 +42,26 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
             });
         }
 
+        // Verificar se já existe sessão ativa (sessão única por conta)
+        const sessaoAtiva = await dbGet(
+            'SELECT id FROM sessoes WHERE usuario_id = $1 AND ativa = TRUE LIMIT 1',
+            [usuario.id]
+        );
+        if (sessaoAtiva) {
+            return res.status(403).json({
+                success: false,
+                message: 'Já existe uma sessão ativa nesta conta. Faça logout no outro dispositivo ou peça ao administrador para revogar.'
+            });
+        }
+
         // Gerar token JWT
         const token = generateToken(usuario);
+
+        // Registrar sessão no banco
+        await dbRun(
+            'INSERT INTO sessoes (usuario_id, token_hash, ip, user_agent) VALUES ($1, $2, $3, $4)',
+            [usuario.id, tokenHash(token), req.ip, req.headers['user-agent'] || '']
+        );
 
         // Preparar dados do usuário (sem senha)
         // PostgreSQL retorna campos em minúsculo (avatarurl, permissoesacesso, etc)
@@ -55,7 +76,9 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
             avatarUrl: usuario.avatarurl || usuario.avatarUrl,
             usaPermissaoIndividual: !!(usuario.usapermissaoindividual || usuario.usaPermissaoIndividual),
             permissoesAcesso: parseJson(usuario.permissoesacesso || usuario.permissoesAcesso),
-            permissoesEdicao: parseJson(usuario.permissoesedicao || usuario.permissoesEdicao)
+            permissoesEdicao: parseJson(usuario.permissoesedicao || usuario.permissoesEdicao),
+            email_pessoal: usuario.email_pessoal || null,
+            email_pessoal_verificado: usuario.email_pessoal_verificado || 0
         };
 
         res.json({

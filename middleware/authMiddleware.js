@@ -1,4 +1,8 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { dbGet, dbRun } = require('../src/database/db');
+
+const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
 // Carregar variáveis de ambiente
 require('dotenv').config();
@@ -14,7 +18,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
  * Middleware de autenticação JWT
  * Intercepta requisições e valida o token no header Authorization
  */
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     try {
         // 1. Extrair token do header
         const authHeader = req.headers.authorization;
@@ -38,27 +42,41 @@ const authMiddleware = (req, res, next) => {
 
         const token = parts[1];
 
-        // 2. Verificar e decodificar token
-        jwt.verify(token, JWT_SECRET, (err, decoded) => {
-            if (err) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Token inválido ou expirado'
-                });
-            }
+        // 2. Verificar e decodificar token JWT
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        } catch (err) {
+            return res.status(401).json({
+                success: false,
+                message: 'Token inválido ou expirado'
+            });
+        }
 
-            // 3. Anexar dados do usuário ao request
-            req.user = {
-                id: decoded.id,
-                nome: decoded.nome,
-                email: decoded.email,
-                cargo: decoded.cargo,
-                cidade: decoded.cidade
-            };
+        // 3. Verificar sessão ativa no banco
+        const hash = tokenHash(token);
+        const sessao = await dbGet('SELECT ativa FROM sessoes WHERE token_hash = $1', [hash]);
+        if (!sessao || !sessao.ativa) {
+            return res.status(401).json({
+                success: false,
+                message: 'Sessão inválida ou expirada. Faça login novamente.'
+            });
+        }
 
-            // 4. Prosseguir para a próxima rota
-            next();
-        });
+        // Atualizar última atividade (fire-and-forget)
+        dbRun('UPDATE sessoes SET ultima_atividade = NOW() WHERE token_hash = $1', [hash]).catch(() => {});
+
+        // 4. Anexar dados do usuário ao request
+        req.user = {
+            id: decoded.id,
+            nome: decoded.nome,
+            email: decoded.email,
+            cargo: decoded.cargo,
+            cidade: decoded.cidade
+        };
+
+        // 5. Prosseguir para a próxima rota
+        next();
     } catch (error) {
         return res.status(500).json({
             success: false,

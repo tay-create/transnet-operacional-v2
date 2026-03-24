@@ -33,15 +33,23 @@ const useAuthStore = create(
             },
 
             /**
-             * Fazer logout
+             * Fazer logout (revoga sessão no servidor antes de limpar estado local)
              */
-            logout: () => {
+            logout: async () => {
+                try {
+                    const token = localStorage.getItem('auth_token');
+                    if (token) {
+                        await fetch('/logout', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                    }
+                } catch (_) {}
                 set({
                     user: null,
                     token: null,
                     isAuthenticated: false
                 });
-                // Clear stored tokens
                 localStorage.removeItem('auth_token');
                 localStorage.removeItem('auth-storage');
                 localStorage.removeItem('user_data');

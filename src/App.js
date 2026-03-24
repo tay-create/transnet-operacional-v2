@@ -100,6 +100,9 @@ function App({ socket }) {
 
     const [modalTelefone, setModalTelefone] = useState(false);
     const [telefonePrimeiroLogin, setTelefonePrimeiroLogin] = useState('');
+    const [modalEmailPessoal, setModalEmailPessoal] = useState(false);
+    const [emailPessoalInput, setEmailPessoalInput] = useState('');
+    const [emailPessoalEnviado, setEmailPessoalEnviado] = useState(false);
     const [confirmarRemover, setConfirmarRemover] = useState(null);
 
     const userRef = useRef(user);
@@ -1126,10 +1129,9 @@ function App({ socket }) {
     };
 
     const handleLoginSuccess = (usuarioData) => {
-        // Token already set during login; no need to call login again
         setAbaAtiva(usuarioData.cidade === 'Recife' ? 'op_recife' : 'op_moreno');
-        if (!usuarioData.telefone) {
-            setModalTelefone(true);
+        if (!usuarioData.email_pessoal || !usuarioData.email_pessoal_verificado) {
+            setModalEmailPessoal(true);
         }
     };
 
@@ -1204,6 +1206,79 @@ function App({ socket }) {
                     </div>
                 </div>
             )}
+            {/* MODAL OBRIGATÓRIO — CADASTRO DE E-MAIL PESSOAL (recuperação de senha) */}
+            {modalEmailPessoal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div className="modal-glass" style={{ maxWidth: '420px', width: '100%', textAlign: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', background: 'rgba(56,189,248,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto', border: '1px solid rgba(56,189,248,0.3)' }}>
+                            <span style={{ fontSize: '28px' }}>📧</span>
+                        </div>
+                        <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white', fontSize: '16px' }}>
+                            Cadastre seu E-mail de Recuperação
+                        </h3>
+                        {!emailPessoalEnviado ? (
+                            <>
+                                <p className="modal-desc" style={{ marginBottom: '20px' }}>
+                                    Cadastre um e-mail pessoal (Gmail, Hotmail, etc.) para poder recuperar sua senha automaticamente se perder o acesso.
+                                </p>
+                                <div style={{ textAlign: 'left', marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '10px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', marginBottom: '6px' }}>Seu E-mail Pessoal</label>
+                                    <input
+                                        className="input-dark"
+                                        type="email"
+                                        placeholder="seuemail@gmail.com"
+                                        value={emailPessoalInput}
+                                        onChange={e => setEmailPessoalInput(e.target.value)}
+                                        onKeyDown={async e => {
+                                            if (e.key === 'Enter') {
+                                                if (!emailPessoalInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPessoalInput)) {
+                                                    mostrarNotificacao('Digite um e-mail válido.', 'aviso'); return;
+                                                }
+                                                try {
+                                                    await api.post(`/usuarios/${user.id}/email-pessoal`, { email_pessoal: emailPessoalInput });
+                                                    setEmailPessoalEnviado(true);
+                                                } catch (err) {
+                                                    mostrarNotificacao(err.response?.data?.message || 'Erro ao salvar e-mail.', 'erro');
+                                                }
+                                            }
+                                        }}
+                                        autoFocus
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button onClick={async () => {
+                                        if (!emailPessoalInput || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPessoalInput)) {
+                                            mostrarNotificacao('Digite um e-mail válido.', 'aviso'); return;
+                                        }
+                                        try {
+                                            await api.post(`/usuarios/${user.id}/email-pessoal`, { email_pessoal: emailPessoalInput });
+                                            setEmailPessoalEnviado(true);
+                                        } catch (e) {
+                                            mostrarNotificacao(e.response?.data?.message || 'Erro ao salvar e-mail.', 'erro');
+                                        }
+                                    }} className="btn-primary-glow" style={{ background: '#0ea5e9', color: 'white', flex: 1 }}>
+                                        SALVAR E VERIFICAR
+                                    </button>
+                                    <button onClick={() => setModalEmailPessoal(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
+                                        DEPOIS
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="modal-desc" style={{ marginBottom: '20px' }}>
+                                    E-mail de verificação enviado para <strong style={{ color: '#38bdf8' }}>{emailPessoalInput}</strong>.<br /><br />
+                                    Verifique sua caixa de entrada e clique no link para confirmar.
+                                </p>
+                                <button onClick={() => { setModalEmailPessoal(false); setEmailPessoalEnviado(false); setEmailPessoalInput(''); }} className="btn-primary-glow" style={{ background: '#22c55e', color: 'white', width: '100%' }}>
+                                    OK, FECHAR
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Dashboard TV - Fullscreen overlay */}
             {abaAtiva === 'dashboard_tv' && temAcesso('dashboard_tv') && (
                 <DashboardTV

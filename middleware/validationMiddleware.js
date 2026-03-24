@@ -50,7 +50,7 @@ const cubagemSchema = z.object({
 const cadastroUsuarioSchema = z.object({
     nome: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres').trim(),
     email: z.string().email('Email inválido').trim().toLowerCase(),
-    senha: z.string().min(3, 'Senha deve ter no mínimo 3 caracteres'),
+    senha: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
     cidade: z.enum(['Recife', 'Moreno'], {
         errorMap: () => ({ message: 'Cidade inválida' })
     }),
