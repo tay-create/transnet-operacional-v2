@@ -111,6 +111,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
+    const [filtroDisponibilidade, setFiltroDisponibilidade] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const ITENS_POR_PAGINA = 25;
     // Tick para atualizar cronômetros a cada minuto
@@ -561,6 +562,24 @@ export default function GestaoMarcacoes({ socket }) {
                                     <option key={uf} value={uf}>{uf}</option>
                                 ))}
                             </select>
+                            <select
+                                value={filtroDisponibilidade}
+                                onChange={e => { setFiltroDisponibilidade(e.target.value); setPaginaMarcacoes(1); }}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '150px', maxWidth: '200px',
+                                    cursor: 'pointer', color: filtroDisponibilidade ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroDisponibilidade ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Todas disponibilidades</option>
+                                <option value="disponivel">Disponível</option>
+                                <option value="indisponivel">Indisponível</option>
+                                <option value="contratado">Contratado</option>
+                                <option value="EM CASA">EM CASA</option>
+                                <option value="NO PÁTIO">NO PÁTIO</option>
+                                <option value="NO POSTO">NO POSTO</option>
+                            </select>
                         </div>
                         <button style={s.btn()} onClick={carregarMarcacoes}>
                             <RefreshCw size={14} /> Atualizar
@@ -601,6 +620,19 @@ export default function GestaoMarcacoes({ socket }) {
                                             if (filtroEstado) {
                                                 const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
                                                 if (!estados.includes(filtroEstado)) return false;
+                                            }
+                                            if (filtroDisponibilidade) {
+                                                const disp = m.disponibilidade || '';
+                                                const opStatus = m.status_operacional || '';
+                                                const isIndisponivel = disp === 'Indisponível';
+                                                const isContratado = disp === 'Contratado' || opStatus === 'EM VIAGEM' || opStatus === 'EM ROTA';
+                                                const isDisponivel = !isIndisponivel && !isContratado;
+                                                if (filtroDisponibilidade === 'disponivel' && !isDisponivel) return false;
+                                                if (filtroDisponibilidade === 'indisponivel' && !isIndisponivel) return false;
+                                                if (filtroDisponibilidade === 'contratado' && !isContratado) return false;
+                                                if (filtroDisponibilidade === 'EM CASA' && disp !== 'EM CASA') return false;
+                                                if (filtroDisponibilidade === 'NO PÁTIO' && disp !== 'NO PÁTIO') return false;
+                                                if (filtroDisponibilidade === 'NO POSTO' && disp !== 'NO POSTO') return false;
                                             }
                                             if (!buscaMarcacoes) return true;
                                             const q = buscaMarcacoes.toLowerCase();
