@@ -388,6 +388,10 @@ function App({ socket }) {
         carregarNotificacoes();
         carregarFila();
         carregarCtes();
+        // Verificar e-mail pessoal (cobre tanto login novo quanto sessão restaurada do localStorage)
+        if (!user?.email_pessoal || !user?.email_pessoal_verificado) {
+            setModalEmailPessoal(true);
+        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [logado]);
 
