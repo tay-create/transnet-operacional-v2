@@ -3,7 +3,7 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, Truck
+    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalConfirm from './ModalConfirm';
@@ -650,19 +650,60 @@ export default function PainelOperacional({
                                                 )}
                                             </div>
 
-                                            {podeEditarNaUnidade('adiar_dia') ? (
-                                                <input
-                                                    type="date"
-                                                    value={item.data_prevista || ''}
-                                                    onChange={e => updateList(lista, setLista, realIndex, 'data_prevista', e.target.value)}
-                                                    title="Reagendar data prevista"
-                                                    style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '11px', cursor: 'pointer', outline: 'none', padding: '0' }}
-                                                />
-                                            ) : (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                                                {/* Data — apenas visual */}
                                                 <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Calendar size={12} /> {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : ''}
+                                                    <Calendar size={12} />
+                                                    {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : '—'}
                                                 </div>
-                                            )}
+                                                {/* Botões de reprogramação */}
+                                                {podeEditarNaUnidade('adiar_dia') && (() => {
+                                                    const hoje = new Date().toISOString().slice(0, 10);
+                                                    const prox = new Date();
+                                                    prox.setDate(prox.getDate() + 1);
+                                                    if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1);
+                                                    const proxStr = prox.toISOString().slice(0, 10);
+                                                    const eHoje = item.data_prevista === hoje;
+                                                    return (
+                                                        <>
+                                                            {/* Avançar para amanhã */}
+                                                            {eHoje && (
+                                                                <button
+                                                                    onClick={() => updateList(lista, setLista, realIndex, 'data_prevista', proxStr)}
+                                                                    title={`Reprogramar para ${proxStr.split('-').reverse().slice(0,2).join('/')}`}
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                        padding: '3px 7px', borderRadius: '5px', cursor: 'pointer',
+                                                                        fontSize: '10px', fontWeight: '700',
+                                                                        background: 'rgba(250,204,21,0.12)',
+                                                                        color: '#facc15',
+                                                                        border: '1px solid rgba(250,204,21,0.3)'
+                                                                    }}
+                                                                >
+                                                                    <CalendarPlus size={11} /> +1 dia
+                                                                </button>
+                                                            )}
+                                                            {/* Voltar para hoje */}
+                                                            {!eHoje && (
+                                                                <button
+                                                                    onClick={() => updateList(lista, setLista, realIndex, 'data_prevista', hoje)}
+                                                                    title="Voltar para hoje"
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                                        padding: '3px 7px', borderRadius: '5px', cursor: 'pointer',
+                                                                        fontSize: '10px', fontWeight: '700',
+                                                                        background: 'rgba(34,197,94,0.12)',
+                                                                        color: '#4ade80',
+                                                                        border: '1px solid rgba(34,197,94,0.3)'
+                                                                    }}
+                                                                >
+                                                                    <CalendarCheck size={11} /> Hoje
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
 
                                             {isMista && (
                                                 <div style={{ fontSize: '10px', marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', background: souPrimeira ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: souPrimeira ? '#60a5fa' : '#fbbf24', marginLeft: '10px' }}>
