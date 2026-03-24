@@ -64,11 +64,16 @@ function createWindow() {
         mainWindow.webContents.executeJavaScript(`
             (function() {
                 const manter = localStorage.getItem('manter_conectado');
-                if (manter !== '1') {
+                if (manter === '1') return Promise.resolve();
+                const token = localStorage.getItem('auth_token');
+                const p = token
+                    ? fetch('/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }).catch(() => {})
+                    : Promise.resolve();
+                return p.finally(() => {
                     localStorage.removeItem('auth_token');
                     localStorage.removeItem('auth-storage');
-                }
-            })();
+                });
+            })()
         `).finally(() => {
             mainWindow.destroy();
         });
