@@ -859,6 +859,21 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             res.json({ success: true });
         } catch (e) { console.error('Erro PUT /veiculos/:id', e); res.status(500).json({ success: false }); }
     });
+    // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
+    // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
+    router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+        try {
+            const { nova_data, foi_reprogramado = 1 } = req.body;
+            if (!nova_data) return res.status(400).json({ success: false, message: 'nova_data obrigatória.' });
+            await dbRun(
+                `UPDATE veiculos SET data_prevista = $1, foi_reprogramado = $2 WHERE id = $3`,
+                [nova_data, foi_reprogramado ? 1 : 0, req.params.id]
+            );
+            io.emit('update');
+            res.json({ success: true });
+        } catch (e) { console.error('Erro PUT /veiculos/:id/reprogramar', e); res.status(500).json({ success: false }); }
+    });
+
     router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
             console.log(`🗑️ [DELETE] Tentando excluir veículo ID: ${req.params.id}`);

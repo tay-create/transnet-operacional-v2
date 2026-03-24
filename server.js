@@ -2107,7 +2107,7 @@ async function gerarProgramacaoDiaria(turno) {
         let rows;
         if (turno === 'Inicial') {
             rows = await dbAll(`
-                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao
+                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao, foi_reprogramado
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2131,10 +2131,8 @@ async function gerarProgramacaoDiaria(turno) {
 
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
-                const foiReprogramado =
-                    v.data_prevista_original
-                        ? v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10)
-                        : (v.data_criacao && v.data_criacao.substring(0, 10) < v.data_prevista.substring(0, 10));
+                // Usa flag explícita (botão +1 dia, Hoje ou calendário do card)
+                const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
 
                 if (foiReprogramado) {
                     totais[cliente][`reprogramado_${un}`] += 1;

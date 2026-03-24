@@ -187,6 +187,8 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' },
             // Programação Diária v3 — data original para classificar Programado vs Reprogramado
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
+            // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
+            { tabela: 'veiculos', coluna: 'foi_reprogramado', tipo: 'INTEGER DEFAULT 0' },
         ];
 
         // Criação de Índices Otimizados

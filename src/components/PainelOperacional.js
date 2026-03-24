@@ -90,6 +90,23 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     }
 };
 
+// Reprograma item: chama endpoint dedicado e atualiza estado local
+// foiReprogramado=1 ao avançar ou mudar data; foiReprogramado=0 ao voltar para hoje
+const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostrarNotificacao, foiReprogramado = 1) => {
+    const item = lista[realIndex];
+    if (!item?.id) return;
+    const novaLista = [...lista];
+    novaLista[realIndex] = { ...item, data_prevista: novaData, foi_reprogramado: foiReprogramado };
+    setLista(novaLista);
+    try {
+        await api.put(`/veiculos/${item.id}/reprogramar`, { nova_data: novaData, foi_reprogramado: foiReprogramado });
+    } catch (err) {
+        console.error('Erro ao reprogramar:', err);
+        mostrarNotificacao?.('⚠️ Erro ao reprogramar. Recarregue a página.');
+        setLista(prev => { const r = [...prev]; r[realIndex] = item; return r; });
+    }
+};
+
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
     termoBusca, setTermoBusca, user,
@@ -651,10 +668,21 @@ export default function PainelOperacional({
                                             </div>
 
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                {/* Data — apenas visual */}
-                                                <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    <Calendar size={12} />
+                                                {/* Data — visual com calendário clicável se tiver permissão */}
+                                                <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                                                    <Calendar size={12} style={podeEditarNaUnidade('adiar_dia') ? { cursor: 'pointer' } : {}} />
                                                     {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : '—'}
+                                                    {podeEditarNaUnidade('adiar_dia') && (
+                                                        <input
+                                                            type="date"
+                                                            value={item.data_prevista || ''}
+                                                            onChange={e => e.target.value && reprogramarItem(lista, setLista, realIndex, e.target.value, api, mostrarNotificacao)}
+                                                            style={{
+                                                                position: 'absolute', inset: 0, opacity: 0,
+                                                                cursor: 'pointer', width: '100%', height: '100%'
+                                                            }}
+                                                        />
+                                                    )}
                                                 </div>
                                                 {/* Botões de reprogramação */}
                                                 {podeEditarNaUnidade('adiar_dia') && (() => {
@@ -666,10 +694,10 @@ export default function PainelOperacional({
                                                     const eHoje = item.data_prevista === hoje;
                                                     return (
                                                         <>
-                                                            {/* Avançar para amanhã */}
+                                                            {/* Avançar para amanhã — conta como reprogramado */}
                                                             {eHoje && (
                                                                 <button
-                                                                    onClick={() => updateList(lista, setLista, realIndex, 'data_prevista', proxStr)}
+                                                                    onClick={() => reprogramarItem(lista, setLista, realIndex, proxStr, api, mostrarNotificacao, 1)}
                                                                     title={`Reprogramar para ${proxStr.split('-').reverse().slice(0,2).join('/')}`}
                                                                     style={{
                                                                         display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -683,10 +711,10 @@ export default function PainelOperacional({
                                                                     <CalendarPlus size={11} /> +1 dia
                                                                 </button>
                                                             )}
-                                                            {/* Voltar para hoje */}
+                                                            {/* Voltar para hoje — zera reprogramado */}
                                                             {!eHoje && (
                                                                 <button
-                                                                    onClick={() => updateList(lista, setLista, realIndex, 'data_prevista', hoje)}
+                                                                    onClick={() => reprogramarItem(lista, setLista, realIndex, hoje, api, mostrarNotificacao, 0)}
                                                                     title="Voltar para hoje"
                                                                     style={{
                                                                         display: 'inline-flex', alignItems: 'center', gap: '3px',
