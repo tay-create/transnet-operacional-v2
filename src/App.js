@@ -1349,7 +1349,7 @@ function App({ socket }) {
                     <GestaoMarcacoes socket={socket} />
                 )}
 
-                {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado') && (
+                {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado' || temAcesso('saldo_paletes')) && (
                     <PainelSaldoPaletes />
                 )}
 
