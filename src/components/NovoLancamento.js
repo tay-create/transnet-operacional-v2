@@ -19,7 +19,8 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
     const [dropdownAberto, setDropdownAberto] = useState(false);
     const [filtroUF, setFiltroUF] = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
-    const [modalEntregas, setModalEntregas] = useState(null); // null | { veiculo, campoPendente }
+    const [modalEntregas, setModalEntregas] = useState(null); // null | { veiculo }
+    const [entregasConfirmadas, setEntregasConfirmadas] = useState(false);
 
     useEffect(() => {
         api.get('/api/marcacoes/disponiveis')
@@ -30,11 +31,21 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
             .catch(() => { });
     }, []);
 
-    function checarPlacaProvisao(placa) {
-        if (!placa || placa.length < 6) return;
-        const p = placa.replace(/[-\s]/g, '').toUpperCase();
-        const v = veiculosProvisao.find(vp => vp.placa.replace(/[-\s]/g, '').toUpperCase() === p || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
-        if (v) setModalEntregas({ veiculo: v });
+    function handleLancar() {
+        if (!entregasConfirmadas) {
+            const p1 = (formLanca.placa1Motorista || '').replace(/[-\s]/g, '').toUpperCase();
+            const p2 = (formLanca.placa2Motorista || '').replace(/[-\s]/g, '').toUpperCase();
+            const v = veiculosProvisao.find(vp => {
+                const vPlaca = vp.placa.replace(/[-\s]/g, '').toUpperCase();
+                const vCarreta = (vp.carreta || '').replace(/[-\s]/g, '').toUpperCase();
+                return (p1 && (vPlaca === p1 || vCarreta === p1)) || (p2 && (vPlaca === p2 || vCarreta === p2));
+            });
+            if (v) {
+                setModalEntregas({ veiculo: v });
+                return;
+            }
+        }
+        lancarVeiculoInteligente();
     }
 
     const UFS_FILTRO = ['PE', 'BA', 'SP', 'GO', 'MG', 'RJ', 'CE', 'MA', 'PI', 'PB', 'RN', 'AL', 'SE', 'ES', 'PR', 'SC', 'RS', 'MT', 'MS', 'DF', 'PA', 'AM', 'RO', 'TO', 'AP', 'RR', 'AC'];
@@ -342,8 +353,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                     className="input-internal"
                                     list="placas-provisao"
                                     value={formLanca.placa1Motorista || ''}
-                                    onChange={e => setFormLanca(prev => ({ ...prev, placa1Motorista: e.target.value.toUpperCase() }))}
-                                    onBlur={e => checarPlacaProvisao(e.target.value)}
+                                    onChange={e => { setFormLanca(prev => ({ ...prev, placa1Motorista: e.target.value.toUpperCase() })); setEntregasConfirmadas(false); }}
                                     placeholder="ABC-1234"
                                     maxLength={8}
                                     style={{ fontFamily: 'monospace', fontWeight: '700', letterSpacing: '1px' }}
@@ -355,8 +365,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                     className="input-internal"
                                     list="placas-provisao"
                                     value={formLanca.placa2Motorista || ''}
-                                    onChange={e => setFormLanca(prev => ({ ...prev, placa2Motorista: e.target.value.toUpperCase() }))}
-                                    onBlur={e => checarPlacaProvisao(e.target.value)}
+                                    onChange={e => { setFormLanca(prev => ({ ...prev, placa2Motorista: e.target.value.toUpperCase() })); setEntregasConfirmadas(false); }}
                                     placeholder="ABC-1234"
                                     maxLength={8}
                                     style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
@@ -475,7 +484,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
 
                         {/* Botão Lançar */}
                         <div style={{ marginTop: '10px' }}>
-                            <button onClick={lancarVeiculoInteligente} disabled={!!modalEntregas} className="btn-launch" style={{ width: '100%', opacity: modalEntregas ? 0.5 : 1, cursor: modalEntregas ? 'not-allowed' : 'pointer' }}>
+                            <button onClick={handleLancar} disabled={!!modalEntregas} className="btn-launch" style={{ width: '100%', opacity: modalEntregas ? 0.5 : 1, cursor: modalEntregas ? 'not-allowed' : 'pointer' }}>
                                 <Truck size={18} /> LANÇAR VEÍCULO
                             </button>
                             {modalEntregas && (
@@ -499,9 +508,14 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                     veiculo={modalEntregas.veiculo}
                     motorista={formLanca.motorista || ''}
                     dataSaida={formLanca.data_prevista || new Date().toISOString().substring(0, 10)}
-                    onConfirmar={() => setModalEntregas(null)}
+                    onConfirmar={() => {
+                        setEntregasConfirmadas(true);
+                        setModalEntregas(null);
+                        lancarVeiculoInteligente();
+                    }}
                     onCancelar={() => {
                         setFormLanca(prev => ({ ...prev, placa1Motorista: '', placa2Motorista: '' }));
+                        setEntregasConfirmadas(false);
                         setModalEntregas(null);
                     }}
                 />

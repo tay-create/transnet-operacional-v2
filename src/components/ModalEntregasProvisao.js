@@ -14,6 +14,7 @@ import api from '../services/apiService';
  *   onCancelar — callback ao cancelar (limpa a placa no form pai)
  */
 export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, onConfirmar, onCancelar }) {
+    const [dataCarregamento, setDataCarregamento] = useState(dataSaida || '');
     const [entradas, setEntradas] = useState([{ cidade: '', data: dataSaida || '' }]);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -22,7 +23,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
     const removeEntrada = (i) => setEntradas(prev => prev.filter((_, idx) => idx !== i));
     const updateEntrada = (i, campo, valor) => setEntradas(prev => prev.map((e, idx) => idx === i ? { ...e, [campo]: valor } : e));
 
-    const podeSalvar = entradas.length > 0 && entradas.every(e => e.cidade.trim() && e.data);
+    const podeSalvar = !!dataCarregamento && entradas.length > 0 && entradas.every(e => e.cidade.trim() && e.data);
 
     async function confirmar() {
         if (!podeSalvar) return;
@@ -32,7 +33,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
             await api.post('/api/provisionamento/viagem', {
                 veiculo_id: veiculo.id,
                 motorista: motorista || veiculo.motorista || '',
-                data_saida: dataSaida,
+                data_saida: dataCarregamento || dataSaida,
                 entradas: entradas.map(e => ({ cidade: e.cidade.trim(), data: e.data })),
             });
             onConfirmar(entradas);
@@ -76,6 +77,28 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                     Este veículo está cadastrado no <strong style={{ color: '#60a5fa' }}>Provisionamento de Frota</strong>.
                     Informe os destinos e datas de entrega para registrar os dias como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
                 </p>
+
+                {/* Data de Carregamento */}
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                        DATA DE CARREGAMENTO
+                    </label>
+                    <input
+                        type="date"
+                        value={dataCarregamento}
+                        onChange={e => setDataCarregamento(e.target.value)}
+                        style={{
+                            width: '160px', background: '#1e293b', border: `1px solid ${dataCarregamento ? '#3b82f6' : '#334155'}`,
+                            borderRadius: '6px', color: '#f1f5f9', padding: '8px 10px',
+                            fontSize: '13px', outline: 'none',
+                        }}
+                    />
+                </div>
+
+                {/* Destinos e Datas de Entrega */}
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    DESTINOS E DATAS DE ENTREGA
+                </div>
 
                 {/* Entradas */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>

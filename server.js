@@ -2452,7 +2452,7 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
 
         const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1 ORDER BY ordem ASC, id ASC');
         const progs = await dbAll(
-            'SELECT veiculo_id, data::text as data, status, destino FROM prov_programacao WHERE data >= $1 AND data <= $2',
+            'SELECT veiculo_id, data::text as data, status, destino, motorista, destinos_json FROM prov_programacao WHERE data >= $1 AND data <= $2',
             [dias[0], dias[6]]
         );
 
@@ -2460,7 +2460,7 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
         const programacao = {};
         for (const p of progs) {
             if (!programacao[p.veiculo_id]) programacao[p.veiculo_id] = {};
-            programacao[p.veiculo_id][p.data] = { status: p.status, destino: p.destino };
+            programacao[p.veiculo_id][p.data] = { status: p.status, destino: p.destino, motorista: p.motorista || null, destinos_json: p.destinos_json || null };
         }
 
         // Calcular totalizadores por dia
@@ -2516,6 +2516,12 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         const dataFim = datasEntrega[datasEntrega.length - 1] || data_saida;
         const destinosJson = JSON.stringify(entradas);
 
+        // Último destino por data (campo destino simples para exibição no grid)
+        const destinoResumo = entradas
+            .filter(e => e.data && e.cidade)
+            .sort((a, b) => a.data.localeCompare(b.data))
+            .pop()?.cidade || null;
+
         // Gerar todos os dias no intervalo [data_saida, dataFim]
         const dias = [];
         const cursor = new Date(data_saida + 'T00:00:00Z');
@@ -2527,12 +2533,12 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
 
         for (const dia of dias) {
             await dbRun(
-                `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destinos_json)
-                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4)
-                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destinos_json = $4`,
-                [veiculo_id, dia, motorista || null, destinosJson]
+                `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
+                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4, $5)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destino = $4, destinos_json = $5`,
+                [veiculo_id, dia, motorista || null, destinoResumo, destinosJson]
             );
-            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null });
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null, destino: destinoResumo });
         }
 
         res.json({ success: true, dias_afetados: dias.length });
