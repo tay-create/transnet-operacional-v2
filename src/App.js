@@ -25,6 +25,7 @@ import { CheckCircle as CheckCircleIcon, Phone } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
 import PainelOcorrencias from './components/PainelOcorrencias';
 import PainelSaldoPaletes from './components/PainelSaldoPaletes';
+import ProvisionamentoFrota from './components/ProvisionamentoFrota';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -1371,6 +1372,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'programacao_diaria' && (
                     <PainelProgramacao />
+                )}
+
+                {abaAtiva === 'provisionamento' && (
+                    <ProvisionamentoFrota socket={socket} user={user} />
                 )}
 
                 {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (

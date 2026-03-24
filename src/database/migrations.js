@@ -3,8 +3,8 @@ const { dbRun, dbGet } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
     'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
@@ -412,6 +412,29 @@ const inicializarBanco = async () => {
             expira_em TIMESTAMP NOT NULL,
             usado INTEGER DEFAULT 0
         )`);
+
+        // ── Provisionamento de Frota ───────────────────────────────────────────
+        await dbRun(`CREATE TABLE IF NOT EXISTS prov_veiculos (
+            id SERIAL PRIMARY KEY,
+            placa TEXT NOT NULL,
+            carreta TEXT,
+            tipo_veiculo TEXT NOT NULL,
+            modelo TEXT,
+            motorista TEXT,
+            ativo INTEGER DEFAULT 1,
+            ordem INTEGER DEFAULT 0,
+            data_criacao TIMESTAMP DEFAULT NOW()
+        )`);
+        await dbRun(`CREATE TABLE IF NOT EXISTS prov_programacao (
+            id SERIAL PRIMARY KEY,
+            veiculo_id INTEGER NOT NULL REFERENCES prov_veiculos(id) ON DELETE CASCADE,
+            data DATE NOT NULL,
+            status TEXT NOT NULL DEFAULT 'DISPONIVEL',
+            destino TEXT,
+            UNIQUE(veiculo_id, data)
+        )`);
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_prog_data ON prov_programacao(data)`); } catch (_) {}
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_veiculos_ativo ON prov_veiculos(ativo, ordem)`); } catch (_) {}
 
         // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {

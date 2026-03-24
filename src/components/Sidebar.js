@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Shield, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -156,6 +156,7 @@ export default function Sidebar({
                             <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_moreno'); }} />
                         )}
                         <MenuItem icon={<Calendar size={20} />} label="Programação Diária" subItem aberto={aberto} onClick={() => { setAbaAtiva('programacao_diaria'); }} />
+                        <MenuItem icon={<LayoutGrid size={20} />} label="Provisionamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('provisionamento'); }} />
                     </>
                 )}
 

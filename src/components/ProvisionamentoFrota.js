@@ -1,0 +1,470 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import api from '../services/apiService';
+
+const TIPOS_VEICULO = ['TRUCK', 'CARRETA', 'CONJUNTO', '3/4'];
+
+const STATUS_LIST = [
+    'DISPONIVEL',
+    'EM_VIAGEM',
+    'EM_VIAGEM_FRETE_RETORNO',
+    'AGUARDANDO_FRETE_RETORNO',
+    'RETORNANDO',
+    'MANUTENCAO',
+    'CARREGANDO',
+    'PUXADA',
+    'TRANSFERENCIA',
+    'PROJETO_SUL',
+    'PROJETO_SP',
+    'SABADO',
+    'DOMINGO',
+    'FERIADO',
+];
+
+const STATUS_LABEL = {
+    DISPONIVEL: 'DISPONÍVEL',
+    EM_VIAGEM: 'EM VIAGEM',
+    EM_VIAGEM_FRETE_RETORNO: 'VIAGEM C/ FRETE RET.',
+    AGUARDANDO_FRETE_RETORNO: 'AGUARD. FRETE RET.',
+    RETORNANDO: 'RETORNANDO',
+    MANUTENCAO: 'MANUTENÇÃO',
+    CARREGANDO: 'CARREGANDO',
+    PUXADA: 'PUXADA',
+    TRANSFERENCIA: 'TRANSFERÊNCIA',
+    PROJETO_SUL: 'PROJETO SUL',
+    PROJETO_SP: 'PROJETO SP',
+    SABADO: 'SÁBADO',
+    DOMINGO: 'DOMINGO',
+    FERIADO: 'FERIADO',
+};
+
+const COR_STATUS = {
+    DISPONIVEL:               { bg: 'rgba(34,197,94,0.18)',   text: '#4ade80',  border: 'rgba(34,197,94,0.35)' },
+    EM_VIAGEM:                { bg: 'rgba(234,179,8,0.18)',   text: '#facc15',  border: 'rgba(234,179,8,0.35)' },
+    EM_VIAGEM_FRETE_RETORNO:  { bg: 'rgba(234,179,8,0.18)',   text: '#facc15',  border: 'rgba(234,179,8,0.35)' },
+    AGUARDANDO_FRETE_RETORNO: { bg: 'rgba(234,179,8,0.14)',   text: '#fbbf24',  border: 'rgba(234,179,8,0.3)' },
+    RETORNANDO:               { bg: 'rgba(234,179,8,0.14)',   text: '#fbbf24',  border: 'rgba(234,179,8,0.3)' },
+    MANUTENCAO:               { bg: 'rgba(239,68,68,0.18)',   text: '#f87171',  border: 'rgba(239,68,68,0.35)' },
+    CARREGANDO:               { bg: 'rgba(100,116,139,0.18)', text: '#94a3b8',  border: 'rgba(100,116,139,0.3)' },
+    PUXADA:                   { bg: 'rgba(59,130,246,0.18)',  text: '#60a5fa',  border: 'rgba(59,130,246,0.35)' },
+    TRANSFERENCIA:            { bg: 'rgba(14,165,233,0.18)',  text: '#38bdf8',  border: 'rgba(14,165,233,0.35)' },
+    PROJETO_SUL:              { bg: 'rgba(22,163,74,0.18)',   text: '#34d399',  border: 'rgba(22,163,74,0.35)' },
+    PROJETO_SP:               { bg: 'rgba(22,163,74,0.18)',   text: '#34d399',  border: 'rgba(22,163,74,0.35)' },
+    SABADO:                   { bg: 'rgba(71,85,105,0.18)',   text: '#64748b',  border: 'rgba(71,85,105,0.25)' },
+    DOMINGO:                  { bg: 'rgba(71,85,105,0.18)',   text: '#64748b',  border: 'rgba(71,85,105,0.25)' },
+    FERIADO:                  { bg: 'rgba(71,85,105,0.18)',   text: '#64748b',  border: 'rgba(71,85,105,0.25)' },
+};
+
+const STATUS_COM_DESTINO = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'PROJETO_SUL', 'PROJETO_SP', 'TRANSFERENCIA'];
+
+const DIAS_SEMANA = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+
+function getSegundaFeira(date) {
+    const d = new Date(date);
+    d.setHours(12, 0, 0, 0);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d;
+}
+
+function formatarDia(dateStr) {
+    const [, , dd] = dateStr.split('-');
+    return dd;
+}
+
+function formatarSemana(dias) {
+    if (!dias || dias.length < 7) return '';
+    const [y1, m1, d1] = dias[0].split('-');
+    const [, , d7] = dias[6].split('-');
+    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${d1}/${meses[parseInt(m1, 10) - 1]} – ${d7}/${meses[parseInt(m1, 10) - 1]}/${y1}`;
+}
+
+const FORM_VAZIO = { placa: '', carreta: '', tipo_veiculo: 'TRUCK', modelo: '', motorista: '', ordem: 0 };
+
+export default function ProvisionamentoFrota({ socket, user }) {
+    const podeEditar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
+
+    const [semanaInicio, setSemanaInicio] = useState(() => {
+        const s = getSegundaFeira(new Date());
+        return s.toISOString().substring(0, 10);
+    });
+
+    const [veiculos, setVeiculos] = useState([]);
+    const [dias, setDias] = useState([]);
+    const [programacao, setProgramacao] = useState({});  // { veiculo_id: { data: { status, destino } } }
+    const [totais, setTotais] = useState({});
+    const [carregando, setCarregando] = useState(false);
+    const [salvando, setSalvando] = useState({});  // { 'veiculoId_data': true }
+
+    const [modalVeiculo, setModalVeiculo] = useState(null); // null | 'novo' | objeto veículo
+    const [formVeiculo, setFormVeiculo] = useState(FORM_VAZIO);
+    const [salvandoModal, setSalvandoModal] = useState(false);
+
+    // Cache de destinos locais (sem esperar servidor)
+    const destinoCache = useRef({});
+
+    const carregarSemana = useCallback(async (inicio) => {
+        setCarregando(true);
+        try {
+            const r = await api.get(`/api/provisionamento/semana?inicio=${inicio}`);
+            if (r.data.success) {
+                setVeiculos(r.data.veiculos);
+                setDias(r.data.dias);
+                setProgramacao(r.data.programacao);
+                setTotais(r.data.totais);
+            }
+        } catch (e) {
+            console.error('Erro ao carregar semana:', e);
+        } finally {
+            setCarregando(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        carregarSemana(semanaInicio);
+    }, [semanaInicio, carregarSemana]);
+
+    // Socket: atualização em tempo real de outro usuário
+    useEffect(() => {
+        if (!socket) return;
+        const handler = (data) => {
+            if (data?.tipo !== 'prov_status_atualizado') return;
+            setProgramacao(prev => ({
+                ...prev,
+                [data.veiculo_id]: {
+                    ...prev[data.veiculo_id],
+                    [data.data]: { status: data.status, destino: data.destino }
+                }
+            }));
+            // Recalcular totais localmente não é trivial; recarrega apenas os totais
+            setTotais(prev => {
+                // Recalcular para o dia afetado seria complexo sem a lista completa
+                // O próximo carregarSemana já sincroniza tudo
+                return prev;
+            });
+        };
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
+    }, [socket]);
+
+    function navegarSemana(direcao) {
+        const d = new Date(semanaInicio + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + direcao * 7);
+        setSemanaInicio(d.toISOString().substring(0, 10));
+    }
+
+    function getStatusCelula(veiculoId, data) {
+        const st = programacao[veiculoId]?.[data]?.status;
+        if (st) return st;
+        // Padrão visual para sábado/domingo sem registro
+        const dow = new Date(data + 'T12:00:00Z').getUTCDay();
+        if (dow === 6) return 'SABADO';
+        if (dow === 0) return 'DOMINGO';
+        return 'DISPONIVEL';
+    }
+
+    function getDestinoCelula(veiculoId, data) {
+        return programacao[veiculoId]?.[data]?.destino || '';
+    }
+
+    async function salvarStatus(veiculoId, data, status, destino) {
+        const key = `${veiculoId}_${data}`;
+        setSalvando(prev => ({ ...prev, [key]: true }));
+        // Otimista: atualiza local imediatamente
+        setProgramacao(prev => ({
+            ...prev,
+            [veiculoId]: { ...prev[veiculoId], [data]: { status, destino: destino ?? prev[veiculoId]?.[data]?.destino ?? null } }
+        }));
+        try {
+            await api.put('/api/provisionamento/status', { veiculo_id: veiculoId, data, status, destino: destino ?? null });
+            // Recarregar totais silenciosamente
+            const r = await api.get(`/api/provisionamento/semana?inicio=${semanaInicio}`);
+            if (r.data.success) setTotais(r.data.totais);
+        } catch (e) {
+            console.error('Erro ao salvar status:', e);
+        } finally {
+            setSalvando(prev => { const n = { ...prev }; delete n[key]; return n; });
+        }
+    }
+
+    async function salvarDestino(veiculoId, data, destino) {
+        const status = getStatusCelula(veiculoId, data);
+        const key = `${veiculoId}_${data}`;
+        setSalvando(prev => ({ ...prev, [key]: true }));
+        setProgramacao(prev => ({
+            ...prev,
+            [veiculoId]: { ...prev[veiculoId], [data]: { status, destino } }
+        }));
+        try {
+            await api.put('/api/provisionamento/status', { veiculo_id: veiculoId, data, status, destino });
+        } catch (e) {
+            console.error('Erro ao salvar destino:', e);
+        } finally {
+            setSalvando(prev => { const n = { ...prev }; delete n[key]; return n; });
+        }
+    }
+
+    async function excluirVeiculo(id) {
+        try {
+            await api.delete(`/api/provisionamento/veiculos/${id}`);
+            setVeiculos(prev => prev.filter(v => v.id !== id));
+        } catch (e) { console.error('Erro ao excluir:', e); }
+    }
+
+    function abrirModalNovo() {
+        setFormVeiculo(FORM_VAZIO);
+        setModalVeiculo('novo');
+    }
+
+    function abrirModalEditar(v) {
+        setFormVeiculo({ placa: v.placa || '', carreta: v.carreta || '', tipo_veiculo: v.tipo_veiculo || 'TRUCK', modelo: v.modelo || '', motorista: v.motorista || '', ordem: v.ordem || 0 });
+        setModalVeiculo(v);
+    }
+
+    async function salvarModal() {
+        if (!formVeiculo.placa || !formVeiculo.tipo_veiculo) return;
+        setSalvandoModal(true);
+        try {
+            if (modalVeiculo === 'novo') {
+                const r = await api.post('/api/provisionamento/veiculos', formVeiculo);
+                if (r.data.success) {
+                    await carregarSemana(semanaInicio);
+                }
+            } else {
+                await api.put(`/api/provisionamento/veiculos/${modalVeiculo.id}`, formVeiculo);
+                setVeiculos(prev => prev.map(v => v.id === modalVeiculo.id ? { ...v, ...formVeiculo } : v));
+            }
+            setModalVeiculo(null);
+        } catch (e) { console.error('Erro ao salvar veículo:', e); }
+        finally { setSalvandoModal(false); }
+    }
+
+    const cor = (st) => COR_STATUS[st] || COR_STATUS.DISPONIVEL;
+
+    return (
+        <div style={{ padding: '16px 20px', height: 'calc(100vh - 124px)', overflowY: 'auto', overflowX: 'auto' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#f1f5f9', letterSpacing: '0.05em' }}>
+                    PROVISIONAMENTO DE FROTA
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={() => navegarSemana(-1)} style={s.btnNav}><ChevronLeft size={16} /></button>
+                    <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600', minWidth: '150px', textAlign: 'center' }}>
+                        {formatarSemana(dias)}
+                    </span>
+                    <button onClick={() => navegarSemana(1)} style={s.btnNav}><ChevronRight size={16} /></button>
+                    {podeEditar && (
+                        <button onClick={abrirModalNovo} style={s.btnPrimary}>
+                            <Plus size={14} /> Veículo
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {carregando && (
+                <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>Carregando...</div>
+            )}
+
+            {!carregando && (
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={s.table}>
+                        <thead>
+                            <tr>
+                                <th style={{ ...s.th, minWidth: '90px' }}>VEÍCULO</th>
+                                <th style={{ ...s.th, minWidth: '90px' }}>CARRETA</th>
+                                <th style={{ ...s.th, minWidth: '75px' }}>TIPO</th>
+                                <th style={{ ...s.th, minWidth: '120px' }}>MOTORISTA</th>
+                                {dias.map((dia, i) => (
+                                    <th key={dia} style={{ ...s.th, minWidth: '130px', color: i >= 5 ? '#64748b' : '#f1f5f9' }}>
+                                        <div style={{ fontWeight: '700' }}>{DIAS_SEMANA[i]}</div>
+                                        <div style={{ fontSize: '11px', fontWeight: '400', color: '#64748b' }}>{formatarDia(dia)}</div>
+                                    </th>
+                                ))}
+                                {podeEditar && <th style={{ ...s.th, width: '60px' }}></th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {veiculos.map(v => (
+                                <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                    <td style={s.td}><span style={s.placa}>{v.placa}</span></td>
+                                    <td style={s.td}><span style={{ color: '#64748b', fontSize: '12px' }}>{v.carreta || '—'}</span></td>
+                                    <td style={s.td}>
+                                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
+                                            {v.tipo_veiculo}
+                                        </span>
+                                    </td>
+                                    <td style={s.td}><span style={{ fontSize: '12px', color: '#cbd5e1' }}>{v.motorista || '—'}</span></td>
+                                    {dias.map(dia => {
+                                        const st = getStatusCelula(v.id, dia);
+                                        const destino = getDestinoCelula(v.id, dia);
+                                        const key = `${v.id}_${dia}`;
+                                        const isSaving = !!salvando[key];
+                                        const c = cor(st);
+                                        const temDestino = STATUS_COM_DESTINO.includes(st);
+                                        return (
+                                            <td key={dia} style={{ ...s.td, padding: '4px 6px' }}>
+                                                <div style={{ opacity: isSaving ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                                                    <select
+                                                        value={st}
+                                                        disabled={!podeEditar}
+                                                        onChange={e => salvarStatus(v.id, dia, e.target.value, null)}
+                                                        style={{
+                                                            width: '100%', fontSize: '11px', fontWeight: '700',
+                                                            background: c.bg, color: c.text,
+                                                            border: `1px solid ${c.border}`,
+                                                            borderRadius: '6px', padding: '4px 6px',
+                                                            cursor: podeEditar ? 'pointer' : 'default',
+                                                            outline: 'none',
+                                                        }}
+                                                    >
+                                                        {STATUS_LIST.map(s2 => (
+                                                            <option key={s2} value={s2} style={{ background: '#1e293b', color: 'white' }}>
+                                                                {STATUS_LABEL[s2]}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {temDestino && podeEditar && (
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Destino..."
+                                                            defaultValue={destino}
+                                                            onBlur={e => {
+                                                                const novo = e.target.value.trim();
+                                                                if (novo !== destino) salvarDestino(v.id, dia, novo);
+                                                            }}
+                                                            style={{
+                                                                marginTop: '3px', width: '100%', fontSize: '10px',
+                                                                background: 'rgba(255,255,255,0.06)',
+                                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                                borderRadius: '4px', padding: '3px 5px',
+                                                                color: '#cbd5e1', outline: 'none',
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {temDestino && !podeEditar && destino && (
+                                                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', paddingLeft: '2px' }}>{destino}</div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                    {podeEditar && (
+                                        <td style={{ ...s.td, padding: '4px' }}>
+                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                <button onClick={() => abrirModalEditar(v)} style={s.btnIcon} title="Editar"><Pencil size={12} /></button>
+                                                <button onClick={() => excluirVeiculo(v.id)} style={{ ...s.btnIcon, color: '#f87171' }} title="Remover"><Trash2 size={12} /></button>
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+
+                            {veiculos.length === 0 && (
+                                <tr>
+                                    <td colSpan={4 + dias.length + (podeEditar ? 1 : 0)} style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '40px' }}>
+                                        Nenhum veículo cadastrado. {podeEditar && 'Clique em "+ Veículo" para adicionar.'}
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+
+                        {/* Totalizadores */}
+                        {veiculos.length > 0 && dias.length > 0 && (
+                            <tfoot>
+                                {[
+                                    { label: 'Disponíveis', key: 'disponiveis', color: '#4ade80' },
+                                    { label: 'Manutenção', key: 'manutencao', color: '#f87171' },
+                                    { label: 'Em Viagem', key: 'em_viagem', color: '#facc15' },
+                                    { label: 'Trucks Disp.', key: 'trucks', color: '#60a5fa' },
+                                    { label: 'Carretas Disp.', key: 'carretas', color: '#60a5fa' },
+                                    { label: '3/4 Disp.', key: 'tres_quartos', color: '#60a5fa' },
+                                ].map(({ label, key, color }) => (
+                                    <tr key={key} style={{ borderTop: key === 'disponiveis' ? '2px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}>
+                                        <td colSpan={4} style={{ ...s.tdFoot, fontWeight: '700', color: '#94a3b8' }}>{label}</td>
+                                        {dias.map(dia => (
+                                            <td key={dia} style={{ ...s.tdFoot, color, fontWeight: '700', textAlign: 'center' }}>
+                                                {totais[dia]?.[key] ?? 0}
+                                            </td>
+                                        ))}
+                                        {podeEditar && <td style={s.tdFoot}></td>}
+                                    </tr>
+                                ))}
+                            </tfoot>
+                        )}
+                    </table>
+                </div>
+            )}
+
+            {/* Modal Cadastro/Edição de Veículo */}
+            {modalVeiculo !== null && (
+                <div style={s.overlay} onClick={() => setModalVeiculo(null)}>
+                    <div style={s.modal} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#f1f5f9' }}>
+                                {modalVeiculo === 'novo' ? 'Novo Veículo' : 'Editar Veículo'}
+                            </h3>
+                            <button onClick={() => setModalVeiculo(null)} style={s.btnIconSm}><X size={16} /></button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div>
+                                    <label style={s.label}>Placa *</label>
+                                    <input style={s.input} value={formVeiculo.placa} onChange={e => setFormVeiculo(f => ({ ...f, placa: e.target.value.toUpperCase() }))} placeholder="Ex: FCW8G26" />
+                                </div>
+                                <div>
+                                    <label style={s.label}>Carreta</label>
+                                    <input style={s.input} value={formVeiculo.carreta} onChange={e => setFormVeiculo(f => ({ ...f, carreta: e.target.value.toUpperCase() }))} placeholder="Ex: RBD2A91" />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <div>
+                                    <label style={s.label}>Tipo de Veículo *</label>
+                                    <select style={s.input} value={formVeiculo.tipo_veiculo} onChange={e => setFormVeiculo(f => ({ ...f, tipo_veiculo: e.target.value }))}>
+                                        {TIPOS_VEICULO.map(t => <option key={t} style={{ background: '#1e293b' }}>{t}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={s.label}>Modelo</label>
+                                    <input style={s.input} value={formVeiculo.modelo} onChange={e => setFormVeiculo(f => ({ ...f, modelo: e.target.value }))} placeholder="Ex: SCANIA R450" />
+                                </div>
+                            </div>
+                            <div>
+                                <label style={s.label}>Motorista</label>
+                                <input style={s.input} value={formVeiculo.motorista} onChange={e => setFormVeiculo(f => ({ ...f, motorista: e.target.value.toUpperCase() }))} placeholder="Nome do motorista (opcional)" />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setModalVeiculo(null)} style={s.btnSecondary}>Cancelar</button>
+                            <button onClick={salvarModal} disabled={salvandoModal || !formVeiculo.placa} style={{ ...s.btnPrimary, opacity: !formVeiculo.placa ? 0.5 : 1 }}>
+                                <Save size={14} /> {salvandoModal ? 'Salvando...' : 'Salvar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const s = {
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' },
+    th: { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', color: '#f1f5f9', fontWeight: '700', fontSize: '11px', textAlign: 'left', borderBottom: '2px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' },
+    td: { padding: '6px 8px', verticalAlign: 'top' },
+    tdFoot: { padding: '5px 8px', fontSize: '12px', verticalAlign: 'middle' },
+    placa: { fontWeight: '700', color: '#e2e8f0', fontSize: '12px', letterSpacing: '0.05em' },
+    btnNav: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', padding: '5px 8px', display: 'flex', alignItems: 'center' },
+    btnPrimary: { background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '8px', color: '#60a5fa', cursor: 'pointer', padding: '7px 14px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' },
+    btnSecondary: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#94a3b8', cursor: 'pointer', padding: '7px 14px', fontSize: '12px', fontWeight: '600' },
+    btnIcon: { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '5px', color: '#94a3b8', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center' },
+    btnIconSm: { background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' },
+    overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+    modal: { background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' },
+    label: { display: 'block', fontSize: '10px', fontWeight: '700', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' },
+    input: { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px 10px', color: '#f1f5f9', fontSize: '13px', outline: 'none', boxSizing: 'border-box' },
+};
