@@ -93,8 +93,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
 
     const [veiculos, setVeiculos] = useState([]);
     const [dias, setDias] = useState([]);
-    const [programacao, setProgramacao] = useState({});  // { veiculo_id: { data: { status, destino } } }
-    const [totais, setTotais] = useState({});
+    const [programacao, setProgramacao] = useState({});  // { veiculo_id: { data: { status, destino, motorista } } }
     const [carregando, setCarregando] = useState(false);
     const [salvando, setSalvando] = useState({});  // { 'veiculoId_data': true }
 
@@ -113,7 +112,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                 setVeiculos(r.data.veiculos);
                 setDias(r.data.dias);
                 setProgramacao(r.data.programacao);
-                setTotais(r.data.totais);
             }
         } catch (e) {
             console.error('Erro ao carregar semana:', e);
@@ -135,15 +133,9 @@ export default function ProvisionamentoFrota({ socket, user }) {
                 ...prev,
                 [data.veiculo_id]: {
                     ...prev[data.veiculo_id],
-                    [data.data]: { status: data.status, destino: data.destino }
+                    [data.data]: { status: data.status, destino: data.destino, motorista: data.motorista || null }
                 }
             }));
-            // Recalcular totais localmente não é trivial; recarrega apenas os totais
-            setTotais(prev => {
-                // Recalcular para o dia afetado seria complexo sem a lista completa
-                // O próximo carregarSemana já sincroniza tudo
-                return prev;
-            });
         };
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
@@ -169,6 +161,10 @@ export default function ProvisionamentoFrota({ socket, user }) {
         return programacao[veiculoId]?.[data]?.destino || '';
     }
 
+    function getMotoristaCelula(veiculoId, data) {
+        return programacao[veiculoId]?.[data]?.motorista || null;
+    }
+
     async function salvarStatus(veiculoId, data, status, destino) {
         const key = `${veiculoId}_${data}`;
         setSalvando(prev => ({ ...prev, [key]: true }));
@@ -179,9 +175,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
         }));
         try {
             await api.put('/api/provisionamento/status', { veiculo_id: veiculoId, data, status, destino: destino ?? null });
-            // Recarregar totais silenciosamente
-            const r = await api.get(`/api/provisionamento/semana?inicio=${semanaInicio}`);
-            if (r.data.success) setTotais(r.data.totais);
         } catch (e) {
             console.error('Erro ao salvar status:', e);
         } finally {
@@ -301,6 +294,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                     {dias.map(dia => {
                                         const st = getStatusCelula(v.id, dia);
                                         const destino = getDestinoCelula(v.id, dia);
+                                        const motoristaCelula = getMotoristaCelula(v.id, dia);
                                         const key = `${v.id}_${dia}`;
                                         const isSaving = !!salvando[key];
                                         const c = cor(st);
@@ -327,6 +321,11 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                                             </option>
                                                         ))}
                                                     </select>
+                                                    {motoristaCelula && (
+                                                        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '2px' }}>
+                                                            {motoristaCelula.split(' ')[0]}
+                                                        </div>
+                                                    )}
                                                     {temDestino && podeEditar && (
                                                         <input
                                                             type="text"
@@ -372,29 +371,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                             )}
                         </tbody>
 
-                        {/* Totalizadores */}
-                        {veiculos.length > 0 && dias.length > 0 && (
-                            <tfoot>
-                                {[
-                                    { label: 'Disponíveis', key: 'disponiveis', color: '#4ade80' },
-                                    { label: 'Manutenção', key: 'manutencao', color: '#f87171' },
-                                    { label: 'Em Viagem', key: 'em_viagem', color: '#facc15' },
-                                    { label: 'Trucks Disp.', key: 'trucks', color: '#60a5fa' },
-                                    { label: 'Carretas Disp.', key: 'carretas', color: '#60a5fa' },
-                                    { label: '3/4 Disp.', key: 'tres_quartos', color: '#60a5fa' },
-                                ].map(({ label, key, color }) => (
-                                    <tr key={key} style={{ borderTop: key === 'disponiveis' ? '2px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.04)', background: 'rgba(0,0,0,0.2)' }}>
-                                        <td colSpan={4} style={{ ...s.tdFoot, fontWeight: '700', color: '#94a3b8' }}>{label}</td>
-                                        {dias.map(dia => (
-                                            <td key={dia} style={{ ...s.tdFoot, color, fontWeight: '700', textAlign: 'center' }}>
-                                                {totais[dia]?.[key] ?? 0}
-                                            </td>
-                                        ))}
-                                        {podeEditar && <td style={s.tdFoot}></td>}
-                                    </tr>
-                                ))}
-                            </tfoot>
-                        )}
                     </table>
                 </div>
             )}
@@ -456,7 +432,6 @@ const s = {
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '900px' },
     th: { padding: '8px 10px', background: 'rgba(0,0,0,0.3)', color: '#f1f5f9', fontWeight: '700', fontSize: '11px', textAlign: 'left', borderBottom: '2px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' },
     td: { padding: '6px 8px', verticalAlign: 'top' },
-    tdFoot: { padding: '5px 8px', fontSize: '12px', verticalAlign: 'middle' },
     placa: { fontWeight: '700', color: '#e2e8f0', fontSize: '12px', letterSpacing: '0.05em' },
     btnNav: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#94a3b8', cursor: 'pointer', padding: '5px 8px', display: 'flex', alignItems: 'center' },
     btnPrimary: { background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '8px', color: '#60a5fa', cursor: 'pointer', padding: '7px 14px', fontSize: '12px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '5px' },

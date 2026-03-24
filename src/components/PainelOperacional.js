@@ -10,6 +10,7 @@ import ModalConfirm from './ModalConfirm';
 import ModalImagem from './ModalImagem';
 import ModalColetas from './ModalColetas';
 import SLATimeline from './SLATimeline';
+import ModalEntregasProvisao from './ModalEntregasProvisao';
 import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS, OPCOES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
@@ -152,6 +153,8 @@ export default function PainelOperacional({
     const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
+    const [veiculosProvisao, setVeiculosProvisao] = useState([]);
+    const [modalEntregasCard, setModalEntregasCard] = useState(null); // { veiculo, item }
     const [finalizando, setFinalizando] = useState(false);
     const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
     const [frotaOrigem, setFrotaOrigem] = useState('');
@@ -222,7 +225,19 @@ export default function PainelOperacional({
         }
     }, [adicionarToast, socket]);
 
+    // Carregar veículos do provisionamento para detecção de placa
+    useEffect(() => {
+        api.get('/api/provisionamento/veiculos')
+            .then(r => { if (r.data.success) setVeiculosProvisao(r.data.veiculos); })
+            .catch(() => { });
+    }, []);
 
+    function checarPlacaProvisaoCard(placa, item) {
+        if (!placa || placa.length < 6) return;
+        const p = placa.replace(/[-\s]/g, '').toUpperCase();
+        const v = veiculosProvisao.find(vp => vp.placa.replace(/[-\s]/g, '').toUpperCase() === p || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
+        if (v) setModalEntregasCard({ veiculo: v, item });
+    }
 
     function selecionarMotoristaNaEdicao(item, realIndex, m) {
         // Se motorista é FROTA, abrir modal para informar Origem/Destino antes de salvar
@@ -1025,7 +1040,9 @@ export default function PainelOperacional({
                                                                 placeholder="Placa 1"
                                                                 maxLength={8}
                                                                 onBlur={e => {
-                                                                    updateList(lista, setLista, realIndex, 'placa1Motorista', e.target.value.toUpperCase().trim());
+                                                                    const val = e.target.value.toUpperCase().trim();
+                                                                    updateList(lista, setLista, realIndex, 'placa1Motorista', val);
+                                                                    checarPlacaProvisaoCard(val, item);
                                                                 }}
                                                                 style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(251,191,36,0.4)', borderRadius: '5px', color: '#fbbf24', fontWeight: 'bold', fontSize: '12px', padding: '3px 6px', outline: 'none', width: '90px', fontFamily: 'monospace', textTransform: 'uppercase' }}
                                                             />
@@ -1035,7 +1052,9 @@ export default function PainelOperacional({
                                                                 placeholder="Placa 2"
                                                                 maxLength={8}
                                                                 onBlur={e => {
-                                                                    updateList(lista, setLista, realIndex, 'placa2Motorista', e.target.value.toUpperCase().trim());
+                                                                    const val = e.target.value.toUpperCase().trim();
+                                                                    updateList(lista, setLista, realIndex, 'placa2Motorista', val);
+                                                                    checarPlacaProvisaoCard(val, item);
                                                                 }}
                                                                 style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(100,116,139,0.4)', borderRadius: '5px', color: '#94a3b8', fontWeight: 'bold', fontSize: '12px', padding: '3px 6px', outline: 'none', width: '90px', fontFamily: 'monospace', textTransform: 'uppercase' }}
                                                             />
@@ -1373,6 +1392,17 @@ export default function PainelOperacional({
                     setVeiculoSelecionado={setVeiculoSelecionado}
                     updateList={updateList}
                     podeEditarNaUnidade={podeEditarNaUnidade}
+                />
+            )}
+
+            {/* Modal de Entregas do Provisionamento */}
+            {modalEntregasCard && (
+                <ModalEntregasProvisao
+                    veiculo={modalEntregasCard.veiculo}
+                    motorista={modalEntregasCard.item?.motorista || ''}
+                    dataSaida={modalEntregasCard.item?.data_prevista ? modalEntregasCard.item.data_prevista.substring(0, 10) : new Date().toISOString().substring(0, 10)}
+                    onConfirmar={() => setModalEntregasCard(null)}
+                    onCancelar={() => setModalEntregasCard(null)}
                 />
             )}
 

@@ -156,7 +156,15 @@ export default function Sidebar({
                             <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_moreno'); }} />
                         )}
                         <MenuItem icon={<Calendar size={20} />} label="Programação Diária" subItem aberto={aberto} onClick={() => { setAbaAtiva('programacao_diaria'); }} />
+                    </>
+                )}
+
+                {/* OPERAÇÃO FROTA */}
+                {(temAcesso('operacao') || temAcesso('provisionamento')) && (
+                    <>
+                        <Divider label="Operação Frota" aberto={aberto} />
                         <MenuItem icon={<LayoutGrid size={20} />} label="Provisionamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('provisionamento'); }} />
+                        <MenuItem icon={<BarChart3 size={20} />} label="Dashboard" subItem aberto={aberto} onClick={() => { setAbaAtiva('frota_dashboard'); }} />
                     </>
                 )}
 

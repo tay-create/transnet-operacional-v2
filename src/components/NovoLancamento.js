@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
+import ModalEntregasProvisao from './ModalEntregasProvisao';
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
@@ -17,12 +18,24 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
     const [buscaMotorista, setBuscaMotorista] = useState('');
     const [dropdownAberto, setDropdownAberto] = useState(false);
     const [filtroUF, setFiltroUF] = useState('');
+    const [veiculosProvisao, setVeiculosProvisao] = useState([]);
+    const [modalEntregas, setModalEntregas] = useState(null); // null | { veiculo, campoPendente }
 
     useEffect(() => {
         api.get('/api/marcacoes/disponiveis')
             .then(r => { if (r.data.success) setMotoristasDisponiveis(r.data.motoristas); })
             .catch(() => { });
+        api.get('/api/provisionamento/veiculos')
+            .then(r => { if (r.data.success) setVeiculosProvisao(r.data.veiculos); })
+            .catch(() => { });
     }, []);
+
+    function checarPlacaProvisao(placa) {
+        if (!placa || placa.length < 6) return;
+        const p = placa.replace(/[-\s]/g, '').toUpperCase();
+        const v = veiculosProvisao.find(vp => vp.placa.replace(/[-\s]/g, '').toUpperCase() === p || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
+        if (v) setModalEntregas({ veiculo: v });
+    }
 
     const UFS_FILTRO = ['PE', 'BA', 'SP', 'GO', 'MG', 'RJ', 'CE', 'MA', 'PI', 'PB', 'RN', 'AL', 'SE', 'ES', 'PR', 'SC', 'RS', 'MT', 'MS', 'DF', 'PA', 'AM', 'RO', 'TO', 'AP', 'RR', 'AC'];
 
@@ -314,13 +327,23 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                         </div>
 
                         {/* Linha 3: Placas editáveis (auto-preenchidas ao selecionar motorista, mas editáveis manualmente) */}
+                        <datalist id="placas-provisao">
+                            {veiculosProvisao.map(vp => (
+                                <React.Fragment key={vp.id}>
+                                    <option value={vp.placa} />
+                                    {vp.carreta && <option value={vp.carreta} />}
+                                </React.Fragment>
+                            ))}
+                        </datalist>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                             <div>
                                 <label className="label-tech-sm" style={{ color: '#60a5fa' }}>PLACA 1</label>
                                 <input
                                     className="input-internal"
+                                    list="placas-provisao"
                                     value={formLanca.placa1Motorista || ''}
                                     onChange={e => setFormLanca(prev => ({ ...prev, placa1Motorista: e.target.value.toUpperCase() }))}
+                                    onBlur={e => checarPlacaProvisao(e.target.value)}
                                     placeholder="ABC-1234"
                                     maxLength={8}
                                     style={{ fontFamily: 'monospace', fontWeight: '700', letterSpacing: '1px' }}
@@ -330,8 +353,10 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                 <label className="label-tech-sm" style={{ color: '#94a3b8' }}>PLACA 2 <span style={{ fontSize: '9px', color: '#475569' }}>(opcional)</span></label>
                                 <input
                                     className="input-internal"
+                                    list="placas-provisao"
                                     value={formLanca.placa2Motorista || ''}
                                     onChange={e => setFormLanca(prev => ({ ...prev, placa2Motorista: e.target.value.toUpperCase() }))}
+                                    onBlur={e => checarPlacaProvisao(e.target.value)}
                                     placeholder="ABC-1234"
                                     maxLength={8}
                                     style={{ fontFamily: 'monospace', letterSpacing: '1px' }}
@@ -450,9 +475,14 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
 
                         {/* Botão Lançar */}
                         <div style={{ marginTop: '10px' }}>
-                            <button onClick={lancarVeiculoInteligente} className="btn-launch" style={{ width: '100%' }}>
+                            <button onClick={lancarVeiculoInteligente} disabled={!!modalEntregas} className="btn-launch" style={{ width: '100%', opacity: modalEntregas ? 0.5 : 1, cursor: modalEntregas ? 'not-allowed' : 'pointer' }}>
                                 <Truck size={18} /> LANÇAR VEÍCULO
                             </button>
+                            {modalEntregas && (
+                                <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '6px', textAlign: 'center' }}>
+                                    ⚠️ Confirme as entregas do provisionamento para continuar.
+                                </p>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -462,6 +492,20 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                     </div>
                 )}
             </div>
+
+            {/* Modal obrigatório de entregas do Provisionamento */}
+            {modalEntregas && (
+                <ModalEntregasProvisao
+                    veiculo={modalEntregas.veiculo}
+                    motorista={formLanca.motorista || ''}
+                    dataSaida={formLanca.data_prevista || new Date().toISOString().substring(0, 10)}
+                    onConfirmar={() => setModalEntregas(null)}
+                    onCancelar={() => {
+                        setFormLanca(prev => ({ ...prev, placa1Motorista: '', placa2Motorista: '' }));
+                        setModalEntregas(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

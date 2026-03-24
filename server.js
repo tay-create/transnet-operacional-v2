@@ -2503,6 +2503,42 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// POST /api/provisionamento/viagem — Registra dias EM_VIAGEM para um veículo do provisionamento
+// body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }] }
+app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
+    try {
+        const { veiculo_id, motorista, data_saida, entradas } = req.body;
+        if (!veiculo_id || !data_saida || !Array.isArray(entradas) || entradas.length === 0) {
+            return res.status(400).json({ success: false, message: 'veiculo_id, data_saida e entradas são obrigatórios.' });
+        }
+        // Determinar intervalo: data_saida até max(entradas[].data)
+        const datasEntrega = entradas.map(e => e.data).filter(Boolean).sort();
+        const dataFim = datasEntrega[datasEntrega.length - 1] || data_saida;
+        const destinosJson = JSON.stringify(entradas);
+
+        // Gerar todos os dias no intervalo [data_saida, dataFim]
+        const dias = [];
+        const cursor = new Date(data_saida + 'T00:00:00Z');
+        const fim = new Date(dataFim + 'T00:00:00Z');
+        while (cursor <= fim) {
+            dias.push(cursor.toISOString().substring(0, 10));
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+
+        for (const dia of dias) {
+            await dbRun(
+                `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destinos_json)
+                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destinos_json = $4`,
+                [veiculo_id, dia, motorista || null, destinosJson]
+            );
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null });
+        }
+
+        res.json({ success: true, dias_afetados: dias.length });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Endpoints para containers bloqueando docas (Persistente no Banco)

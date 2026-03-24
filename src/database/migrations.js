@@ -189,6 +189,9 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
             // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
             { tabela: 'veiculos', coluna: 'foi_reprogramado', tipo: 'INTEGER DEFAULT 0' },
+            // Provisionamento de Frota — motorista e destinos na programação semanal
+            { tabela: 'prov_programacao', coluna: 'motorista', tipo: 'TEXT' },
+            { tabela: 'prov_programacao', coluna: 'destinos_json', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados
@@ -454,7 +457,7 @@ const inicializarBanco = async () => {
             await dbRun("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)", ['permissoes_acesso', PERMISSOES_PADRAO]);
             console.log("✅ Permissões de ACESSO inicializadas com padrão.");
         } else {
-            // Mescla: preserva configurações salvas, apenas adiciona cargos/módulos novos que ainda não existem
+            // Mescla: preserva configurações salvas, adiciona cargos novos E módulos novos em cargos existentes
             const permSalvas = JSON.parse(perm.valor);
             const permPadrao = JSON.parse(PERMISSOES_PADRAO);
             let atualizado = false;
@@ -462,11 +465,17 @@ const inicializarBanco = async () => {
                 if (!permSalvas[cargo]) {
                     permSalvas[cargo] = permPadrao[cargo];
                     atualizado = true;
+                } else {
+                    const modulosNovos = permPadrao[cargo].filter(m => !permSalvas[cargo].includes(m));
+                    if (modulosNovos.length > 0) {
+                        permSalvas[cargo] = [...permSalvas[cargo], ...modulosNovos];
+                        atualizado = true;
+                    }
                 }
             }
             if (atualizado) {
                 await dbRun("UPDATE configuracoes SET valor = ? WHERE chave = 'permissoes_acesso'", [JSON.stringify(permSalvas)]);
-                console.log("✅ Permissões de ACESSO: novos cargos adicionados.");
+                console.log("✅ Permissões de ACESSO: cargos e módulos atualizados.");
             }
         }
 
@@ -475,7 +484,7 @@ const inicializarBanco = async () => {
             await dbRun("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)", ['permissoes_edicao', PERMISSOES_EDICAO_PADRAO]);
             console.log("✅ Permissões de EDIÇÃO inicializadas com padrão.");
         } else {
-            // Mescla: preserva configurações salvas, apenas adiciona cargos novos
+            // Mescla: preserva configurações salvas, adiciona cargos novos E módulos novos em cargos existentes
             const permEdSalvas = JSON.parse(permEd.valor);
             const permEdPadrao = JSON.parse(PERMISSOES_EDICAO_PADRAO);
             let atualizado = false;
@@ -483,11 +492,17 @@ const inicializarBanco = async () => {
                 if (!permEdSalvas[cargo]) {
                     permEdSalvas[cargo] = permEdPadrao[cargo];
                     atualizado = true;
+                } else {
+                    const modulosNovos = permEdPadrao[cargo].filter(m => !permEdSalvas[cargo].includes(m));
+                    if (modulosNovos.length > 0) {
+                        permEdSalvas[cargo] = [...permEdSalvas[cargo], ...modulosNovos];
+                        atualizado = true;
+                    }
                 }
             }
             if (atualizado) {
                 await dbRun("UPDATE configuracoes SET valor = ? WHERE chave = 'permissoes_edicao'", [JSON.stringify(permEdSalvas)]);
-                console.log("✅ Permissões de EDIÇÃO: novos cargos adicionados.");
+                console.log("✅ Permissões de EDIÇÃO: cargos e módulos atualizados.");
             }
         }
 

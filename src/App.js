@@ -21,7 +21,7 @@ import RelatorioOperacional from './components/RelatorioOperacional';
 import PainelCadastro from './components/PainelCadastro';
 import HistoricoLiberacoes from './components/HistoricoLiberacoes';
 import PainelProgramacao from './components/PainelProgramacao';
-import { CheckCircle as CheckCircleIcon, Phone } from 'lucide-react';
+import { CheckCircle as CheckCircleIcon, Phone, LayoutGrid } from 'lucide-react';
 import PainelChecklist from './components/PainelChecklist';
 import PainelOcorrencias from './components/PainelOcorrencias';
 import PainelSaldoPaletes from './components/PainelSaldoPaletes';
@@ -1376,6 +1376,14 @@ function App({ socket }) {
 
                 {abaAtiva === 'provisionamento' && (
                     <ProvisionamentoFrota socket={socket} user={user} />
+                )}
+
+                {abaAtiva === 'frota_dashboard' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#64748b' }}>
+                        <LayoutGrid size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
+                        <h2 style={{ color: '#94a3b8', marginBottom: 8, fontWeight: '600' }}>Dashboard de Frota</h2>
+                        <p style={{ margin: 0, fontSize: '14px' }}>Em construção</p>
+                    </div>
                 )}
 
                 {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (
