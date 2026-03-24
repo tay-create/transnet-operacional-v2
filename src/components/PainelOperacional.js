@@ -149,6 +149,7 @@ export default function PainelOperacional({
     const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
+    const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
     const [finalizando, setFinalizando] = useState(false);
@@ -697,7 +698,7 @@ export default function PainelOperacional({
                                                             {/* Avançar para amanhã — conta como reprogramado */}
                                                             {eHoje && (
                                                                 <button
-                                                                    onClick={() => reprogramarItem(lista, setLista, realIndex, proxStr, api, mostrarNotificacao, 1)}
+                                                                    onClick={() => setConfirmarReprogramar({ lista, setLista, realIndex, proxStr })}
                                                                     title={`Reprogramar para ${proxStr.split('-').reverse().slice(0,2).join('/')}`}
                                                                     style={{
                                                                         display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -1442,6 +1443,22 @@ export default function PainelOperacional({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal de Confirmação — Reprogramar +1 dia */}
+            {confirmarReprogramar && (
+                <ModalConfirm
+                    titulo="Reprogramar para amanhã?"
+                    mensagem={`Deseja reprogramar este veículo para ${confirmarReprogramar.proxStr.split('-').reverse().slice(0, 2).join('/')}? Ele será contabilizado como reprogramado na programação diária.`}
+                    textConfirm="Reprogramar"
+                    textCancel="Cancelar"
+                    onConfirm={() => {
+                        const { lista, setLista, realIndex, proxStr } = confirmarReprogramar;
+                        setConfirmarReprogramar(null);
+                        reprogramarItem(lista, setLista, realIndex, proxStr, api, mostrarNotificacao, 1);
+                    }}
+                    onCancel={() => setConfirmarReprogramar(null)}
+                />
             )}
 
             {/* Modal de Confirmação — Finalizar Operação (ambas unidades) */}
