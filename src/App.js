@@ -1392,6 +1392,7 @@ function App({ socket }) {
                         updateListCte={updateListCte}
                         podeEditar={podeEditar}
                         setToastCopiaMsg={setToastCopiaMsg}
+                        socket={socket}
                     />
                 )}
 

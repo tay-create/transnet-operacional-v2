@@ -883,12 +883,17 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
             chk_crlv: chk_crlv_cad ? 1 : 0,
         });
 
-        // Propagar numero_liberacao para ctes_ativos e notificar PainelCte em tempo real
-        if (num_liberacao_cad && atual.motorista) {
+        // Propagar numero_liberacao + origem/destino para ctes_ativos e notificar PainelCte em tempo real
+        if (atual.motorista) {
             await dbRun(
-                `UPDATE ctes_ativos SET numero_liberacao = $1, data_liberacao = $2
-                 WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($3)) AND status != 'Emitido'`,
-                [num_liberacao_cad, novaDataLib, atual.motorista]
+                `UPDATE ctes_ativos SET
+                    numero_liberacao = COALESCE($1, numero_liberacao),
+                    data_liberacao = COALESCE($2, data_liberacao),
+                    origem_cad = $3,
+                    destino_uf_cad = $4,
+                    destino_cidade_cad = $5
+                 WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($6)) AND status != 'Emitido'`,
+                [num_liberacao_cad || null, novaDataLib, origem_cad || null, destino_uf_cad || null, destino_cidade_cad || null, atual.motorista]
             );
             const ctesMotorista = await dbAll(
                 `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND status != 'Emitido'`,
@@ -900,6 +905,9 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
                     id: cte.id,
                     numero_liberacao: num_liberacao_cad,
                     data_liberacao: novaDataLib,
+                    origem_cad: origem_cad || null,
+                    destino_uf_cad: destino_uf_cad || null,
+                    destino_cidade_cad: destino_cidade_cad || null,
                 });
             }
         }

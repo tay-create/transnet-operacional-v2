@@ -16,12 +16,36 @@ export default function PainelCte({
     carregarCtes,
     updateListCte,
     podeEditar,
-    setToastCopiaMsg
+    setToastCopiaMsg,
+    socket
 }) {
     // Rebuscar do backend quando as datas mudam
     useEffect(() => {
         if (carregarCtes) carregarCtes(filtroDataInicioCte, filtroDataFimCte);
     }, [filtroDataInicioCte, filtroDataFimCte]); // eslint-disable-line
+
+    // Atualizar origem/destino em tempo real quando PainelCadastro salvar
+    useEffect(() => {
+        if (!socket) return;
+        const handler = (data) => {
+            if (data?.tipo !== 'atualiza_cte') return;
+            if (!data.id) return;
+            const atualizarLista = (prev) => prev.map(c =>
+                c.id === data.id ? {
+                    ...c,
+                    numero_liberacao: data.numero_liberacao ?? c.numero_liberacao,
+                    data_liberacao: data.data_liberacao ?? c.data_liberacao,
+                    origem_cad: data.origem_cad ?? c.origem_cad,
+                    destino_uf_cad: data.destino_uf_cad ?? c.destino_uf_cad,
+                    destino_cidade_cad: data.destino_cidade_cad ?? c.destino_cidade_cad,
+                } : c
+            );
+            setCtesRecife(atualizarLista);
+            setCtesMoreno(atualizarLista);
+        };
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
+    }, [socket, setCtesRecife, setCtesMoreno]);
     const isRecife = abaAtiva === 'cte_recife';
     const listaCtes = isRecife ? ctesRecife : ctesMoreno;
     const setListaAtual = isRecife ? setCtesRecife : setCtesMoreno;
