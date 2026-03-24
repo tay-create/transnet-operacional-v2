@@ -1071,9 +1071,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             // Avança apenas veículos do dia de hoje (não toca dias anteriores)
+            // Seta foi_reprogramado=1 pois estão sendo avançados para o próximo dia
             const query = `
                 UPDATE veiculos
-                SET data_prevista = ?
+                SET data_prevista = ?, foi_reprogramado = 1
                 WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
                   AND data_prevista = ?
             `;
