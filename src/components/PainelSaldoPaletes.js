@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Package, RefreshCw, RotateCcw, Trash2, X, Filter, FileDown, TrendingUp, Clock } from 'lucide-react';
+import { Package, RefreshCw, RotateCcw, Trash2, X, Filter, FileDown, TrendingUp, Clock, Plus } from 'lucide-react';
 import api from '../services/apiService';
 import { gerarPDFPaletes } from '../utils/pdfGenerator';
 import ModalConfirm from './ModalConfirm';
@@ -146,6 +146,115 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
     );
 }
 
+// ── Modal de Cadastro Manual ────────────────────────────────────────────────
+function ModalCadastroManual({ onClose, onConfirm }) {
+    const agora = new Date();
+    const localISO = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    const [form, setForm] = useState({
+        motorista: '',
+        placa_cavalo: '',
+        placa_carreta: '',
+        qtd_pbr: '',
+        fornecedor_pbr: '',
+        devolvido: false,
+        data_entrada_manual: localISO,
+    });
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const set = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
+
+    const confirmar = async () => {
+        if (!form.motorista.trim()) return setErro('Nome do motorista é obrigatório.');
+        if (!form.qtd_pbr || Number(form.qtd_pbr) <= 0) return setErro('Quantidade PBR deve ser maior que zero.');
+        if (!form.fornecedor_pbr.trim()) return setErro('Fornecedor é obrigatório.');
+        setErro('');
+        setSalvando(true);
+        try {
+            await onConfirm({
+                motorista: form.motorista.trim(),
+                placa_cavalo: form.placa_cavalo.trim(),
+                placa_carreta: form.placa_carreta.trim(),
+                tipo_palete: 'PBR',
+                qtd_pbr: Number(form.qtd_pbr),
+                qtd_descartavel: 0,
+                fornecedor_pbr: form.fornecedor_pbr.trim(),
+                data_entrada_manual: form.data_entrada_manual,
+                devolvido_inicial: form.devolvido,
+            });
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 24px 64px rgba(0,0,0,0.7)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+                    <div style={{ fontSize: '17px', fontWeight: '700', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Plus size={18} color="#60a5fa" /> Lançamento Manual
+                    </div>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={20} /></button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                        <label style={s.label}>Nome do Motorista *</label>
+                        <input style={s.input} value={form.motorista} onChange={e => set('motorista', e.target.value)} placeholder="Ex: João Silva" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                            <label style={s.label}>Placa Cavalo</label>
+                            <input style={s.input} value={form.placa_cavalo} onChange={e => set('placa_cavalo', e.target.value.toUpperCase())} placeholder="ABC1234" />
+                        </div>
+                        <div>
+                            <label style={s.label}>Placa Carreta</label>
+                            <input style={s.input} value={form.placa_carreta} onChange={e => set('placa_carreta', e.target.value.toUpperCase())} placeholder="XYZ5678" />
+                        </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                            <label style={s.label}>Tipo do Palete</label>
+                            <input style={{ ...s.input, color: '#60a5fa', fontWeight: '700' }} value="PBR" readOnly />
+                        </div>
+                        <div>
+                            <label style={s.label}>Qtd PBR *</label>
+                            <input style={s.input} type="number" min="1" value={form.qtd_pbr} onChange={e => set('qtd_pbr', e.target.value)} placeholder="0" />
+                        </div>
+                    </div>
+                    <div>
+                        <label style={s.label}>Fornecedor *</label>
+                        <input style={s.input} value={form.fornecedor_pbr} onChange={e => set('fornecedor_pbr', e.target.value)} placeholder="Ex: Carrefour" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                            <label style={s.label}>Status</label>
+                            <select style={{ ...s.input, cursor: 'pointer' }} value={form.devolvido ? '1' : '0'} onChange={e => set('devolvido', e.target.value === '1')}>
+                                <option value="0">⏳ Pendente</option>
+                                <option value="1">✓ Devolvido</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style={s.label}>Data Entrada *</label>
+                            <input style={s.input} type="datetime-local" value={form.data_entrada_manual} onChange={e => set('data_entrada_manual', e.target.value)} />
+                        </div>
+                    </div>
+
+                    {erro && <div style={{ fontSize: '12px', color: '#f87171', padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.2)' }}>{erro}</div>}
+
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                        <button style={s.btn()} onClick={onClose}>Cancelar</button>
+                        <button style={s.btn('blue')} onClick={confirmar} disabled={salvando}>
+                            <Plus size={14} /> {salvando ? 'Salvando...' : 'Lançar'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Componente Principal ────────────────────────────────────────────────────
 export default function PainelSaldoPaletes() {
     const [registros, setRegistros] = useState([]);
@@ -154,6 +263,7 @@ export default function PainelSaldoPaletes() {
     const [filtroStatus, setFiltroStatus] = useState('TODOS');
     const [modalDevolucao, setModalDevolucao] = useState(null);
     const [confirmar, setConfirmar] = useState(null);
+    const [modalCadastro, setModalCadastro] = useState(false);
 
     const mostrarToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
 
@@ -178,6 +288,19 @@ export default function PainelSaldoPaletes() {
                 carregar();
             }
         } catch (e) { mostrarToast('Erro ao registrar devolução.'); }
+    };
+
+    const cadastrarManual = async (dados) => {
+        const r = await api.post('/api/saldo-paletes', dados);
+        if (r.data.success) {
+            // Se status for Devolvido, registrar devolução total imediatamente
+            if (dados.devolvido_inicial) {
+                await api.put(`/api/saldo-paletes/${r.data.id}/devolucao`, { total: true }).catch(() => {});
+            }
+            mostrarToast('✅ Lançamento registrado!');
+            setModalCadastro(false);
+            carregar();
+        }
     };
 
     const excluir = (id) => {
@@ -223,6 +346,7 @@ export default function PainelSaldoPaletes() {
             {toast && <div style={s.toast}>{toast}</div>}
             {modalDevolucao && <ModalDevolucao registro={modalDevolucao} onClose={() => setModalDevolucao(null)} onConfirm={registrarDevolucao} />}
             {confirmar && <ModalConfirm mensagem={confirmar.mensagem} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} textConfirm="Excluir" />}
+            {modalCadastro && <ModalCadastroManual onClose={() => setModalCadastro(false)} onConfirm={cadastrarManual} />}
 
             {/* Header */}
             <div style={s.header}>
@@ -236,6 +360,9 @@ export default function PainelSaldoPaletes() {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
+                    <button style={s.btn('blue')} onClick={() => setModalCadastro(true)}>
+                        <Plus size={14} /> Lançamento Manual
+                    </button>
                     <button style={s.btn('indigo')} onClick={handleExportarPDF}>
                         <FileDown size={14} /> Exportar PDF
                     </button>

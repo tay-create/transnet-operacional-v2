@@ -2570,17 +2570,18 @@ app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planeja
 
 app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
-        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade } = req.body;
+        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada_manual } = req.body;
         if (!motorista || !tipo_palete) {
             return res.status(400).json({ success: false, message: 'Motorista e tipo de palete são obrigatórios.' });
         }
         if ((tipo_palete === 'PBR' || tipo_palete === 'MISTO') && !fornecedor_pbr) {
             return res.status(400).json({ success: false, message: 'Fornecedor é obrigatório para paletes PBR.' });
         }
+        const dataEntrada = data_entrada_manual ? new Date(data_entrada_manual).toISOString() : new Date().toISOString();
         const result = await dbRun(
-            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '']
+            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '', dataEntrada]
         );
         await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
         io.emit('saldo_paletes_update');
