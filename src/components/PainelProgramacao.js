@@ -110,6 +110,8 @@ export default function PainelProgramacao() {
     const [programacoes, setProgramacoes] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [gerando, setGerando] = useState(null); // 'Inicial' | 'Final' | null
+    const [abasProg, setAbasProg] = useState({}); // { [prog.id]: 'resumo' | 'motoristas' }
+    const [filtroMotoristas, setFiltroMotoristas] = useState({}); // { [prog.id]: 'todos' | 'programados' | 'reprogramados' }
 
     const dataHoje = obterDataBrasilia();
     const [dataInicio, setDataInicio] = useState(dataHoje);
@@ -529,6 +531,15 @@ export default function PainelProgramacao() {
 
                             const tooltipStyle = { background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', fontSize: '12px' };
 
+                            const abaAtual = abasProg[prog.id] || 'resumo';
+                            const filtroAtual = filtroMotoristas[prog.id] || 'todos';
+                            const veiculosList = dados._veiculos || [];
+                            const veiculosFiltrados = veiculosList.filter(v => {
+                                if (filtroAtual === 'programados') return !v.reprogramado;
+                                if (filtroAtual === 'reprogramados') return v.reprogramado;
+                                return true;
+                            });
+
                             return (
                                 <div key={prog.id} className="glass-panel-internal" style={{ borderRadius: '12px', padding: '0', overflow: 'hidden' }}>
                                     {/* Header do turno */}
@@ -537,13 +548,104 @@ export default function PainelProgramacao() {
                                             <Calendar size={18} color="#60a5fa" />
                                             {formatData(prog.data_referencia)} — Programação {prog.turno}
                                         </div>
-                                        <span style={{ fontSize: '11px', color: '#94a3b8', background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px' }}>
-                                            Programação {prog.turno}
-                                        </span>
+                                        {/* Tabs */}
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                            {['resumo', 'motoristas'].map(aba => (
+                                                <button
+                                                    key={aba}
+                                                    onClick={() => setAbasProg(prev => ({ ...prev, [prog.id]: aba }))}
+                                                    style={{
+                                                        padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
+                                                        cursor: 'pointer', border: 'none',
+                                                        background: abaAtual === aba ? 'rgba(96,165,250,0.2)' : 'rgba(255,255,255,0.06)',
+                                                        color: abaAtual === aba ? '#60a5fa' : '#64748b',
+                                                        borderBottom: abaAtual === aba ? '2px solid #60a5fa' : '2px solid transparent',
+                                                    }}
+                                                >
+                                                    {aba === 'resumo' ? 'Resumo' : `Motoristas (${veiculosList.length})`}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
 
-                                    {/* Corpo: Tabela + Gráficos */}
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', background: 'rgba(0,0,0,0.1)' }}>
+                                    {/* ABA: MOTORISTAS */}
+                                    {abaAtual === 'motoristas' && (
+                                        <div style={{ padding: '16px' }}>
+                                            {/* Filtro */}
+                                            <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+                                                {[['todos', 'Todos'], ['programados', 'Programados'], ['reprogramados', 'Reprogramados']].map(([val, label]) => (
+                                                    <button
+                                                        key={val}
+                                                        onClick={() => setFiltroMotoristas(prev => ({ ...prev, [prog.id]: val }))}
+                                                        style={{
+                                                            padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '700',
+                                                            cursor: 'pointer', border: '1px solid',
+                                                            background: filtroAtual === val
+                                                                ? val === 'reprogramados' ? 'rgba(239,68,68,0.15)' : 'rgba(96,165,250,0.15)'
+                                                                : 'rgba(255,255,255,0.04)',
+                                                            color: filtroAtual === val
+                                                                ? val === 'reprogramados' ? '#fca5a5' : '#60a5fa'
+                                                                : '#64748b',
+                                                            borderColor: filtroAtual === val
+                                                                ? val === 'reprogramados' ? 'rgba(239,68,68,0.3)' : 'rgba(96,165,250,0.3)'
+                                                                : 'rgba(255,255,255,0.08)',
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                                <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#64748b', alignSelf: 'center' }}>
+                                                    {veiculosFiltrados.length} veículo(s)
+                                                </span>
+                                            </div>
+                                            {veiculosList.length === 0 ? (
+                                                <div style={{ textAlign: 'center', color: '#475569', padding: '24px', fontSize: '12px' }}>
+                                                    Nenhum dado disponível. Regenere a programação para incluir a lista de motoristas.
+                                                </div>
+                                            ) : veiculosFiltrados.length === 0 ? (
+                                                <div style={{ textAlign: 'center', color: '#475569', padding: '24px', fontSize: '12px' }}>
+                                                    Nenhum veículo neste filtro.
+                                                </div>
+                                            ) : (
+                                                <div style={{ overflowX: 'auto' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                                        <thead>
+                                                            <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                                                {['Motorista', 'Placa', 'Operação', 'Unidade', 'Coleta', 'Status'].map(h => (
+                                                                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', color: '#64748b', fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{h}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {veiculosFiltrados.map((v, i) => (
+                                                                <tr key={v.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                                                    <td style={{ padding: '8px 12px', color: '#f1f5f9', fontWeight: '600', textTransform: 'uppercase' }}>{v.motorista || '—'}</td>
+                                                                    <td style={{ padding: '8px 12px', color: '#60a5fa', fontWeight: '700' }}>{v.placa || '—'}</td>
+                                                                    <td style={{ padding: '8px 12px', color: '#e2e8f0' }}>{v.operacao || '—'}</td>
+                                                                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{v.unidade || '—'}</td>
+                                                                    <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{v.coleta || '—'}</td>
+                                                                    <td style={{ padding: '8px 12px' }}>
+                                                                        {v.reprogramado ? (
+                                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)' }}>
+                                                                                REPROGRAMADO
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', background: 'rgba(34,197,94,0.10)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                                                                PROGRAMADO
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* ABA: RESUMO (Tabela + Gráficos) */}
+                                    {abaAtual === 'resumo' && <div style={{ display: 'flex', flexWrap: 'wrap', background: 'rgba(0,0,0,0.1)' }}>
 
                                         {/* Tabela */}
                                         <div style={{ flex: '1 1 55%', minWidth: '350px' }}>
@@ -648,7 +750,7 @@ export default function PainelProgramacao() {
                                                 );
                                             })()}
                                         </div>
-                                    </div>
+                                    </div>}
                                 </div>
                             );
                         })}

@@ -2105,9 +2105,21 @@ async function gerarProgramacaoDiaria(turno) {
         };
 
         let rows;
+        const listaVeiculos = []; // snapshot individual para aba de motoristas
+
+        const resolverCliente = (operacao) => {
+            const op = (operacao || '').toUpperCase();
+            if (op.includes('/')) return 'Consolidados';
+            if (op.includes('DELTA')) return 'Delta';
+            if (op.includes('PORCELANA')) return 'Porcelana';
+            if (op.includes('ELETRIK')) return 'Eletrik';
+            return 'Consolidados';
+        };
+
         if (turno === 'Inicial') {
             rows = await dbAll(`
-                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao, foi_reprogramado
+                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao,
+                       foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2117,33 +2129,37 @@ async function gerarProgramacaoDiaria(turno) {
             `, [hojeStr]);
 
             rows.forEach(v => {
-                const op = (v.operacao || '').toUpperCase();
-                let cliente = 'Consolidados';
-                if (op.includes('/')) {
-                    cliente = 'Consolidados';
-                } else if (op.includes('DELTA')) {
-                    cliente = 'Delta';
-                } else if (op.includes('PORCELANA')) {
-                    cliente = 'Porcelana';
-                } else if (op.includes('ELETRIK')) {
-                    cliente = 'Eletrik';
-                }
-
+                const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
-                // Usa flag explícita (botão +1 dia, Hoje ou calendário do card)
-                const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
+                // Lógica híbrida: flag explícita OU comparação de datas (mantém compatibilidade com registros antigos)
+                const foiReprogramado =
+                    v.foi_reprogramado === 1 || v.foi_reprogramado === true
+                    || (v.data_prevista_original
+                        ? v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10)
+                        : (v.data_criacao && v.data_criacao.substring(0, 10) < v.data_prevista.substring(0, 10)));
 
                 if (foiReprogramado) {
                     totais[cliente][`reprogramado_${un}`] += 1;
                 } else {
                     totais[cliente][un] += 1;
                 }
+
+                listaVeiculos.push({
+                    id: v.id,
+                    motorista: v.motorista || '',
+                    placa: v.placa || '',
+                    operacao: v.operacao || '',
+                    cliente,
+                    unidade: v.unidade || '',
+                    coleta: v.coletaRecife || v.coletaMoreno || v.coleta || v.numero_coleta || '',
+                    reprogramado: foiReprogramado ? 1 : 0,
+                });
             });
 
         } else { // Final
             rows = await dbAll(`
-                SELECT id, unidade, operacao
+                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2153,20 +2169,20 @@ async function gerarProgramacaoDiaria(turno) {
             `, [hojeStr]);
 
             rows.forEach(v => {
-                const op = (v.operacao || '').toUpperCase();
-                let cliente = 'Consolidados';
-                if (op.includes('/')) {
-                    cliente = 'Consolidados';
-                } else if (op.includes('DELTA')) {
-                    cliente = 'Delta';
-                } else if (op.includes('PORCELANA')) {
-                    cliente = 'Porcelana';
-                } else if (op.includes('ELETRIK')) {
-                    cliente = 'Eletrik';
-                }
-
+                const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
                 totais[cliente][un] += 1;
+
+                listaVeiculos.push({
+                    id: v.id,
+                    motorista: v.motorista || '',
+                    placa: v.placa || '',
+                    operacao: v.operacao || '',
+                    cliente,
+                    unidade: v.unidade || '',
+                    coleta: v.coletaRecife || v.coletaMoreno || v.coleta || v.numero_coleta || '',
+                    reprogramado: 0,
+                });
             });
         }
 
@@ -2176,7 +2192,7 @@ async function gerarProgramacaoDiaria(turno) {
             [hojeStr, turno]
         );
 
-        const dados_json = JSON.stringify(totais);
+        const dados_json = JSON.stringify({ ...totais, _veiculos: listaVeiculos });
         await dbRun(
             'INSERT INTO frota_programacao_diaria (data_referencia, turno, dados_json) VALUES (?, ?, ?)',
             [hojeStr, turno, dados_json]
