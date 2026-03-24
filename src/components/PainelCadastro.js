@@ -194,11 +194,13 @@ export default function PainelCadastro({ user, socket }) {
             socket.on('receber_atualizacao', handleRefresh);
             return () => socket.off('receber_atualizacao', handleRefresh);
         }
+    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]); // eslint-disable-line
 
-        // Atualiza timers a cada 30s
+    // Timer independente para re-render a cada 30s (atualiza countdowns)
+    useEffect(() => {
         const interval = setInterval(() => setTick(t => t + 1), 30000);
         return () => clearInterval(interval);
-    }, [carregarMotoristas, carregarMotoristasOperacao, carregarMotoristasFrota, socket]); // eslint-disable-line
+    }, []); // eslint-disable-line
 
     // Rebuscar Na Operação quando datas mudam + sincronizar refs
     useEffect(() => {
@@ -435,6 +437,7 @@ export default function PainelCadastro({ user, socket }) {
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', alignItems: 'start' }}>
                             {motoristas.filter(m => {
+                                if (m.is_frota) return false; // frota própria só aparece na aba Frota Própria
                                 if (!filtroEspera) return true;
                                 const q = filtroEspera.toLowerCase();
                                 const ed = edicoes[m.id] || {};

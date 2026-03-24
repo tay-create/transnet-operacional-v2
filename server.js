@@ -972,7 +972,7 @@ app.get('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', '
 });
 
 // POST - Salvar registro de liberação usada
-app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
+app.post('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
         const { motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id } = req.body;
         if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
@@ -982,9 +982,26 @@ app.post('/api/historico-liberacoes', authMiddleware, async (req, res) => {
 
         await dbRun(
             `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT DO NOTHING`,
             [primeira_letra, nomeLimpo, num_coleta || '', num_liberacao || '', datetime_cte || new Date().toISOString(), origem || '', destino_uf || '', destino_cidade || '', placa || '', operacao || '', veiculo_id || null]
         );
+
+        // Se motorista for frota própria, registrar também no histórico de frota
+        const ehFrota = await dbGet(
+            'SELECT id FROM marcacoes_placas WHERE UPPER(nome_motorista) = $1 AND is_frota = 1 LIMIT 1',
+            [nomeLimpo]
+        );
+        if (ehFrota) {
+            await dbRun(
+                `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
+                [primeira_letra, nomeLimpo, placa || '', origem || '',
+                 `${destino_cidade || ''} - ${destino_uf || ''}`.replace(/^ - | - $/g, '').trim(),
+                 operacao || '', veiculo_id || null, datetime_cte || new Date().toISOString()]
+            );
+        }
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
@@ -1016,7 +1033,7 @@ app.get('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Plane
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.post('/api/historico-frota', authMiddleware, async (req, res) => {
+app.post('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
         const { motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem } = req.body;
         if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
@@ -1292,6 +1309,20 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                             dados.id || null
                         ]
                     );
+                    // Se motorista for frota própria, registrar também no histórico de frota
+                    const ehFrotaCte = await dbGet(
+                        'SELECT id FROM marcacoes_placas WHERE UPPER(nome_motorista) = $1 AND is_frota = 1 LIMIT 1',
+                        [nomeLimpo]
+                    );
+                    if (ehFrotaCte) {
+                        const destCte = `${cte.destino_cidade_cad || ''} - ${cte.destino_uf_cad || ''}`.replace(/^ - | - $/g, '').trim();
+                        await dbRun(
+                            `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
+                             VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
+                            [nomeLimpo[0] || '#', nomeLimpo, cte.placa1 || '', cte.origem || '',
+                             destCte, dados.operacao || '', dados.id || null, new Date().toISOString()]
+                        );
+                    }
                     io.emit('receber_atualizacao', { tipo: 'cadastro_cte_emitido', motorista: cte.motorista });
                 }
             } catch (errHist) {
@@ -1434,7 +1465,7 @@ app.delete('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         res.status(500).json({ success: false });
     }
 });
-app.use('/login', loginLimiter);
+// loginLimiter aplicado diretamente no handler em src/routes/auth.js
 app.use('/', require('./src/routes/auth'));
 app.get('/configuracoes', authMiddleware, async (req, res) => { try { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); } catch (e) { res.status(500).json({ success: false }); } });
 app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); enviarNotificacao('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas', data_criacao: new Date().toISOString() }); res.json({ success: true }); });
@@ -1526,39 +1557,7 @@ app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordena
 });
 
 // Trocar senha usando token recebido via WhatsApp (sem auth — usuário ainda não está logado)
-app.post('/reset-senha-token', resetSenhaLimiter, async (req, res) => {
-    const MSG_INVALIDO = 'Código inválido ou expirado.';
-    try {
-        const { email, token, novaSenha } = req.body;
-        if (!email || !token || !novaSenha) {
-            return res.status(400).json({ success: false, message: 'Campos obrigatórios: email, token, novaSenha.' });
-        }
-        if (novaSenha.length < 6) {
-            return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 6 caracteres.' });
-        }
-
-        const usuario = await dbGet("SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1)", [email.trim()]);
-        // Retorna a mesma mensagem para email inválido e código inválido (evita email enumeration)
-        if (!usuario) return res.status(400).json({ success: false, message: MSG_INVALIDO });
-
-        const registro = await dbGet(
-            "SELECT id FROM reset_tokens WHERE usuario_id = $1 AND token = $2 AND usado = 0 AND expira_em > NOW()",
-            [usuario.id, token.trim()]
-        );
-        if (!registro) {
-            return res.status(400).json({ success: false, message: MSG_INVALIDO });
-        }
-
-        const hash = await bcrypt.hash(novaSenha, 10);
-        await dbRun("UPDATE usuarios SET senha = $1 WHERE id = $2", [hash, usuario.id]);
-        await dbRun("UPDATE reset_tokens SET usado = 1 WHERE id = $1", [registro.id]);
-        logger.audit('RESET_SENHA_TOKEN', `ID:${usuario.id}`);
-        res.json({ success: true, message: 'Senha alterada com sucesso!' });
-    } catch (e) {
-        console.error('❌ [reset-senha-token]:', e);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
+// Rota /reset-senha-token removida — fluxo WhatsApp substituído por e-mail automático (/solicitar-reset-senha)
 // ── Logout server-side (revoga sessão no banco) ───────────────────────────────
 app.post('/logout', authMiddleware, async (req, res) => {
     try {
@@ -1751,7 +1750,7 @@ app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamen
 app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), async (req, res) => {
     try {
         const { dataInicio, dataFim } = req.query;
-        const rows = await dbAll("SELECT dados_json FROM historico_cte ORDER BY rowid DESC");
+        const rows = await dbAll("SELECT dados_json FROM historico_cte ORDER BY id DESC");
         let registros = rows.map(r => { try { return JSON.parse(r.dados_json); } catch (_) { return null; } }).filter(Boolean);
         if (dataInicio) registros = registros.filter(r => r.data_registro >= dataInicio);
         if (dataFim) registros = registros.filter(r => r.data_registro <= dataFim);
@@ -2202,7 +2201,7 @@ async function verificarExpiracaoLiberacoes() {
                     // Checar no BD se já existe notificação liberacao_expirada para este motorista
                     const existeNoBd = await dbGet(
                         `SELECT id FROM notificacoes WHERE dados_json LIKE $1 AND dados_json LIKE '%"tipo":"liberacao_expirada"%'`,
-                        [`%"motorista":"${nome.replace(/'/g, "''")}"%`]
+                        [`%"motorista":"${nome.replace(/'/g, "''").replace(/%/g, '\\%').replace(/_/g, '\\_')}"%`]
                     );
                     if (existeNoBd) {
                         // Já existe no BD — apenas adicionar à memória para não checar novamente
@@ -2233,7 +2232,7 @@ async function verificarExpiracaoLiberacoes() {
                     // Checar no BD se já existe notificação liberacao_vencendo para este motorista
                     const existeNoBd = await dbGet(
                         `SELECT id FROM notificacoes WHERE dados_json LIKE $1 AND dados_json LIKE '%"tipo":"liberacao_vencendo"%'`,
-                        [`%"motorista":"${nome.replace(/'/g, "''")}"%`]
+                        [`%"motorista":"${nome.replace(/'/g, "''").replace(/%/g, '\\%').replace(/_/g, '\\_')}"%`]
                     );
                     if (existeNoBd) {
                         alertasJaEnviados.add(chave);

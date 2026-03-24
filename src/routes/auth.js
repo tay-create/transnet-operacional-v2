@@ -139,14 +139,26 @@ router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejame
         const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=$1", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
-        const cargoFinal = req.user.cargo === 'Coordenador' ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
+        const ehCoordenador = req.user.cargo === 'Coordenador';
+        const cargoFinal = ehCoordenador ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
+
+        // Campos de permissão individual só podem ser alterados por Coordenador
+        const usaPermFinal = ehCoordenador
+            ? (usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usapermissaoindividual)
+            : usuarioAtual.usapermissaoindividual;
+        const permAcessoFinal = ehCoordenador
+            ? JSON.stringify(permissoesAcesso ?? JSON.parse(usuarioAtual.permissoesacesso || '[]'))
+            : usuarioAtual.permissoesacesso;
+        const permEdicaoFinal = ehCoordenador
+            ? JSON.stringify(permissoesEdicao ?? JSON.parse(usuarioAtual.permissoesedicao || '[]'))
+            : usuarioAtual.permissoesedicao;
 
         await dbRun(
             `UPDATE usuarios SET usaPermissaoIndividual=$1, permissoesAcesso=$2, permissoesEdicao=$3, cargo=$4, cidade=$5, nome=$6, telefone=$7 WHERE id=$8`,
             [
-                usaPermissaoIndividual !== undefined ? (usaPermissaoIndividual ? 1 : 0) : usuarioAtual.usapermissaoindividual,
-                JSON.stringify(permissoesAcesso ?? JSON.parse(usuarioAtual.permissoesacesso || '[]')),
-                JSON.stringify(permissoesEdicao ?? JSON.parse(usuarioAtual.permissoesedicao || '[]')),
+                usaPermFinal,
+                permAcessoFinal,
+                permEdicaoFinal,
                 cargoFinal,
                 cidade ?? usuarioAtual.cidade,
                 nome ?? usuarioAtual.nome,
