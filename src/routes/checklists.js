@@ -180,7 +180,7 @@ module.exports = function createChecklistsRouter(io) {
                         tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Recife' as _cidade
-                     FROM veiculos WHERE status_recife IN (${placeholders}) AND data_prevista >= ? ORDER BY id DESC`,
+                     FROM veiculos WHERE status_recife IN (${placeholders}) AND data_prevista <= ? ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, hoje]
                 );
                 const moreno = await dbAll(
@@ -189,7 +189,7 @@ module.exports = function createChecklistsRouter(io) {
                         tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Moreno' as _cidade
-                     FROM veiculos WHERE status_moreno IN (${placeholders}) AND data_prevista >= ? ORDER BY id DESC`,
+                     FROM veiculos WHERE status_moreno IN (${placeholders}) AND data_prevista <= ? ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, hoje]
                 );
                 rows = [...recife, ...moreno];
@@ -206,7 +206,7 @@ module.exports = function createChecklistsRouter(io) {
                         ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, ? as _cidade
-                     FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista >= ? AND ${cidadeFiltro} ORDER BY id DESC`,
+                     FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista <= ? AND ${cidadeFiltro} ORDER BY id DESC`,
                     [cidade, ...STATUS_CONFERENTE, hoje]
                 );
             }
