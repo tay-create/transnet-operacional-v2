@@ -389,7 +389,7 @@ function App({ socket }) {
         carregarFila();
         carregarCtes();
         // Verificar e-mail pessoal (cobre tanto login novo quanto sessão restaurada do localStorage)
-        if (!user?.email_pessoal || !user?.email_pessoal_verificado) {
+        if (!user?.email_pessoal) {
             setModalEmailPessoal(true);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1134,7 +1134,7 @@ function App({ socket }) {
 
     const handleLoginSuccess = (usuarioData) => {
         setAbaAtiva(usuarioData.cidade === 'Recife' ? 'op_recife' : 'op_moreno');
-        if (!usuarioData.email_pessoal || !usuarioData.email_pessoal_verificado) {
+        if (!usuarioData.email_pessoal) {
             setModalEmailPessoal(true);
         }
     };
@@ -1241,6 +1241,7 @@ function App({ socket }) {
                                                 try {
                                                     await api.post(`/usuarios/${user.id}/email-pessoal`, { email_pessoal: emailPessoalInput });
                                                     setEmailPessoalEnviado(true);
+                                                    updateUser({ email_pessoal: emailPessoalInput });
                                                 } catch (err) {
                                                     mostrarNotificacao(err.response?.data?.message || 'Erro ao salvar e-mail.', 'erro');
                                                 }
@@ -1257,6 +1258,7 @@ function App({ socket }) {
                                         try {
                                             await api.post(`/usuarios/${user.id}/email-pessoal`, { email_pessoal: emailPessoalInput });
                                             setEmailPessoalEnviado(true);
+                                            updateUser({ email_pessoal: emailPessoalInput });
                                         } catch (e) {
                                             mostrarNotificacao(e.response?.data?.message || 'Erro ao salvar e-mail.', 'erro');
                                         }
