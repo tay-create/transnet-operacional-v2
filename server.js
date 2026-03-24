@@ -2561,6 +2561,28 @@ app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenado
 
 // ==================== SALDO DE PALETES ====================
 
+// Buscar dados de um veículo pelo número de coleta para pré-preencher o lançamento manual
+app.get('/api/saldo-paletes/buscar-coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    try {
+        const numero = req.params.numero;
+        const v = await dbGet(
+            `SELECT motorista, placa, dados_json, placa1motorista, placa2motorista FROM veiculos
+             WHERE coleta = ? OR coletarecife = ? OR coletamoreno = ?
+             ORDER BY id DESC LIMIT 1`,
+            [numero, numero, numero]
+        );
+        if (!v) return res.json({ success: false, message: 'Coleta não encontrada.' });
+        let dj = {};
+        try { dj = typeof v.dados_json === 'string' ? JSON.parse(v.dados_json) : (v.dados_json || {}); } catch {}
+        res.json({
+            success: true,
+            motorista: v.motorista || '',
+            placa_cavalo: v.placa1motorista || dj.placa1Motorista || v.placa || '',
+            placa_carreta: v.placa2motorista || dj.placa2Motorista || '',
+        });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
@@ -2570,7 +2592,7 @@ app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planeja
 
 app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
-        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada_manual } = req.body;
+        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada_manual, numero_coleta } = req.body;
         if (!motorista || !tipo_palete) {
             return res.status(400).json({ success: false, message: 'Motorista e tipo de palete são obrigatórios.' });
         }
@@ -2579,9 +2601,9 @@ app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planej
         }
         const dataEntrada = data_entrada_manual ? new Date(data_entrada_manual).toISOString() : new Date().toISOString();
         const result = await dbRun(
-            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '', dataEntrada]
+            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada, numero_coleta)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '', dataEntrada, numero_coleta || null]
         );
         await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
         io.emit('saldo_paletes_update');

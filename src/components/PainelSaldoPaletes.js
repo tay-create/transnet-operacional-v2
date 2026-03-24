@@ -152,6 +152,7 @@ function ModalCadastroManual({ onClose, onConfirm }) {
     const localISO = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 
     const [form, setForm] = useState({
+        numero_coleta: '',
         motorista: '',
         placa_cavalo: '',
         placa_carreta: '',
@@ -160,10 +161,34 @@ function ModalCadastroManual({ onClose, onConfirm }) {
         devolvido: false,
         data_entrada_manual: localISO,
     });
+    const [buscando, setBuscando] = useState(false);
+    const [coletaEncontrada, setColetaEncontrada] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
 
-    const set = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
+    const setField = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
+
+    const buscarColeta = async () => {
+        if (!form.numero_coleta.trim()) return;
+        setBuscando(true);
+        setColetaEncontrada(false);
+        setErro('');
+        try {
+            const r = await api.get(`/api/saldo-paletes/buscar-coleta/${form.numero_coleta.trim()}`);
+            if (r.data.success) {
+                setForm(prev => ({
+                    ...prev,
+                    motorista: r.data.motorista,
+                    placa_cavalo: r.data.placa_cavalo,
+                    placa_carreta: r.data.placa_carreta,
+                }));
+                setColetaEncontrada(true);
+            } else {
+                setErro('Coleta não encontrada.');
+            }
+        } catch { setErro('Erro ao buscar coleta.'); }
+        finally { setBuscando(false); }
+    };
 
     const confirmar = async () => {
         if (!form.motorista.trim()) return setErro('Nome do motorista é obrigatório.');
@@ -173,6 +198,7 @@ function ModalCadastroManual({ onClose, onConfirm }) {
         setSalvando(true);
         try {
             await onConfirm({
+                numero_coleta: form.numero_coleta.trim() || null,
                 motorista: form.motorista.trim(),
                 placa_cavalo: form.placa_cavalo.trim(),
                 placa_carreta: form.placa_carreta.trim(),
@@ -199,18 +225,37 @@ function ModalCadastroManual({ onClose, onConfirm }) {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                    {/* Coleta com busca */}
+                    <div>
+                        <label style={s.label}>Número da Coleta <span style={{ color: '#475569', fontWeight: '400', textTransform: 'none' }}>(opcional — preenche dados automaticamente)</span></label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                                style={{ ...s.input, flex: 1 }}
+                                value={form.numero_coleta}
+                                onChange={e => { setField('numero_coleta', e.target.value); setColetaEncontrada(false); }}
+                                onKeyDown={e => e.key === 'Enter' && buscarColeta()}
+                                placeholder="Ex: 818"
+                            />
+                            <button style={{ ...s.btn('blue'), whiteSpace: 'nowrap' }} onClick={buscarColeta} disabled={buscando || !form.numero_coleta.trim()}>
+                                {buscando ? <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} /> : 'Buscar'}
+                            </button>
+                        </div>
+                        {coletaEncontrada && <div style={{ fontSize: '11px', color: '#4ade80', marginTop: '4px' }}>✓ Dados preenchidos da coleta {form.numero_coleta}</div>}
+                    </div>
+
                     <div>
                         <label style={s.label}>Nome do Motorista *</label>
-                        <input style={s.input} value={form.motorista} onChange={e => set('motorista', e.target.value)} placeholder="Ex: João Silva" />
+                        <input style={s.input} value={form.motorista} onChange={e => setField('motorista', e.target.value)} placeholder="Ex: João Silva" />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
                             <label style={s.label}>Placa Cavalo</label>
-                            <input style={s.input} value={form.placa_cavalo} onChange={e => set('placa_cavalo', e.target.value.toUpperCase())} placeholder="ABC1234" />
+                            <input style={s.input} value={form.placa_cavalo} onChange={e => setField('placa_cavalo', e.target.value.toUpperCase())} placeholder="ABC1234" />
                         </div>
                         <div>
                             <label style={s.label}>Placa Carreta</label>
-                            <input style={s.input} value={form.placa_carreta} onChange={e => set('placa_carreta', e.target.value.toUpperCase())} placeholder="XYZ5678" />
+                            <input style={s.input} value={form.placa_carreta} onChange={e => setField('placa_carreta', e.target.value.toUpperCase())} placeholder="XYZ5678" />
                         </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -220,24 +265,24 @@ function ModalCadastroManual({ onClose, onConfirm }) {
                         </div>
                         <div>
                             <label style={s.label}>Qtd PBR *</label>
-                            <input style={s.input} type="number" min="1" value={form.qtd_pbr} onChange={e => set('qtd_pbr', e.target.value)} placeholder="0" />
+                            <input style={s.input} type="number" min="1" value={form.qtd_pbr} onChange={e => setField('qtd_pbr', e.target.value)} placeholder="0" />
                         </div>
                     </div>
                     <div>
                         <label style={s.label}>Fornecedor *</label>
-                        <input style={s.input} value={form.fornecedor_pbr} onChange={e => set('fornecedor_pbr', e.target.value)} placeholder="Ex: Carrefour" />
+                        <input style={s.input} value={form.fornecedor_pbr} onChange={e => setField('fornecedor_pbr', e.target.value)} placeholder="Ex: Carrefour" />
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div>
                             <label style={s.label}>Status</label>
-                            <select style={{ ...s.input, cursor: 'pointer' }} value={form.devolvido ? '1' : '0'} onChange={e => set('devolvido', e.target.value === '1')}>
+                            <select style={{ ...s.input, cursor: 'pointer' }} value={form.devolvido ? '1' : '0'} onChange={e => setField('devolvido', e.target.value === '1')}>
                                 <option value="0">⏳ Pendente</option>
                                 <option value="1">✓ Devolvido</option>
                             </select>
                         </div>
                         <div>
                             <label style={s.label}>Data Entrada *</label>
-                            <input style={s.input} type="datetime-local" value={form.data_entrada_manual} onChange={e => set('data_entrada_manual', e.target.value)} />
+                            <input style={s.input} type="datetime-local" value={form.data_entrada_manual} onChange={e => setField('data_entrada_manual', e.target.value)} />
                         </div>
                     </div>
 
@@ -434,6 +479,7 @@ export default function PainelSaldoPaletes() {
                             <table style={s.table}>
                                 <thead>
                                     <tr>
+                                        <th style={s.th}>Coleta</th>
                                         <th style={s.th}>Motorista</th>
                                         <th style={s.th}>Placas</th>
                                         <th style={s.th}>Tipo</th>
@@ -449,6 +495,12 @@ export default function PainelSaldoPaletes() {
                                         const saldoPbrRow = (r.qtd_pbr || 0) - (r.qtd_devolvida_pbr || 0);
                                         return (
                                             <tr key={r.id} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                                                <td style={s.td}>
+                                                    {r.numero_coleta
+                                                        ? <span style={{ fontFamily: 'monospace', fontWeight: '700', color: '#60a5fa', fontSize: '13px' }}>{r.numero_coleta}</span>
+                                                        : <span style={{ color: '#334155' }}>—</span>
+                                                    }
+                                                </td>
                                                 <td style={s.td}>
                                                     <div style={{ fontWeight: '600' }}>{r.motorista}</div>
                                                     {r.telefone && <div style={{ fontSize: '11px', color: '#64748b' }}>{r.telefone}</div>}
