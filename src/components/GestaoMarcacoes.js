@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X } from 'lucide-react';
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
@@ -113,7 +113,8 @@ export default function GestaoMarcacoes({ socket }) {
     const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroDisponibilidade, setFiltroDisponibilidade] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
-    const ITENS_POR_PAGINA = 25;
+    const [totalMarcacoes, setTotalMarcacoes] = useState(0);
+    const ITENS_POR_PAGINA = 50;
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
@@ -137,30 +138,45 @@ export default function GestaoMarcacoes({ socket }) {
         finally { setLoading(false); }
     }, []);
 
-    const carregarMarcacoes = useCallback(async () => {
+    const carregarMarcacoes = useCallback(async (pagina = 1) => {
         setLoading(true);
         try {
-            const r = await api.get('/api/marcacoes');
-            if (r.data.success) setMarcacoes(r.data.marcacoes);
+            const r = await api.get(`/api/marcacoes?page=${pagina}&limit=${ITENS_POR_PAGINA}`);
+            if (r.data.success) {
+                setMarcacoes(r.data.marcacoes);
+                setTotalMarcacoes(r.data.total || 0);
+                setPaginaMarcacoes(pagina);
+            }
         } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
     }, []);
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
-        else if (aba === 'placas' || aba === 'frota') carregarMarcacoes();
+        else if (aba === 'placas' || aba === 'frota') carregarMarcacoes(1);
     }, [aba, carregarTokens, carregarMarcacoes]);
 
     useEffect(() => {
         if (!socket) return;
-        const atualizar = () => {
-            if (aba === 'placas' || aba === 'frota') carregarMarcacoes();
+        const atualizar = (payload) => {
+            if (aba !== 'placas' && aba !== 'frota') return;
+            // Remoção pontual — atualiza estado local sem re-fetch
+            if (payload?.tipo === 'marcacao_removida' && payload?.id) {
+                setMarcacoes(prev => {
+                    const nova = prev.filter(m => m.id !== payload.id);
+                    setTotalMarcacoes(t => Math.max(0, t - (prev.length - nova.length)));
+                    return nova;
+                });
+                return;
+            }
+            // Eventos de token não afetam a lista de marcações
+            if (payload?.tipo?.startsWith('token_')) return;
+            // Para nova_marcacao ou outros eventos, recarrega a página atual
+            carregarMarcacoes(paginaMarcacoes);
         };
         socket.on('marcacao_atualizada', atualizar);
-        return () => {
-            socket.off('marcacao_atualizada', atualizar);
-        };
-    }, [socket, aba, carregarMarcacoes]);
+        return () => { socket.off('marcacao_atualizada', atualizar); };
+    }, [socket, aba, carregarMarcacoes, paginaMarcacoes]);
 
     async function gerarLink() {
         if (!tel.trim()) { mostrarToast('Informe o telefone.'); return; }
@@ -326,6 +342,35 @@ export default function GestaoMarcacoes({ socket }) {
     }
 
     const ff = (campo) => (e) => setFormFrota(prev => ({ ...prev, [campo]: e.target.value }));
+
+    // Filtro local aplicado sobre a página atual retornada pelo servidor
+    const marcacoesFiltradas = useMemo(() => {
+        return marcacoes.filter(m => {
+            if (m.is_frota) return false;
+            if (filtroEstado) {
+                const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
+                if (!estados.includes(filtroEstado)) return false;
+            }
+            if (filtroDisponibilidade) {
+                const disp = m.disponibilidade || '';
+                const opStatus = m.status_operacional || '';
+                const isIndisponivel = disp === 'Indisponível';
+                const isContratado = disp === 'Contratado' || opStatus === 'EM VIAGEM' || opStatus === 'EM ROTA';
+                const isDisponivel = !isIndisponivel && !isContratado;
+                if (filtroDisponibilidade === 'disponivel' && !isDisponivel) return false;
+                if (filtroDisponibilidade === 'indisponivel' && !isIndisponivel) return false;
+                if (filtroDisponibilidade === 'contratado' && !isContratado) return false;
+                if (filtroDisponibilidade === 'EM CASA' && disp !== 'EM CASA') return false;
+                if (filtroDisponibilidade === 'NO PÁTIO' && disp !== 'NO PÁTIO') return false;
+                if (filtroDisponibilidade === 'NO POSTO' && disp !== 'NO POSTO') return false;
+            }
+            if (!buscaMarcacoes) return true;
+            const q = buscaMarcacoes.toLowerCase();
+            const soNumeros = buscaMarcacoes.replace(/\D/g, '');
+            return m.nome_motorista?.toLowerCase().includes(q) ||
+                (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
+        });
+    }, [marcacoes, filtroEstado, filtroDisponibilidade, buscaMarcacoes]);
 
     function ModalDetalhes({ m, onClose }) {
         const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
@@ -581,7 +626,7 @@ export default function GestaoMarcacoes({ socket }) {
                                 <option value="NO POSTO">NO POSTO</option>
                             </select>
                         </div>
-                        <button style={s.btn()} onClick={carregarMarcacoes}>
+                        <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>
                             <RefreshCw size={14} /> Atualizar
                         </button>
                     </div>
@@ -614,34 +659,7 @@ export default function GestaoMarcacoes({ socket }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(() => {
-                                        const filtradas = marcacoes.filter(m => {
-                                            if (m.is_frota) return false;
-                                            if (filtroEstado) {
-                                                const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
-                                                if (!estados.includes(filtroEstado)) return false;
-                                            }
-                                            if (filtroDisponibilidade) {
-                                                const disp = m.disponibilidade || '';
-                                                const opStatus = m.status_operacional || '';
-                                                const isIndisponivel = disp === 'Indisponível';
-                                                const isContratado = disp === 'Contratado' || opStatus === 'EM VIAGEM' || opStatus === 'EM ROTA';
-                                                const isDisponivel = !isIndisponivel && !isContratado;
-                                                if (filtroDisponibilidade === 'disponivel' && !isDisponivel) return false;
-                                                if (filtroDisponibilidade === 'indisponivel' && !isIndisponivel) return false;
-                                                if (filtroDisponibilidade === 'contratado' && !isContratado) return false;
-                                                if (filtroDisponibilidade === 'EM CASA' && disp !== 'EM CASA') return false;
-                                                if (filtroDisponibilidade === 'NO PÁTIO' && disp !== 'NO PÁTIO') return false;
-                                                if (filtroDisponibilidade === 'NO POSTO' && disp !== 'NO POSTO') return false;
-                                            }
-                                            if (!buscaMarcacoes) return true;
-                                            const q = buscaMarcacoes.toLowerCase();
-                                            const soNumeros = buscaMarcacoes.replace(/\D/g, '');
-                                            return m.nome_motorista?.toLowerCase().includes(q) ||
-                                                (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
-                                        });
-                                        const inicio = (paginaMarcacoes - 1) * ITENS_POR_PAGINA;
-                                        return filtradas.slice(inicio, inicio + ITENS_POR_PAGINA).map(m => {
+                                    {marcacoesFiltradas.map(m => {
                                         // tick é usado apenas para forçar re-render periódico
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
@@ -782,40 +800,27 @@ export default function GestaoMarcacoes({ socket }) {
                                                 </td>
                                             </tr>
                                         );
-                                    });
-                                    })()}
+                                    })}
                                 </tbody>
                             </table>
-                            {/* Paginação */}
+                            {/* Paginação server-side */}
                             {(() => {
-                                const filtradas = marcacoes.filter(m => {
-                                    if (m.is_frota) return false;
-                                    if (filtroEstado) {
-                                        const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
-                                        if (!estados.includes(filtroEstado)) return false;
-                                    }
-                                    if (!buscaMarcacoes) return true;
-                                    const q = buscaMarcacoes.toLowerCase();
-                                    const soNumeros = buscaMarcacoes.replace(/\D/g, '');
-                                    return m.nome_motorista?.toLowerCase().includes(q) ||
-                                        (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
-                                });
-                                const totalPaginas = Math.ceil(filtradas.length / ITENS_POR_PAGINA);
+                                const totalPaginas = Math.ceil(totalMarcacoes / ITENS_POR_PAGINA);
                                 if (totalPaginas <= 1) return null;
                                 return (
                                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
                                         <button
-                                            onClick={() => setPaginaMarcacoes(p => Math.max(1, p - 1))}
+                                            onClick={() => carregarMarcacoes(paginaMarcacoes - 1)}
                                             disabled={paginaMarcacoes <= 1}
                                             style={{ padding: '6px 12px', fontSize: '12px', background: paginaMarcacoes <= 1 ? '#1e293b' : '#334155', color: paginaMarcacoes <= 1 ? '#475569' : '#e2e8f0', border: '1px solid #475569', borderRadius: '6px', cursor: paginaMarcacoes <= 1 ? 'default' : 'pointer' }}
                                         >
                                             ← Anterior
                                         </button>
                                         <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                                            Página {paginaMarcacoes} de {totalPaginas} ({filtradas.length} registros)
+                                            Página {paginaMarcacoes} de {totalPaginas} ({totalMarcacoes} registros)
                                         </span>
                                         <button
-                                            onClick={() => setPaginaMarcacoes(p => Math.min(totalPaginas, p + 1))}
+                                            onClick={() => carregarMarcacoes(paginaMarcacoes + 1)}
                                             disabled={paginaMarcacoes >= totalPaginas}
                                             style={{ padding: '6px 12px', fontSize: '12px', background: paginaMarcacoes >= totalPaginas ? '#1e293b' : '#334155', color: paginaMarcacoes >= totalPaginas ? '#475569' : '#e2e8f0', border: '1px solid #475569', borderRadius: '6px', cursor: paginaMarcacoes >= totalPaginas ? 'default' : 'pointer' }}
                                         >

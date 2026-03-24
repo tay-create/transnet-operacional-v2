@@ -335,6 +335,8 @@ const inicializarBanco = async () => {
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_cubagens_coleta ON cubagens (numero_coleta)`); } catch (_) { }
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_tokens_status ON tokens_motoristas (status)`); } catch (_) { }
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_nome ON marcacoes_placas (nome_motorista, data_marcacao DESC)`); } catch (_) { }
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_status_op ON marcacoes_placas (status_operacional)`); } catch (_) { }
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_marcacoes_is_frota ON marcacoes_placas (is_frota)`); } catch (_) { }
 
         // ── Módulo de Frota e Telemetria ────────────────────────────────────────
         await dbRun(`CREATE TABLE IF NOT EXISTS frota_checklists(

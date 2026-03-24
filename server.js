@@ -479,17 +479,35 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Leitura de todas as marcações (autenticado)
+// Leitura de todas as marcações (autenticado) — com paginação e projeção de colunas
 app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
-        const rows = await dbAll(
-            "SELECT * FROM marcacoes_placas ORDER BY data_marcacao DESC"
-        );
+        const limite = Math.min(parseInt(req.query.limit) || 50, 200);
+        const pagina = Math.max(parseInt(req.query.page) || 1, 1);
+        const offset = (pagina - 1) * limite;
+
+        const [rows, totalRow] = await Promise.all([
+            dbAll(
+                `SELECT id, token_id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
+                        altura, largura, comprimento, estados_destino, ja_carregou,
+                        rastreador, status_rastreador, latitude, longitude, disponibilidade,
+                        data_marcacao, data_contratacao, viagens_realizadas, status_operacional,
+                        is_frota, situacao_cad, comprovante_pdf, anexo_cnh, anexo_doc_veiculo,
+                        anexo_crlv_carreta, anexo_antt, anexo_outros
+                 FROM marcacoes_placas
+                 ORDER BY data_marcacao DESC
+                 LIMIT $1 OFFSET $2`,
+                [limite, offset]
+            ),
+            dbAll("SELECT COUNT(*) AS total FROM marcacoes_placas")
+        ]);
+
         const marcacoes = rows.map(r => ({
             ...r,
             estados_destino: JSON.parse(r.estados_destino || '[]')
         }));
-        res.json({ success: true, marcacoes });
+        const total = parseInt(totalRow[0]?.total ?? 0);
+        res.json({ success: true, marcacoes, total, pagina, limite });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
