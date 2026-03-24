@@ -26,6 +26,7 @@ import PainelChecklist from './components/PainelChecklist';
 import PainelOcorrencias from './components/PainelOcorrencias';
 import PainelSaldoPaletes from './components/PainelSaldoPaletes';
 import ProvisionamentoFrota from './components/ProvisionamentoFrota';
+import DashboardFrota from './components/DashboardFrota';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -1383,11 +1384,7 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'frota_dashboard' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#64748b' }}>
-                        <LayoutGrid size={48} style={{ marginBottom: 16, opacity: 0.3 }} />
-                        <h2 style={{ color: '#94a3b8', marginBottom: 8, fontWeight: '600' }}>Dashboard de Frota</h2>
-                        <p style={{ margin: 0, fontSize: '14px' }}>Em construção</p>
-                    </div>
+                    <DashboardFrota socket={socket} />
                 )}
 
                 {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (

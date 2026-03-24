@@ -2545,6 +2545,36 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// GET /api/provisionamento/dashboard?data=YYYY-MM-DD — contagens por status e tipo para o dia
+app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
+    try {
+        const data = req.query.data || new Date().toISOString().substring(0, 10);
+        const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1');
+        const progs = await dbAll(
+            'SELECT veiculo_id, status, destino, motorista FROM prov_programacao WHERE data = $1',
+            [data]
+        );
+        const progMap = {};
+        for (const p of progs) progMap[p.veiculo_id] = p;
+
+        // Para cada veículo, determinar status efetivo no dia
+        const resultado = veiculos.map(v => {
+            const p = progMap[v.id];
+            return {
+                id: v.id,
+                placa: v.placa,
+                carreta: v.carreta || null,
+                tipo_veiculo: v.tipo_veiculo,
+                motorista: p?.motorista || v.motorista || null,
+                status: p?.status || 'DISPONIVEL',
+                destino: p?.destino || null,
+            };
+        });
+
+        res.json({ success: true, data, veiculos: resultado });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Endpoints para containers bloqueando docas (Persistente no Banco)
