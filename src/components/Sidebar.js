@@ -234,7 +234,7 @@ export default function Sidebar({
                                 />
                             </>
                         )}
-                        {(ehCoordenador || cargo === 'PLANEJAMENTO') && (
+                        {(ehCoordenador || cargo === 'PLANEJAMENTO' || temAcesso('saldo_paletes')) && (
                             <MenuItem
                                 icon={<Package size={20} />}
                                 label="Saldo de Paletes"
