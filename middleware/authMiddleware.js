@@ -55,11 +55,19 @@ const authMiddleware = async (req, res, next) => {
 
         // 3. Verificar sessão ativa no banco
         const hash = tokenHash(token);
-        const sessao = await dbGet('SELECT ativa FROM sessoes WHERE token_hash = $1', [hash]);
+        const sessao = await dbGet('SELECT ativa, expires_at FROM sessoes WHERE token_hash = $1', [hash]);
         if (!sessao || !sessao.ativa) {
             return res.status(401).json({
                 success: false,
                 message: 'Sessão inválida ou expirada. Faça login novamente.'
+            });
+        }
+        // Verificar expiração da sessão (manter conectado respeita 7d vs 8h)
+        if (sessao.expires_at && new Date() > new Date(sessao.expires_at)) {
+            dbRun('UPDATE sessoes SET ativa = FALSE WHERE token_hash = $1', [hash]).catch(() => {});
+            return res.status(401).json({
+                success: false,
+                message: 'Sessão expirada. Faça login novamente.'
             });
         }
 
@@ -111,8 +119,9 @@ const authorize = (cargosPermitidos) => {
 
 /**
  * Gera um token JWT para o usuário
+ * manterConectado=true → expira em 7 dias; false → 8 horas
  */
-const generateToken = (user) => {
+const generateToken = (user, manterConectado = false) => {
     const payload = {
         id: user.id,
         nome: user.nome,
@@ -120,9 +129,8 @@ const generateToken = (user) => {
         cargo: user.cargo,
         cidade: user.cidade
     };
-
-    // Token expira em 8 horas
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+    const expiresIn = manterConectado ? '7d' : '8h';
+    return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
 
 module.exports = {

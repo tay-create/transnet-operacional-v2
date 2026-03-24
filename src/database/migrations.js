@@ -401,6 +401,9 @@ const inicializarBanco = async () => {
         try { await dbRun(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_pessoal TEXT`); } catch (_) {}
         try { await dbRun(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_pessoal_verificado INTEGER DEFAULT 0`); } catch (_) {}
 
+        // ── Manter conectado: expiração da sessão ──────────────────────────────
+        try { await dbRun(`ALTER TABLE sessoes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP`); } catch (_) {}
+
         await dbRun(`CREATE TABLE IF NOT EXISTS email_verification_tokens (
             id SERIAL PRIMARY KEY,
             usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,

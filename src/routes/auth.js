@@ -55,12 +55,16 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
         }
 
         // Gerar token JWT
-        const token = generateToken(usuario);
+        const manterConectado = req.body.manterConectado === true || req.body.manterConectado === 'true';
+        const token = generateToken(usuario, manterConectado);
 
         // Registrar sessão no banco
+        const expiresAt = manterConectado
+            ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)   // 7 dias
+            : new Date(Date.now() + 8 * 60 * 60 * 1000);        // 8 horas
         await dbRun(
-            'INSERT INTO sessoes (usuario_id, token_hash, ip, user_agent) VALUES ($1, $2, $3, $4)',
-            [usuario.id, tokenHash(token), req.ip, req.headers['user-agent'] || '']
+            'INSERT INTO sessoes (usuario_id, token_hash, ip, user_agent, expires_at) VALUES ($1, $2, $3, $4, $5)',
+            [usuario.id, tokenHash(token), req.ip, req.headers['user-agent'] || '', expiresAt]
         );
 
         // Preparar dados do usuário (sem senha)

@@ -38,7 +38,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         }
 
         try {
-            const response = await api.post('/login', validatedData);
+            const response = await api.post('/login', { ...validatedData, manterConectado });
             const data = response.data;
             const token = data.token || data.jwt || data.accessToken || null;
             if (token) localStorage.setItem('auth_token', token);
