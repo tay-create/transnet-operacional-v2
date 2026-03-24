@@ -554,7 +554,11 @@ function App({ socket }) {
         if (!user) return false;
         if (user.cargo === 'Coordenador') return true;
         if (user.usaPermissaoIndividual) {
-            return user.permissoesEdicao && user.permissoesEdicao.includes(modulo);
+            if (user.permissoesEdicao && user.permissoesEdicao.length > 0) {
+                return user.permissoesEdicao.includes(modulo);
+            }
+            // Fallback para permissões padrão do cargo quando individual não configurada
+            return permissoesEdicao[user.cargo]?.includes(modulo) ?? false;
         }
         return user.cargo && permissoesEdicao[user.cargo]?.includes(modulo);
     };

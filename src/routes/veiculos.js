@@ -525,10 +525,25 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.coleta = v.coletaRecife || v.coletaMoreno;
             }
 
-            // Se motorista está sendo atribuído agora e data_inicio_patio era null, setar
-            let data_inicio_patio_novo = veiculoAntigo?.data_inicio_patio || null;
+            // Se motorista mudou, zerar campos de risco para nova conferência
             const motoristaNovo = (v.motorista || '').trim();
             const motoristaAntigo = (veiculoAntigo?.motorista || '').trim();
+            if (veiculoAntigo && motoristaNovo && motoristaAntigo && motoristaNovo !== motoristaAntigo) {
+                v.chk_cnh = 0;
+                v.chk_antt = 0;
+                v.chk_tacografo = 0;
+                v.chk_crlv = 0;
+                v.numero_liberacao = '';
+                v.situacao_cadastro = 'NÃO CONFERIDO';
+                v.data_liberacao = null;
+                v.seguradora_cad = '';
+                v.origem_cad = '';
+                v.destino_uf_cad = '';
+                v.destino_cidade_cad = '';
+            }
+
+            // Se motorista está sendo atribuído agora e data_inicio_patio era null, setar
+            let data_inicio_patio_novo = veiculoAntigo?.data_inicio_patio || null;
             if (motoristaNovo && motoristaNovo !== 'A DEFINIR' && !data_inicio_patio_novo) {
                 // Buscar data_marcacao do motorista se disponível (herda Tempo de Espera)
                 const telefone = (v.telefoneMotorista || '').replace(/\D/g, '');
@@ -577,6 +592,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.numero_liberacao || '',
                 v.situacao_cadastro || 'NÃO CONFERIDO',
                 (() => {
+                    if (veiculoAntigo && motoristaNovo && motoristaAntigo && motoristaNovo !== motoristaAntigo) return null;
                     const anterior = veiculoAntigo?.data_liberacao || null;
                     if (v.numero_liberacao && !anterior) return new Date().toISOString();
                     return v.data_liberacao || anterior;
