@@ -184,7 +184,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
     return (
         <div
             ref={ref}
-            style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}
             onMouseEnter={handleEnter}
             onMouseLeave={handleLeave}
         >
@@ -197,6 +197,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                 cursor: 'default',
                 transition: 'background 0.15s, border-color 0.15s',
                 userSelect: 'none',
+                minWidth: 0, overflow: 'hidden',
             }}>
                 <span style={{
                     width: '8px', height: '8px', borderRadius: '50%',
@@ -204,7 +205,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                     boxShadow: `0 0 6px ${grupo.cor}`,
                     flexShrink: 0,
                 }} />
-                <span style={{ color: grupo.cor, fontSize: '12px', fontWeight: '600' }}>{grupo.label}</span>
+                <span style={{ color: grupo.cor, fontSize: '12px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{grupo.label}</span>
                 <span style={{
                     background: grupo.cor,
                     color: '#0f172a',
@@ -400,7 +401,7 @@ function CardTipo({ tipo, veiculosTipo }) {
                     </div>
                 )}
 
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '7px' }}>
                     {STATUS_GRUPOS.map(g => (
                         <StatusBadge key={g.key} grupo={g} veiculosFiltrados={veiculosTipo} />
                     ))}
