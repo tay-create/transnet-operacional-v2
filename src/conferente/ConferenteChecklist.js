@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2, ArrowRightLeft
+    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -596,10 +596,12 @@ export default function ConferenteChecklist({ socket }) {
     const user = useAuthStore(state => state.user);
 
     const cidade = user?.cidade || 'Recife';
+    const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
+    const [dataSelecionada, setDataSelecionada] = useState(hoje);
 
     const carregarVeiculos = useCallback(async () => {
         try {
-            const res = await api.get('/api/conferente/veiculos');
+            const res = await api.get('/api/conferente/veiculos', { params: { data: dataSelecionada } });
             if (res.data.success) {
                 // Adiciona _key único e estável por posição no array original
                 const comKeys = res.data.veiculos.map((v, i) => ({ ...v, _key: `${v.id}-${v.unidade || 'R'}-${i}` }));
@@ -611,7 +613,7 @@ export default function ConferenteChecklist({ socket }) {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [dataSelecionada]);
 
     useEffect(() => {
         carregarVeiculos();
@@ -672,12 +674,25 @@ export default function ConferenteChecklist({ socket }) {
         );
     }
 
+    const mudarDia = (delta) => {
+        const d = new Date(dataSelecionada + 'T12:00:00');
+        d.setDate(d.getDate() + delta);
+        setDataSelecionada(d.toISOString().split('T')[0]);
+    };
+
+    const eHoje = dataSelecionada === hoje;
+
+    const formatarData = (iso) => {
+        const [ano, mes, dia] = iso.split('-');
+        return `${dia}/${mes}/${ano}`;
+    };
+
     return (
         <div>
             <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
             {/* Título */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <ClipboardCheck size={20} color="#3b82f6" />
                     <h2 style={{ fontSize: '16px', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
@@ -693,6 +708,40 @@ export default function ConferenteChecklist({ socket }) {
                 >
                     <RefreshCw size={16} />
                 </button>
+            </div>
+
+            {/* Navegador de data */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <button
+                    onClick={() => mudarDia(-1)}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px' }}>
+                    <Calendar size={13} color="#64748b" />
+                    <input
+                        type="date"
+                        value={dataSelecionada}
+                        onChange={e => setDataSelecionada(e.target.value)}
+                        style={{ flex: 1, background: 'none', border: 'none', color: '#e2e8f0', fontSize: '13px', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>{formatarData(dataSelecionada)}</span>
+                </div>
+                <button
+                    onClick={() => mudarDia(1)}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                >
+                    <ChevronRight size={16} />
+                </button>
+                {!eHoje && (
+                    <button
+                        onClick={() => setDataSelecionada(hoje)}
+                        style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: '#60a5fa', fontSize: '11px', fontWeight: 700, whiteSpace: 'nowrap' }}
+                    >
+                        Hoje
+                    </button>
+                )}
             </div>
 
             {veiculos.length === 0 ? (

@@ -170,44 +170,59 @@ module.exports = function createChecklistsRouter(io) {
             const placeholders = STATUS_CONFERENTE.map(() => '?').join(', ');
             const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
 
+            const data = req.query.data || hoje;
             let rows = [];
 
             if (cidade === 'Ambas') {
                 // Retorna cards de Recife E de Moreno, cada um como entrada separada
                 const recife = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_recife as status, doca_recife as doca,
-                        coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
-                        tempos_recife as tempos, timestamps_status, inicio_rota,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        situacao_cadastro, tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Recife' as _cidade
-                     FROM veiculos WHERE status_recife IN (${placeholders}) AND data_prevista <= ? ORDER BY id DESC`,
-                    [...STATUS_CONFERENTE, hoje]
+                     FROM veiculos WHERE status_recife IN (${placeholders})
+                       AND (
+                         (status_recife != 'CARREGADO' AND data_prevista = ?)
+                         OR (status_recife = 'CARREGADO' AND COALESCE(data_carregado_recife, data_prevista) = ?)
+                       ) ORDER BY id DESC`,
+                    [...STATUS_CONFERENTE, data, data]
                 );
                 const moreno = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_moreno as status, doca_moreno as doca,
-                        coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
-                        tempos_moreno as tempos, timestamps_status, inicio_rota,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        situacao_cadastro, tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Moreno' as _cidade
-                     FROM veiculos WHERE status_moreno IN (${placeholders}) AND data_prevista <= ? ORDER BY id DESC`,
-                    [...STATUS_CONFERENTE, hoje]
+                     FROM veiculos WHERE status_moreno IN (${placeholders})
+                       AND (
+                         (status_moreno != 'CARREGADO' AND data_prevista = ?)
+                         OR (status_moreno = 'CARREGADO' AND COALESCE(data_carregado_moreno, data_prevista) = ?)
+                       ) ORDER BY id DESC`,
+                    [...STATUS_CONFERENTE, data, data]
                 );
                 rows = [...recife, ...moreno];
             } else {
                 const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
                 const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
                 const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
+                const campoCarregado = cidade === 'Moreno' ? 'data_carregado_moreno' : 'data_carregado_recife';
                 const cidadeFiltro = cidade === 'Moreno'
                     ? `(inicio_rota = 'Moreno' OR (coletamoreno IS NOT NULL AND coletamoreno != ''))`
                     : `(coletarecife IS NOT NULL AND coletarecife != '')`;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
-                        coleta, coletarecife, coletamoreno, data_prevista, situacao_cadastro,
-                        ${temposField} as tempos, timestamps_status, inicio_rota,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        situacao_cadastro, ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, ? as _cidade
-                     FROM veiculos WHERE ${statusField} IN (${placeholders}) AND data_prevista <= ? AND ${cidadeFiltro} ORDER BY id DESC`,
-                    [cidade, ...STATUS_CONFERENTE, hoje]
+                     FROM veiculos WHERE ${statusField} IN (${placeholders})
+                       AND (
+                         (${statusField} != 'CARREGADO' AND data_prevista = ?)
+                         OR (${statusField} = 'CARREGADO' AND COALESCE(${campoCarregado}, data_prevista) = ?)
+                       )
+                       AND ${cidadeFiltro} ORDER BY id DESC`,
+                    [cidade, ...STATUS_CONFERENTE, data, data]
                 );
             }
 
@@ -247,9 +262,12 @@ module.exports = function createChecklistsRouter(io) {
                     gerenciadora_risco: v.gerenciadora_risco || dados.gerenciadora_risco || '',
                     data_liberacao: v.data_liberacao || dados.data_liberacao || '',
                     timestamps_status: ts,
+                    pausas_status: v.pausas_status || '[]',
                     operacao: dados.operacao || '',
                     unidade: cidadeCard,
                     inicio_rota: v.inicio_rota || null,
+                    coletaRecife,
+                    coletaMoreno,
                     isMista,
                     checklistAprovado
                 };
