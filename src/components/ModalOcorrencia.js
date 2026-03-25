@@ -29,10 +29,21 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Salvar foto na galeria/downloads do dispositivo
+        const urlOriginal = URL.createObjectURL(file);
+        const linkSalvar = document.createElement('a');
+        linkSalvar.href = urlOriginal;
+        linkSalvar.download = `ocorrencia_${Date.now()}.jpg`;
+        linkSalvar.click();
+        // revoga após breve delay para garantir que o download iniciou
+        setTimeout(() => URL.revokeObjectURL(urlOriginal), 2000);
+
+        // Comprime para envio
         const img = new Image();
-        const url = URL.createObjectURL(file);
+        const urlComp = URL.createObjectURL(file);
         img.onload = () => {
-            URL.revokeObjectURL(url);
+            URL.revokeObjectURL(urlComp);
             const MAX = 1000;
             let w = img.width, h = img.height;
             if (w > MAX || h > MAX) {
@@ -44,7 +55,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
             setFotoBase64(canvas.toDataURL('image/jpeg', 0.7));
         };
-        img.src = url;
+        img.src = urlComp;
     };
 
     const salvarOcorrencia = async () => {
@@ -197,7 +208,6 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                     ref={fileInputRef}
                                     style={{ display: 'none' }}
                                     accept="image/*"
-                                    capture="environment"
                                     onChange={handleImageUpload}
                                 />
                                 {fotoBase64 ? (
