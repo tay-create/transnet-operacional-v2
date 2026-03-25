@@ -219,7 +219,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
         clearTimeout(timerRef.current);
         const rect = ref.current?.getBoundingClientRect();
         if (rect) {
-            setPos({ top: rect.bottom + 8, left: rect.left });
+            setPos({ top: rect.top - 8, left: rect.left });
         }
         setShow(true);
     }
@@ -277,6 +277,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                             position: 'fixed',
                             top: pos.top,
                             left: pos.left,
+                            transform: 'translateY(-100%)',
                             zIndex: 99999,
                             background: '#0f172a',
                             border: `1px solid ${grupo.corBorder}`,
