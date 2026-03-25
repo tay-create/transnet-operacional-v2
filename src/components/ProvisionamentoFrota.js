@@ -100,6 +100,8 @@ export default function ProvisionamentoFrota({ socket, user }) {
     const [modalVeiculo, setModalVeiculo] = useState(null); // null | 'novo' | objeto veículo
     const [formVeiculo, setFormVeiculo] = useState(FORM_VAZIO);
     const [salvandoModal, setSalvandoModal] = useState(false);
+    const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
+    const [buscaMotorista, setBuscaMotorista] = useState('');
 
     // Cache de destinos locais (sem esperar servidor)
     const destinoCache = useRef({});
@@ -206,14 +208,21 @@ export default function ProvisionamentoFrota({ socket, user }) {
         } catch (e) { console.error('Erro ao excluir:', e); }
     }
 
+    function abrirModal(dados, veiculo) {
+        setFormVeiculo(dados);
+        setBuscaMotorista(dados.motorista || '');
+        setModalVeiculo(veiculo);
+        api.get('/api/marcacoes/disponiveis')
+            .then(r => { if (r.data.success) setMotoristasDisponiveis(r.data.motoristas || []); })
+            .catch(() => {});
+    }
+
     function abrirModalNovo() {
-        setFormVeiculo(FORM_VAZIO);
-        setModalVeiculo('novo');
+        abrirModal(FORM_VAZIO, 'novo');
     }
 
     function abrirModalEditar(v) {
-        setFormVeiculo({ placa: v.placa || '', carreta: v.carreta || '', tipo_veiculo: v.tipo_veiculo || 'TRUCK', modelo: v.modelo || '', motorista: v.motorista || '', ordem: v.ordem || 0 });
-        setModalVeiculo(v);
+        abrirModal({ placa: v.placa || '', carreta: v.carreta || '', tipo_veiculo: v.tipo_veiculo || 'TRUCK', modelo: v.modelo || '', motorista: v.motorista || '', ordem: v.ordem || 0 }, v);
     }
 
     async function salvarModal() {
@@ -409,9 +418,52 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                     <input style={s.input} value={formVeiculo.modelo} onChange={e => setFormVeiculo(f => ({ ...f, modelo: e.target.value }))} placeholder="Ex: SCANIA R450" />
                                 </div>
                             </div>
-                            <div>
+                            <div style={{ position: 'relative' }}>
                                 <label style={s.label}>Motorista</label>
-                                <input style={s.input} value={formVeiculo.motorista} onChange={e => setFormVeiculo(f => ({ ...f, motorista: e.target.value.toUpperCase() }))} placeholder="Nome do motorista (opcional)" />
+                                <input
+                                    style={s.input}
+                                    value={buscaMotorista}
+                                    onChange={e => {
+                                        const v = e.target.value.toUpperCase();
+                                        setBuscaMotorista(v);
+                                        setFormVeiculo(f => ({ ...f, motorista: v }));
+                                    }}
+                                    onBlur={() => setTimeout(() => setBuscaMotorista(formVeiculo.motorista), 150)}
+                                    placeholder="Nome do motorista (opcional)"
+                                    autoComplete="off"
+                                />
+                                {buscaMotorista.length > 0 && motoristasDisponiveis.filter(m =>
+                                    m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
+                                    (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                ).length > 0 && (
+                                    <div style={{
+                                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+                                        background: '#0f172a', border: '1px solid rgba(125,211,252,0.3)',
+                                        borderRadius: '8px', maxHeight: '200px', overflowY: 'auto',
+                                        boxShadow: '0 8px 24px rgba(0,0,0,0.6)', marginTop: '4px',
+                                    }}>
+                                        {motoristasDisponiveis.filter(m =>
+                                            m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
+                                            (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                        ).map(m => (
+                                            <div
+                                                key={m.id}
+                                                onMouseDown={() => {
+                                                    setFormVeiculo(f => ({ ...f, motorista: m.nome_motorista }));
+                                                    setBuscaMotorista(m.nome_motorista);
+                                                }}
+                                                style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '12px', color: '#f1f5f9', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(125,211,252,0.12)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <strong style={{ textTransform: 'uppercase' }}>{m.nome_motorista}</strong>
+                                                {m.is_frota ? <span style={{ color: '#7dd3fc' }}> [FROTA]</span> : ''}
+                                                {m.placa1 ? <span style={{ color: '#94a3b8' }}> — {m.placa1}</span> : ''}
+                                                {m.disponibilidade ? <span style={{ color: '#64748b' }}> [{m.disponibilidade}]</span> : ''}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
