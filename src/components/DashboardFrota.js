@@ -39,12 +39,14 @@ function normalizarVeiculos(veiculos) {
         if (v.tipo_veiculo === 'CONJUNTO') {
             result.push({ ...v, _cardTipo: 'CONJUNTO', _placaExibicao: v.placa });
         } else if (v.tipo_veiculo === 'CARRETA') {
-            const placa = (v.placa || '').toUpperCase();
+            // CARRETA avulsa tem placa='-', a placa real está no campo carreta
+            const placaReal = (v.placa && v.placa !== '-') ? v.placa : (v.carreta || v.placa);
+            const placaChave = (placaReal || '').toUpperCase();
             result.push({
                 ...v,
                 _cardTipo: 'CARRETA',
-                _placaExibicao: v.placa,
-                _atrelada: carretasAtreladas.has(placa),
+                _placaExibicao: placaReal,
+                _atrelada: carretasAtreladas.has(placaChave),
             });
         } else {
             result.push({ ...v, _cardTipo: v.tipo_veiculo, _placaExibicao: v.placa });
