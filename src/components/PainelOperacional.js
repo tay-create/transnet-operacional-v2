@@ -357,7 +357,8 @@ export default function PainelOperacional({
 
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
-        const itemData = item.data_prevista || obterDataBrasilia();
+        const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+        const itemData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
         // Verificar se a operação do card envolve esta unidade
@@ -707,11 +708,14 @@ export default function PainelOperacional({
                                                     prox.setDate(prox.getDate() + 1);
                                                     if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1);
                                                     const proxStr = prox.toISOString().slice(0, 10);
+                                                    const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+                                                    const statusAtualItem = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
                                                     const eHoje = item.data_prevista === hoje;
+                                                    const podeAvancarDia = eHoje && !dataCarregadoUnidade && !['CARREGADO', 'LIBERADO P/ CT-e'].includes(statusAtualItem);
                                                     return (
                                                         <>
                                                             {/* Avançar para amanhã — conta como reprogramado */}
-                                                            {eHoje && (
+                                                            {podeAvancarDia && (
                                                                 <button
                                                                     onClick={() => setConfirmarReprogramar({ lista, setLista, realIndex, proxStr })}
                                                                     title={`Reprogramar para ${proxStr.split('-').reverse().slice(0,2).join('/')}`}

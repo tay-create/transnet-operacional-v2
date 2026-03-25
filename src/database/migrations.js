@@ -189,6 +189,9 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
             // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
             { tabela: 'veiculos', coluna: 'foi_reprogramado', tipo: 'INTEGER DEFAULT 0' },
+            // Âncoras de data por unidade — garante que card CARREGADO fique no dia certo mesmo após Finalizar
+            { tabela: 'veiculos', coluna: 'data_carregado_recife', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'data_carregado_moreno', tipo: 'TEXT' },
             // Provisionamento de Frota — motorista e destinos na programação semanal
             { tabela: 'prov_programacao', coluna: 'motorista', tipo: 'TEXT' },
             { tabela: 'prov_programacao', coluna: 'destinos_json', tipo: 'TEXT' },

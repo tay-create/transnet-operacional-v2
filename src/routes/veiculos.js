@@ -484,6 +484,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     if (v.status_recife === 'EM CARREGAMENTO') setIfNull(ts, 'carregamento_recife_at', agora);
                     if (v.status_recife === 'CARREGADO') {
                         ts.carregado_recife_at = agora;
+                        v.data_carregado_recife = agora.substring(0, 10);
                     }
                     if (v.status_recife === 'LIBERADO P/ CT-e' && !ts.cte_recife_at) ts.cte_recife_at = agora;
                 }
@@ -495,6 +496,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     if (v.status_moreno === 'EM CARREGAMENTO') setIfNull(ts, 'carregamento_moreno_at', agora);
                     if (v.status_moreno === 'CARREGADO') {
                         ts.carregado_moreno_at = agora;
+                        v.data_carregado_moreno = agora.substring(0, 10);
                     }
                     if (v.status_moreno === 'LIBERADO P/ CT-e' && !ts.cte_moreno_at) ts.cte_moreno_at = agora;
                 }
@@ -567,6 +569,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
             data_liberacao=?, timestamps_status=?,
             cte_antecipado_recife=?, cte_antecipado_moreno=?,
+            data_carregado_recife=?, data_carregado_moreno=?,
             dados_json=?, data_inicio_patio=?
             WHERE id = ?`;
 
@@ -600,6 +603,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify(v.timestamps_status || {}),
                 v.cte_antecipado_recife || null,
                 v.cte_antecipado_moreno || null,
+                v.data_carregado_recife ?? veiculoAntigo?.data_carregado_recife ?? null,
+                v.data_carregado_moreno ?? veiculoAntigo?.data_carregado_moreno ?? null,
                 JSON.stringify((() => {
                     const merged = {
                         ...(() => { try { return JSON.parse(veiculoAntigo?.dados_json || '{}'); } catch { return {}; } })(),
@@ -1055,6 +1060,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const amanhaStr = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, '0')}-${String(prox.getDate()).padStart(2, '0')}`;
 
             const campoStatus = unidade === 'Recife' ? 'status_recife' : 'status_moreno';
+            const campoCarregado = unidade === 'Recife' ? 'data_carregado_recife' : 'data_carregado_moreno';
             const statusParaAvancar = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
 
             // Se não confirmou mistos, verificar conflitos antes de avançar
@@ -1093,6 +1099,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 SET data_prevista = ?, foi_reprogramado = 1
                 WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
                   AND data_prevista = ?
+                  AND ${campoCarregado} IS NULL
             `;
             const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, hojeStr]);
 
