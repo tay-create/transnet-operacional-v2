@@ -573,7 +573,7 @@ function VistaSemanal({ socket }) {
 
     const semanaAtual = inicioSemana === obterSegundaFeira(hoje);
 
-    const totaisPorDia = dadosSemana?.totalizadores || {};
+    const totaisPorDia = dadosSemana?.totais || dadosSemana?.totalizadores || {};
 
     const linhas = [
         { key: 'disponiveis',  label: 'Disponível',       cor: '#4ade80' },
