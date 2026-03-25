@@ -1009,7 +1009,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // ── POST Pausar Veículo ───────────────────────────
     router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
-            const { motivo, unidade } = req.body;
+            const { motivo, unidade, fonte } = req.body;
+            // fonte: 'operacao' (pausa em lote pelo header) | 'conferente' (pausa individual)
+            const fonteNorm = fonte === 'conferente' ? 'conferente' : 'operacao';
             const veiculo_id = req.params.id;
 
             const veiculo = await dbGet('SELECT pausas_status FROM veiculos WHERE id = ?', [veiculo_id]);
@@ -1017,15 +1019,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const pausas = JSON.parse(veiculo.pausas_status || '[]');
 
-            // Verificar se já existe pausa ativa para esta unidade
-            const pausaAtiva = pausas.find(p => p.unidade === unidade && p.fim === null);
+            // Verificar se já existe pausa ativa para esta unidade + fonte
+            const pausaAtiva = pausas.find(p => p.unidade === unidade && p.fonte === fonteNorm && p.fim === null);
             if (pausaAtiva) return res.status(400).json({ success: false, message: 'Já existe uma pausa ativa.' });
 
-            pausas.push({ inicio: new Date().toISOString(), fim: null, motivo: motivo || '', unidade });
+            pausas.push({ inicio: new Date().toISOString(), fim: null, motivo: motivo || '', unidade, fonte: fonteNorm });
             await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
 
             io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculo_id) });
-            console.log(`⏸ [Pausa] Veículo #${veiculo_id} pausado por ${req.user?.nome || 'desconhecido'} | Motivo: "${motivo}"`);
+            console.log(`⏸ [Pausa] Veículo #${veiculo_id} pausado por ${req.user?.nome || 'desconhecido'} | Fonte: ${fonteNorm} | Motivo: "${motivo}"`);
             await registrarLog('PAUSA_INICIADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, motivo);
 
             res.json({ success: true });
@@ -1038,7 +1040,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // ── POST Retomar Veículo ──────────────────────────
     router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
-            const { unidade } = req.body;
+            const { unidade, fonte } = req.body;
+            // fonte: 'operacao' | 'conferente' — retoma somente pausas da própria fonte
+            const fonteNorm = fonte === 'conferente' ? 'conferente' : 'operacao';
             const veiculo_id = req.params.id;
 
             const veiculo = await dbGet('SELECT pausas_status FROM veiculos WHERE id = ?', [veiculo_id]);
@@ -1046,14 +1050,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const pausas = JSON.parse(veiculo.pausas_status || '[]');
 
-            const idx = pausas.findIndex(p => p.unidade === unidade && p.fim === null);
+            // Retoma somente a pausa da mesma unidade + fonte
+            const idx = pausas.findIndex(p => p.unidade === unidade && p.fonte === fonteNorm && p.fim === null);
             if (idx === -1) return res.status(400).json({ success: false, message: 'Nenhuma pausa ativa.' });
 
             pausas[idx].fim = new Date().toISOString();
             await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), veiculo_id]);
 
             io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculo_id) });
-            console.log(`▶ [Retomada] Veículo #${veiculo_id} retomado por ${req.user?.nome || 'desconhecido'}`);
+            console.log(`▶ [Retomada] Veículo #${veiculo_id} retomado por ${req.user?.nome || 'desconhecido'} | Fonte: ${fonteNorm}`);
             await registrarLog('PAUSA_FINALIZADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, null);
 
             res.json({ success: true });

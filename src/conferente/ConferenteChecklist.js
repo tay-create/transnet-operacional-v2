@@ -113,7 +113,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const ts = v.timestamps_status || {};
     const unidade = (v.unidade || 'Recife').toLowerCase() === 'moreno' ? 'moreno' : 'recife';
     const pausas = JSON.parse(v.pausas_status || '[]');
-    const temPausaAtiva = pausas.some(p => p.unidade === unidade && p.fim === null);
+    // Conferente só enxerga pausas com fonte='conferente' (isolado do botão em lote do header)
+    const temPausaAtiva = pausas.some(p => p.unidade === unidade && p.fonte === 'conferente' && p.fim === null);
     const timerAtKey = v.status === 'EM SEPARAÇÃO' ? `separacao_${unidade}_at`
         : v.status === 'LIBERADO P/ DOCA' ? `lib_doca_${unidade}_at`
             : v.status === 'EM CARREGAMENTO' ? `carregamento_${unidade}_at`
@@ -537,9 +538,9 @@ function ModalPausaCard({ veiculo, unidade, temPausaAtiva, onClose, onSucesso })
         setErro('');
         try {
             if (temPausaAtiva) {
-                await api.post(`/api/veiculos/${veiculo.id}/retomar`, { unidade });
+                await api.post(`/api/veiculos/${veiculo.id}/retomar`, { unidade, fonte: 'conferente' });
             } else {
-                await api.post(`/api/veiculos/${veiculo.id}/pausar`, { motivo, unidade });
+                await api.post(`/api/veiculos/${veiculo.id}/pausar`, { motivo, unidade, fonte: 'conferente' });
             }
             onSucesso();
         } catch (e) {

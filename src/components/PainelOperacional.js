@@ -514,9 +514,10 @@ export default function PainelOperacional({
                                         return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
                                     });
                                     const unidadeLower = origem.toLowerCase();
+                                    // Botão do header só reage a pausas com fonte='operacao'
                                     const algumPausado = veiculosAtivos.some(v => {
                                         const pausas = JSON.parse(v.pausas_status || '[]');
-                                        return pausas.some(p => p.unidade === unidadeLower && p.fim === null);
+                                        return pausas.some(p => p.unidade === unidadeLower && p.fonte === 'operacao' && p.fim === null);
                                     });
                                     if (veiculosAtivos.length === 0) return null;
                                     return (
@@ -1690,9 +1691,10 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
         const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
         return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
     });
+    // Header só enxerga pausas com fonte='operacao' (ignora pausas individuais do conferente)
     const algumPausado = veiculosAtivos.some(v => {
         const pausas = JSON.parse(v.pausas_status || '[]');
-        return pausas.some(p => p.unidade === unidade && p.fim === null);
+        return pausas.some(p => p.unidade === unidade && p.fonte === 'operacao' && p.fim === null);
     });
 
     const handleConfirmar = async () => {
@@ -1701,15 +1703,15 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
         setErro('');
         try {
             const endpoint = algumPausado ? 'retomar' : 'pausar';
-            const body = algumPausado ? { unidade } : { motivo, unidade };
+            const body = algumPausado ? { unidade, fonte: 'operacao' } : { motivo, unidade, fonte: 'operacao' };
             const veiculosAlvo = algumPausado
                 ? veiculosAtivos.filter(v => {
                     const pausas = JSON.parse(v.pausas_status || '[]');
-                    return pausas.some(p => p.unidade === unidade && p.fim === null);
+                    return pausas.some(p => p.unidade === unidade && p.fonte === 'operacao' && p.fim === null);
                 })
                 : veiculosAtivos.filter(v => {
                     const pausas = JSON.parse(v.pausas_status || '[]');
-                    return !pausas.some(p => p.unidade === unidade && p.fim === null);
+                    return !pausas.some(p => p.unidade === unidade && p.fonte === 'operacao' && p.fim === null);
                 });
 
             await Promise.all(veiculosAlvo.map(v =>
@@ -1734,8 +1736,8 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
                 </div>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '14px' }}>
                     {algumPausado
-                        ? `Irá retomar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return p.some(x => x.unidade === unidade && x.fim === null); }).length} veículo(s) pausado(s).`
-                        : `Irá pausar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return !p.some(x => x.unidade === unidade && x.fim === null); }).length} veículo(s) ativo(s).`
+                        ? `Irá retomar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return p.some(x => x.unidade === unidade && x.fonte === 'operacao' && x.fim === null); }).length} veículo(s) pausado(s).`
+                        : `Irá pausar ${veiculosAtivos.filter(v => { const p = JSON.parse(v.pausas_status || '[]'); return !p.some(x => x.unidade === unidade && x.fonte === 'operacao' && x.fim === null); }).length} veículo(s) ativo(s).`
                     }
                 </div>
                 {!algumPausado && (
