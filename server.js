@@ -525,7 +525,7 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
                    origem_cidade_uf, destino_desejado, disponibilidade, data_marcacao, data_contratacao,
                    viagens_realizadas, status_operacional, is_frota,
                    chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad,
-                   situacao_cad, num_liberacao_cad, data_liberacao_cad,
+                   situacao_cad, num_liberacao_cad, data_liberacao_cad, seguradora_cad,
                    estados_destino, destino_uf_cad
             FROM marcacoes_placas
             WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL' OR is_frota = 1)
@@ -2466,21 +2466,25 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
         // Calcular totalizadores por dia
         const totais = {};
         for (const dia of dias) {
-            let disponiveis = 0, manutencao = 0, em_viagem = 0, trucks = 0, carretas = 0, tres_quartos = 0;
+            let disponiveis = 0, manutencao = 0, em_viagem = 0, carregando = 0, outros = 0, trucks = 0, carretas = 0, tres_quartos = 0;
             for (const v of veiculos) {
                 const st = (programacao[v.id]?.[dia]?.status) || 'DISPONIVEL';
                 if (st === 'DISPONIVEL') {
                     disponiveis++;
                     if (v.tipo_veiculo === 'TRUCK') trucks++;
-                    else if (v.tipo_veiculo === 'CARRETA') carretas++;
+                    else if (v.tipo_veiculo?.toUpperCase().includes('CARRETA') || v.tipo_veiculo === 'CONJUNTO') carretas++;
                     else if (v.tipo_veiculo === '3/4') tres_quartos++;
                 } else if (st === 'MANUTENCAO') {
                     manutencao++;
-                } else if (['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO'].includes(st)) {
+                } else if (['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'].includes(st)) {
                     em_viagem++;
+                } else if (st === 'CARREGANDO') {
+                    carregando++;
+                } else {
+                    outros++;
                 }
             }
-            totais[dia] = { disponiveis, manutencao, em_viagem, trucks, carretas, tres_quartos };
+            totais[dia] = { disponiveis, manutencao, em_viagem, carregando, outros, trucks, carretas, tres_quartos, total: veiculos.length };
         }
 
         res.json({ success: true, veiculos, dias, programacao, totais });

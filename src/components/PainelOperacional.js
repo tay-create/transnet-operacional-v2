@@ -275,6 +275,18 @@ export default function PainelOperacional({
         itemAtual.destinoMotorista = m.destino_desejado || '';
         if (origemFrota) itemAtual.origem_frota = origemFrota;
         if (destinoFrota) itemAtual.destino_frota = destinoFrota;
+
+        // Motorista FROTA: herdar dados de Ger. de Risco do cadastro
+        if (m.is_frota) {
+            if (m.num_liberacao_cad) itemAtual.numero_liberacao = m.num_liberacao_cad;
+            if (m.data_liberacao_cad) itemAtual.data_liberacao = m.data_liberacao_cad;
+            if (m.seguradora_cad) itemAtual.gerenciadora_risco = m.seguradora_cad;
+            if (m.situacao_cad) itemAtual.situacao_cadastro = m.situacao_cad;
+            if (m.chk_cnh_cad !== undefined) itemAtual.chk_cnh = m.chk_cnh_cad ? 1 : 0;
+            if (m.chk_antt_cad !== undefined) itemAtual.chk_antt = m.chk_antt_cad ? 1 : 0;
+            if (m.chk_tacografo_cad !== undefined) itemAtual.chk_tacografo = m.chk_tacografo_cad ? 1 : 0;
+            if (m.chk_crlv_cad !== undefined) itemAtual.chk_crlv = m.chk_crlv_cad ? 1 : 0;
+        }
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
 
