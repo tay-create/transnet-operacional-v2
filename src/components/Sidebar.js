@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-    Truck, Users, LogOut, BarChart3, Shield, Bell,
+    Truck, Users, LogOut, BarChart3, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid
 } from 'lucide-react';
@@ -121,13 +121,6 @@ export default function Sidebar({
 
                             aberto={aberto}
                             onClick={() => { openModal('admin'); carregarSolicitacoes(); carregarUsuarios(); }}
-                        />
-                        <MenuItem
-                            icon={<Shield size={20} />}
-                            label="Configurar Cargos"
-
-                            aberto={aberto}
-                            onClick={() => { openModal('permissao'); }}
                         />
                     </>
                 )}
