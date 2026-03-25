@@ -95,16 +95,8 @@ const STATUS_GRUPOS = [
 // Status que o dashboard mostra como "outros" (não mapeados acima)
 const STATUS_OUTROS_MATCH = s => !STATUS_GRUPOS.some(g => g.match(s));
 
-// Grupos especiais para o card CARRETA (substitui Disponível por Atrelada/Livre)
+// Grupos especiais para o card CARRETA (só Livre + Manutenção — Atrelada não exibida)
 const STATUS_GRUPOS_CARRETA = [
-    {
-        key: 'ATRELADA',
-        label: 'Atrelada',
-        cor: '#fb923c',
-        corBg: 'rgba(251,146,60,0.15)',
-        corBorder: 'rgba(251,146,60,0.3)',
-        match: (s, v) => v._atrelada === true,
-    },
     {
         key: 'LIVRE',
         label: 'Livre',
@@ -386,9 +378,28 @@ function IconeTipo({ tipo, size = 36 }) {
 
 function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
     const { cor, rgb } = COR_TIPO[tipo] || { cor: '#94a3b8', rgb: '100,116,139' };
-    const total = veiculosTipo.length;
+    // CARRETA: total = só veículos Livre (não atrelados)
+    const total = tipo === 'CARRETA'
+        ? veiculosTipo.filter(v => v._atrelada === false).length
+        : veiculosTipo.length;
 
-    // Card CARRETA usa grupos especiais (Atrelada/Livre/Manutenção)
+    // Hover no total do card (mostra lista de veículos)
+    const [showTotalTooltip, setShowTotalTooltip] = useState(false);
+    const [totalTooltipPos, setTotalTooltipPos] = useState({ top: 0, left: 0 });
+    const totalRef = useRef(null);
+    const totalTimerRef = useRef(null);
+
+    function handleTotalEnter() {
+        clearTimeout(totalTimerRef.current);
+        const rect = totalRef.current?.getBoundingClientRect();
+        if (rect) setTotalTooltipPos({ top: rect.top - 8, left: rect.right + 8 });
+        setShowTotalTooltip(true);
+    }
+    function handleTotalLeave() {
+        totalTimerRef.current = setTimeout(() => setShowTotalTooltip(false), 120);
+    }
+
+    // Card CARRETA usa grupos especiais (Livre/Manutenção)
     const grupos = tipo === 'CARRETA' ? STATUS_GRUPOS_CARRETA : STATUS_GRUPOS;
 
     const dadosGrafico = grupos.map(g => ({
@@ -444,15 +455,73 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                         </div>
                     </div>
                 </div>
-                <div style={{
-                    background: `rgba(${rgb},0.12)`,
-                    border: `1px solid ${cor}40`,
-                    borderRadius: '12px',
-                    padding: '6px 14px',
-                    textAlign: 'center',
-                }}>
+                <div
+                    ref={totalRef}
+                    onMouseEnter={handleTotalEnter}
+                    onMouseLeave={handleTotalLeave}
+                    style={{
+                        background: `rgba(${rgb},0.12)`,
+                        border: `1px solid ${cor}40`,
+                        borderRadius: '12px',
+                        padding: '6px 14px',
+                        textAlign: 'center',
+                        cursor: veiculosTipo.length > 0 ? 'default' : 'default',
+                        position: 'relative',
+                    }}
+                >
                     <div style={{ color: cor, fontSize: '26px', fontWeight: '800', lineHeight: 1 }}>{total}</div>
                     <div style={{ color: '#64748b', fontSize: '10px', marginTop: '2px' }}>veículos</div>
+
+                    {showTotalTooltip && veiculosTipo.length > 0 && typeof document !== 'undefined' && (() => {
+                        const lista = tipo === 'CARRETA'
+                            ? veiculosTipo.filter(v => v._atrelada === false)
+                            : veiculosTipo;
+                        if (lista.length === 0) return null;
+                        return createPortal(
+                            <div
+                                onMouseEnter={() => clearTimeout(totalTimerRef.current)}
+                                onMouseLeave={handleTotalLeave}
+                                style={{
+                                    position: 'fixed',
+                                    top: totalTooltipPos.top,
+                                    left: totalTooltipPos.left,
+                                    transform: 'translateY(-50%)',
+                                    zIndex: 99999,
+                                    background: '#0f172a',
+                                    border: `1px solid rgba(${rgb},0.3)`,
+                                    borderRadius: '10px',
+                                    padding: '10px 14px',
+                                    minWidth: '200px',
+                                    maxWidth: '300px',
+                                    boxShadow: `0 8px 32px rgba(0,0,0,0.6)`,
+                                }}
+                            >
+                                <div style={{ color: cor, fontSize: '11px', fontWeight: '700', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    {TIPO_LABEL[tipo]} — {lista.length} veículo{lista.length !== 1 ? 's' : ''}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                    {lista.map((v, vi) => (
+                                        <div key={`${v.id}_${vi}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '4px', letterSpacing: '0.5px', flexShrink: 0 }}>
+                                                {v._placaExibicao || v.placa}
+                                            </span>
+                                            {tipo === 'CONJUNTO' && v.carreta && (
+                                                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px', flexShrink: 0 }}>
+                                                    + {v.carreta}
+                                                </span>
+                                            )}
+                                            {v.motorista && (
+                                                <span style={{ color: '#64748b', fontSize: '11px' }}>
+                                                    {v.motorista.split(' ')[0]}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>,
+                            document.body
+                        );
+                    })()}
                 </div>
             </div>
 
@@ -544,16 +613,6 @@ function CardGeral({ veiculos, contsPorTipo }) {
 
                 {/* Lado direito: legendas + badges */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '10px', minWidth: 220 }}>
-                    {/* Legenda do gráfico */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-                        {dadosGrafico.map(d => (
-                            <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                <span style={{ width: 10, height: 10, borderRadius: '3px', background: d.cor, display: 'inline-block' }} />
-                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>{d.label}</span>
-                            </div>
-                        ))}
-                    </div>
-
                     {/* Status badges */}
                     {STATUS_GRUPOS.map(g => (
                         <StatusBadge key={g.key} grupo={g} veiculosFiltrados={veiculos} />
@@ -602,6 +661,8 @@ function VistaSemanal({ socket }) {
     const [inicioSemana, setInicioSemana] = useState(() => obterSegundaFeira(hoje));
     const [dadosSemana, setDadosSemana] = useState(null);
     const [carregandoSemana, setCarregandoSemana] = useState(false);
+    const [hoveredCell, setHoveredCell] = useState(null); // { linhaKey, diaIdx, top, left }
+    const hoverTimerRef = useRef(null);
 
     const carregarSemana = useCallback(async (inicio) => {
         setCarregandoSemana(true);
@@ -772,19 +833,70 @@ function VistaSemanal({ socket }) {
                                     </td>
                                     {valoresDia.map((v, vi) => {
                                         const isHoje = dias[vi] === hoje;
+                                        const bkd = totaisPorDia[dias[vi]]?.breakdown?.[linha.key];
                                         return (
-                                            <td key={vi} style={{
-                                                textAlign: 'center', padding: '6px 4px',
-                                                borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                                                background: isHoje ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                            }}>
+                                            <td
+                                                key={vi}
+                                                style={{
+                                                    textAlign: 'center', padding: '6px 4px',
+                                                    borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                                    background: isHoje ? 'rgba(99,102,241,0.05)' : 'transparent',
+                                                    position: 'relative',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (v <= 0 || !bkd) return;
+                                                    clearTimeout(hoverTimerRef.current);
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setHoveredCell({ linhaKey: linha.key, diaIdx: vi, top: rect.bottom + 6, left: rect.left + rect.width / 2 });
+                                                }}
+                                                onMouseLeave={() => {
+                                                    hoverTimerRef.current = setTimeout(() => setHoveredCell(null), 150);
+                                                }}
+                                            >
                                                 <span style={{
                                                     color: v > 0 ? linha.cor : '#1e293b',
                                                     fontWeight: v > 0 ? '700' : '400',
                                                     fontSize: '13px',
+                                                    cursor: v > 0 && bkd ? 'default' : 'default',
                                                 }}>
                                                     {v > 0 ? v : '–'}
                                                 </span>
+
+                                                {hoveredCell?.linhaKey === linha.key && hoveredCell?.diaIdx === vi && bkd && typeof document !== 'undefined' && createPortal(
+                                                    <div
+                                                        onMouseEnter={() => clearTimeout(hoverTimerRef.current)}
+                                                        onMouseLeave={() => { hoverTimerRef.current = setTimeout(() => setHoveredCell(null), 150); }}
+                                                        style={{
+                                                            position: 'fixed',
+                                                            top: hoveredCell.top,
+                                                            left: hoveredCell.left,
+                                                            transform: 'translateX(-50%)',
+                                                            zIndex: 99999,
+                                                            background: '#0f172a',
+                                                            border: `1px solid ${linha.cor}40`,
+                                                            borderRadius: '10px',
+                                                            padding: '10px 14px',
+                                                            minWidth: '150px',
+                                                            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                                            pointerEvents: 'auto',
+                                                        }}
+                                                    >
+                                                        <div style={{ color: linha.cor, fontSize: '10px', fontWeight: '700', marginBottom: '7px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                            {linha.label} — {v}
+                                                        </div>
+                                                        {[['TRUCK', '#60a5fa'], ['3/4', '#a78bfa'], ['CONJUNTO', '#fb923c'], ['CARRETA', '#34d399']].map(([t, c]) => {
+                                                            const n = bkd[t] || 0;
+                                                            if (n === 0) return null;
+                                                            return (
+                                                                <div key={t} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '3px' }}>
+                                                                    <span style={{ color: c, fontSize: '11px', fontWeight: '600' }}>{t}</span>
+                                                                    <span style={{ color: '#f1f5f9', fontSize: '12px', fontWeight: '700' }}>{n}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>,
+                                                    document.body
+                                                )}
                                             </td>
                                         );
                                     })}

@@ -396,6 +396,32 @@ module.exports = function createChecklistsRouter(io) {
             await dbRun(`UPDATE veiculos SET ${sets.join(', ')} WHERE id = ?`, vals);
             console.log(`✅ [Conferente/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || 'S/motorista'}) atualizado para "${novoStatus}" por ${req.user?.nome || 'conferente'}`);
 
+            // ── Sync Provisionamento: EM CARREGAMENTO → CARREGANDO ──
+            if (novoStatus === 'EM CARREGAMENTO') {
+                try {
+                    const dataCarregamento = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                    const placas = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
+                    if (placas.length > 0) {
+                        const provV = await dbGet(
+                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
+                            [placas]
+                        );
+                        if (provV) {
+                            await dbRun(
+                                `INSERT INTO prov_programacao (veiculo_id, data, status)
+                                 VALUES ($1, $2, 'CARREGANDO')
+                                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'CARREGANDO'`,
+                                [provV.id, dataCarregamento]
+                            );
+                            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataCarregamento, status: 'CARREGANDO' });
+                        }
+                    }
+                } catch (syncErr) {
+                    console.error('⚠️ [Sync Prov] Erro ao atualizar provisionamento para CARREGANDO:', syncErr);
+                }
+            }
+            // ──────────────────────────────────────────────────────────
+
             // Buscar o veículo atualizado do banco para emitir dados completos
             const veiculoAtualizado = await dbGet('SELECT * FROM veiculos WHERE id = ?', [veiculoId]);
             let dadosJson = {};

@@ -6,6 +6,7 @@ const TIPOS_VEICULO = ['TRUCK', 'CARRETA', 'CONJUNTO', '3/4'];
 
 const STATUS_LIST = [
     'DISPONIVEL',
+    'EM_OPERACAO',
     'EM_VIAGEM',
     'EM_VIAGEM_FRETE_RETORNO',
     'AGUARDANDO_FRETE_RETORNO',
@@ -23,6 +24,7 @@ const STATUS_LIST = [
 
 const STATUS_LABEL = {
     DISPONIVEL: 'DISPONÍVEL',
+    EM_OPERACAO: 'EM OPERAÇÃO',
     EM_VIAGEM: 'EM VIAGEM',
     EM_VIAGEM_FRETE_RETORNO: 'VIAGEM C/ FRETE RET.',
     AGUARDANDO_FRETE_RETORNO: 'AGUARD. FRETE RET.',
@@ -40,6 +42,7 @@ const STATUS_LABEL = {
 
 const COR_STATUS = {
     DISPONIVEL:               { bg: 'rgba(34,197,94,0.18)',   text: '#4ade80',  border: 'rgba(34,197,94,0.35)' },
+    EM_OPERACAO:              { bg: 'rgba(167,139,250,0.18)', text: '#a78bfa',  border: 'rgba(167,139,250,0.35)' },
     EM_VIAGEM:                { bg: 'rgba(234,179,8,0.18)',   text: '#facc15',  border: 'rgba(234,179,8,0.35)' },
     EM_VIAGEM_FRETE_RETORNO:  { bg: 'rgba(234,179,8,0.18)',   text: '#facc15',  border: 'rgba(234,179,8,0.35)' },
     AGUARDANDO_FRETE_RETORNO: { bg: 'rgba(234,179,8,0.14)',   text: '#fbbf24',  border: 'rgba(234,179,8,0.3)' },

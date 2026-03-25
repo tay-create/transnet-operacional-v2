@@ -623,6 +623,32 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             await dbRun(query, values);
 
+            // ── Sync Provisionamento: placa no card → EM_OPERACAO ──
+            try {
+                const placasCard = [v.placa, v.carreta].filter(p => p && p.trim() && p !== '-');
+                if (placasCard.length > 0) {
+                    const provV = await dbGet(
+                        `SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
+                        [placasCard]
+                    );
+                    if (provV) {
+                        const dataCard = v.data_prevista || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                        await dbRun(
+                            `INSERT INTO prov_programacao (veiculo_id, data, status)
+                             VALUES ($1, $2, 'EM_OPERACAO')
+                             ON CONFLICT (veiculo_id, data) DO UPDATE
+                             SET status = 'EM_OPERACAO'
+                             WHERE prov_programacao.status NOT IN ('CARREGANDO', 'MANUTENCAO')`,
+                            [provV.id, dataCard]
+                        );
+                        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataCard, status: 'EM_OPERACAO' });
+                    }
+                }
+            } catch (syncErr) {
+                console.error('⚠️ [Sync Prov] Erro ao atualizar provisionamento para EM_OPERACAO:', syncErr);
+            }
+            // ───────────────────────────────────────────────────────
+
             // ── Transição Em Espera ↔ Na Operação no Ger. Risco ──
             if (veiculoAntigo && veiculoAntigo.motorista !== v.motorista) {
                 if (v.motorista && v.motorista.trim()) {
