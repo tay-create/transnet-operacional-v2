@@ -944,6 +944,50 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         }
     });
 
+    // ── DELETE Motorista do Card (mantém o card, libera motorista) ──
+    router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+        try {
+            const veiculo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
+            if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+
+            const motoristaAnterior = veiculo.motorista;
+
+            // Limpar motorista e campos derivados no card
+            let dados = {};
+            try { dados = JSON.parse(veiculo.dados_json || '{}'); } catch { }
+            dados.motorista = '';
+            dados.telefoneMotorista = '';
+            dados.placa1Motorista = '';
+            dados.placa2Motorista = '';
+            dados.isFrotaMotorista = false;
+            dados.disponibilidadeMotorista = '';
+            dados.origemMotorista = '';
+            dados.destinoMotorista = '';
+
+            await dbRun(
+                `UPDATE veiculos SET motorista = '', placa = '', dados_json = ? WHERE id = ?`,
+                [JSON.stringify(dados), req.params.id]
+            );
+
+            // Restaurar motorista na fila (status_operacional → DISPONIVEL)
+            if (motoristaAnterior && motoristaAnterior.trim()) {
+                await dbRun(
+                    `UPDATE marcacoes_placas SET status_operacional = 'DISPONIVEL'
+                     WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM($1))
+                       AND status_operacional = 'EM OPERACAO'`,
+                    [motoristaAnterior]
+                );
+            }
+
+            io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
+            io.emit('marcacao_atualizada');
+            res.json({ success: true });
+        } catch (e) {
+            console.error('Erro ao remover motorista do card:', e);
+            res.status(500).json({ success: false, message: 'Erro ao remover motorista.' });
+        }
+    });
+
     // ── GET Ocorrências da Operação ──────────────────
 
     // ── POST Pausar Veículo ───────────────────────────

@@ -3,7 +3,7 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck
+    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX
 } from 'lucide-react';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalConfirm from './ModalConfirm';
@@ -319,6 +319,27 @@ export default function PainelOperacional({
         }
         setEditandoMotorista(null);
         setBuscaMotoristaCard({ id: null, texto: '' });
+    }
+
+    function removerMotoristaDoCard(item, realIndex) {
+        if (!item.motorista || !item.motorista.trim()) return;
+        const novaLista = [...lista];
+        const itemAtual = {
+            ...novaLista[realIndex],
+            motorista: '', telefoneMotorista: '',
+            placa1Motorista: '', placa2Motorista: '',
+            isFrotaMotorista: false, disponibilidadeMotorista: '',
+            origemMotorista: '', destinoMotorista: ''
+        };
+        novaLista[realIndex] = itemAtual;
+        setLista(novaLista);
+        api.delete(`/veiculos/${item.id}/motorista`).then(() => {
+            mostrarNotificacao?.('Motorista removido — voltou para a fila.');
+        }).catch(() => {
+            // Reverter
+            setLista(prev => { const r = [...prev]; r[realIndex] = item; return r; });
+            mostrarNotificacao?.('⚠️ Erro ao remover motorista.');
+        });
     }
 
     // Atualiza o filtro de data automaticamente na virada da meia-noite (horário de Brasília)
@@ -1017,6 +1038,16 @@ export default function PainelOperacional({
                                                                 title="Trocar motorista"
                                                             >
                                                                 <Edit2 size={14} />
+                                                            </button>
+                                                        )}
+                                                        {/* Botao Remover Motorista */}
+                                                        {podeEditarNaUnidade('operacao') && item.motorista && item.motorista.trim() && (
+                                                            <button
+                                                                onClick={() => removerMotoristaDoCard(item, realIndex)}
+                                                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#f87171', padding: 0 }}
+                                                                title="Remover motorista (volta para a fila)"
+                                                            >
+                                                                <UserX size={14} />
                                                             </button>
                                                         )}
                                                     </div >
