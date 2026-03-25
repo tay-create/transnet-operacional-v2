@@ -623,7 +623,10 @@ app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Encarr
 // ── Frota Própria: atualizar liberação ──
 app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
-        const { num_liberacao_cad, data_liberacao_cad, seguradora_cad } = req.body;
+        const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;
+        // data pode vir como data_liberacao_cad ou data_liberacao_manual (compatibilidade com frontend)
+        const data_liberacao_cad = req.body.data_liberacao_cad || (data_liberacao_manual ? new Date(data_liberacao_manual).toISOString() : null) || null;
+
         // Calcular situacao_cad: LIBERADO se tem num_liberacao + seguradora e não expirou (1 ano)
         let situacao_cad = 'NÃO CONFERIDO';
         if (num_liberacao_cad && seguradora_cad) {
@@ -645,7 +648,7 @@ app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'En
             [num_liberacao_cad || '', data_liberacao_cad || null, seguradora_cad || '', situacao_cad, req.params.id]
         );
         await registrarLog('FROTA_LIBERACAO', req.user?.nome || '?', req.params.id, 'frota', null, situacao_cad, `Liberação: ${num_liberacao_cad || '-'}`);
-        res.json({ success: true, situacao: situacao_cad });
+        res.json({ success: true, situacao: situacao_cad, data_liberacao_cad: data_liberacao_cad || null });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
