@@ -278,6 +278,21 @@ export default function PainelOperacional({
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
 
+        // Se motorista é FROTA, sincronizar nome no prov_veiculos pelo match de placa
+        if (m.is_frota && veiculosProvisao.length > 0) {
+            const placaOp = (itemAtual.placa || '').replace(/[-\s]/g, '').toUpperCase();
+            const vProv = veiculosProvisao.find(vp =>
+                (vp.placa || '').replace(/[-\s]/g, '').toUpperCase() === placaOp ||
+                (vp.carreta || '').replace(/[-\s]/g, '').toUpperCase() === placaOp
+            );
+            if (vProv) {
+                api.put(`/api/provisionamento/veiculos/${vProv.id}`, {
+                    ...vProv,
+                    motorista: m.nome_motorista,
+                }).catch(() => {});
+            }
+        }
+
         if (itemAtual.id) {
             const payload = { ...itemAtual };
             delete payload.imagens;
