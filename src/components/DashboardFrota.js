@@ -847,8 +847,8 @@ export default function DashboardFrota({ socket }) {
         CARRETA:  veiculosNorm2.filter(v => v._cardTipo === 'CARRETA'),
     };
 
-    // Para CardGeral e VistaSemanal usamos os veículos originais (sem duplicar CONJUNTO)
-    const veiculosNorm = veiculos;
+    // CardGeral usa veiculosNorm2 (com _placaExibicao corrigido para CARRETA avulsa)
+    const veiculosNorm = veiculosNorm2;
 
     const formatarHora = (d) => {
         if (!d) return '';
