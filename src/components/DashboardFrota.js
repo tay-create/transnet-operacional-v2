@@ -679,15 +679,11 @@ function VistaSemanal({ socket }) {
                                     </th>
                                 );
                             })}
-                            <th style={{ textAlign: 'center', paddingBottom: '8px', paddingLeft: '6px', color: '#475569', fontSize: '10px', fontWeight: '600' }}>
-                                TOTAL
-                            </th>
                         </tr>
                     </thead>
                     <tbody>
                         {linhas.map((linha, li) => {
                             const valoresDia = dias.map(d => totaisPorDia[d]?.[linha.key] ?? 0);
-                            const totalLinha = valoresDia.reduce((a, b) => a + b, 0);
                             return (
                                 <tr key={linha.key}>
                                     <td style={{
@@ -722,22 +718,10 @@ function VistaSemanal({ socket }) {
                                             </td>
                                         );
                                     })}
-                                    <td style={{
-                                        textAlign: 'center', padding: '6px 4px 6px 10px',
-                                        borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                                        borderLeft: '1px solid rgba(255,255,255,0.04)',
-                                    }}>
-                                        <span style={{
-                                            color: totalLinha > 0 ? '#f1f5f9' : '#334155',
-                                            fontWeight: '600', fontSize: '12px',
-                                        }}>
-                                            {totalLinha || '–'}
-                                        </span>
-                                    </td>
                                 </tr>
                             );
                         })}
-                        {/* Linha de total geral */}
+                        {/* Linha de total por dia */}
                         <tr>
                             <td style={{ padding: '8px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                                 <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
@@ -759,15 +743,6 @@ function VistaSemanal({ socket }) {
                                     </td>
                                 );
                             })}
-                            <td style={{
-                                textAlign: 'center', padding: '8px 4px 0 10px',
-                                borderTop: '1px solid rgba(255,255,255,0.06)',
-                                borderLeft: '1px solid rgba(255,255,255,0.04)',
-                            }}>
-                                <span style={{ color: '#6366f1', fontWeight: '800', fontSize: '13px' }}>
-                                    {dias.reduce((acc, d) => acc + (totaisPorDia[d]?.total ?? 0), 0) || '–'}
-                                </span>
-                            </td>
                         </tr>
                     </tbody>
                 </table>
