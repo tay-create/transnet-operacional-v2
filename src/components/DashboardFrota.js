@@ -381,7 +381,7 @@ function IconeTipo({ tipo, size = 36 }) {
     );
 }
 
-function CardTipo({ tipo, veiculosTipo }) {
+function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
     const { cor, rgb } = COR_TIPO[tipo] || { cor: '#94a3b8', rgb: '100,116,139' };
     const total = veiculosTipo.length;
 
@@ -411,6 +411,7 @@ function CardTipo({ tipo, veiculosTipo }) {
             boxShadow: `0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)`,
             position: 'relative',
             overflow: 'hidden',
+            ...extraStyle,
         }}>
             {/* Glow de fundo */}
             <div style={{
@@ -944,11 +945,12 @@ export default function DashboardFrota({ socket }) {
 
             {/* Cards por tipo */}
             <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                {TIPOS.map(tipo => (
+                {TIPOS.map((tipo, idx) => (
                     <CardTipo
                         key={tipo}
                         tipo={tipo}
                         veiculosTipo={veiculosPorTipo[tipo] || []}
+                        style={tipo === 'CARRETA' ? { marginLeft: 'auto' } : {}}
                     />
                 ))}
             </div>
