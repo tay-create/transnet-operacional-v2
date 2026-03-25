@@ -4,33 +4,47 @@ import api from '../services/apiService';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
-// Cards na ordem de exibição: Cavalo e Carreta são distintos
-const TIPOS = ['TRUCK', '3/4', 'CAVALO', 'CARRETA'];
+// Cards na ordem de exibição
+const TIPOS = ['TRUCK', '3/4', 'CONJUNTO', 'CARRETA'];
 
-const TIPO_LABEL = { TRUCK: 'Truck', '3/4': '3/4', CAVALO: 'Cavalo', CARRETA: 'Carreta' };
+const TIPO_LABEL = { TRUCK: 'Truck', '3/4': '3/4', CONJUNTO: 'Conjunto', CARRETA: 'Carreta' };
 
 // Cor por tipo de card
 const COR_TIPO = {
-    TRUCK: { rgb: '59,130,246', cor: '#60a5fa' },
-    '3/4': { rgb: '167,139,250', cor: '#a78bfa' },
-    CAVALO: { rgb: '251,146,60', cor: '#fb923c' },    // laranja
-    CARRETA: { rgb: '52,211,153', cor: '#34d399' },
+    TRUCK:    { rgb: '59,130,246',  cor: '#60a5fa' },
+    '3/4':    { rgb: '167,139,250', cor: '#a78bfa' },
+    CONJUNTO: { rgb: '251,146,60',  cor: '#fb923c' },
+    CARRETA:  { rgb: '52,211,153',  cor: '#34d399' },
 };
 
 /**
- * Expande a lista de veículos para separar cavalo / carreta nos CONJUNTO.
- * Cada CONJUNTO gera 2 entradas virtuais: uma com _cardTipo='CAVALO' (usa placa)
- * e outra com _cardTipo='CARRETA' (usa campo carreta como placa de exibição).
- * CARRETA avulsa (placa='-') vai apenas para o card CARRETA.
+ * Normaliza a lista de veículos para o dashboard:
+ * - CONJUNTO → _cardTipo='CONJUNTO', _placaExibicao=placa
+ * - CARRETA avulsa → _cardTipo='CARRETA', _atrelada=false
+ * - demais → _cardTipo=tipo_veiculo
+ *
+ * Para o card CARRETA, também marca carretas dos CONJUNTOs como _atrelada=true.
  */
-function expandirVeiculos(veiculos) {
+function normalizarVeiculos(veiculos) {
+    // Conjunto de placas de carreta que estão atreladas a algum CONJUNTO
+    const carretasAtreladas = new Set(
+        veiculos
+            .filter(v => v.tipo_veiculo === 'CONJUNTO' && v.carreta)
+            .map(v => v.carreta.toUpperCase())
+    );
+
     const result = [];
     for (const v of veiculos) {
         if (v.tipo_veiculo === 'CONJUNTO') {
-            result.push({ ...v, _cardTipo: 'CAVALO',  _placaExibicao: v.placa });
-            result.push({ ...v, _cardTipo: 'CARRETA', _placaExibicao: v.carreta || v.placa });
+            result.push({ ...v, _cardTipo: 'CONJUNTO', _placaExibicao: v.placa });
         } else if (v.tipo_veiculo === 'CARRETA') {
-            result.push({ ...v, _cardTipo: 'CARRETA', _placaExibicao: v.carreta || v.placa });
+            const placa = (v.placa || '').toUpperCase();
+            result.push({
+                ...v,
+                _cardTipo: 'CARRETA',
+                _placaExibicao: v.placa,
+                _atrelada: carretasAtreladas.has(placa),
+            });
         } else {
             result.push({ ...v, _cardTipo: v.tipo_veiculo, _placaExibicao: v.placa });
         }
@@ -75,6 +89,34 @@ const STATUS_GRUPOS = [
 
 // Status que o dashboard mostra como "outros" (não mapeados acima)
 const STATUS_OUTROS_MATCH = s => !STATUS_GRUPOS.some(g => g.match(s));
+
+// Grupos especiais para o card CARRETA (substitui Disponível por Atrelada/Livre)
+const STATUS_GRUPOS_CARRETA = [
+    {
+        key: 'ATRELADA',
+        label: 'Atrelada',
+        cor: '#fb923c',
+        corBg: 'rgba(251,146,60,0.15)',
+        corBorder: 'rgba(251,146,60,0.3)',
+        match: (s, v) => v._atrelada === true,
+    },
+    {
+        key: 'LIVRE',
+        label: 'Livre',
+        cor: '#4ade80',
+        corBg: 'rgba(34,197,94,0.15)',
+        corBorder: 'rgba(34,197,94,0.3)',
+        match: (s, v) => v._atrelada === false,
+    },
+    {
+        key: 'MANUTENCAO',
+        label: 'Manutenção',
+        cor: '#f87171',
+        corBg: 'rgba(239,68,68,0.15)',
+        corBorder: 'rgba(239,68,68,0.3)',
+        match: s => s === 'MANUTENCAO',
+    },
+];
 
 const CORES_GRAFICO = STATUS_GRUPOS.map(g => g.cor);
 
@@ -165,7 +207,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
     const ref = useRef(null);
     const timerRef = useRef(null);
 
-    const lista = veiculosFiltrados.filter(v => grupo.match(v.status));
+    const lista = veiculosFiltrados.filter(v => grupo.match(v.status, v));
     const count = lista.length;
 
     function handleEnter(e) {
@@ -293,18 +335,23 @@ function IconeTipo({ tipo, size = 36 }) {
             </svg>
         );
     }
-    if (tipo === 'CAVALO') {
-        // Cavalo mecânico (cabine de truck sem baú)
+    if (tipo === 'CONJUNTO') {
+        // Cavalo + carreta acoplados
         return (
             <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-                <rect x="1" y="13" width="18" height="14" rx="2" fill={cor} fillOpacity="0.15" stroke={cor} strokeWidth="1.5"/>
-                <rect x="19" y="17" width="10" height="10" rx="1.5" fill={cor} fillOpacity="0.12" stroke={cor} strokeWidth="1.5"/>
-                <line x1="19" y1="17" x2="29" y2="17" stroke={cor} strokeWidth="1.5"/>
-                <circle cx="7" cy="28" r="3" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
-                <circle cx="22" cy="28" r="3" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
-                <rect x="3" y="15" width="9" height="6" rx="1" fill={cor} fillOpacity="0.25"/>
+                {/* Cabine */}
+                <rect x="1" y="14" width="13" height="12" rx="2" fill={cor} fillOpacity="0.15" stroke={cor} strokeWidth="1.5"/>
+                <rect x="14" y="17" width="7" height="9" rx="1" fill={cor} fillOpacity="0.12" stroke={cor} strokeWidth="1.5"/>
+                <rect x="3" y="16" width="7" height="5" rx="1" fill={cor} fillOpacity="0.25"/>
+                <circle cx="6" cy="27" r="2.5" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
+                <circle cx="16" cy="27" r="2.5" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
                 {/* Engate */}
-                <line x1="29" y1="23" x2="35" y2="23" stroke={cor} strokeWidth="1.5" strokeDasharray="2 2"/>
+                <line x1="21" y1="22" x2="23" y2="22" stroke={cor} strokeWidth="1.5"/>
+                {/* Carreta */}
+                <rect x="23" y="12" width="12" height="14" rx="1.5" fill={cor} fillOpacity="0.1" stroke={cor} strokeWidth="1.5"/>
+                <line x1="23" y1="18" x2="35" y2="18" stroke={cor} strokeWidth="1" strokeOpacity="0.4"/>
+                <circle cx="27" cy="27" r="2.5" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
+                <circle cx="33" cy="27" r="2.5" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
             </svg>
         );
     }
@@ -324,14 +371,19 @@ function CardTipo({ tipo, veiculosTipo }) {
     const { cor, rgb } = COR_TIPO[tipo] || { cor: '#94a3b8', rgb: '100,116,139' };
     const total = veiculosTipo.length;
 
-    const dadosGrafico = STATUS_GRUPOS.map(g => ({
+    // Card CARRETA usa grupos especiais (Atrelada/Livre/Manutenção)
+    const grupos = tipo === 'CARRETA' ? STATUS_GRUPOS_CARRETA : STATUS_GRUPOS;
+
+    const dadosGrafico = grupos.map(g => ({
         label: g.label,
         cor: g.cor,
-        valor: veiculosTipo.filter(v => g.match(v.status)).length,
+        valor: veiculosTipo.filter(v => g.match(v.status, v)).length,
     })).filter(d => d.valor > 0);
 
-    // Adicionar "outros" se houver
-    const outrosCount = veiculosTipo.filter(v => STATUS_OUTROS_MATCH(v.status)).length;
+    // "Outros" só para tipos não-CARRETA
+    const outrosCount = tipo !== 'CARRETA'
+        ? veiculosTipo.filter(v => STATUS_OUTROS_MATCH(v.status)).length
+        : 0;
     if (outrosCount > 0) dadosGrafico.push({ label: 'Outros', cor: '#475569', valor: outrosCount });
 
     return (
@@ -402,7 +454,7 @@ function CardTipo({ tipo, veiculosTipo }) {
                 )}
 
                 <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                    {STATUS_GRUPOS.map(g => (
+                    {grupos.map(g => (
                         <StatusBadge key={g.key} grupo={g} veiculosFiltrados={veiculosTipo} />
                     ))}
                     {outrosCount > 0 && (
@@ -498,8 +550,8 @@ function CardGeral({ veiculos }) {
                     {/* Mini breakdown por tipo */}
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         {TIPOS.map(t => {
-                            const exp = expandirVeiculos(veiculos);
-                            const n = exp.filter(v => v._cardTipo === t).length;
+                            const norm = normalizarVeiculos(veiculos);
+                            const n = norm.filter(v => v._cardTipo === t).length;
                             const cor = COR_TIPO[t]?.cor || '#94a3b8';
                             return (
                                 <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -771,14 +823,14 @@ export default function DashboardFrota({ socket }) {
         return () => socket.off('receber_atualizacao', handler);
     }, [socket, dataSelecionada, carregar]);
 
-    // Expande CONJUNTO em entradas separadas (CAVALO + CARRETA)
-    const veiculosExp = expandirVeiculos(veiculos);
+    // Normaliza veículos: CONJUNTO fica como CONJUNTO, CARRETA avulsa marca _atrelada
+    const veiculosNorm2 = normalizarVeiculos(veiculos);
 
     const veiculosPorTipo = {
-        TRUCK:   veiculosExp.filter(v => v._cardTipo === 'TRUCK'),
-        '3/4':   veiculosExp.filter(v => v._cardTipo === '3/4'),
-        CAVALO:  veiculosExp.filter(v => v._cardTipo === 'CAVALO'),
-        CARRETA: veiculosExp.filter(v => v._cardTipo === 'CARRETA'),
+        TRUCK:    veiculosNorm2.filter(v => v._cardTipo === 'TRUCK'),
+        '3/4':    veiculosNorm2.filter(v => v._cardTipo === '3/4'),
+        CONJUNTO: veiculosNorm2.filter(v => v._cardTipo === 'CONJUNTO'),
+        CARRETA:  veiculosNorm2.filter(v => v._cardTipo === 'CARRETA'),
     };
 
     // Para CardGeral e VistaSemanal usamos os veículos originais (sem duplicar CONJUNTO)
