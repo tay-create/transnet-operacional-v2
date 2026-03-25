@@ -433,8 +433,10 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                     autoComplete="off"
                                 />
                                 {buscaMotorista.length > 0 && motoristasDisponiveis.filter(m =>
-                                    m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
-                                    (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                    m.is_frota && (
+                                        m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
+                                        (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                    )
                                 ).length > 0 && (
                                     <div style={{
                                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
@@ -443,8 +445,10 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                         boxShadow: '0 8px 24px rgba(0,0,0,0.6)', marginTop: '4px',
                                     }}>
                                         {motoristasDisponiveis.filter(m =>
-                                            m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
-                                            (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                            m.is_frota && (
+                                                m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
+                                                (m.placa1 || '').toLowerCase().includes(buscaMotorista.toLowerCase())
+                                            )
                                         ).map(m => (
                                             <div
                                                 key={m.id}
@@ -457,7 +461,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                             >
                                                 <strong style={{ textTransform: 'uppercase' }}>{m.nome_motorista}</strong>
-                                                {m.is_frota ? <span style={{ color: '#7dd3fc' }}> [FROTA]</span> : ''}
                                                 {m.placa1 ? <span style={{ color: '#94a3b8' }}> — {m.placa1}</span> : ''}
                                                 {m.disponibilidade ? <span style={{ color: '#64748b' }}> [{m.disponibilidade}]</span> : ''}
                                             </div>
