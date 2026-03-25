@@ -2532,13 +2532,15 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         }
 
         for (const dia of dias) {
+            // Dia do carregamento = CARREGANDO; dias seguintes = EM_VIAGEM
+            const statusDia = dia === data_saida ? 'CARREGANDO' : 'EM_VIAGEM';
             await dbRun(
                 `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
-                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4, $5)
-                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destino = $4, destinos_json = $5`,
-                [veiculo_id, dia, motorista || null, destinoResumo, destinosJson]
+                 VALUES ($1, $2, $6, $3, $4, $5)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $6, motorista = $3, destino = $4, destinos_json = $5`,
+                [veiculo_id, dia, motorista || null, destinoResumo, destinosJson, statusDia]
             );
-            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null, destino: destinoResumo });
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoResumo });
         }
 
         res.json({ success: true, dias_afetados: dias.length });
