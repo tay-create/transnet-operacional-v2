@@ -317,6 +317,15 @@ module.exports = function createChecklistsRouter(io) {
                     if (checkFrota && checkFrota.is_frota === 1) isFrota = true;
                 }
 
+                // Placas cadastradas no Provisionamento também ignoram as travas (igual frota)
+                if (!isFrota) {
+                    const placasVeiculo = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
+                    if (placasVeiculo.length > 0) {
+                        const provV = await dbGet(`SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1) LIMIT 1`, [placasVeiculo]);
+                        if (provV) isFrota = true;
+                    }
+                }
+
                 if (!isFrota) {
                     // Verificar Ger. Risco
                     if (situacao !== 'LIBERADO') {
