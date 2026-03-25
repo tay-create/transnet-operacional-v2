@@ -49,7 +49,7 @@ const STATUS_GRUPOS = [
     },
     {
         key: 'MANUTENCAO',
-        label: 'Em Manutenção',
+        label: 'Manutenção',
         cor: '#f87171',
         corBg: 'rgba(239,68,68,0.15)',
         corBorder: 'rgba(239,68,68,0.3)',
@@ -65,7 +65,7 @@ const STATUS_GRUPOS = [
     },
     {
         key: 'CARREGANDO',
-        label: 'Em Carregamento',
+        label: 'Carregamento',
         cor: '#60a5fa',
         corBg: 'rgba(59,130,246,0.15)',
         corBorder: 'rgba(59,130,246,0.3)',
@@ -578,8 +578,8 @@ function VistaSemanal({ socket }) {
     const linhas = [
         { key: 'disponiveis',  label: 'Disponível',       cor: '#4ade80' },
         { key: 'em_viagem',    label: 'Em Viagem',         cor: '#facc15' },
-        { key: 'carregando',   label: 'Em Carregamento',   cor: '#60a5fa' },
-        { key: 'manutencao',   label: 'Em Manutenção',     cor: '#f87171' },
+        { key: 'carregando',   label: 'Carregamento',   cor: '#60a5fa' },
+        { key: 'manutencao',   label: 'Manutenção',     cor: '#f87171' },
         { key: 'outros',       label: 'Outros',            cor: '#94a3b8' },
     ];
 
