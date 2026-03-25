@@ -329,14 +329,18 @@ export default function PainelOperacional({
             motorista: '', telefoneMotorista: '',
             placa1Motorista: '', placa2Motorista: '',
             isFrotaMotorista: false, disponibilidadeMotorista: '',
-            origemMotorista: '', destinoMotorista: ''
+            origemMotorista: '', destinoMotorista: '',
+            chk_cnh: false, chk_antt: false, chk_tacografo: false, chk_crlv: false,
+            situacao_cadastro: 'NÃO CONFERIDO',
+            numero_liberacao: '', gerenciadora_risco: '',
+            data_liberacao: '', timestamps_status: {},
+            data_inicio_patio: null
         };
         novaLista[realIndex] = itemAtual;
         setLista(novaLista);
         api.delete(`/veiculos/${item.id}/motorista`).then(() => {
             mostrarNotificacao?.('Motorista removido — voltou para a fila.');
         }).catch(() => {
-            // Reverter
             setLista(prev => { const r = [...prev]; r[realIndex] = item; return r; });
             mostrarNotificacao?.('⚠️ Erro ao remover motorista.');
         });

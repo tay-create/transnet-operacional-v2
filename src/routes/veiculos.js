@@ -963,9 +963,25 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             dados.disponibilidadeMotorista = '';
             dados.origemMotorista = '';
             dados.destinoMotorista = '';
+            // Limpar checagem de documentos e liberação do antigo motorista
+            dados.chk_cnh = false;
+            dados.chk_antt = false;
+            dados.chk_tacografo = false;
+            dados.chk_crlv = false;
+            dados.situacao_cadastro = 'NÃO CONFERIDO';
+            dados.numero_liberacao = '';
+            dados.gerenciadora_risco = '';
+            dados.data_liberacao = '';
 
             await dbRun(
-                `UPDATE veiculos SET motorista = '', placa = '', dados_json = ? WHERE id = ?`,
+                `UPDATE veiculos
+                 SET motorista = '', placa = '', dados_json = $1,
+                     chk_cnh = 0, chk_antt = 0, chk_tacografo = 0, chk_crlv = 0,
+                     situacao_cadastro = 'NÃO CONFERIDO',
+                     numero_liberacao = NULL, gerenciadora_risco = NULL,
+                     data_liberacao = NULL, timestamps_status = '{}',
+                     data_inicio_patio = NULL
+                 WHERE id = $2`,
                 [JSON.stringify(dados), req.params.id]
             );
 
