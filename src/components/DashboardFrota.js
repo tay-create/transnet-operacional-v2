@@ -1,16 +1,41 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/apiService';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
-const TIPOS = ['TRUCK', '3/4', 'CARRETA'];
+// Cards na ordem de exibição: Cavalo e Carreta são distintos
+const TIPOS = ['TRUCK', '3/4', 'CAVALO', 'CARRETA'];
 
-const TIPO_LABEL = { TRUCK: 'Truck', '3/4': '3/4', CARRETA: 'Carreta', CONJUNTO: 'Conjunto' };
+const TIPO_LABEL = { TRUCK: 'Truck', '3/4': '3/4', CAVALO: 'Cavalo', CARRETA: 'Carreta' };
 
-// Agrupa "CONJUNTO" como CARRETA para o dashboard
-function normalizarTipo(t) {
-    if (t === 'CONJUNTO') return 'CARRETA';
-    return t;
+// Cor por tipo de card
+const COR_TIPO = {
+    TRUCK: { rgb: '59,130,246', cor: '#60a5fa' },
+    '3/4': { rgb: '167,139,250', cor: '#a78bfa' },
+    CAVALO: { rgb: '251,146,60', cor: '#fb923c' },    // laranja
+    CARRETA: { rgb: '52,211,153', cor: '#34d399' },
+};
+
+/**
+ * Expande a lista de veículos para separar cavalo / carreta nos CONJUNTO.
+ * Cada CONJUNTO gera 2 entradas virtuais: uma com _cardTipo='CAVALO' (usa placa)
+ * e outra com _cardTipo='CARRETA' (usa campo carreta como placa de exibição).
+ * CARRETA avulsa (placa='-') vai apenas para o card CARRETA.
+ */
+function expandirVeiculos(veiculos) {
+    const result = [];
+    for (const v of veiculos) {
+        if (v.tipo_veiculo === 'CONJUNTO') {
+            result.push({ ...v, _cardTipo: 'CAVALO',  _placaExibicao: v.placa });
+            result.push({ ...v, _cardTipo: 'CARRETA', _placaExibicao: v.carreta || v.placa });
+        } else if (v.tipo_veiculo === 'CARRETA') {
+            result.push({ ...v, _cardTipo: 'CARRETA', _placaExibicao: v.carreta || v.placa });
+        } else {
+            result.push({ ...v, _cardTipo: v.tipo_veiculo, _placaExibicao: v.placa });
+        }
+    }
+    return result;
 }
 
 const STATUS_GRUPOS = [
@@ -216,10 +241,10 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                         {grupo.label} — {count} veículo{count !== 1 ? 's' : ''}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {lista.map(v => (
-                            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {lista.map((v, vi) => (
+                            <div key={`${v.id}_${vi}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '4px', letterSpacing: '0.5px' }}>
-                                    {v.placa}{v.carreta ? ` / ${v.carreta}` : ''}
+                                    {v._placaExibicao || v.placa}
                                 </span>
                                 {v.motorista && (
                                     <span style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -242,7 +267,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
 
 // Ícone SVG de caminhão estilizado por tipo
 function IconeTipo({ tipo, size = 36 }) {
-    const cor = tipo === 'TRUCK' ? '#60a5fa' : tipo === '3/4' ? '#a78bfa' : '#34d399';
+    const cor = COR_TIPO[tipo]?.cor || '#94a3b8';
     if (tipo === 'TRUCK') {
         return (
             <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
@@ -267,7 +292,22 @@ function IconeTipo({ tipo, size = 36 }) {
             </svg>
         );
     }
-    // CARRETA/CONJUNTO
+    if (tipo === 'CAVALO') {
+        // Cavalo mecânico (cabine de truck sem baú)
+        return (
+            <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
+                <rect x="1" y="13" width="18" height="14" rx="2" fill={cor} fillOpacity="0.15" stroke={cor} strokeWidth="1.5"/>
+                <rect x="19" y="17" width="10" height="10" rx="1.5" fill={cor} fillOpacity="0.12" stroke={cor} strokeWidth="1.5"/>
+                <line x1="19" y1="17" x2="29" y2="17" stroke={cor} strokeWidth="1.5"/>
+                <circle cx="7" cy="28" r="3" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
+                <circle cx="22" cy="28" r="3" fill={cor} fillOpacity="0.2" stroke={cor} strokeWidth="1.5"/>
+                <rect x="3" y="15" width="9" height="6" rx="1" fill={cor} fillOpacity="0.25"/>
+                {/* Engate */}
+                <line x1="29" y1="23" x2="35" y2="23" stroke={cor} strokeWidth="1.5" strokeDasharray="2 2"/>
+            </svg>
+        );
+    }
+    // CARRETA
     return (
         <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
             <rect x="1" y="10" width="34" height="17" rx="2" fill={cor} fillOpacity="0.12" stroke={cor} strokeWidth="1.5"/>
@@ -279,8 +319,8 @@ function IconeTipo({ tipo, size = 36 }) {
     );
 }
 
-function CardTipo({ tipo, veiculosTipo, dataSelecionada }) {
-    const cor = tipo === 'TRUCK' ? '#60a5fa' : tipo === '3/4' ? '#a78bfa' : '#34d399';
+function CardTipo({ tipo, veiculosTipo }) {
+    const { cor, rgb } = COR_TIPO[tipo] || { cor: '#94a3b8', rgb: '100,116,139' };
     const total = veiculosTipo.length;
 
     const dadosGrafico = STATUS_GRUPOS.map(g => ({
@@ -296,11 +336,11 @@ function CardTipo({ tipo, veiculosTipo, dataSelecionada }) {
     return (
         <div style={{
             background: 'linear-gradient(145deg, #0f172a 0%, #111827 100%)',
-            border: `1px solid rgba(${tipo === 'TRUCK' ? '59,130,246' : tipo === '3/4' ? '167,139,250' : '52,211,153'},0.25)`,
+            border: `1px solid rgba(${rgb},0.25)`,
             borderRadius: '16px',
             padding: '24px',
-            flex: '1 1 300px',
-            minWidth: '280px',
+            flex: '1 1 280px',
+            minWidth: '260px',
             boxShadow: `0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)`,
             position: 'relative',
             overflow: 'hidden',
@@ -318,8 +358,8 @@ function CardTipo({ tipo, veiculosTipo, dataSelecionada }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
-                        background: `rgba(${tipo === 'TRUCK' ? '59,130,246' : tipo === '3/4' ? '167,139,250' : '52,211,153'},0.1)`,
-                        border: `1px solid rgba(${tipo === 'TRUCK' ? '59,130,246' : tipo === '3/4' ? '167,139,250' : '52,211,153'},0.25)`,
+                        background: `rgba(${rgb},0.1)`,
+                        border: `1px solid rgba(${rgb},0.25)`,
                         borderRadius: '10px', padding: '8px',
                     }}>
                         <IconeTipo tipo={tipo} size={32} />
@@ -334,7 +374,7 @@ function CardTipo({ tipo, veiculosTipo, dataSelecionada }) {
                     </div>
                 </div>
                 <div style={{
-                    background: `rgba(${tipo === 'TRUCK' ? '59,130,246' : tipo === '3/4' ? '167,139,250' : '52,211,153'},0.12)`,
+                    background: `rgba(${rgb},0.12)`,
                     border: `1px solid ${cor}40`,
                     borderRadius: '12px',
                     padding: '6px 14px',
@@ -457,8 +497,9 @@ function CardGeral({ veiculos }) {
                     {/* Mini breakdown por tipo */}
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         {TIPOS.map(t => {
-                            const n = veiculos.filter(v => normalizarTipo(v.tipo_veiculo) === t).length;
-                            const cor = t === 'TRUCK' ? '#60a5fa' : t === '3/4' ? '#a78bfa' : '#34d399';
+                            const exp = expandirVeiculos(veiculos);
+                            const n = exp.filter(v => v._cardTipo === t).length;
+                            const cor = COR_TIPO[t]?.cor || '#94a3b8';
                             return (
                                 <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                     <span style={{ color: cor, fontWeight: '700', fontSize: '15px' }}>{n}</span>
@@ -468,6 +509,268 @@ function CardGeral({ veiculos }) {
                         })}
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Vista Semanal ────────────────────────────────────────────────────────────
+
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+function obterSegundaFeira(data) {
+    const d = new Date(data + 'T12:00:00');
+    const dow = d.getDay(); // 0=dom
+    const diff = dow === 0 ? -6 : 1 - dow;
+    const seg = new Date(d);
+    seg.setDate(d.getDate() + diff);
+    return seg.toISOString().substring(0, 10);
+}
+
+function VistaSemanal({ socket }) {
+    const hoje = new Date().toISOString().substring(0, 10);
+    const [inicioSemana, setInicioSemana] = useState(() => obterSegundaFeira(hoje));
+    const [dadosSemana, setDadosSemana] = useState(null);
+    const [carregandoSemana, setCarregandoSemana] = useState(false);
+
+    const carregarSemana = useCallback(async (inicio) => {
+        setCarregandoSemana(true);
+        try {
+            const r = await api.get(`/api/provisionamento/semana?inicio=${inicio}`);
+            if (r.data.success) setDadosSemana(r.data);
+        } catch (e) {
+            console.error('Erro semana:', e);
+        } finally {
+            setCarregandoSemana(false);
+        }
+    }, []);
+
+    useEffect(() => { carregarSemana(inicioSemana); }, [inicioSemana, carregarSemana]);
+
+    useEffect(() => {
+        if (!socket) return;
+        const handler = () => carregarSemana(inicioSemana);
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
+    }, [socket, inicioSemana, carregarSemana]);
+
+    function mudarSemana(delta) {
+        const d = new Date(inicioSemana + 'T12:00:00');
+        d.setDate(d.getDate() + delta * 7);
+        setInicioSemana(d.toISOString().substring(0, 10));
+    }
+
+    function irHoje() {
+        setInicioSemana(obterSegundaFeira(hoje));
+    }
+
+    // Gerar array de 7 dias da semana (seg→dom)
+    const dias = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(inicioSemana + 'T12:00:00');
+        d.setDate(d.getDate() + i);
+        return d.toISOString().substring(0, 10);
+    });
+
+    const semanaAtual = inicioSemana === obterSegundaFeira(hoje);
+
+    const totaisPorDia = dadosSemana?.totalizadores || {};
+
+    const linhas = [
+        { key: 'disponiveis',  label: 'Disponível',       cor: '#4ade80' },
+        { key: 'em_viagem',    label: 'Em Viagem',         cor: '#facc15' },
+        { key: 'carregando',   label: 'Em Carregamento',   cor: '#60a5fa' },
+        { key: 'manutencao',   label: 'Em Manutenção',     cor: '#f87171' },
+        { key: 'outros',       label: 'Outros',            cor: '#94a3b8' },
+    ];
+
+    // Formatar data para exibição: "24/03"
+    function fmt(ds) {
+        const [, m, d] = ds.split('-');
+        return `${d}/${m}`;
+    }
+
+    return (
+        <div style={{
+            background: 'linear-gradient(145deg, #0f172a 0%, #0d1520 100%)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            borderRadius: '16px',
+            padding: '20px 24px',
+            marginBottom: '20px',
+            boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
+            position: 'relative',
+            overflow: 'hidden',
+        }}>
+            {/* Glow */}
+            <div style={{
+                position: 'absolute', top: -40, right: -40,
+                width: 200, height: 200, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
+                pointerEvents: 'none',
+            }} />
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div>
+                    <span style={{ color: '#a5b4fc', fontWeight: '700', fontSize: '15px' }}>Visão Semanal</span>
+                    <span style={{ color: '#334155', fontSize: '11px', marginLeft: '10px' }}>
+                        {fmt(dias[0])} – {fmt(dias[6])}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {carregandoSemana && (
+                        <div style={{
+                            width: 14, height: 14, borderRadius: '50%',
+                            border: '2px solid #1e293b', borderTop: '2px solid #60a5fa',
+                            animation: 'spin 0.7s linear infinite',
+                        }} />
+                    )}
+                    {!semanaAtual && (
+                        <button onClick={irHoje} style={{
+                            background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)',
+                            borderRadius: '6px', color: '#60a5fa', cursor: 'pointer',
+                            padding: '4px 10px', fontSize: '11px', fontWeight: '600',
+                        }}>Hoje</button>
+                    )}
+                    <button onClick={() => mudarSemana(-1)} style={{
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid #1e293b',
+                        borderRadius: '6px', color: '#64748b', cursor: 'pointer',
+                        padding: '4px 7px', display: 'flex', alignItems: 'center',
+                    }}>
+                        <ChevronLeft size={14} />
+                    </button>
+                    <button onClick={() => mudarSemana(1)} style={{
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid #1e293b',
+                        borderRadius: '6px', color: '#64748b', cursor: 'pointer',
+                        padding: '4px 7px', display: 'flex', alignItems: 'center',
+                    }}>
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Tabela semanal */}
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: 560 }}>
+                    <thead>
+                        <tr>
+                            <th style={{ width: 130, textAlign: 'left', color: '#475569', fontSize: '10px', fontWeight: '600', letterSpacing: '0.5px', paddingBottom: '8px' }}>
+                                STATUS
+                            </th>
+                            {dias.map(d => {
+                                const isHoje = d === hoje;
+                                const dow = new Date(d + 'T12:00:00').getDay();
+                                return (
+                                    <th key={d} style={{
+                                        textAlign: 'center', paddingBottom: '8px', minWidth: 68,
+                                    }}>
+                                        <div style={{
+                                            display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                                            background: isHoje ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                            border: isHoje ? '1px solid rgba(99,102,241,0.35)' : '1px solid transparent',
+                                            borderRadius: '8px', padding: '4px 10px',
+                                        }}>
+                                            <span style={{ color: isHoje ? '#a5b4fc' : '#475569', fontSize: '10px', fontWeight: '600' }}>
+                                                {DIAS_SEMANA[dow]}
+                                            </span>
+                                            <span style={{ color: isHoje ? '#c7d2fe' : '#64748b', fontSize: '12px', fontWeight: '700', marginTop: '1px' }}>
+                                                {fmt(d)}
+                                            </span>
+                                        </div>
+                                    </th>
+                                );
+                            })}
+                            <th style={{ textAlign: 'center', paddingBottom: '8px', paddingLeft: '6px', color: '#475569', fontSize: '10px', fontWeight: '600' }}>
+                                TOTAL
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {linhas.map((linha, li) => {
+                            const valoresDia = dias.map(d => totaisPorDia[d]?.[linha.key] ?? 0);
+                            const totalLinha = valoresDia.reduce((a, b) => a + b, 0);
+                            return (
+                                <tr key={linha.key}>
+                                    <td style={{
+                                        padding: '6px 0',
+                                        borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                            <span style={{
+                                                width: 7, height: 7, borderRadius: '50%',
+                                                background: linha.cor,
+                                                boxShadow: `0 0 5px ${linha.cor}80`,
+                                                flexShrink: 0,
+                                            }} />
+                                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>{linha.label}</span>
+                                        </div>
+                                    </td>
+                                    {valoresDia.map((v, vi) => {
+                                        const isHoje = dias[vi] === hoje;
+                                        return (
+                                            <td key={vi} style={{
+                                                textAlign: 'center', padding: '6px 4px',
+                                                borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                                background: isHoje ? 'rgba(99,102,241,0.05)' : 'transparent',
+                                            }}>
+                                                <span style={{
+                                                    color: v > 0 ? linha.cor : '#1e293b',
+                                                    fontWeight: v > 0 ? '700' : '400',
+                                                    fontSize: '13px',
+                                                }}>
+                                                    {v > 0 ? v : '–'}
+                                                </span>
+                                            </td>
+                                        );
+                                    })}
+                                    <td style={{
+                                        textAlign: 'center', padding: '6px 4px 6px 10px',
+                                        borderTop: li === 0 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                        borderLeft: '1px solid rgba(255,255,255,0.04)',
+                                    }}>
+                                        <span style={{
+                                            color: totalLinha > 0 ? '#f1f5f9' : '#334155',
+                                            fontWeight: '600', fontSize: '12px',
+                                        }}>
+                                            {totalLinha || '–'}
+                                        </span>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        {/* Linha de total geral */}
+                        <tr>
+                            <td style={{ padding: '8px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                                <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                    Total
+                                </span>
+                            </td>
+                            {dias.map((d, di) => {
+                                const t = totaisPorDia[d]?.total ?? 0;
+                                const isHoje = d === hoje;
+                                return (
+                                    <td key={di} style={{
+                                        textAlign: 'center', padding: '8px 4px 0',
+                                        borderTop: '1px solid rgba(255,255,255,0.06)',
+                                        background: isHoje ? 'rgba(99,102,241,0.05)' : 'transparent',
+                                    }}>
+                                        <span style={{ color: t > 0 ? '#a5b4fc' : '#1e293b', fontWeight: '700', fontSize: '13px' }}>
+                                            {t > 0 ? t : '–'}
+                                        </span>
+                                    </td>
+                                );
+                            })}
+                            <td style={{
+                                textAlign: 'center', padding: '8px 4px 0 10px',
+                                borderTop: '1px solid rgba(255,255,255,0.06)',
+                                borderLeft: '1px solid rgba(255,255,255,0.04)',
+                            }}>
+                                <span style={{ color: '#6366f1', fontWeight: '800', fontSize: '13px' }}>
+                                    {dias.reduce((acc, d) => acc + (totaisPorDia[d]?.total ?? 0), 0) || '–'}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     );
@@ -515,14 +818,18 @@ export default function DashboardFrota({ socket }) {
         return () => socket.off('receber_atualizacao', handler);
     }, [socket, dataSelecionada, carregar]);
 
-    // Veículos normalizados (CONJUNTO → CARRETA)
-    const veiculosNorm = veiculos.map(v => ({ ...v, _tipoNorm: normalizarTipo(v.tipo_veiculo) }));
+    // Expande CONJUNTO em entradas separadas (CAVALO + CARRETA)
+    const veiculosExp = expandirVeiculos(veiculos);
 
     const veiculosPorTipo = {
-        TRUCK: veiculosNorm.filter(v => v._tipoNorm === 'TRUCK'),
-        '3/4': veiculosNorm.filter(v => v._tipoNorm === '3/4'),
-        CARRETA: veiculosNorm.filter(v => v._tipoNorm === 'CARRETA'),
+        TRUCK:   veiculosExp.filter(v => v._cardTipo === 'TRUCK'),
+        '3/4':   veiculosExp.filter(v => v._cardTipo === '3/4'),
+        CAVALO:  veiculosExp.filter(v => v._cardTipo === 'CAVALO'),
+        CARRETA: veiculosExp.filter(v => v._cardTipo === 'CARRETA'),
     };
+
+    // Para CardGeral e VistaSemanal usamos os veículos originais (sem duplicar CONJUNTO)
+    const veiculosNorm = veiculos;
 
     const formatarHora = (d) => {
         if (!d) return '';
@@ -608,7 +915,10 @@ export default function DashboardFrota({ socket }) {
                 </div>
             </div>
 
-            {/* Card Geral no topo */}
+            {/* Visão Semanal no topo */}
+            <VistaSemanal socket={socket} />
+
+            {/* Card Geral */}
             <div style={{ marginBottom: '20px' }}>
                 <CardGeral veiculos={veiculosNorm} />
             </div>
@@ -619,8 +929,7 @@ export default function DashboardFrota({ socket }) {
                     <CardTipo
                         key={tipo}
                         tipo={tipo}
-                        veiculosTipo={veiculosPorTipo[tipo]}
-                        dataSelecionada={dataSelecionada}
+                        veiculosTipo={veiculosPorTipo[tipo] || []}
                     />
                 ))}
             </div>
