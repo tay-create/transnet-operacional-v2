@@ -10,6 +10,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     const [salvando, setSalvando] = useState(false);
     const [erroSalvar, setErroSalvar] = useState('');
     const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
 
     useEffect(() => {
         if (!veiculo?.id) return;
@@ -21,10 +22,6 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
             .catch(err => console.error('Erro ao buscar ocorrências:', err))
             .finally(() => setCarregandoListagem(false));
     }, [veiculo?.id]);
-
-    const handleUploadClick = () => {
-        if (fileInputRef.current) fileInputRef.current.click();
-    };
 
     const handleImageUpload = (e) => {
         const file = e.target.files[0];
@@ -194,45 +191,68 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                             <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', display: 'block' }}>
                                 Evidência (Opcional)
                             </label>
-                            <div
-                                onClick={handleUploadClick}
-                                style={{
-                                    border: '2px dashed rgba(255,255,255,0.12)', borderRadius: '10px', padding: '16px',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                    gap: '8px', cursor: 'pointer', background: 'rgba(255,255,255,0.02)',
-                                    transition: 'all 0.2s', minHeight: '80px'
-                                }}
-                            >
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    style={{ display: 'none' }}
-                                    accept="image/*"
-                                    onChange={handleImageUpload}
-                                />
-                                {fotoBase64 ? (
-                                    <div style={{ position: 'relative' }}>
-                                        <img src={fotoBase64} alt="Evidência" style={{ maxHeight: '140px', borderRadius: '8px', display: 'block' }} />
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setFotoBase64(null); }}
-                                            style={{
-                                                position: 'absolute', top: -10, right: -10,
-                                                background: '#ef4444', border: 'none', color: 'white',
-                                                borderRadius: '50%', width: 26, height: 26,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
-                                            }}
-                                        >
-                                            <Trash2 size={13} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Camera size={26} color="#475569" />
-                                        <span style={{ fontSize: '12px', color: '#475569', fontWeight: '600' }}>Tirar foto ou enviar imagem</span>
-                                    </>
-                                )}
-                            </div>
+                            {/* input câmera — capture="environment" abre direto a câmera */}
+                            <input
+                                type="file"
+                                ref={cameraInputRef}
+                                style={{ display: 'none' }}
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleImageUpload}
+                            />
+                            {/* input galeria — sem capture abre o seletor de arquivos/galeria */}
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                style={{ display: 'none' }}
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                            />
+                            {fotoBase64 ? (
+                                <div style={{ position: 'relative', display: 'inline-block' }}>
+                                    <img src={fotoBase64} alt="Evidência" style={{ maxHeight: '140px', borderRadius: '8px', display: 'block' }} />
+                                    <button
+                                        onClick={() => setFotoBase64(null)}
+                                        style={{
+                                            position: 'absolute', top: -10, right: -10,
+                                            background: '#ef4444', border: 'none', color: 'white',
+                                            borderRadius: '50%', width: 26, height: 26,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
+                                        }}
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => cameraInputRef.current?.click()}
+                                        style={{
+                                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                            gap: '6px', padding: '14px 10px', border: '2px dashed rgba(255,255,255,0.12)',
+                                            borderRadius: '10px', background: 'rgba(255,255,255,0.02)', cursor: 'pointer',
+                                            color: '#64748b', fontSize: '11px', fontWeight: '600'
+                                        }}
+                                    >
+                                        <Camera size={22} color="#475569" />
+                                        Câmera
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        style={{
+                                            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                            gap: '6px', padding: '14px 10px', border: '2px dashed rgba(255,255,255,0.12)',
+                                            borderRadius: '10px', background: 'rgba(255,255,255,0.02)', cursor: 'pointer',
+                                            color: '#64748b', fontSize: '11px', fontWeight: '600'
+                                        }}
+                                    >
+                                        🖼 Galeria
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
