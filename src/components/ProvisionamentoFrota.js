@@ -55,7 +55,7 @@ const COR_STATUS = {
     FERIADO:                  { bg: 'rgba(71,85,105,0.18)',   text: '#64748b',  border: 'rgba(71,85,105,0.25)' },
 };
 
-const STATUS_COM_DESTINO = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'PROJETO_SUL', 'PROJETO_SP', 'TRANSFERENCIA'];
+const STATUS_COM_DESTINO = ['EM_VIAGEM'];
 
 const DIAS_SEMANA = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
