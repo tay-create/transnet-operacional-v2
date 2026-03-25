@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/apiService';
 
@@ -226,7 +227,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
     return (
         <div
             ref={ref}
-            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: 0 }}
             onMouseEnter={handleEnter}
             onMouseLeave={handleLeave}
         >
@@ -239,7 +240,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                 cursor: 'default',
                 transition: 'background 0.15s, border-color 0.15s',
                 userSelect: 'none',
-                minWidth: 0, overflow: 'hidden',
+                minWidth: 0, width: '100%',
             }}>
                 <span style={{
                     width: '8px', height: '8px', borderRadius: '50%',
@@ -247,7 +248,7 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                     boxShadow: `0 0 6px ${grupo.cor}`,
                     flexShrink: 0,
                 }} />
-                <span style={{ color: grupo.cor, fontSize: '12px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{grupo.label}</span>
+                <span style={{ color: grupo.cor, fontSize: '12px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{grupo.label}</span>
                 <span style={{
                     background: grupo.cor,
                     color: '#0f172a',
@@ -258,50 +259,61 @@ function StatusBadge({ grupo, veiculosFiltrados }) {
                     lineHeight: '18px',
                     minWidth: '18px',
                     textAlign: 'center',
+                    flexShrink: 0,
                 }}>{count}</span>
             </div>
 
-            {/* Tooltip */}
-            {show && lista.length > 0 && (
-                <div
-                    onMouseEnter={() => clearTimeout(timerRef.current)}
-                    onMouseLeave={handleLeave}
-                    style={{
-                        position: 'fixed',
-                        top: pos.top,
-                        left: pos.left,
-                        zIndex: 99999,
-                        background: '#0f172a',
-                        border: `1px solid ${grupo.corBorder}`,
-                        borderRadius: '10px',
-                        padding: '10px 14px',
-                        minWidth: '200px',
-                        maxWidth: '280px',
-                        boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px ${grupo.corBorder}`,
-                    }}
-                >
-                    <div style={{ color: grupo.cor, fontSize: '11px', fontWeight: '700', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {grupo.label} — {count} veículo{count !== 1 ? 's' : ''}
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {lista.map((v, vi) => (
-                            <div key={`${v.id}_${vi}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '4px', letterSpacing: '0.5px' }}>
-                                    {v._placaExibicao || v.placa}
-                                </span>
-                                {v.motorista && (
-                                    <span style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {v.motorista.split(' ')[0]}
+            {/* Tooltip — renderizado via portal no body para não ser cortado por overflow */}
+            {show && lista.length > 0 && typeof document !== 'undefined' && (() => {
+                const el = (
+                    <div
+                        onMouseEnter={() => clearTimeout(timerRef.current)}
+                        onMouseLeave={handleLeave}
+                        style={{
+                            position: 'fixed',
+                            top: pos.top,
+                            left: pos.left,
+                            zIndex: 99999,
+                            background: '#0f172a',
+                            border: `1px solid ${grupo.corBorder}`,
+                            borderRadius: '10px',
+                            padding: '10px 14px',
+                            minWidth: '220px',
+                            maxWidth: '320px',
+                            boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px ${grupo.corBorder}`,
+                        }}
+                    >
+                        <div style={{ color: grupo.cor, fontSize: '11px', fontWeight: '700', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {grupo.label} — {count} veículo{count !== 1 ? 's' : ''}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            {lista.map((v, vi) => (
+                                <div key={`${v.id}_${vi}`} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    {/* Placa principal */}
+                                    <span style={{ fontFamily: 'monospace', fontWeight: '700', fontSize: '12px', color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: '4px', letterSpacing: '0.5px', flexShrink: 0 }}>
+                                        {v._placaExibicao || v.placa}
                                     </span>
-                                )}
-                                {v.destino && (
-                                    <span style={{ color: '#94a3b8', fontSize: '10px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>→ {v.destino}</span>
-                                )}
-                            </div>
-                        ))}
+                                    {/* Para CONJUNTO: mostrar placa da carreta atrelada */}
+                                    {v.tipo_veiculo === 'CONJUNTO' && v.carreta && (
+                                        <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 6px', borderRadius: '4px', letterSpacing: '0.5px', flexShrink: 0 }}>
+                                            + {v.carreta}
+                                        </span>
+                                    )}
+                                    {v.motorista && (
+                                        <span style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {v.motorista.split(' ')[0]}
+                                        </span>
+                                    )}
+                                    {v.destino && (
+                                        <span style={{ color: '#94a3b8', fontSize: '10px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>→ {v.destino}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+                return createPortal(el, document.body);
+            })()}
         </div>
     );
 }
