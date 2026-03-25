@@ -488,7 +488,7 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
 
 // ─── Card Geral (todos os tipos) ──────────────────────────────────────────────
 
-function CardGeral({ veiculos }) {
+function CardGeral({ veiculos, contsPorTipo }) {
     const total = veiculos.length;
 
     const dadosGrafico = STATUS_GRUPOS.map(g => ({
@@ -567,8 +567,7 @@ function CardGeral({ veiculos }) {
                     {/* Mini breakdown por tipo */}
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                         {TIPOS.map(t => {
-                            const norm = normalizarVeiculos(veiculos);
-                            const n = norm.filter(v => v._cardTipo === t).length;
+                            const n = contsPorTipo?.[t] ?? 0;
                             const cor = COR_TIPO[t]?.cor || '#94a3b8';
                             return (
                                 <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -850,8 +849,14 @@ export default function DashboardFrota({ socket }) {
         CARRETA:  veiculosNorm2.filter(v => v._cardTipo === 'CARRETA'),
     };
 
-    // CardGeral usa veiculosNorm2 (com _placaExibicao corrigido para CARRETA avulsa)
-    const veiculosNorm = veiculosNorm2;
+    // CardGeral usa só os veículos originais sem entradas virtuais (sem duplicar CONJUNTOs)
+    const veiculosNorm = veiculos.map(v => {
+        if (v.tipo_veiculo === 'CARRETA') {
+            const placaReal = (v.placa && v.placa !== '-') ? v.placa : (v.carreta || v.placa);
+            return { ...v, _placaExibicao: placaReal };
+        }
+        return { ...v, _placaExibicao: v.placa };
+    });
 
     const formatarHora = (d) => {
         if (!d) return '';
@@ -942,7 +947,10 @@ export default function DashboardFrota({ socket }) {
 
             {/* Card Geral */}
             <div style={{ marginBottom: '20px' }}>
-                <CardGeral veiculos={veiculosNorm} />
+                <CardGeral
+                    veiculos={veiculosNorm}
+                    contsPorTipo={Object.fromEntries(TIPOS.map(t => [t, veiculosPorTipo[t]?.length ?? 0]))}
+                />
             </div>
 
             {/* Cards por tipo */}
