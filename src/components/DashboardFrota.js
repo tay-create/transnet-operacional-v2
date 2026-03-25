@@ -721,29 +721,6 @@ function VistaSemanal({ socket }) {
                                 </tr>
                             );
                         })}
-                        {/* Linha de total por dia */}
-                        <tr>
-                            <td style={{ padding: '8px 0 0', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                                <span style={{ color: '#64748b', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                    Total
-                                </span>
-                            </td>
-                            {dias.map((d, di) => {
-                                const t = totaisPorDia[d]?.total ?? 0;
-                                const isHoje = d === hoje;
-                                return (
-                                    <td key={di} style={{
-                                        textAlign: 'center', padding: '8px 4px 0',
-                                        borderTop: '1px solid rgba(255,255,255,0.06)',
-                                        background: isHoje ? 'rgba(99,102,241,0.05)' : 'transparent',
-                                    }}>
-                                        <span style={{ color: t > 0 ? '#a5b4fc' : '#1e293b', fontWeight: '700', fontSize: '13px' }}>
-                                            {t > 0 ? t : '–'}
-                                        </span>
-                                    </td>
-                                );
-                            })}
-                        </tr>
                     </tbody>
                 </table>
             </div>
