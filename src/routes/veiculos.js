@@ -1103,14 +1103,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             `;
             const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, hojeStr]);
 
-            // Avançar CT-es "Aguardando Emissão" associados
-            const ctesAguardando = await dbAll("SELECT id, dados_json FROM ctes_ativos WHERE status = 'Aguardando Emissão'");
+            // Avançar CT-es "Aguardando Emissão" associados — somente os de hoje e da mesma unidade
+            const hojeFormatado = new Date(hojeStr + 'T12:00:00').toLocaleDateString('pt-BR'); // DD/MM/YYYY
+            const ctesAguardando = await dbAll(
+                "SELECT id, dados_json FROM ctes_ativos WHERE status = 'Aguardando Emissão' AND origem = $1",
+                [unidade]
+            );
             let ctesAtualizados = 0;
             for (const cte of ctesAguardando) {
                 try {
                     const dados = JSON.parse(cte.dados_json);
+                    // Só avança se data_entrada_cte for hoje
+                    if (dados.data_entrada_cte !== hojeFormatado) continue;
                     dados.data_entrada_cte = new Date(amanhaStr + 'T12:00:00').toLocaleDateString('pt-BR');
-                    await dbRun("UPDATE ctes_ativos SET dados_json = ? WHERE id = ?", [JSON.stringify(dados), cte.id]);
+                    await dbRun("UPDATE ctes_ativos SET dados_json = $1 WHERE id = $2", [JSON.stringify(dados), cte.id]);
                     ctesAtualizados++;
                 } catch (_) {}
             }
