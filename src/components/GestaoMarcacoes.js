@@ -143,8 +143,10 @@ export default function GestaoMarcacoes({ socket }) {
         setLoading(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
-            if (filtroDisponibilidade) qp.set('disponibilidade', filtroDisponibilidade);
-            if (filtroStatusOp) qp.set('status_operacional', filtroStatusOp);
+            // filtroStatusOp (Disponível/Indisponível/Contratado) e filtroDisponibilidade (EM CASA/NO PÁTIO/NO POSTO)
+            // ambos usam o mesmo param; statusOp tem precedência se os dois estiverem preenchidos
+            if (filtroStatusOp) qp.set('disponibilidade', filtroStatusOp);
+            else if (filtroDisponibilidade) qp.set('disponibilidade', filtroDisponibilidade);
             if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
             if (filtroEstado) qp.set('estado', filtroEstado);
             const r = await api.get(`/api/marcacoes?${qp}`);
@@ -611,9 +613,6 @@ export default function GestaoMarcacoes({ socket }) {
                                 }}
                             >
                                 <option value="">Todas disponibilidades</option>
-                                <option value="disponivel">Disponível</option>
-                                <option value="indisponivel">Indisponível</option>
-                                <option value="contratado">Contratado</option>
                                 <option value="EM CASA">EM CASA</option>
                                 <option value="NO PÁTIO">NO PÁTIO</option>
                                 <option value="NO POSTO">NO POSTO</option>
@@ -629,10 +628,9 @@ export default function GestaoMarcacoes({ socket }) {
                                 }}
                             >
                                 <option value="">Todos os status</option>
-                                <option value="DISPONIVEL">Disponível (sem op.)</option>
-                                <option value="EM OPERACAO">Em Operação</option>
-                                <option value="EM VIAGEM">Em Viagem</option>
-                                <option value="EM ROTA">Em Rota</option>
+                                <option value="disponivel">Disponível</option>
+                                <option value="indisponivel">Indisponível</option>
+                                <option value="contratado">Contratado</option>
                             </select>
                         </div>
                         <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>

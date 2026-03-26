@@ -486,7 +486,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
         const offset = (pagina - 1) * limite;
 
-        const { disponibilidade, status_operacional, busca, estado } = req.query;
+        const { disponibilidade, busca, estado } = req.query;
         const conditions = [];
         const params = [];
 
@@ -500,11 +500,6 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         } else if (['EM CASA','NO PÁTIO','NO POSTO'].includes(disponibilidade)) {
             params.push(disponibilidade);
             conditions.push(`disponibilidade = $${params.length}`);
-        }
-
-        if (status_operacional) {
-            params.push(status_operacional);
-            conditions.push(`COALESCE(status_operacional,'DISPONIVEL') = $${params.length}`);
         }
 
         if (busca && busca.trim()) {
