@@ -644,7 +644,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                              VALUES ($1, $2, 'EM_OPERACAO')
                              ON CONFLICT (veiculo_id, data) DO UPDATE
                              SET status = 'EM_OPERACAO'
-                             WHERE prov_programacao.status NOT IN ('CARREGANDO', 'MANUTENCAO')`,
+                             WHERE prov_programacao.status NOT IN ('MANUTENCAO')`,
                             [provCavalo.id, dataCard]
                         );
                         io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provCavalo.id, data: dataCard, status: 'EM_OPERACAO' });
