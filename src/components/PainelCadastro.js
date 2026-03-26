@@ -793,7 +793,7 @@ export default function PainelCadastro({ user, socket }) {
                                             })()}
 
                                             {/* Timer de expiração */}
-                                            {timer && (
+                                            {timer && !cteEmitido && (
                                                 <div style={{
                                                     display: 'flex', alignItems: 'center', gap: '6px',
                                                     padding: '6px 10px', borderRadius: '6px',
