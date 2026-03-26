@@ -623,10 +623,12 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             // ── Sync Provisionamento: placa no card → EM_OPERACAO + sync CONJUNTO completo ──
             try {
-                const placaCavalo = (v.placa || '').trim().toUpperCase();
-                const placaCarreta = (v.placa2Motorista || v.carreta || '').trim().toUpperCase();
+                const placaCavalo = (v.placa1Motorista || v.placa || '').trim().toUpperCase();
+                const placaCarreta = (v.placa2Motorista || '').trim().toUpperCase();
                 const placasCard = [placaCavalo, placaCarreta].filter(p => p && p !== '-');
                 const dataCard = v.data_prevista || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+
+                console.log(`🔄 [Sync Prov] Card #${req.params.id}: cavalo=${placaCavalo}, carreta=${placaCarreta} (placa1Motorista=${v.placa1Motorista}, placa=${v.placa})`);
 
                 if (placasCard.length > 0) {
                     // Buscar o cavalo no provisionamento

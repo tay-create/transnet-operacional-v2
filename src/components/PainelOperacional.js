@@ -236,7 +236,13 @@ export default function PainelOperacional({
         if (!placa || placa.length < 6) return;
         const p = placa.replace(/[-\s]/g, '').toUpperCase();
         const v = veiculosProvisao.find(vp => vp.placa.replace(/[-\s]/g, '').toUpperCase() === p || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
-        if (v) setModalEntregasCard({ veiculo: v, item });
+        if (v) {
+            // Usar a combinação real do card (prioritária sobre o provisionamento)
+            const veiculoComCardAtual = { ...v };
+            const carretaCard = (item.placa2Motorista || '').trim();
+            if (carretaCard && carretaCard !== '-') veiculoComCardAtual.carreta = carretaCard;
+            setModalEntregasCard({ veiculo: veiculoComCardAtual, item });
+        }
     }
 
     function selecionarMotoristaNaEdicao(item, realIndex, m) {
