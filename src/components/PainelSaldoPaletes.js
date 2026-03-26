@@ -375,9 +375,6 @@ export default function PainelSaldoPaletes() {
     const totalPbr = registros.reduce((acc, r) => acc + (r.qtd_pbr || 0), 0);
     const totalDevPbr = registros.reduce((acc, r) => acc + (r.qtd_devolvida_pbr || 0), 0);
     const saldoPbr = totalPbr - totalDevPbr;
-    const totalDesc = registros.reduce((acc, r) => acc + (r.qtd_descartavel || 0), 0);
-    const totalDevDesc = registros.reduce((acc, r) => acc + (r.qtd_devolvida_desc || 0), 0);
-    const saldoDesc = totalDesc - totalDevDesc;
     const pendentes = registros.filter(r => !r.devolvido).length;
 
     function formatarData(dt) {
@@ -433,14 +430,14 @@ export default function PainelSaldoPaletes() {
                         icone={<Package size={16} />}
                     />
                     <KpiCard
-                        label="Saldo Descartável"
-                        valor={saldoDesc}
-                        cor="#f97316"
-                        sub={`de ${totalDesc} emitidos`}
-                        icone={<Package size={16} />}
+                        label="Total Saídas"
+                        valor={totalPbr}
+                        cor="#94a3b8"
+                        sub="paletes emitidos"
+                        icone={<TrendingUp size={16} />}
                     />
                     <KpiCard
-                        label="Devolvidos PBR"
+                        label="Devolvidos"
                         valor={totalDevPbr}
                         cor="#22c55e"
                         sub="paletes retornados"
@@ -488,7 +485,7 @@ export default function PainelSaldoPaletes() {
                                         <th style={s.th}>Motorista</th>
                                         <th style={s.th}>Placas</th>
                                         <th style={s.th}>Tipo</th>
-                                        <th style={s.th}>Qtd</th>
+                                        <th style={s.th}>Qtd PBR</th>
                                         <th style={s.th}>Fornecedor</th>
                                         <th style={s.th}>Status</th>
                                         <th style={s.th}>Data Entrada</th>
@@ -516,21 +513,12 @@ export default function PainelSaldoPaletes() {
                                                 </td>
                                                 <td style={s.td}><span style={s.badgeTipo()}>{r.tipo_palete}</span></td>
                                                 <td style={s.td}>
-                                                    {r.tipo_palete === 'DESCARTAVEL' ? (
-                                                        r.qtd_descartavel > 0 ? (
-                                                            <div>
-                                                                <span style={{ fontWeight: '800', color: '#f97316', fontSize: '15px' }}>{(r.qtd_descartavel || 0) - (r.qtd_devolvida_desc || 0)}</span>
-                                                                <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_descartavel}</span>
-                                                            </div>
-                                                        ) : '—'
-                                                    ) : (
-                                                        r.qtd_pbr > 0 ? (
-                                                            <div>
-                                                                <span style={{ fontWeight: '800', color: saldoPbrRow > 0 ? '#60a5fa' : '#4ade80', fontSize: '15px' }}>{saldoPbrRow}</span>
-                                                                <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
-                                                            </div>
-                                                        ) : '—'
-                                                    )}
+                                                    {r.qtd_pbr > 0 ? (
+                                                        <div>
+                                                            <span style={{ fontWeight: '800', color: saldoPbrRow > 0 ? '#60a5fa' : '#4ade80', fontSize: '15px' }}>{saldoPbrRow}</span>
+                                                            <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
+                                                        </div>
+                                                    ) : '—'}
                                                 </td>
                                                 <td style={s.td}><span style={{ fontSize: '12px', color: '#94a3b8' }}>{r.fornecedor_pbr || '—'}</span></td>
                                                 <td style={s.td}><span style={s.badge(r.devolvido)}>{r.devolvido ? '✓ Devolvido' : '⏳ Pendente'}</span></td>
