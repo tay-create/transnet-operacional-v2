@@ -427,10 +427,10 @@ export default function PainelOperacional({
         const meuStatus = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
 
         const buscaLower = termoBusca.toLowerCase();
-        const bateuBusca = (item.coleta && item.coleta.toLowerCase().includes(buscaLower)) ||
-            (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
+        const bateuBusca = (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
             (item.coletaMoreno && item.coletaMoreno.toLowerCase().includes(buscaLower)) ||
             (item.motorista && item.motorista.toLowerCase().includes(buscaLower)) ||
+            (item.placa && item.placa.toLowerCase().includes(buscaLower)) ||
             (meuStatus && meuStatus.toLowerCase().includes(buscaLower));
 
 
