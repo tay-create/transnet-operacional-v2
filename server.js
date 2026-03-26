@@ -506,7 +506,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
             const b = busca.trim();
             const soDigitos = b.replace(/\D/g, '');
             params.push(`%${b}%`);
-            let buscaCond = `nome_motorista ILIKE $${params.length}`;
+            let buscaCond = `unaccent(nome_motorista) ILIKE unaccent($${params.length})`;
             if (soDigitos.length >= 3) {
                 params.push(`%${soDigitos}%`);
                 buscaCond += ` OR telefone LIKE $${params.length}`;
