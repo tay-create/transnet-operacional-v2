@@ -1847,6 +1847,14 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
     try {
         const { cteId, statusAntigo, statusNovo, origem, coleta } = req.body;
 
+        // Resolve o veículo correspondente ao CT-e (cteId é id da ctes_ativos, não de veiculos)
+        const cteRowBase = await dbGet("SELECT motorista FROM ctes_ativos WHERE id = $1", [cteId]);
+        const nomeMotoristaBase = cteRowBase?.motorista;
+        const veiculoBase = nomeMotoristaBase
+            ? await dbGet("SELECT id FROM veiculos WHERE LOWER(TRIM(motorista)) = LOWER(TRIM($1)) ORDER BY id DESC LIMIT 1", [nomeMotoristaBase])
+            : null;
+        const veiculoIdReal = veiculoBase?.id;
+
         // Registrar mudança de status do CT-e
         let acao = 'STATUS_CTE';
         let detalhes = `[${origem}] ${statusAntigo} → ${statusNovo} | Coleta: ${coleta}`;
@@ -1861,12 +1869,14 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
 
             // Buscar motorista do card para incrementar viagens e marcar EM VIAGEM
             try {
-                // cteId pode ser o id do veículo ou uma string do CT-e — busca pelo id direto
-                const veiculo = await dbGet("SELECT motorista FROM veiculos WHERE id = ?", [cteId]);
+                // Reutiliza veiculoIdReal e nomeMotoristaBase resolvidos no início do handler
+                const veiculoId = veiculoIdReal;
+                const nomeMotorista = nomeMotoristaBase;
+                const veiculo = veiculoId ? { id: veiculoId, motorista: nomeMotorista } : null;
                 if (veiculo && veiculo.motorista) {
-                    // Busca marcação pelo nome do motorista (pode não ter telefone direto no card)
-                    // Tenta também por telefone herdado no card (campo telefoneMotorista gravado no dados_json)
-                    const dadosVeiculo = await dbGet("SELECT dados_json FROM veiculos WHERE id = ?", [cteId]);
+                    const dadosVeiculo = veiculoId
+                        ? await dbGet("SELECT dados_json FROM veiculos WHERE id = $1", [veiculoId])
+                        : null;
                     let telefoneMotorista = null;
                     if (dadosVeiculo && dadosVeiculo.dados_json) {
                         try {
@@ -1928,15 +1938,21 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
 
                 // Marcar status_cte no veículo para sumir da aba "Na operação"
                 try {
-                    await dbRun("UPDATE veiculos SET status_cte = 'Emitido' WHERE id = ?", [cteId]);
-                    console.log(`✅ [CT-e] status_cte = 'Emitido' gravado no veículo id=${cteId}`);
+                    if (veiculoId) {
+                        await dbRun("UPDATE veiculos SET status_cte = 'Emitido' WHERE id = $1", [veiculoId]);
+                        console.log(`✅ [CT-e] status_cte = 'Emitido' gravado no veículo id=${veiculoId}`);
+                    } else {
+                        console.warn(`⚠️ [CT-e] Veículo não encontrado para motorista "${nomeMotorista}" — status_cte não gravado`);
+                    }
                 } catch (errStatus) {
                     console.error('Erro ao gravar status_cte no veículo:', errStatus);
                 }
 
                 // Se motorista é FROTA, salvar no histórico de frota
                 try {
-                    const veiculoFull = await dbGet("SELECT motorista, operacao, placa, dados_json FROM veiculos WHERE id = ?", [cteId]);
+                    const veiculoFull = veiculoId
+                        ? await dbGet("SELECT motorista, operacao, placa, dados_json FROM veiculos WHERE id = $1", [veiculoId])
+                        : null;
                     if (veiculoFull) {
                         let djFrota = {};
                         try { djFrota = JSON.parse(veiculoFull.dados_json || '{}'); } catch (_) {}
@@ -1950,7 +1966,7 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
                             await dbRun(
                                 `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                                [primeiraLetraFrota, nomeLimpo, placaFrota, origemFrota, destinoFrota, veiculoFull.operacao || '', cteId, new Date().toISOString()]
+                                [primeiraLetraFrota, nomeLimpo, placaFrota, origemFrota, destinoFrota, veiculoFull.operacao || '', veiculoId, new Date().toISOString()]
                             );
                             console.log(`📋 [Histórico Frota] ${nomeLimpo} | Placa: ${placaFrota} | ${origemFrota} → ${destinoFrota}`);
                         }
@@ -1972,8 +1988,10 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
 
         // Sempre persistir o status no veículo para não perder no reload (v0.2.3 fix)
         try {
-            await dbRun("UPDATE veiculos SET status_cte = ? WHERE id = ?", [statusNovo, cteId]);
-            console.log(`✅ [CT-e] status_cte = '${statusNovo}' gravado no veículo id=${cteId}`);
+            if (veiculoIdReal) {
+                await dbRun("UPDATE veiculos SET status_cte = $1 WHERE id = $2", [statusNovo, veiculoIdReal]);
+                console.log(`✅ [CT-e] status_cte = '${statusNovo}' gravado no veículo id=${veiculoIdReal}`);
+            }
         } catch (errStatus) {
             console.error('Erro ao gravar status_cte no veículo:', errStatus);
         }
@@ -1989,7 +2007,9 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
         );
 
         // Notificar painel operacional sobre a mudança de status do vínculo CT-e
-        io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(cteId), status_cte: statusNovo });
+        if (veiculoIdReal) {
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(veiculoIdReal), status_cte: statusNovo });
+        }
 
         res.json({ success: true });
     } catch (e) {
