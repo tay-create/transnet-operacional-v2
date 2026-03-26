@@ -337,11 +337,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                                             </option>
                                                         ))}
                                                     </select>
-                                                    {motoristaCelula && (
-                                                        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '2px' }}>
-                                                            {motoristaCelula.split(' ')[0]}
-                                                        </div>
-                                                    )}
                                                     {temDestino && podeEditar && (
                                                         <input
                                                             type="text"

@@ -633,7 +633,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (placasCard.length > 0) {
                     // Buscar o cavalo no provisionamento
                     const provCavalo = placaCavalo ? await dbGet(
-                        `SELECT id, placa, carreta, tipo_veiculo FROM prov_veiculos WHERE ativo = 1 AND UPPER(placa) = $1`,
+                        `SELECT id, placa, carreta, tipo_veiculo, motorista FROM prov_veiculos WHERE ativo = 1 AND UPPER(placa) = $1`,
                         [placaCavalo]
                     ) : null;
 
@@ -648,6 +648,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                             [provCavalo.id, dataCard]
                         );
                         io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provCavalo.id, data: dataCard, status: 'EM_OPERACAO' });
+
+                        // Sync motorista: card operacional é prioritário
+                        const motoristaCard = (v.motorista || '').trim();
+                        const motoristaParaProv = (motoristaCard && motoristaCard !== 'A DEFINIR') ? motoristaCard : '';
+                        if ((provCavalo.motorista || '') !== motoristaParaProv) {
+                            await dbRun(`UPDATE prov_veiculos SET motorista = $1 WHERE id = $2`, [motoristaParaProv || null, provCavalo.id]);
+                            console.log(`🔄 [Sync Prov] Motorista #${provCavalo.id} (${provCavalo.placa}): ${provCavalo.motorista || '—'} → ${motoristaParaProv || '—'}`);
+                            io.emit('receber_atualizacao', { tipo: 'prov_veiculo_atualizado', veiculo_id: provCavalo.id });
+                        }
 
                         // Sync CONJUNTO completo: card operacional é prioritário
                         if (provCavalo.tipo_veiculo === 'CONJUNTO' && placaCavalo && placaCarreta) {
