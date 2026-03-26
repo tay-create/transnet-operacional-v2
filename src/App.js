@@ -7,32 +7,38 @@ import { calcularDiferencaHoras, converterImagemParaBase64, obterDataBrasilia } 
 import {
     DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA
 } from './constants';
-import PainelOperacional from './components/PainelOperacional';
 import MainLayout from './components/layout/MainLayout';
-import PainelCte from './components/PainelCte';
-import { ModalRelatorio, ModalFila, ModalRelatorioCte } from './components/Modals';
-import ModuloCubagem from './components/ModuloCubagem';
-import NovoLancamento from './components/NovoLancamento';
-import LogsAuditoria from './components/LogsAuditoria';
 import './App.css';
-import DashboardTV from './components/DashboardTV';
-import GestaoMarcacoes from './components/GestaoMarcacoes';
-import RelatorioOperacional from './components/RelatorioOperacional';
-import PainelCadastro from './components/PainelCadastro';
-import HistoricoLiberacoes from './components/HistoricoLiberacoes';
-import PainelProgramacao from './components/PainelProgramacao';
 import { CheckCircle as CheckCircleIcon, Phone, LayoutGrid } from 'lucide-react';
-import PainelChecklist from './components/PainelChecklist';
-import PainelOcorrencias from './components/PainelOcorrencias';
-import PainelSaldoPaletes from './components/PainelSaldoPaletes';
-import ProvisionamentoFrota from './components/ProvisionamentoFrota';
-import DashboardFrota from './components/DashboardFrota';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
 import useUserStore from './store/useUserStore';
 import LoginScreen from './components/LoginScreen';
 import ModalConfirm from './components/ModalConfirm';
+
+// Lazy imports — carregam sob demanda na primeira navegação
+const PainelOperacional    = React.lazy(() => import('./components/PainelOperacional'));
+const PainelCte            = React.lazy(() => import('./components/PainelCte'));
+const ModuloCubagem        = React.lazy(() => import('./components/ModuloCubagem'));
+const NovoLancamento       = React.lazy(() => import('./components/NovoLancamento'));
+const LogsAuditoria        = React.lazy(() => import('./components/LogsAuditoria'));
+const DashboardTV          = React.lazy(() => import('./components/DashboardTV'));
+const GestaoMarcacoes      = React.lazy(() => import('./components/GestaoMarcacoes'));
+const RelatorioOperacional = React.lazy(() => import('./components/RelatorioOperacional'));
+const PainelCadastro       = React.lazy(() => import('./components/PainelCadastro'));
+const HistoricoLiberacoes  = React.lazy(() => import('./components/HistoricoLiberacoes'));
+const PainelProgramacao    = React.lazy(() => import('./components/PainelProgramacao'));
+const PainelChecklist      = React.lazy(() => import('./components/PainelChecklist'));
+const PainelOcorrencias    = React.lazy(() => import('./components/PainelOcorrencias'));
+const PainelSaldoPaletes   = React.lazy(() => import('./components/PainelSaldoPaletes'));
+const ProvisionamentoFrota = React.lazy(() => import('./components/ProvisionamentoFrota'));
+const DashboardFrota       = React.lazy(() => import('./components/DashboardFrota'));
+
+// Modals lazy — só carregam quando abertos
+const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
+const ModalFila         = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalFila })));
+const ModalRelatorioCte = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorioCte })));
 
 const hojeISO = obterDataBrasilia();
 
@@ -1293,6 +1299,7 @@ function App({ socket }) {
 
             {/* Dashboard TV - Fullscreen overlay */}
             {abaAtiva === 'dashboard_tv' && temAcesso('dashboard_tv') && (
+                <React.Suspense fallback={null}>
                 <DashboardTV
                     listaVeiculos={listaVeiculos}
                     ctesRecife={ctesRecifeHoje}
@@ -1305,10 +1312,17 @@ function App({ socket }) {
                         else setAbaAtiva('dashboard_tv');
                     }}
                 />
+                </React.Suspense>
             )}
 
             {/* CONTEÚDO PRINCIPAL */}
             <div className="container-central">
+            <React.Suspense fallback={
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#475569', fontSize: '13px', gap: '10px' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #1e293b', borderTop: '2px solid #60a5fa', animation: 'spin 0.7s linear infinite' }} />
+                    Carregando...
+                </div>
+            }>
 
                 {abaAtiva === 'op_recife' && temAcesso('operacao') && (
                     <PainelOperacional
@@ -1467,6 +1481,7 @@ function App({ socket }) {
                     </div>
                 )}
 
+            </React.Suspense>
             </div>
         </MainLayout>
     );
