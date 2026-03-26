@@ -2130,7 +2130,7 @@ async function gerarProgramacaoDiaria(turno) {
         if (turno === 'Inicial') {
             rows = await dbAll(`
                 SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao,
-                       foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta
+                       foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2156,10 +2156,13 @@ async function gerarProgramacaoDiaria(turno) {
                     totais[cliente][un] += 1;
                 }
 
+                let dj = {}; try { dj = JSON.parse(v.dados_json || '{}'); } catch {}
+                const placaExibir = dj.placa1Motorista || v.placa || '';
+                const placa2Exibir = dj.placa2Motorista || '';
                 listaVeiculos.push({
                     id: v.id,
                     motorista: v.motorista || '',
-                    placa: v.placa || '',
+                    placa: [placaExibir, placa2Exibir].filter(Boolean).join(' / '),
                     operacao: v.operacao || '',
                     cliente,
                     unidade: v.unidade || '',
@@ -2170,7 +2173,7 @@ async function gerarProgramacaoDiaria(turno) {
 
         } else { // Final
             rows = await dbAll(`
-                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta
+                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2184,10 +2187,13 @@ async function gerarProgramacaoDiaria(turno) {
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
                 totais[cliente][un] += 1;
 
+                let dj2 = {}; try { dj2 = JSON.parse(v.dados_json || '{}'); } catch {}
+                const placaEx2 = dj2.placa1Motorista || v.placa || '';
+                const placa2Ex2 = dj2.placa2Motorista || '';
                 listaVeiculos.push({
                     id: v.id,
                     motorista: v.motorista || '',
-                    placa: v.placa || '',
+                    placa: [placaEx2, placa2Ex2].filter(Boolean).join(' / '),
                     operacao: v.operacao || '',
                     cliente,
                     unidade: v.unidade || '',
