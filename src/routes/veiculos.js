@@ -623,40 +623,82 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             await dbRun(query, values);
 
-            // ── Sync Provisionamento: placa no card → EM_OPERACAO + sync carreta do CONJUNTO ──
+            // ── Sync Provisionamento: placa no card → EM_OPERACAO + sync CONJUNTO completo ──
             try {
                 const placaCavalo = (v.placa || '').trim().toUpperCase();
                 const placaCarreta = (v.placa2Motorista || v.carreta || '').trim().toUpperCase();
                 const placasCard = [placaCavalo, placaCarreta].filter(p => p && p !== '-');
+                const dataCard = v.data_prevista || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
 
                 if (placasCard.length > 0) {
-                    const provV = await dbGet(
-                        `SELECT id, placa, carreta, tipo_veiculo FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
-                        [placasCard]
-                    );
-                    if (provV) {
+                    // Buscar o cavalo no provisionamento
+                    const provCavalo = placaCavalo ? await dbGet(
+                        `SELECT id, placa, carreta, tipo_veiculo FROM prov_veiculos WHERE ativo = 1 AND UPPER(placa) = $1`,
+                        [placaCavalo]
+                    ) : null;
+
+                    if (provCavalo) {
                         // Sync EM_OPERACAO na programação
-                        const dataCard = v.data_prevista || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
                         await dbRun(
                             `INSERT INTO prov_programacao (veiculo_id, data, status)
                              VALUES ($1, $2, 'EM_OPERACAO')
                              ON CONFLICT (veiculo_id, data) DO UPDATE
                              SET status = 'EM_OPERACAO'
                              WHERE prov_programacao.status NOT IN ('CARREGANDO', 'MANUTENCAO')`,
-                            [provV.id, dataCard]
+                            [provCavalo.id, dataCard]
                         );
-                        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataCard, status: 'EM_OPERACAO' });
+                        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provCavalo.id, data: dataCard, status: 'EM_OPERACAO' });
 
-                        // Sync carreta do CONJUNTO: se o card operacional tem cavalo + carreta,
-                        // atualizar o campo carreta no prov_veiculos para manter o conjunto sincronizado
-                        if (provV.tipo_veiculo === 'CONJUNTO' && placaCavalo && placaCarreta) {
-                            if (provV.placa.toUpperCase() === placaCavalo && (provV.carreta || '').toUpperCase() !== placaCarreta) {
+                        // Sync CONJUNTO completo: card operacional é prioritário
+                        if (provCavalo.tipo_veiculo === 'CONJUNTO' && placaCavalo && placaCarreta) {
+                            const carretaAntigaDoCavalo = (provCavalo.carreta || '').toUpperCase();
+
+                            if (carretaAntigaDoCavalo !== placaCarreta) {
+                                // 1) Encontrar o OUTRO cavalo que usava essa carreta (placaCarreta) e desatrelar
+                                const outroCavaloComEssaCarreta = await dbGet(
+                                    `SELECT id, placa, carreta FROM prov_veiculos WHERE ativo = 1 AND UPPER(carreta) = $1 AND id != $2`,
+                                    [placaCarreta, provCavalo.id]
+                                );
+                                if (outroCavaloComEssaCarreta) {
+                                    await dbRun(`UPDATE prov_veiculos SET carreta = NULL WHERE id = $1`, [outroCavaloComEssaCarreta.id]);
+                                    console.log(`🔄 [Sync Prov] Desatrelou carreta ${placaCarreta} do cavalo ${outroCavaloComEssaCarreta.placa} (id ${outroCavaloComEssaCarreta.id})`);
+                                    // Setar status DISPONIVEL para o cavalo órfão no dia atual
+                                    await dbRun(
+                                        `INSERT INTO prov_programacao (veiculo_id, data, status) VALUES ($1, $2, 'DISPONIVEL')
+                                         ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'DISPONIVEL'
+                                         WHERE prov_programacao.status NOT IN ('MANUTENCAO')`,
+                                        [outroCavaloComEssaCarreta.id, dataCard]
+                                    );
+                                    io.emit('receber_atualizacao', { tipo: 'prov_veiculo_atualizado', veiculo_id: outroCavaloComEssaCarreta.id });
+                                    io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: outroCavaloComEssaCarreta.id, data: dataCard, status: 'DISPONIVEL' });
+                                }
+
+                                // 2) A carreta antiga do cavalo atual fica livre (como CARRETA avulsa no dashboard)
+                                if (carretaAntigaDoCavalo) {
+                                    // Verificar se a carreta antiga é um registro próprio em prov_veiculos (tipo CARRETA)
+                                    const provCarretaAntiga = await dbGet(
+                                        `SELECT id FROM prov_veiculos WHERE ativo = 1 AND UPPER(placa) = $1`,
+                                        [carretaAntigaDoCavalo]
+                                    );
+                                    if (provCarretaAntiga) {
+                                        await dbRun(
+                                            `INSERT INTO prov_programacao (veiculo_id, data, status) VALUES ($1, $2, 'DISPONIVEL')
+                                             ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'DISPONIVEL'
+                                             WHERE prov_programacao.status NOT IN ('MANUTENCAO')`,
+                                            [provCarretaAntiga.id, dataCard]
+                                        );
+                                        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provCarretaAntiga.id, data: dataCard, status: 'DISPONIVEL' });
+                                    }
+                                    console.log(`🔄 [Sync Prov] Carreta antiga ${carretaAntigaDoCavalo} do cavalo ${placaCavalo} agora está livre`);
+                                }
+
+                                // 3) Atualizar o cavalo com a nova carreta
                                 await dbRun(
                                     `UPDATE prov_veiculos SET carreta = $1 WHERE id = $2`,
-                                    [placaCarreta, provV.id]
+                                    [placaCarreta, provCavalo.id]
                                 );
-                                console.log(`🔄 [Sync Prov] CONJUNTO #${provV.id} (${provV.placa}): carreta atualizada ${provV.carreta || 'vazio'} → ${placaCarreta}`);
-                                io.emit('receber_atualizacao', { tipo: 'prov_veiculo_atualizado', veiculo_id: provV.id });
+                                console.log(`🔄 [Sync Prov] CONJUNTO #${provCavalo.id} (${provCavalo.placa}): carreta ${carretaAntigaDoCavalo || 'vazio'} → ${placaCarreta}`);
+                                io.emit('receber_atualizacao', { tipo: 'prov_veiculo_atualizado', veiculo_id: provCavalo.id });
                             }
                         }
                     }
