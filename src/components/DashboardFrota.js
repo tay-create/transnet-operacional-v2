@@ -921,12 +921,82 @@ function VistaSemanal({ socket }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `${r},${g},${b}`;
+}
+
+const STATUS_COR_PROG = {
+    PUXADA:           '#a78bfa',
+    TRANSFERENCIA:    '#60a5fa',
+    CARREGANDO:       '#fb923c',
+    EM_VIAGEM:        '#34d399',
+    EM_OPERACAO:      '#a78bfa',
+    MANUTENCAO:       '#f87171',
+    RETORNANDO:       '#fbbf24',
+    DISPONIVEL:       '#475569',
+    EM_VIAGEM_FRETE_RETORNO: '#34d399',
+    AGUARDANDO_FRETE_RETORNO: '#fbbf24',
+    PROJETO_SUL:      '#60a5fa',
+    PROJETO_SP:       '#60a5fa',
+};
+
+const STATUS_LABEL_PROG = {
+    PUXADA: 'Puxada',
+    TRANSFERENCIA: 'Transferência',
+    CARREGANDO: 'Carregamento',
+    EM_VIAGEM: 'Em Viagem',
+    EM_OPERACAO: 'Em Operação',
+    DISPONIVEL: 'Disponível',
+    MANUTENCAO: 'Manutenção',
+    RETORNANDO: 'Retornando',
+    EM_VIAGEM_FRETE_RETORNO: 'Frete Retorno',
+    AGUARDANDO_FRETE_RETORNO: 'Ag. Frete Ret.',
+    PROJETO_SUL: 'Projeto Sul',
+    PROJETO_SP: 'Projeto SP',
+};
+
 export default function DashboardFrota({ socket }) {
     const hoje = new Date().toISOString().substring(0, 10);
+    const [abaAtiva, setAbaAtiva] = useState('dashboard');
     const [dataSelecionada, setDataSelecionada] = useState(hoje);
     const [veiculos, setVeiculos] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
+
+    // Programação do Dia
+    const [progDia, setProgDia] = useState([]);
+    const [obsDia, setObsDia] = useState('');
+    const [obsSalvando, setObsSalvando] = useState(false);
+    const [dataProgDia, setDataProgDia] = useState(hoje);
+    const [carregandoProg, setCarregandoProg] = useState(false);
+
+    const carregarProgDia = useCallback(async (data) => {
+        setCarregandoProg(true);
+        try {
+            const [r1, r2] = await Promise.all([
+                api.get(`/api/provisionamento/dashboard?data=${data}`),
+                api.get(`/api/frota/obs-dia?data=${data}`)
+            ]);
+            if (r1.data.success) setProgDia(r1.data.veiculos);
+            setObsDia(r2.data.observacao || '');
+        } catch (e) { console.error('Erro prog dia:', e); }
+        finally { setCarregandoProg(false); }
+    }, []);
+
+    useEffect(() => {
+        if (abaAtiva === 'programacao') carregarProgDia(dataProgDia);
+    }, [abaAtiva, dataProgDia, carregarProgDia]);
+
+    const salvarObs = async () => {
+        setObsSalvando(true);
+        try {
+            await api.put('/api/frota/obs-dia', { data: dataProgDia, observacao: obsDia });
+        } catch (e) { console.error('Erro salvar obs:', e); }
+        finally { setObsSalvando(false); }
+    };
 
     const carregar = useCallback(async (data) => {
         setCarregando(true);
@@ -1064,28 +1134,155 @@ export default function DashboardFrota({ socket }) {
                 </div>
             </div>
 
-            {/* Visão Semanal no topo */}
-            <VistaSemanal socket={socket} />
-
-            {/* Card Geral */}
-            <div style={{ marginBottom: '20px' }}>
-                <CardGeral
-                    veiculos={veiculosNorm}
-                    contsPorTipo={Object.fromEntries(TIPOS.map(t => [t, veiculosPorTipo[t]?.length ?? 0]))}
-                />
-            </div>
-
-            {/* Cards por tipo */}
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                {TIPOS.map((tipo, idx) => (
-                    <CardTipo
-                        key={tipo}
-                        tipo={tipo}
-                        veiculosTipo={veiculosPorTipo[tipo] || []}
-                        style={tipo === 'CARRETA' ? { marginLeft: 'auto' } : {}}
-                    />
+            {/* Abas */}
+            <div style={{ display: 'flex', gap: '0', marginBottom: '24px', borderBottom: '1px solid #1e293b' }}>
+                {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'programacao', label: 'Programação do Dia' }].map(t => (
+                    <button key={t.id} onClick={() => setAbaAtiva(t.id)} style={{
+                        padding: '8px 20px', background: 'none', border: 'none',
+                        borderBottom: abaAtiva === t.id ? '2px solid #60a5fa' : '2px solid transparent',
+                        color: abaAtiva === t.id ? '#f1f5f9' : '#64748b',
+                        fontWeight: abaAtiva === t.id ? '700' : '400',
+                        cursor: 'pointer', fontSize: '13px', marginBottom: '-1px',
+                        transition: 'color 0.15s',
+                    }}>{t.label}</button>
                 ))}
             </div>
+
+            {/* Aba: Dashboard */}
+            {abaAtiva === 'dashboard' && (<>
+                {/* Visão Semanal no topo */}
+                <VistaSemanal socket={socket} />
+
+                {/* Card Geral */}
+                <div style={{ marginBottom: '20px' }}>
+                    <CardGeral
+                        veiculos={veiculosNorm}
+                        contsPorTipo={Object.fromEntries(TIPOS.map(t => [t, veiculosPorTipo[t]?.length ?? 0]))}
+                    />
+                </div>
+
+                {/* Cards por tipo */}
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                    {TIPOS.map((tipo) => (
+                        <CardTipo
+                            key={tipo}
+                            tipo={tipo}
+                            veiculosTipo={veiculosPorTipo[tipo] || []}
+                        />
+                    ))}
+                </div>
+            </>)}
+
+            {/* Aba: Programação do Dia */}
+            {abaAtiva === 'programacao' && (() => {
+                const veiculosAtivos = progDia.filter(v => v.status !== 'DISPONIVEL' || v.motorista);
+
+                const gerarDescricao = (v) => {
+                    let destinosTxt = '';
+                    if (v.destinos_json) {
+                        try {
+                            const ds = JSON.parse(v.destinos_json);
+                            destinosTxt = ds.map(d => {
+                                const ag = d.data && d.data !== dataProgDia
+                                    ? `(AG:${d.data.split('-').reverse().slice(0,2).join('/')})` : '';
+                                return `${d.cidade}${ag}`;
+                            }).join(', ');
+                        } catch {}
+                    }
+                    if (!destinosTxt && v.destino) destinosTxt = v.destino;
+                    const label = STATUS_LABEL_PROG[v.status] || v.status;
+                    return [destinosTxt, label].filter(Boolean).join(' · ');
+                };
+
+                const sTh = { padding: '10px 14px', color: '#64748b', fontWeight: '600', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #1e293b' };
+                const sTd = { padding: '10px 14px', color: '#cbd5e1', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.04)' };
+
+                return (
+                    <div>
+                        {/* Cabeçalho */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                            <h2 style={{ color: '#f1f5f9', margin: 0, fontSize: '18px', fontWeight: '700' }}>
+                                Programação · {formatarDataExibicao(dataProgDia)}
+                            </h2>
+                            <input type="date" value={dataProgDia}
+                                onChange={e => setDataProgDia(e.target.value)}
+                                style={{ background: '#1e293b', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', outline: 'none' }}
+                            />
+                            {dataProgDia !== hoje && (
+                                <button onClick={() => setDataProgDia(hoje)}
+                                    style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', color: '#60a5fa', cursor: 'pointer', padding: '5px 10px', fontSize: '11px', fontWeight: '600' }}>
+                                    Hoje
+                                </button>
+                            )}
+                            <button onClick={() => carregarProgDia(dataProgDia)} disabled={carregandoProg}
+                                style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '6px', color: '#a5b4fc', cursor: 'pointer', padding: '5px 12px', fontSize: '12px', fontWeight: '600', opacity: carregandoProg ? 0.6 : 1 }}>
+                                ↻ Atualizar
+                            </button>
+                        </div>
+
+                        {/* Tabela de veículos */}
+                        <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden', marginBottom: '16px' }}>
+                            {carregandoProg ? (
+                                <div style={{ padding: '32px', textAlign: 'center', color: '#475569' }}>Carregando...</div>
+                            ) : veiculosAtivos.length === 0 ? (
+                                <div style={{ padding: '32px', textAlign: 'center', color: '#475569' }}>Nenhum veículo em operação neste dia.</div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            <th style={sTh}>Motorista</th>
+                                            <th style={sTh}>Placas</th>
+                                            <th style={sTh}>Descrição</th>
+                                            <th style={sTh}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {veiculosAtivos.map(v => (
+                                            <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                                                <td style={{ ...sTd, fontWeight: '600', color: '#e2e8f0' }}>
+                                                    {v.motorista || <span style={{ color: '#475569' }}>----</span>}
+                                                </td>
+                                                <td style={{ ...sTd, fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>
+                                                    {v.placa && v.placa !== '-' ? v.placa : ''}
+                                                    {v.carreta ? ` / ${v.carreta}` : ''}
+                                                </td>
+                                                <td style={{ ...sTd, color: '#94a3b8' }}>{gerarDescricao(v)}</td>
+                                                <td style={sTd}>
+                                                    <span style={{
+                                                        padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '700',
+                                                        background: `rgba(${hexToRgb(STATUS_COR_PROG[v.status] || '#475569')},0.15)`,
+                                                        color: STATUS_COR_PROG[v.status] || '#94a3b8',
+                                                        border: `1px solid rgba(${hexToRgb(STATUS_COR_PROG[v.status] || '#475569')},0.3)`,
+                                                    }}>
+                                                        {STATUS_LABEL_PROG[v.status] || v.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+
+                        {/* OBS do dia */}
+                        <div style={{ background: '#1e293b', borderRadius: '10px', padding: '16px', border: '1px solid #334155' }}>
+                            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                OBS do Dia
+                            </div>
+                            <textarea
+                                value={obsDia}
+                                onChange={e => setObsDia(e.target.value)}
+                                placeholder="Ex: Disponibilizar motorista carreteiro para possíveis movimentações..."
+                                style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '6px', padding: '10px', fontSize: '13px', resize: 'vertical', minHeight: '64px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}
+                            />
+                            <button onClick={salvarObs} disabled={obsSalvando}
+                                style={{ marginTop: '8px', padding: '6px 18px', background: obsSalvando ? '#334155' : '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: obsSalvando ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                                {obsSalvando ? 'Salvando...' : 'Salvar'}
+                            </button>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* CSS animation */}
             <style>{`

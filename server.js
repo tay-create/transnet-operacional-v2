@@ -2651,7 +2651,7 @@ app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
         const data = req.query.data || new Date().toISOString().substring(0, 10);
         const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1');
         const progs = await dbAll(
-            'SELECT veiculo_id, status, destino, motorista FROM prov_programacao WHERE data = $1',
+            'SELECT veiculo_id, status, destino, destinos_json, motorista FROM prov_programacao WHERE data = $1',
             [data]
         );
         const progMap = {};
@@ -2668,10 +2668,35 @@ app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
                 motorista: p?.motorista || v.motorista || null,
                 status: p?.status || 'DISPONIVEL',
                 destino: p?.destino || null,
+                destinos_json: p?.destinos_json || null,
             };
         });
 
         res.json({ success: true, data, veiculos: resultado });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// GET /api/frota/obs-dia?data=YYYY-MM-DD — observação geral do dia para programação da frota
+app.get('/api/frota/obs-dia', authMiddleware, async (req, res) => {
+    try {
+        const data = req.query.data || new Date().toISOString().slice(0, 10);
+        const row = await dbGet('SELECT observacao FROM frota_obs_diarias WHERE data_referencia = $1', [data]);
+        res.json({ success: true, observacao: row?.observacao || '' });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// PUT /api/frota/obs-dia — salvar/atualizar observação do dia
+app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+    try {
+        const { data, observacao } = req.body;
+        if (!data) return res.status(400).json({ success: false, message: 'data obrigatória.' });
+        await dbRun(
+            `INSERT INTO frota_obs_diarias (data_referencia, observacao, atualizada_em)
+             VALUES ($1, $2, NOW())
+             ON CONFLICT (data_referencia) DO UPDATE SET observacao = $2, atualizada_em = NOW()`,
+            [data, observacao || '']
+        );
+        res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

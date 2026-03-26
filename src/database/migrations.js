@@ -441,6 +441,12 @@ const inicializarBanco = async () => {
         )`);
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_prog_data ON prov_programacao(data)`); } catch (_) {}
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_veiculos_ativo ON prov_veiculos(ativo, ordem)`); } catch (_) {}
+        await dbRun(`CREATE TABLE IF NOT EXISTS frota_obs_diarias (
+            id SERIAL PRIMARY KEY,
+            data_referencia DATE NOT NULL UNIQUE,
+            observacao TEXT DEFAULT '',
+            atualizada_em TIMESTAMP DEFAULT NOW()
+        )`);
 
         // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
