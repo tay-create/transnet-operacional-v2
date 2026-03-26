@@ -504,8 +504,14 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 
         if (busca && busca.trim()) {
             const b = busca.trim();
-            params.push(`%${b}%`, `%${b.replace(/\D/g,'')}%`);
-            conditions.push(`(nome_motorista ILIKE $${params.length - 1} OR telefone LIKE $${params.length})`);
+            const soDigitos = b.replace(/\D/g, '');
+            params.push(`%${b}%`);
+            let buscaCond = `nome_motorista ILIKE $${params.length}`;
+            if (soDigitos.length >= 3) {
+                params.push(`%${soDigitos}%`);
+                buscaCond += ` OR telefone LIKE $${params.length}`;
+            }
+            conditions.push(`(${buscaCond})`);
         }
 
         if (estado && estado.trim()) {
