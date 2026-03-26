@@ -112,6 +112,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroDisponibilidade, setFiltroDisponibilidade] = useState('');
+    const [filtroStatusOp, setFiltroStatusOp] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const [totalMarcacoes, setTotalMarcacoes] = useState(0);
     const ITENS_POR_PAGINA = 50;
@@ -141,7 +142,12 @@ export default function GestaoMarcacoes({ socket }) {
     const carregarMarcacoes = useCallback(async (pagina = 1) => {
         setLoading(true);
         try {
-            const r = await api.get(`/api/marcacoes?page=${pagina}&limit=${ITENS_POR_PAGINA}`);
+            const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
+            if (filtroDisponibilidade) qp.set('disponibilidade', filtroDisponibilidade);
+            if (filtroStatusOp) qp.set('status_operacional', filtroStatusOp);
+            if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
+            if (filtroEstado) qp.set('estado', filtroEstado);
+            const r = await api.get(`/api/marcacoes?${qp}`);
             if (r.data.success) {
                 setMarcacoes(r.data.marcacoes);
                 setTotalMarcacoes(r.data.total || 0);
@@ -149,12 +155,25 @@ export default function GestaoMarcacoes({ socket }) {
             }
         } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
-    }, []);
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado]);
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
         else if (aba === 'placas' || aba === 'frota') carregarMarcacoes(1);
     }, [aba, carregarTokens, carregarMarcacoes]);
+
+    // Recarrega ao mudar filtros (reset para página 1)
+    useEffect(() => {
+        if (aba !== 'placas' && aba !== 'frota') return;
+        carregarMarcacoes(1);
+    }, [filtroDisponibilidade, filtroStatusOp, filtroEstado]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Busca com debounce
+    useEffect(() => {
+        if (aba !== 'placas' && aba !== 'frota') return;
+        const t = setTimeout(() => carregarMarcacoes(1), 400);
+        return () => clearTimeout(t);
+    }, [buscaMarcacoes]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!socket) return;
@@ -343,34 +362,8 @@ export default function GestaoMarcacoes({ socket }) {
 
     const ff = (campo) => (e) => setFormFrota(prev => ({ ...prev, [campo]: e.target.value }));
 
-    // Filtro local aplicado sobre a página atual retornada pelo servidor
-    const marcacoesFiltradas = useMemo(() => {
-        return marcacoes.filter(m => {
-            if (m.is_frota) return false;
-            if (filtroEstado) {
-                const estados = Array.isArray(m.estados_destino) ? m.estados_destino : [];
-                if (!estados.includes(filtroEstado)) return false;
-            }
-            if (filtroDisponibilidade) {
-                const disp = m.disponibilidade || '';
-                const opStatus = m.status_operacional || '';
-                const isIndisponivel = disp === 'Indisponível';
-                const isContratado = disp === 'Contratado' || opStatus === 'EM VIAGEM' || opStatus === 'EM ROTA';
-                const isDisponivel = !isIndisponivel && !isContratado;
-                if (filtroDisponibilidade === 'disponivel' && !isDisponivel) return false;
-                if (filtroDisponibilidade === 'indisponivel' && !isIndisponivel) return false;
-                if (filtroDisponibilidade === 'contratado' && !isContratado) return false;
-                if (filtroDisponibilidade === 'EM CASA' && disp !== 'EM CASA') return false;
-                if (filtroDisponibilidade === 'NO PÁTIO' && disp !== 'NO PÁTIO') return false;
-                if (filtroDisponibilidade === 'NO POSTO' && disp !== 'NO POSTO') return false;
-            }
-            if (!buscaMarcacoes) return true;
-            const q = buscaMarcacoes.toLowerCase();
-            const soNumeros = buscaMarcacoes.replace(/\D/g, '');
-            return m.nome_motorista?.toLowerCase().includes(q) ||
-                (soNumeros && (m.telefone || '').replace(/\D/g, '').includes(soNumeros));
-        });
-    }, [marcacoes, filtroEstado, filtroDisponibilidade, buscaMarcacoes]);
+    // Filtros são server-side; apenas exclui is_frota localmente
+    const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => !m.is_frota), [marcacoes]);
 
     function ModalDetalhes({ m, onClose }) {
         const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
@@ -590,11 +583,11 @@ export default function GestaoMarcacoes({ socket }) {
                                 style={{ ...s.input, flex: 1, minWidth: '180px', maxWidth: '260px' }}
                                 placeholder="Buscar por nome ou telefone..."
                                 value={buscaMarcacoes}
-                                onChange={e => { setBuscaMarcacoes(e.target.value); setPaginaMarcacoes(1); }}
+                                onChange={e => setBuscaMarcacoes(e.target.value)}
                             />
                             <select
                                 value={filtroEstado}
-                                onChange={e => { setFiltroEstado(e.target.value); setPaginaMarcacoes(1); }}
+                                onChange={e => setFiltroEstado(e.target.value)}
                                 style={{
                                     ...s.input,
                                     minWidth: '130px', maxWidth: '180px',
@@ -609,7 +602,7 @@ export default function GestaoMarcacoes({ socket }) {
                             </select>
                             <select
                                 value={filtroDisponibilidade}
-                                onChange={e => { setFiltroDisponibilidade(e.target.value); setPaginaMarcacoes(1); }}
+                                onChange={e => setFiltroDisponibilidade(e.target.value)}
                                 style={{
                                     ...s.input,
                                     minWidth: '150px', maxWidth: '200px',
@@ -624,6 +617,22 @@ export default function GestaoMarcacoes({ socket }) {
                                 <option value="EM CASA">EM CASA</option>
                                 <option value="NO PÁTIO">NO PÁTIO</option>
                                 <option value="NO POSTO">NO POSTO</option>
+                            </select>
+                            <select
+                                value={filtroStatusOp}
+                                onChange={e => setFiltroStatusOp(e.target.value)}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '150px', maxWidth: '200px',
+                                    cursor: 'pointer', color: filtroStatusOp ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroStatusOp ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Todos os status</option>
+                                <option value="DISPONIVEL">Disponível (sem op.)</option>
+                                <option value="EM OPERACAO">Em Operação</option>
+                                <option value="EM VIAGEM">Em Viagem</option>
+                                <option value="EM ROTA">Em Rota</option>
                             </select>
                         </div>
                         <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>

@@ -486,6 +486,43 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
         const offset = (pagina - 1) * limite;
 
+        const { disponibilidade, status_operacional, busca, estado } = req.query;
+        const conditions = [];
+        const params = [];
+
+        if (disponibilidade === 'disponivel') {
+            conditions.push(`disponibilidade NOT IN ('Indisponível', 'Contratado')`);
+            conditions.push(`COALESCE(status_operacional,'') NOT IN ('EM OPERACAO','EM VIAGEM','EM ROTA')`);
+        } else if (disponibilidade === 'indisponivel') {
+            conditions.push(`disponibilidade = 'Indisponível'`);
+        } else if (disponibilidade === 'contratado') {
+            conditions.push(`(disponibilidade = 'Contratado' OR status_operacional IN ('EM OPERACAO','EM VIAGEM','EM ROTA'))`);
+        } else if (['EM CASA','NO PÁTIO','NO POSTO'].includes(disponibilidade)) {
+            params.push(disponibilidade);
+            conditions.push(`disponibilidade = $${params.length}`);
+        }
+
+        if (status_operacional) {
+            params.push(status_operacional);
+            conditions.push(`COALESCE(status_operacional,'DISPONIVEL') = $${params.length}`);
+        }
+
+        if (busca && busca.trim()) {
+            const b = busca.trim();
+            params.push(`%${b}%`, `%${b.replace(/\D/g,'')}%`);
+            conditions.push(`(nome_motorista ILIKE $${params.length - 1} OR telefone LIKE $${params.length})`);
+        }
+
+        if (estado && estado.trim()) {
+            params.push(`%"${estado.trim()}"%`);
+            conditions.push(`estados_destino::text ILIKE $${params.length}`);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        const dataParams = [...params, limite, offset];
+        const countParams = [...params];
+
         const [rows, totalRow] = await Promise.all([
             dbAll(
                 `SELECT id, token_id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
@@ -495,11 +532,12 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
                         is_frota, situacao_cad, comprovante_pdf, anexo_cnh, anexo_doc_veiculo,
                         anexo_crlv_carreta, anexo_antt, anexo_outros
                  FROM marcacoes_placas
+                 ${whereClause}
                  ORDER BY data_marcacao DESC
-                 LIMIT $1 OFFSET $2`,
-                [limite, offset]
+                 LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+                dataParams
             ),
-            dbAll("SELECT COUNT(*) AS total FROM marcacoes_placas")
+            dbAll(`SELECT COUNT(*) AS total FROM marcacoes_placas ${whereClause}`, countParams)
         ]);
 
         const marcacoes = rows.map(r => ({
