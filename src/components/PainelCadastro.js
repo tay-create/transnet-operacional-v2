@@ -609,27 +609,30 @@ export default function PainelCadastro({ user, socket }) {
                                 const corTm = corTimer(timer);
                                 const estaSalvando = salvandoOp === m.id;
 
+                                const cteEmitido = m.status_cte === 'Emitido';
                                 return (
                                     <div
                                         key={m.id}
                                         className="glass-panel-internal"
                                         style={{
-                                            borderLeft: `4px solid ${cor.border}`,
+                                            borderLeft: `4px solid ${cteEmitido ? '#4ade80' : cor.border}`,
                                             borderRadius: '12px',
                                             overflow: 'hidden',
-                                            animation: 'slideIn 0.3s ease'
+                                            animation: 'slideIn 0.3s ease',
+                                            boxShadow: cteEmitido ? '0 0 0 1px rgba(74,222,128,0.3), 0 4px 20px rgba(74,222,128,0.1)' : undefined,
                                         }}
                                     >
+                                        {/* Banner CT-e Emitido */}
+                                        {cteEmitido && (
+                                            <div style={{ background: 'rgba(34,197,94,0.15)', borderBottom: '1px solid rgba(74,222,128,0.3)', padding: '5px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#4ade80', letterSpacing: '0.5px' }}>✓ CT-e EMITIDO</span>
+                                            </div>
+                                        )}
                                         {/* Header do card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <div>
                                                 <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px', textTransform: 'uppercase' }}>
                                                     {m.nome_motorista}
-                                                    {m.status_cte === 'Emitido' && (
-                                                        <span style={{ fontSize: '10px', fontWeight: '700', color: '#4ade80', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', padding: '1px 7px', borderRadius: '10px' }}>
-                                                            CT-e Emitido
-                                                        </span>
-                                                    )}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                                     <span style={{ fontSize: '10px', color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '2px 6px', borderRadius: '4px' }}>
