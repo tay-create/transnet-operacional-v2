@@ -4,6 +4,7 @@ const { autoUpdater } = require('electron-updater');
 
 const APP_URL = 'https://portal.tnethub.com.br';
 
+app.setName('Transnet Operacional');
 Menu.setApplicationMenu(null);
 
 // Habilita logs básicos para depuração em caso de erro na atualização

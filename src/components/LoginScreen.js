@@ -8,7 +8,7 @@ import '../App.css';
 
 export default function LoginScreen({ onLoginSuccess }) {
     const login = useAuthStore((state) => state.login);
-    const [loginDados, setLoginDados] = useState({ nome: '', senha: '' });
+    const [loginDados, setLoginDados] = useState({ nome: localStorage.getItem('ultimo_login_email') || '', senha: '' });
     const [erro, setErro] = useState('');
     const [loading, setLoading] = useState(false);
     const [aviso, setAviso] = useState('');
@@ -49,6 +49,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                 } else {
                     localStorage.removeItem('manter_conectado');
                 }
+                localStorage.setItem('ultimo_login_email', loginDados.nome);
                 login(userData, token);
                 onLoginSuccess(userData);
             } else {
