@@ -56,7 +56,7 @@ const DESTINATARIOS_ALERTA = {
     'doca':                ['Cadastro', 'Conhecimento'],
 };
 
-console.log("🚀 [App] Carregando v0.3.2");
+console.log("🚀 [App] Carregando v0.3.3");
 
 function App({ socket }) {
     // === ESTADO GLOBAL (Zustand) ===
