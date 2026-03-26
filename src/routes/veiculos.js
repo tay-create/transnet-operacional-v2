@@ -623,15 +623,19 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             await dbRun(query, values);
 
-            // ── Sync Provisionamento: placa no card → EM_OPERACAO ──
+            // ── Sync Provisionamento: placa no card → EM_OPERACAO + sync carreta do CONJUNTO ──
             try {
-                const placasCard = [v.placa, v.carreta].filter(p => p && p.trim() && p !== '-');
+                const placaCavalo = (v.placa || '').trim().toUpperCase();
+                const placaCarreta = (v.placa2Motorista || v.carreta || '').trim().toUpperCase();
+                const placasCard = [placaCavalo, placaCarreta].filter(p => p && p !== '-');
+
                 if (placasCard.length > 0) {
                     const provV = await dbGet(
-                        `SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
+                        `SELECT id, placa, carreta, tipo_veiculo FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
                         [placasCard]
                     );
                     if (provV) {
+                        // Sync EM_OPERACAO na programação
                         const dataCard = v.data_prevista || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
                         await dbRun(
                             `INSERT INTO prov_programacao (veiculo_id, data, status)
@@ -642,10 +646,23 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                             [provV.id, dataCard]
                         );
                         io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataCard, status: 'EM_OPERACAO' });
+
+                        // Sync carreta do CONJUNTO: se o card operacional tem cavalo + carreta,
+                        // atualizar o campo carreta no prov_veiculos para manter o conjunto sincronizado
+                        if (provV.tipo_veiculo === 'CONJUNTO' && placaCavalo && placaCarreta) {
+                            if (provV.placa.toUpperCase() === placaCavalo && (provV.carreta || '').toUpperCase() !== placaCarreta) {
+                                await dbRun(
+                                    `UPDATE prov_veiculos SET carreta = $1 WHERE id = $2`,
+                                    [placaCarreta, provV.id]
+                                );
+                                console.log(`🔄 [Sync Prov] CONJUNTO #${provV.id} (${provV.placa}): carreta atualizada ${provV.carreta || 'vazio'} → ${placaCarreta}`);
+                                io.emit('receber_atualizacao', { tipo: 'prov_veiculo_atualizado', veiculo_id: provV.id });
+                            }
+                        }
                     }
                 }
             } catch (syncErr) {
-                console.error('⚠️ [Sync Prov] Erro ao atualizar provisionamento para EM_OPERACAO:', syncErr);
+                console.error('⚠️ [Sync Prov] Erro ao sincronizar provisionamento:', syncErr);
             }
             // ───────────────────────────────────────────────────────
 

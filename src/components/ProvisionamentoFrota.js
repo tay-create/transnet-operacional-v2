@@ -133,18 +133,22 @@ export default function ProvisionamentoFrota({ socket, user }) {
     useEffect(() => {
         if (!socket) return;
         const handler = (data) => {
-            if (data?.tipo !== 'prov_status_atualizado') return;
-            setProgramacao(prev => ({
-                ...prev,
-                [data.veiculo_id]: {
-                    ...prev[data.veiculo_id],
-                    [data.data]: { status: data.status, destino: data.destino, motorista: data.motorista || null }
-                }
-            }));
+            if (data?.tipo === 'prov_status_atualizado') {
+                setProgramacao(prev => ({
+                    ...prev,
+                    [data.veiculo_id]: {
+                        ...prev[data.veiculo_id],
+                        [data.data]: { status: data.status, destino: data.destino, motorista: data.motorista || null }
+                    }
+                }));
+            } else if (data?.tipo === 'prov_veiculo_atualizado') {
+                // Veículo do provisionamento foi alterado (ex: carreta do CONJUNTO sincronizada)
+                carregarSemana(semanaInicio);
+            }
         };
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
-    }, [socket]);
+    }, [socket, semanaInicio, carregarSemana]);
 
     function navegarSemana(direcao) {
         const d = new Date(semanaInicio + 'T00:00:00Z');
