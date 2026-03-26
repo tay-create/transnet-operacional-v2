@@ -85,13 +85,15 @@ function KpiCard({ label, valor, cor, sub, icone }) {
 // ── Modal de Devolução ──────────────────────────────────────────────────────
 function ModalDevolucao({ registro, onClose, onConfirm }) {
     const [modo, setModo] = useState('total');
-    const [qtdPbr, setQtdPbr] = useState(0);
+    const isDesc = registro.tipo_palete === 'DESCARTAVEL';
+    const qtdTotal = isDesc ? (registro.qtd_descartavel || 0) : (registro.qtd_pbr || 0);
+    const [qtdParcial, setQtdParcial] = useState(0);
 
     const confirmar = () => {
         if (modo === 'total') {
             onConfirm({ total: true });
         } else {
-            onConfirm({ qtd_devolvida_pbr: qtdPbr });
+            onConfirm(isDesc ? { qtd_devolvida_desc: qtdParcial } : { qtd_devolvida_pbr: qtdParcial });
         }
     };
 
@@ -117,7 +119,7 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
                 <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
                     <div style={{ fontSize: '12px', color: '#94a3b8' }}>Motorista: <strong style={{ color: '#f1f5f9' }}>{registro.motorista}</strong></div>
                     <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                        PBR: <strong style={{ color: '#60a5fa' }}>{registro.qtd_pbr}</strong>
+                        {isDesc ? 'Descartável' : 'PBR'}: <strong style={{ color: isDesc ? '#f97316' : '#60a5fa' }}>{qtdTotal}</strong>
                     </div>
                 </div>
 
@@ -128,9 +130,9 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
 
                 {modo === 'parcial' && (
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={s.label}>Qtd PBR devolvidos (max: {registro.qtd_pbr})</label>
-                        <input type="number" min="0" max={registro.qtd_pbr} value={qtdPbr}
-                            onChange={e => setQtdPbr(Math.min(Number(e.target.value), registro.qtd_pbr))}
+                        <label style={s.label}>Qtd {isDesc ? 'Descartável' : 'PBR'} devolvidos (max: {qtdTotal})</label>
+                        <input type="number" min="0" max={qtdTotal} value={qtdParcial}
+                            onChange={e => setQtdParcial(Math.min(Number(e.target.value), qtdTotal))}
                             style={s.input} />
                     </div>
                 )}
@@ -373,6 +375,9 @@ export default function PainelSaldoPaletes() {
     const totalPbr = registros.reduce((acc, r) => acc + (r.qtd_pbr || 0), 0);
     const totalDevPbr = registros.reduce((acc, r) => acc + (r.qtd_devolvida_pbr || 0), 0);
     const saldoPbr = totalPbr - totalDevPbr;
+    const totalDesc = registros.reduce((acc, r) => acc + (r.qtd_descartavel || 0), 0);
+    const totalDevDesc = registros.reduce((acc, r) => acc + (r.qtd_devolvida_desc || 0), 0);
+    const saldoDesc = totalDesc - totalDevDesc;
     const pendentes = registros.filter(r => !r.devolvido).length;
 
     function formatarData(dt) {
@@ -428,14 +433,14 @@ export default function PainelSaldoPaletes() {
                         icone={<Package size={16} />}
                     />
                     <KpiCard
-                        label="Total Saídas"
-                        valor={totalPbr}
-                        cor="#94a3b8"
-                        sub="paletes emitidos"
-                        icone={<TrendingUp size={16} />}
+                        label="Saldo Descartável"
+                        valor={saldoDesc}
+                        cor="#f97316"
+                        sub={`de ${totalDesc} emitidos`}
+                        icone={<Package size={16} />}
                     />
                     <KpiCard
-                        label="Devolvidos"
+                        label="Devolvidos PBR"
                         valor={totalDevPbr}
                         cor="#22c55e"
                         sub="paletes retornados"
@@ -483,7 +488,7 @@ export default function PainelSaldoPaletes() {
                                         <th style={s.th}>Motorista</th>
                                         <th style={s.th}>Placas</th>
                                         <th style={s.th}>Tipo</th>
-                                        <th style={s.th}>Qtd PBR</th>
+                                        <th style={s.th}>Qtd</th>
                                         <th style={s.th}>Fornecedor</th>
                                         <th style={s.th}>Status</th>
                                         <th style={s.th}>Data Entrada</th>
@@ -511,12 +516,21 @@ export default function PainelSaldoPaletes() {
                                                 </td>
                                                 <td style={s.td}><span style={s.badgeTipo()}>{r.tipo_palete}</span></td>
                                                 <td style={s.td}>
-                                                    {r.qtd_pbr > 0 ? (
-                                                        <div>
-                                                            <span style={{ fontWeight: '800', color: saldoPbrRow > 0 ? '#60a5fa' : '#4ade80', fontSize: '15px' }}>{saldoPbrRow}</span>
-                                                            <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
-                                                        </div>
-                                                    ) : '—'}
+                                                    {r.tipo_palete === 'DESCARTAVEL' ? (
+                                                        r.qtd_descartavel > 0 ? (
+                                                            <div>
+                                                                <span style={{ fontWeight: '800', color: '#f97316', fontSize: '15px' }}>{(r.qtd_descartavel || 0) - (r.qtd_devolvida_desc || 0)}</span>
+                                                                <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_descartavel}</span>
+                                                            </div>
+                                                        ) : '—'
+                                                    ) : (
+                                                        r.qtd_pbr > 0 ? (
+                                                            <div>
+                                                                <span style={{ fontWeight: '800', color: saldoPbrRow > 0 ? '#60a5fa' : '#4ade80', fontSize: '15px' }}>{saldoPbrRow}</span>
+                                                                <span style={{ fontSize: '10px', color: '#475569' }}> / {r.qtd_pbr}</span>
+                                                            </div>
+                                                        ) : '—'
+                                                    )}
                                                 </td>
                                                 <td style={s.td}><span style={{ fontSize: '12px', color: '#94a3b8' }}>{r.fornecedor_pbr || '—'}</span></td>
                                                 <td style={s.td}><span style={s.badge(r.devolvido)}>{r.devolvido ? '✓ Devolvido' : '⏳ Pendente'}</span></td>
