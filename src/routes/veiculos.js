@@ -1083,8 +1083,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             if (motoristaAnterior && motoristaAnterior.trim()) {
                 await dbRun(
                     `UPDATE marcacoes_placas SET status_operacional = 'DISPONIVEL'
-                     WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM($1))
-                       AND status_operacional = 'EM OPERACAO'`,
+                     WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM($1))`,
                     [motoristaAnterior]
                 );
             }
