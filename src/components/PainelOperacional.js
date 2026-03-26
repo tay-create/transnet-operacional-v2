@@ -780,9 +780,13 @@ export default function PainelOperacional({
                                                     if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1);
                                                     const proxStr = prox.toISOString().slice(0, 10);
                                                     const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+                                                    const dataCarregadoOutraUnidade = origem === 'Recife' ? item.data_carregado_moreno : item.data_carregado_recife;
                                                     const statusAtualItem = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
                                                     const eHoje = item.data_prevista === hoje;
-                                                    const podeAvancarDia = eHoje && !dataCarregadoUnidade && !['CARREGADO', 'LIBERADO P/ CT-e'].includes(statusAtualItem);
+                                                    // Card misto: outra parada já carregou (ancorando nela), mas esta parada ainda não
+                                                    // Nesse caso o data_prevista pode ser ontem — ainda assim pode avançar para amanhã
+                                                    const outraParadaJaCarregou = !!(item.coletaRecife && item.coletaMoreno && dataCarregadoOutraUnidade);
+                                                    const podeAvancarDia = (eHoje || outraParadaJaCarregou) && !dataCarregadoUnidade && !['CARREGADO', 'LIBERADO P/ CT-e'].includes(statusAtualItem);
                                                     return (
                                                         <>
                                                             {/* Avançar para amanhã — conta como reprogramado */}
@@ -802,8 +806,8 @@ export default function PainelOperacional({
                                                                     <CalendarPlus size={11} /> +1 dia
                                                                 </button>
                                                             )}
-                                                            {/* Voltar para hoje — zera reprogramado */}
-                                                            {!eHoje && (
+                                                            {/* Voltar para hoje — só faz sentido se a outra parada NÃO ancoroucom carregamento */}
+                                                            {!eHoje && !outraParadaJaCarregou && (
                                                                 <button
                                                                     onClick={() => reprogramarItem(lista, setLista, realIndex, hoje, api, mostrarNotificacao, 0)}
                                                                     title="Voltar para hoje"
