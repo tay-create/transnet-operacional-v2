@@ -2702,10 +2702,11 @@ app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planeja
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Endpoints para containers bloqueando docas (Persistente no Banco)
+// Endpoints para containers bloqueando docas (por data)
 app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
-        const rows = await dbAll('SELECT * FROM docas_interditadas');
+        const data = req.query.data || new Date().toISOString().slice(0, 10);
+        const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [data]);
         res.json({ success: true, docas: rows });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
@@ -2714,13 +2715,17 @@ app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Pl
 
 app.post('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
-        const { unidade } = req.body;
-        const result = await dbRun('INSERT INTO docas_interditadas (unidade, doca, nome) VALUES (?, ?, ?)', [unidade, 'SELECIONE', 'CONTAINER']);
-        const newCard = { id: result.lastID, unidade, doca: 'SELECIONE', nome: 'CONTAINER' };
+        const { unidade, data } = req.body;
+        const dataRef = data || new Date().toISOString().slice(0, 10);
+        const result = await dbRun(
+            'INSERT INTO docas_interditadas (unidade, doca, nome, data_referencia) VALUES ($1, $2, $3, $4)',
+            [unidade, 'SELECIONE', 'CONTAINER', dataRef]
+        );
+        const newCard = { id: result.lastID || result.rows?.[0]?.id, unidade, doca: 'SELECIONE', nome: 'CONTAINER', data_referencia: dataRef };
 
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
-        await registrarLog('DOCA_CRIADA', req.user?.nome || '?', result.lastID, 'doca', null, null, `Unidade: ${unidade}`);
-        io.emit('docas_interditadas_update', allDocas);
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
+        await registrarLog('DOCA_CRIADA', req.user?.nome || '?', newCard.id, 'doca', null, null, `Unidade: ${unidade} Data: ${dataRef}`);
+        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
         res.json({ success: true, doca: newCard });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
@@ -2731,11 +2736,13 @@ app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador',
     try {
         const id = Number(req.params.id);
         const { doca } = req.body;
-        await dbRun('UPDATE docas_interditadas SET doca = ? WHERE id = ?', [doca, id]);
+        await dbRun('UPDATE docas_interditadas SET doca = $1 WHERE id = $2', [doca, id]);
 
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
+        const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
         await registrarLog('DOCA_ATUALIZADA', req.user?.nome || '?', id, 'doca', null, doca, null);
-        io.emit('docas_interditadas_update', allDocas);
+        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
@@ -2745,11 +2752,13 @@ app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador',
 app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
     try {
         const id = Number(req.params.id);
-        await dbRun('DELETE FROM docas_interditadas WHERE id = ?', [id]);
+        const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
+        const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
+        await dbRun('DELETE FROM docas_interditadas WHERE id = $1', [id]);
 
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas');
+        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
         await registrarLog('DOCA_DELETADA', req.user?.nome || '?', id, 'doca', null, null, null);
-        io.emit('docas_interditadas_update', allDocas);
+        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });

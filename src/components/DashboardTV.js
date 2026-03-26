@@ -96,7 +96,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         let unmounted = false;
         const hoje = obterDataBrasilia();
         const fetchDocas = () => {
-            api.get('/api/docas-interditadas').then(r => {
+            api.get(`/api/docas-interditadas?data=${hoje}`).then(r => {
                 if (!unmounted && r.data && r.data.success) {
                     setDocasInterditadas(r.data.docas);
                 }

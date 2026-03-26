@@ -216,8 +216,11 @@ const inicializarBanco = async () => {
                 id SERIAL PRIMARY KEY,
                 unidade TEXT,
                 doca TEXT,
-                nome TEXT
+                nome TEXT,
+                data_referencia DATE
             )`);
+        // Adiciona coluna data_referencia se não existir (migração incremental)
+        await dbRun(`ALTER TABLE docas_interditadas ADD COLUMN IF NOT EXISTS data_referencia DATE`);
 
         // Marcação de Placas
         await dbRun(`CREATE TABLE IF NOT EXISTS tokens_motoristas(

@@ -168,21 +168,28 @@ export default function PainelOperacional({
     }, []);
 
     useEffect(() => {
-        api.get('/api/docas-interditadas').then(r => {
+        api.get(`/api/docas-interditadas?data=${dataInicio}`).then(r => {
             if (r.data && r.data.success) {
                 setDocasInterditadas(r.data.docas);
             }
         }).catch(() => { });
 
         if (socket) {
-            const handleDocas = (dados) => setDocasInterditadas(dados);
+            const handleDocas = (payload) => {
+                // payload pode ser { data, docas } (novo formato) ou array legado
+                const docas = Array.isArray(payload) ? payload : (payload?.docas || []);
+                const dataPayload = Array.isArray(payload) ? null : payload?.data;
+                if (!dataPayload || dataPayload === dataInicio) {
+                    setDocasInterditadas(docas);
+                }
+            };
             socket.on('docas_interditadas_update', handleDocas);
             return () => socket.off('docas_interditadas_update', handleDocas);
         }
-    }, [socket]);
+    }, [socket, dataInicio]);
 
     const addCardFulgaz = () => {
-        api.post('/api/docas-interditadas', { unidade: origem }).catch(() => { });
+        api.post('/api/docas-interditadas', { unidade: origem, data: dataInicio }).catch(() => { });
     };
     const removerCardFulgaz = (id) => {
         api.delete(`/api/docas-interditadas/${id}`).catch(() => { });
