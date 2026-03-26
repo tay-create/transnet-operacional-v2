@@ -232,6 +232,18 @@ export default function PainelOperacional({
             .catch(() => { });
     }, []);
 
+    function itemTemPlacaNoProvisionamento(item) {
+        if (!veiculosProvisao.length) return false;
+        const placas = [item.placa1Motorista, item.placa2Motorista, item.placa].filter(p => p && p.length >= 6);
+        return placas.some(p => {
+            const pu = p.replace(/[-\s]/g, '').toUpperCase();
+            return veiculosProvisao.some(vp =>
+                vp.placa.replace(/[-\s]/g, '').toUpperCase() === pu ||
+                (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === pu)
+            );
+        });
+    }
+
     function checarPlacaProvisaoCard(placa, item) {
         if (!placa || placa.length < 6) return;
         const p = placa.replace(/[-\s]/g, '').toUpperCase();
@@ -1246,7 +1258,7 @@ export default function PainelOperacional({
 
                                             {/* Checklist Liberação — Read Only */}
                                             {
-                                                !item.isFrotaMotorista && (() => {
+                                                !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (() => {
                                                     const situacao = item.situacao_cadastro || 'NÃO CONFERIDO';
                                                     const cor = situacao === 'LIBERADO' ? '#4ade80'
                                                         : situacao === 'PENDENTE' ? '#fbbf24'
@@ -1287,7 +1299,7 @@ export default function PainelOperacional({
                                             }
 
                                             {/* Botão Liberar Checklist — some quando CARREGADO (Coordenador/Planejamento) */}
-                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && (
+                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (
                                                 <button
                                                     onClick={() => setConfirmarLiberarChecklist({ item })}
                                                     style={{
