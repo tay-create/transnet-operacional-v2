@@ -213,11 +213,11 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             for (const tag of [...tagsRec, ...tagsMor]) {
                 const existente = await dbGet(
                     `SELECT id, motorista FROM veiculos
-                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coleta = ?)
+                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ?)
                        AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
                        AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
                      LIMIT 1`,
-                    [`%${tag}%`, `%${tag}%`, tag, ...STATUS_FINAIS, ...STATUS_FINAIS]
+                    [`%${tag}%`, `%${tag}%`, ...STATUS_FINAIS, ...STATUS_FINAIS]
                 );
                 if (existente) {
                     return res.status(409).json({
@@ -522,10 +522,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.numero_coleta = v.numero_coleta || '';
             }
 
-            // Manter campo genérico 'coleta' sincronizado (usado por views legadas)
-            if (!v.coleta && (v.coletaRecife || v.coletaMoreno)) {
-                v.coleta = v.coletaRecife || v.coletaMoreno;
-            }
+            // Manter campo genérico 'coleta' sincronizado (sempre sobrescrever com valor atual)
+            v.coleta = v.coletaRecife || v.coletaMoreno || v.coleta || '';
 
             // Se motorista mudou, zerar campos de risco para nova conferência
             const motoristaNovo = (v.motorista || '').trim();
