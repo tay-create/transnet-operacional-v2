@@ -83,6 +83,14 @@ const STATUS_GRUPOS = [
         match: s => ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'PROJETO_SUL', 'PROJETO_SP', 'TRANSFERENCIA', 'PUXADA'].includes(s),
     },
     {
+        key: 'EM_OPERACAO',
+        label: 'Em Operação',
+        cor: '#a78bfa',
+        corBg: 'rgba(167,139,250,0.15)',
+        corBorder: 'rgba(167,139,250,0.3)',
+        match: s => s === 'EM_OPERACAO',
+    },
+    {
         key: 'CARREGANDO',
         label: 'Carregamento',
         cor: '#60a5fa',
@@ -708,6 +716,7 @@ function VistaSemanal({ socket }) {
 
     const linhas = [
         { key: 'disponiveis',  label: 'Disponível',       cor: '#4ade80' },
+        { key: 'em_operacao',  label: 'Em Operação',      cor: '#a78bfa' },
         { key: 'em_viagem',    label: 'Em Viagem',         cor: '#facc15' },
         { key: 'carregando',   label: 'Carregamento',   cor: '#60a5fa' },
         { key: 'manutencao',   label: 'Manutenção',     cor: '#f87171' },

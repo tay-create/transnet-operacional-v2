@@ -2478,13 +2478,14 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
         };
         const totais = {};
         for (const dia of dias) {
-            let disponiveis = 0, manutencao = 0, em_viagem = 0, carregando = 0, outros = 0, trucks = 0, carretas = 0, tres_quartos = 0;
+            let disponiveis = 0, manutencao = 0, em_viagem = 0, carregando = 0, em_operacao = 0, outros = 0, trucks = 0, carretas = 0, tres_quartos = 0;
             const breakdown = {
-                disponiveis: { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
-                em_viagem:   { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
-                carregando:  { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
-                manutencao:  { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
-                outros:      { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                disponiveis:  { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                em_operacao:  { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                em_viagem:    { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                carregando:   { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                manutencao:   { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
+                outros:       { TRUCK: 0, '3/4': 0, CONJUNTO: 0, CARRETA: 0 },
             };
             for (const v of veiculos) {
                 const st = (programacao[v.id]?.[dia]?.status) || 'DISPONIVEL';
@@ -2501,7 +2502,10 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
                 } else if (['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'].includes(st)) {
                     em_viagem++;
                     if (TIPOS_PROV.includes(tipo)) breakdown.em_viagem[tipo]++;
-                } else if (st === 'CARREGANDO' || st === 'EM_OPERACAO') {
+                } else if (st === 'EM_OPERACAO') {
+                    em_operacao++;
+                    if (TIPOS_PROV.includes(tipo)) breakdown.em_operacao[tipo]++;
+                } else if (st === 'CARREGANDO') {
                     carregando++;
                     if (TIPOS_PROV.includes(tipo)) breakdown.carregando[tipo]++;
                 } else {
@@ -2509,7 +2513,7 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
                     if (TIPOS_PROV.includes(tipo)) breakdown.outros[tipo]++;
                 }
             }
-            totais[dia] = { disponiveis, manutencao, em_viagem, carregando, outros, trucks, carretas, tres_quartos, total: veiculos.length, breakdown };
+            totais[dia] = { disponiveis, manutencao, em_viagem, em_operacao, carregando, outros, trucks, carretas, tres_quartos, total: veiculos.length, breakdown };
         }
 
         res.json({ success: true, veiculos, dias, programacao, totais });
