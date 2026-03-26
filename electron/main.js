@@ -7,6 +7,9 @@ const APP_URL = 'https://portal.tnethub.com.br';
 app.setName('Transnet Operacional');
 Menu.setApplicationMenu(null);
 
+// Desabilita hardware acceleration para evitar tela preta em ambientes Windows Server / RDP
+app.disableHardwareAcceleration();
+
 // Habilita logs básicos para depuração em caso de erro na atualização
 autoUpdater.logger = console;
 
@@ -26,6 +29,7 @@ function createWindow() {
             contextIsolation: true,
             sandbox: true,
             webSecurity: true,
+            backgroundThrottling: false,
         }
     });
 
