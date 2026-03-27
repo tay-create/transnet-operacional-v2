@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logoImg from '../assets/logo.png';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import { Warehouse, AlertTriangle } from 'lucide-react';
@@ -82,7 +82,15 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [ocorrenciasHoje, setOcorrenciasHoje] = useState([]);
     const [paletesHoje, setPaletesHoje] = useState([]);
+    const [barraVisivel, setBarraVisivel] = useState(false);
+    const esconderBarraTimer = useRef(null);
     const t = TEMAS[tema];
+
+    const mostrarBarra = () => {
+        setBarraVisivel(true);
+        clearTimeout(esconderBarraTimer.current);
+        esconderBarraTimer.current = setTimeout(() => setBarraVisivel(false), 3000);
+    };
 
     // Filtro para cards de hoje (comparar data_prevista ou data_criacao com hoje)
     const hoje = obterDataBrasilia();
@@ -183,8 +191,28 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 .tv-status-live { animation: pulseGlow 2s infinite; }
             `}</style>
 
+            {/* Zona invisível no topo para ativar a barra ao passar o mouse */}
+            <div
+                onMouseEnter={mostrarBarra}
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '8px', zIndex: 10001 }}
+            />
+
             {/* Barra de controle */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px', background: t.bgBar, backdropFilter: 'blur(16px)', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+            <div
+                onMouseEnter={mostrarBarra}
+                onMouseLeave={() => {
+                    clearTimeout(esconderBarraTimer.current);
+                    esconderBarraTimer.current = setTimeout(() => setBarraVisivel(false), 1000);
+                }}
+                style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 20px', background: t.bgBar, backdropFilter: 'blur(16px)',
+                    borderBottom: `1px solid ${t.border}`,
+                    transform: barraVisivel ? 'translateY(0)' : 'translateY(-100%)',
+                    transition: 'transform 0.3s ease',
+                    willChange: 'transform',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', transform: 'scale(0.8)', transformOrigin: 'left center' }}>
                     {/* Logotipo Asset */}
                     <div style={{ padding: '0 5px' }}>
@@ -227,8 +255,8 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 </div>
             </div>
 
-            {/* Barra de progresso */}
-            <div style={{ height: '3px', background: tema === 'dark' ? 'rgba(255,255,255,0.05)' : '#cbd5e1', flexShrink: 0 }}>
+            {/* Barra de progresso — fixada no topo, abaixo da barra de controle quando visível */}
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '3px', zIndex: 9999, background: tema === 'dark' ? 'rgba(255,255,255,0.05)' : '#cbd5e1' }}>
                 {!pausado && <div style={{ height: '100%', background: '#3b82f6', animation: `progressBar ${tempoRotacao}s linear infinite` }} />}
             </div>
 
