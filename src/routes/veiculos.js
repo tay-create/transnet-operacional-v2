@@ -127,7 +127,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         } catch (e) { res.status(500).json({ success: false, message: e.message }); }
     });
 
-    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(novoLancamentoSchema), async (req, res) => {
+    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), validate(novoLancamentoSchema), async (req, res) => {
         try {
             const v = req.body;
             const data_criacao = obterDataHoraBrasilia();
@@ -330,7 +330,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             res.json({ success: true, id: result.lastID });
         } catch (e) { console.error(e); res.status(500).json({ success: false }); }
     });
-    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
         try {
             const v = req.body;
             console.log(`[DEBUG veiculos.js] PUT /veiculos/${req.params.id} -> req.body.motorista: "${v.motorista}", old motorista in req: "${v.itemOriginal?.motorista}"`);
@@ -360,6 +360,19 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     const checkFrotaBd = await dbGet("SELECT is_frota FROM marcacoes_placas WHERE nome_motorista = ? AND nome_motorista != '' ORDER BY data_marcacao DESC LIMIT 1", [veiculoAntigo.motorista]);
                     if (checkFrotaBd && checkFrotaBd.is_frota === 1) {
                         isFrota = true;
+                    }
+                }
+
+                // Placas cadastradas no Provisionamento tambem ignoram as travas (igual frota)
+                if (!isFrota) {
+                    const placasVeiculo = [veiculoAntigo.placa, veiculoAntigo.carreta].filter(p => p && p !== '-');
+                    if (placasVeiculo.length > 0) {
+                        const ph = placasVeiculo.map(() => '?').join(', ');
+                        const provV = await dbGet(
+                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa IN (${ph}) OR carreta IN (${ph})) LIMIT 1`,
+                            [...placasVeiculo, ...placasVeiculo]
+                        );
+                        if (provV) isFrota = true;
                     }
                 }
 
@@ -976,7 +989,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     });
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
-    router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
         try {
             const { nova_data, foi_reprogramado = 1 } = req.body;
             if (!nova_data) return res.status(400).json({ success: false, message: 'nova_data obrigatória.' });
@@ -989,7 +1002,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         } catch (e) { console.error('Erro PUT /veiculos/:id/reprogramar', e); res.status(500).json({ success: false }); }
     });
 
-    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => {
+    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
             console.log(`🗑️ [DELETE] Tentando excluir veículo ID: ${req.params.id}`);
 
@@ -1039,7 +1052,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     });
 
     // ── DELETE Motorista do Card (mantém o card, libera motorista) ──
-    router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
         try {
             const veiculo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
             if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
@@ -1100,7 +1113,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // ── GET Ocorrências da Operação ──────────────────
 
     // ── POST Pausar Veículo ───────────────────────────
-    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
+    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
             const { motivo, unidade, fonte } = req.body;
             // fonte: 'operacao' (pausa em lote pelo header) | 'conferente' (pausa individual)
@@ -1131,7 +1144,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     });
 
     // ── POST Retomar Veículo ──────────────────────────
-    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
+    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
         try {
             const { unidade, fonte } = req.body;
             // fonte: 'operacao' | 'conferente' — retoma somente pausas da própria fonte
