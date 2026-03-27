@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Versão-0.2.4-blue.svg" alt="Versão" />
+  <img src="https://img.shields.io/badge/Versão-0.3.3-blue.svg" alt="Versão" />
   <img src="https://img.shields.io/badge/Estágio-Produção-success.svg" alt="Produção" />
   <img src="https://img.shields.io/badge/Node.js-18%2B-green.svg" alt="Node JS" />
   <img src="https://img.shields.io/badge/PostgreSQL-15%2B-informational.svg" alt="PostgreSQL" />
@@ -36,6 +36,11 @@ O sistema é dividido em submódulos isolados por permissão de acesso (RBAC), p
   - Auditoria física com assinaturas digitais, fotos contra vazamentos/avarias e controles de avarias (Canvas).
 - **🧱 Saldo de Paletes**
   - Rastreamento e gestão financeira de estoques (PBR / Descartáveis) repassados ou retidos com agregados/frota.
+- **📱 Portal Mobile — PWA para Coordenador** *(novo em v0.3.3)*
+  - Acesso via `https://portal.tnethub.com.br/mobile` — instalável como app no iOS e Android.
+  - Visualização de Painel Operacional (Recife/Moreno), Ger. Risco/CT-e e Dashboard TV em tempo real.
+  - **Marcação de Placas totalmente interativa** no celular: criar links, reativar, revogar e copiar via WhatsApp com feedback háptico.
+  - Design touch-first com bottom navigation bar, swipe, pull-to-refresh e suporte a notch/home indicator do iPhone.
 - **🖥️ Painel TV (Painel Status)**
   - Modo interativo "Real-Time" (`socket.io`) para projetar o status de liberação e chamadas em telões visuais da operação (Dashboard Viewer).
   - Fluxo Mensal com KPIs de embarques, CT-es emitidos e tabela de coletas por operação (estilo planilha).
@@ -44,6 +49,42 @@ O sistema é dividido em submódulos isolados por permissão de acesso (RBAC), p
   - Coordenador recebe aviso simplificado de quem marcou placa.
 - **📝 Auditoria Completa (Cockpit)**
   - Todas as ações de modificação de dados (tokens, marcações, CT-es, checklists, fila, paletes, cubagens) são registradas na tabela de logs com usuário, horário e detalhes.
+
+---
+
+## 📱 Portal Mobile — `/mobile`
+
+Rota dedicada ao **Coordenador** para acompanhar a operação e gerenciar motoristas pelo celular, sem precisar do computador.
+
+### Como instalar como app
+
+| Plataforma | Passos |
+|------------|--------|
+| **iOS (Safari)** | Abrir a URL → Compartilhar → "Adicionar à Tela de Início" |
+| **Android (Chrome)** | Abrir a URL → Banner "Instalar" ou menu → "Adicionar à tela inicial" |
+
+### Telas
+
+| Tela | Permissão | Descrição |
+|------|-----------|-----------|
+| Home | — | Grid 2×2 com badges dinâmicos, relógio, indicador online/offline, botão sair |
+| Painel Operacional | Leitura | Toggle Recife/Moreno, filtro de data, pull-to-refresh, cards por status com cores neon |
+| Ger. Risco / CT-e | Leitura | Em Espera (checklist pills) · Na Operação (timer colorido) · Frota Própria (grid) |
+| Marcação de Placas | **Interativo** | Criar/reativar/revogar links, copiar via clipboard com vibração háptica, ver marcações com cronômetro |
+| Dashboard TV | Leitura | Swipe entre 3 telas (Embarques · Operação · CT-e), autoplay 12s com toggle |
+
+### Arquitetura
+
+```
+src/mobile/
+├── MobileApp.js          Wrapper + bottom navigation bar + login gate
+├── MobileLogin.js        Tela de login (font-size 16px → sem zoom no iOS)
+├── MobileHome.js         Home com 4 cards e badges dinâmicos
+├── MobileOperacional.js  Painel Operacional read-only
+├── MobileCadastro.js     Ger. Risco / CT-e read-only
+├── MobileMarcacoes.js    Marcações interativo — bottom sheets, háptico
+└── MobileDashboardTV.js  Dashboard TV com swipe e dots indicator
+```
 
 ---
 
