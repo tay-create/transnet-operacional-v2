@@ -15,6 +15,14 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = (page - 1) * limit;
+            const { dataInicio, dataFim } = req.query;
+
+            const whereParams = [];
+            let whereClause = '';
+            if (dataInicio && dataFim) {
+                whereClause = 'WHERE v.data_prevista >= ? AND v.data_prevista <= ?';
+                whereParams.push(dataInicio, dataFim);
+            }
 
             const [rows, countRow] = await Promise.all([
                 dbAll(`
@@ -23,9 +31,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                        (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
                        (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count
                 FROM veiculos v
+                ${whereClause}
                 ORDER BY v.id DESC LIMIT ? OFFSET ?
-            `, [limit, offset]),
-                dbAll("SELECT COUNT(*) as total FROM veiculos")
+            `, [...whereParams, limit, offset]),
+                dbAll(`SELECT COUNT(*) as total FROM veiculos v ${whereClause}`, whereParams)
             ]);
 
             const total = countRow[0]?.total || 0;

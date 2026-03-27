@@ -686,6 +686,7 @@ function normalizarDataStr(d) {
 function TelaFluxoMensal({ veiculos, paletes = [], t, tema, ocorrenciasHoje = [] }) {
     const [ocorrenciasMes, setOcorrenciasMes] = useState([]);
     const [ctesMes, setCtesMes] = useState([]);
+    const [veiculosMes, setVeiculosMes] = useState(null); // null = ainda carregando
 
     const agora = new Date();
     const dataBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
@@ -720,7 +721,14 @@ function TelaFluxoMensal({ veiculos, paletes = [], t, tema, ocorrenciasHoje = []
         }).catch(() => { });
     }, [primeiroDiaMesStr, ultimoDiaMesStr]);
 
-    const veiculosMesAtual = veiculos.filter(v => {
+    useEffect(() => {
+        api.get(`/veiculos?dataInicio=${primeiroDiaMesStr}&dataFim=${ultimoDiaMesStr}&limit=500`).then(r => {
+            if (r.data?.success) setVeiculosMes(r.data.veiculos || []);
+        }).catch(() => { });
+    }, [primeiroDiaMesStr, ultimoDiaMesStr]);
+
+    // Usa os dados próprios do mês se já carregados, senão cai nos dados gerais como fallback
+    const veiculosMesAtual = veiculosMes !== null ? veiculosMes : veiculos.filter(v => {
         const dataCard = v.data_prevista || v.data_criacao || '';
         return dataCard >= primeiroDiaMesStr && dataCard <= ultimoDiaMesStr;
     });
