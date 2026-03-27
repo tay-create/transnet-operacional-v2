@@ -2905,6 +2905,15 @@ if (process.env.NODE_ENV === 'production') {
         res.send(html);
     });
 
+    // PWA Mobile: serve index.html com manifest correto para /mobile e subpaths
+    app.get(['/mobile', '/mobile/*splat'], (req, res) => {
+        const indexPath = path.join(__dirname, 'build', 'index.html');
+        let html = fs.readFileSync(indexPath, 'utf8');
+        html = html.replace('/manifest.json', '/mobile-manifest.json');
+        res.set('Content-Type', 'text/html');
+        res.send(html);
+    });
+
     app.get('/*splat', (req, res) => {
         res.sendFile(path.join(__dirname, 'build', 'index.html'));
     });
