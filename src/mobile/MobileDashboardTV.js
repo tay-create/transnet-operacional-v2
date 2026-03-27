@@ -112,9 +112,11 @@ export default function MobileDashboardTV({ socket }) {
 
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
 
-    // Veículos do dia — fallback data_criacao igual ao DashboardTV desktop
+    // Veículos do dia — mesmo critério do PainelOperacional.js:
+    // data_carregado_recife/moreno || data_prevista || fallback=hoje
     const veiculosHoje = veiculos.filter(v => {
-        const d = (v.data_prevista || v.data_criacao || '').split('T')[0];
+        const dataR = (v.data_carregado_recife || v.data_carregado_moreno || v.data_prevista || hoje + 'T00:00:00');
+        const d = dataR.split('T')[0];
         return d === hoje;
     });
 
