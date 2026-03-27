@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, Truck, ShieldCheck, Link2, Monitor } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
+import useConfigStore from '../store/useConfigStore';
 import MobileLogin from './MobileLogin';
 import MobileHome from './MobileHome';
 import MobileOperacional from './MobileOperacional';
@@ -18,7 +19,12 @@ const NAV_ITEMS = [
 
 export default function MobileApp({ socket }) {
     const { isAuthenticated, temAcesso } = useAuthStore();
+    const { carregarPermissoes } = useConfigStore();
     const [tela, setTela] = useState('home');
+
+    useEffect(() => {
+        if (isAuthenticated) carregarPermissoes();
+    }, [isAuthenticated, carregarPermissoes]);
 
     if (!isAuthenticated) {
         return <MobileLogin />;
