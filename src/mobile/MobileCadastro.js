@@ -58,7 +58,7 @@ export default function MobileCadastro() {
                 setOperacao(r.data.veiculos || []);
             } else if (aba === 'frota') {
                 const r = await api.get('/api/cadastro/frota');
-                setFrota(r.data.frota || []);
+                setFrota(r.data.motoristas || []);
             }
         } catch (e) { console.error(e); }
         finally { setCarregando(false); }
@@ -171,7 +171,10 @@ export default function MobileCadastro() {
                                     <div style={{ fontSize: '13px' }}>Nenhum veículo neste período.</div>
                                 </div>
                             ) : operacao.map(v => {
-                                const sitCor = TIPO_COR[v.situacao_cadastro] || '#475569';
+                                // endpoint /api/cadastro/veiculos-em-operacao retorna situacao_cad (não situacao_cadastro)
+                                const sitCor = TIPO_COR[v.situacao_cad] || '#475569';
+                                const placa = v.placa1 || v.placa || '';
+                                const destino = [v.destino_cidade_cad, v.destino_uf_cad].filter(Boolean).join('/');
                                 return (
                                     <div key={v.id} style={{
                                         background: '#0f172a', border: '1px solid #1e293b',
@@ -179,10 +182,15 @@ export default function MobileCadastro() {
                                     }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                                             <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9' }}>{v.motorista}</div>
-                                                {v.placa && (
-                                                    <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fb923c', fontWeight: '700' }}>{v.placa}</span>
-                                                )}
+                                                <div style={{ fontWeight: '700', fontSize: '14px', color: '#f1f5f9' }}>{v.nome_motorista || v.motorista}</div>
+                                                <div style={{ display: 'flex', gap: '6px', marginTop: '2px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                    {placa && (
+                                                        <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fb923c', fontWeight: '700' }}>{placa}</span>
+                                                    )}
+                                                    {v.tipo_veiculo && (
+                                                        <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600', textTransform: 'uppercase' }}>{v.tipo_veiculo}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <span style={{
                                                 fontSize: '10px', fontWeight: '700', color: sitCor,
@@ -190,9 +198,16 @@ export default function MobileCadastro() {
                                                 border: `1px solid rgba(${hexToRgb(sitCor)},0.3)`,
                                                 borderRadius: '6px', padding: '2px 8px',
                                             }}>
-                                                {v.situacao_cadastro || 'NÃO CONF.'}
+                                                {v.situacao_cad || 'NÃO CONF.'}
                                             </span>
                                         </div>
+                                        {(v.origem_cad || destino) && (
+                                            <div style={{ fontSize: '11px', color: '#475569', marginBottom: '6px' }}>
+                                                {v.origem_cad && <span>{v.origem_cad}</span>}
+                                                {v.origem_cad && destino && <span style={{ margin: '0 4px' }}>→</span>}
+                                                {destino && <span>{destino}</span>}
+                                            </div>
+                                        )}
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                             {v.seguradora_cad && (
                                                 <span style={{ fontSize: '11px', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -223,14 +238,30 @@ export default function MobileCadastro() {
                                             borderRadius: '12px', padding: '14px 12px', textAlign: 'center',
                                         }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                                                <User size={28} color="#475569" strokeWidth={1.5} />
+                                                <User size={24} color="#475569" strokeWidth={1.5} />
                                             </div>
                                             <div style={{ fontWeight: '700', fontSize: '12px', color: '#f1f5f9', lineHeight: 1.3, marginBottom: '4px' }}>
                                                 {m.nome_motorista}
                                             </div>
+                                            {m.placa1 && (
+                                                <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fb923c', fontWeight: '700', marginBottom: '3px' }}>
+                                                    {m.placa1}
+                                                </div>
+                                            )}
                                             {m.tipo_veiculo && (
-                                                <div style={{ fontSize: '10px', color: '#475569', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                                                <div style={{ fontSize: '10px', color: '#475569', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
                                                     {m.tipo_veiculo}
+                                                </div>
+                                            )}
+                                            {m.situacao_cad && (
+                                                <div style={{
+                                                    display: 'inline-block', fontSize: '9px', fontWeight: '700',
+                                                    color: TIPO_COR[m.situacao_cad] || '#475569',
+                                                    background: `rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.1)`,
+                                                    border: `1px solid rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.3)`,
+                                                    borderRadius: '5px', padding: '2px 6px', textTransform: 'uppercase',
+                                                }}>
+                                                    {m.situacao_cad}
                                                 </div>
                                             )}
                                         </div>

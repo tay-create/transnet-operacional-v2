@@ -5,13 +5,57 @@ import api from '../services/apiService';
 const TELAS = ['Embarques', 'Operação', 'CT-e'];
 
 const STATUS_COR = {
-    'LIBERADO': '#22c55e', 'AGUARDANDO CTE': '#f59e0b', 'EM OPERAÇÃO': '#3b82f6',
-    'CARREGANDO': '#a78bfa', 'CARREGADO': '#06b6d4', 'PENDENTE': '#f97316', 'CHEGOU': '#10b981',
+    'AGUARDANDO':        '#64748b',
+    'EM SEPARAÇÃO':      '#a78bfa',
+    'LIBERADO P/ DOCA':  '#f59e0b',
+    'EM CARREGAMENTO':   '#3b82f6',
+    'CARREGADO':         '#06b6d4',
+    'LIBERADO P/ CT-e':  '#22c55e',
 };
+
+const CORES_OP = {
+    delta:       '#2563eb',
+    consolidado: '#3b82f6',
+    deltaRxM:    '#60a5fa',
+    porcelana:   '#a78bfa',
+    eletrik:     '#f59e0b',
+};
+
+const LABELS_OP = {
+    delta:       'Delta 100%',
+    consolidado: 'Consolidado',
+    deltaRxM:    'Delta RxM',
+    porcelana:   'Porcelana',
+    eletrik:     'Eletrik',
+};
+
+function classificarOperacao(op) {
+    if (!op) return null;
+    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)') return 'delta';
+    if (op === 'DELTA(RECIFE X MORENO)') return 'deltaRxM';
+    if (op === 'PORCELANA') return 'porcelana';
+    if (op === 'ELETRIK') return 'eletrik';
+    if (op.includes('/')) return 'consolidado';
+    return null;
+}
 
 function hexToRgb(hex) {
     const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : '71,85,105';
+}
+
+function KpiCard({ valor, label, cor }) {
+    return (
+        <div style={{
+            background: `rgba(${hexToRgb(cor)},0.08)`,
+            border: `1px solid rgba(${hexToRgb(cor)},0.25)`,
+            borderTop: `3px solid ${cor}`,
+            borderRadius: '12px', padding: '14px 10px', textAlign: 'center',
+        }}>
+            <div style={{ fontSize: '36px', fontWeight: '900', color: cor, lineHeight: 1 }}>{valor}</div>
+            <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
+        </div>
+    );
 }
 
 export default function MobileDashboardTV({ socket }) {
@@ -28,7 +72,7 @@ export default function MobileDashboardTV({ socket }) {
             try {
                 const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
                 const [v, c] = await Promise.allSettled([
-                    api.get('/veiculos'),
+                    api.get('/veiculos?limit=500'),
                     api.get(`/ctes?dataInicio=${hoje}&dataFim=${hoje}`),
                 ]);
                 if (v.status === 'fulfilled' && v.value.data.success) setVeiculos(v.value.data.veiculos || []);
@@ -42,7 +86,7 @@ export default function MobileDashboardTV({ socket }) {
     useEffect(() => {
         if (!socket) return;
         const handler = () => {
-            api.get('/veiculos').then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
+            api.get('/veiculos?limit=500').then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
         };
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
@@ -66,17 +110,42 @@ export default function MobileDashboardTV({ socket }) {
     };
 
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
-    const veiculosHoje = veiculos.filter(v => (v.data_entrada || '').split('T')[0] === hoje);
+
+    // Veículos do dia — filtra por data_prevista (igual ao PainelOperacional.js)
+    const veiculosHoje = veiculos.filter(v => (v.data_prevista || '').split('T')[0] === hoje);
+
+    // Tela 0 — Embarques: agrupa por operação
+    const contOp = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
+    veiculosHoje.forEach(v => {
+        const cat = classificarOperacao(v.operacao);
+        if (cat) contOp[cat]++;
+    });
+    const totalGeral = Object.values(contOp).reduce((a, b) => a + b, 0);
+
+    const statusCte = {
+        aguardando: ctes.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length,
+        emEmissao:  ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
+        emitido:    ctes.filter(c => c.status === 'Emitido').length,
+    };
+
+    // Tela 1 — Operação: contagem por status (só números)
+    const statusRecife = {};
+    const statusMoreno = {};
+    veiculosHoje.forEach(v => {
+        if (v.status_recife) statusRecife[v.status_recife] = (statusRecife[v.status_recife] || 0) + 1;
+        if (v.status_moreno) statusMoreno[v.status_moreno] = (statusMoreno[v.status_moreno] || 0) + 1;
+    });
+
+    // Tela 2 — CT-e
     const ctesRecife = ctes.filter(c => c.origem === 'Recife');
     const ctesMoreno = ctes.filter(c => c.origem !== 'Recife');
-    const contsPorStatus = veiculosHoje.reduce((acc, v) => { acc[v.status] = (acc[v.status] || 0) + 1; return acc; }, {});
 
     return (
         <div style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             {/* Header */}
             <div style={{ background: '#0f172a', padding: '16px 16px 0', borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9' }}>Dashboard TV</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9' }}>Dashboard</div>
                     <button onClick={() => setAutoplay(a => !a)} style={{
                         background: autoplay ? 'rgba(167,139,250,0.12)' : '#1e293b',
                         border: `1px solid ${autoplay ? 'rgba(167,139,250,0.3)' : '#334155'}`,
@@ -85,10 +154,7 @@ export default function MobileDashboardTV({ socket }) {
                         WebkitTapHighlightColor: 'transparent',
                         display: 'flex', alignItems: 'center', gap: '5px',
                     }}>
-                        {autoplay
-                            ? <Pause size={11} strokeWidth={2} />
-                            : <Play size={11} strokeWidth={2} />
-                        }
+                        {autoplay ? <Pause size={11} strokeWidth={2} /> : <Play size={11} strokeWidth={2} />}
                         Auto
                     </button>
                 </div>
@@ -100,9 +166,7 @@ export default function MobileDashboardTV({ socket }) {
                             color: tela === i ? '#a78bfa' : '#475569',
                             fontSize: '12px', fontWeight: '700', cursor: 'pointer',
                             WebkitTapHighlightColor: 'transparent',
-                        }}>
-                            {nome}
-                        </button>
+                        }}>{nome}</button>
                     ))}
                 </div>
             </div>
@@ -116,132 +180,127 @@ export default function MobileDashboardTV({ socket }) {
                         {/* TELA 0: Embarques */}
                         {tela === 0 && (
                             <div>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Hoje · {veiculosHoje.length} embarques
+                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Hoje — {new Date().toLocaleDateString('pt-BR')}
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-                                    {Object.entries(contsPorStatus).map(([status, qtd]) => {
-                                        const cor = STATUS_COR[status] || '#475569';
-                                        return (
-                                            <div key={status} style={{
-                                                background: `rgba(${hexToRgb(cor)},0.06)`,
-                                                border: `1px solid rgba(${hexToRgb(cor)},0.2)`,
-                                                borderLeft: `3px solid ${cor}`,
-                                                borderRadius: '10px', padding: '12px 14px',
-                                            }}>
-                                                <div style={{ fontSize: '28px', fontWeight: '800', color: cor }}>{qtd}</div>
-                                                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{status}</div>
-                                            </div>
-                                        );
-                                    })}
-                                    {Object.keys(contsPorStatus).length === 0 && (
-                                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '32px', color: '#334155' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                                                <Truck size={24} color="#334155" strokeWidth={1.5} />
-                                            </div>
-                                            <div style={{ fontSize: '12px', marginTop: '8px' }}>Nenhum embarque hoje.</div>
-                                        </div>
-                                    )}
+
+                                {/* Total geral */}
+                                <div style={{
+                                    background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+                                    borderLeft: '4px solid #3b82f6', borderRadius: '12px',
+                                    padding: '16px', textAlign: 'center', marginBottom: '14px',
+                                }}>
+                                    <div style={{ fontSize: '56px', fontWeight: '900', color: '#3b82f6', lineHeight: 1 }}>{totalGeral}</div>
+                                    <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>Total Embarques</div>
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {veiculosHoje.slice(0, 20).map(v => {
-                                        const cor = STATUS_COR[v.status] || '#475569';
-                                        return (
-                                            <div key={v.id} style={{
-                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                background: '#0f172a', border: '1px solid #1e293b',
-                                                borderLeft: `3px solid ${cor}`, borderRadius: '8px', padding: '10px 12px',
-                                            }}>
-                                                <div>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>{v.placa}</span>
-                                                    {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ')[0]}</span>}
-                                                </div>
-                                                <span style={{ fontSize: '10px', fontWeight: '700', color: cor }}>{v.status}</span>
+
+                                {/* KPIs por operação */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                                    {Object.entries(contOp).map(([key, val]) => (
+                                        <KpiCard key={key} valor={val} label={LABELS_OP[key]} cor={CORES_OP[key]} />
+                                    ))}
+                                </div>
+
+                                {/* Status CT-e */}
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '14px' }}>
+                                    <div style={{ fontSize: '10px', color: '#475569', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Status CT-e</div>
+                                    <div style={{ display: 'flex', gap: '16px' }}>
+                                        {[
+                                            { label: 'Aguardando', valor: statusCte.aguardando, cor: '#f59e0b' },
+                                            { label: 'Em Emissão', valor: statusCte.emEmissao,  cor: '#3b82f6' },
+                                            { label: 'Emitidos',   valor: statusCte.emitido,    cor: '#22c55e' },
+                                        ].map(s => (
+                                            <div key={s.label} style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                                                <span style={{ fontSize: '28px', fontWeight: '900', color: s.cor }}>{s.valor}</span>
+                                                <span style={{ fontSize: '11px', color: '#475569' }}>{s.label}</span>
                                             </div>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* TELA 1: Todos os veículos */}
+                        {/* TELA 1: Operação — só números */}
                         {tela === 1 && (
                             <div>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Todos os Veículos · {veiculos.length}
+                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Operação Hoje · {veiculosHoje.length} veículos
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {veiculos.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>Nenhum veículo.</div>
-                                    ) : veiculos.slice(0, 40).map(v => {
-                                        const cor = STATUS_COR[v.status] || '#475569';
-                                        return (
-                                            <div key={v.id} style={{
-                                                background: '#0f172a', border: '1px solid #1e293b',
-                                                borderLeft: `3px solid ${cor}`, borderRadius: '8px',
-                                                padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                            }}>
-                                                <div>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>{v.placa}</span>
-                                                    {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ').slice(0,2).join(' ')}</span>}
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <div style={{ fontSize: '10px', fontWeight: '700', color: cor }}>{v.status}</div>
-                                                    {v.origem && <div style={{ fontSize: '10px', color: '#334155' }}>{v.origem}</div>}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {veiculos.length > 40 && <div style={{ textAlign: 'center', fontSize: '11px', color: '#475569', padding: '8px' }}>+{veiculos.length - 40} mais</div>}
-                                </div>
+
+                                {Object.keys(statusRecife).length > 0 && (
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Recife</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            {Object.entries(statusRecife).map(([st, qtd]) => (
+                                                <KpiCard key={st} valor={qtd} label={st} cor={STATUS_COR[st] || '#475569'} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {Object.keys(statusMoreno).length > 0 && (
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Moreno</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            {Object.entries(statusMoreno).map(([st, qtd]) => (
+                                                <KpiCard key={st} valor={qtd} label={st} cor={STATUS_COR[st] || '#475569'} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {veiculosHoje.length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                            <Truck size={28} color="#334155" strokeWidth={1.5} />
+                                        </div>
+                                        <div style={{ fontSize: '12px' }}>Nenhum veículo hoje.</div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {/* TELA 2: CT-e */}
                         {tela === 2 && (
                             <div>
-                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>CT-e de Hoje</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>CT-e de Hoje</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                                     {[
-                                        { label: 'Recife', qtd: ctesRecife.length, cor: '#3b82f6' },
-                                        { label: 'Moreno', qtd: ctesMoreno.length, cor: '#22c55e' },
-                                        { label: 'Total', qtd: ctes.length, cor: '#a78bfa' },
-                                        { label: 'Com CT-e', qtd: ctes.filter(c => c.numero_cte).length, cor: '#f59e0b' },
+                                        { label: 'Recife',   qtd: ctesRecife.length,                       cor: '#3b82f6' },
+                                        { label: 'Moreno',   qtd: ctesMoreno.length,                       cor: '#22c55e' },
+                                        { label: 'Total',    qtd: ctes.length,                             cor: '#a78bfa' },
+                                        { label: 'Com CT-e', qtd: ctes.filter(c => c.numero_cte).length,   cor: '#f59e0b' },
                                     ].map(item => (
-                                        <div key={item.label} style={{
-                                            background: `rgba(${hexToRgb(item.cor)},0.06)`,
-                                            border: `1px solid rgba(${hexToRgb(item.cor)},0.2)`,
-                                            borderLeft: `3px solid ${item.cor}`,
-                                            borderRadius: '10px', padding: '12px 14px',
-                                        }}>
-                                            <div style={{ fontSize: '28px', fontWeight: '800', color: item.cor }}>{item.qtd}</div>
-                                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{item.label}</div>
-                                        </div>
+                                        <KpiCard key={item.label} valor={item.qtd} label={item.label} cor={item.cor} />
                                     ))}
                                 </div>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {ctes.slice(0, 20).map(v => (
-                                        <div key={v.id} style={{
-                                            background: '#0f172a', border: '1px solid #1e293b',
-                                            borderLeft: `3px solid ${v.origem === 'Recife' ? '#3b82f6' : '#22c55e'}`,
-                                            borderRadius: '8px', padding: '10px 12px',
-                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        }}>
-                                            <div>
-                                                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>{v.placa}</span>
-                                                {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ')[0]}</span>}
+                                    {ctes.slice(0, 30).map(v => {
+                                        const corOrigem = v.origem === 'Recife' ? '#3b82f6' : '#22c55e';
+                                        const placa = v.placa1Motorista || v.placa || 'Não inf.';
+                                        return (
+                                            <div key={v.id} style={{
+                                                background: '#0f172a', border: '1px solid #1e293b',
+                                                borderLeft: `3px solid ${corOrigem}`, borderRadius: '8px',
+                                                padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            }}>
+                                                <div>
+                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>{placa}</span>
+                                                    {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ')[0]}</span>}
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    {v.numero_cte
+                                                        ? <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'flex-end' }}>
+                                                            <FileText size={10} color="#4ade80" strokeWidth={2} /> {v.numero_cte}
+                                                          </div>
+                                                        : <div style={{ fontSize: '10px', color: '#f59e0b' }}>{v.status}</div>
+                                                    }
+                                                    <div style={{ fontSize: '10px', color: '#334155' }}>{v.origem}</div>
+                                                </div>
                                             </div>
-                                            <div style={{ textAlign: 'right' }}>
-                                                {v.numero_cte
-                                                    ? <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'flex-end' }}>
-                                                        <FileText size={10} color="#4ade80" strokeWidth={2} /> {v.numero_cte}
-                                                      </div>
-                                                    : <div style={{ fontSize: '10px', color: '#f59e0b' }}>{v.status}</div>
-                                                }
-                                                <div style={{ fontSize: '10px', color: '#334155' }}>{v.origem}</div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     {ctes.length === 0 && (
                                         <div style={{ textAlign: 'center', padding: '32px', color: '#334155' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
