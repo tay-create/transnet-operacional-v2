@@ -1145,7 +1145,11 @@ function App({ socket }) {
     };
 
     const handleLoginSuccess = (usuarioData) => {
-        setAbaAtiva(usuarioData.cidade === 'Recife' ? 'op_recife' : 'op_moreno');
+        if (usuarioData.cargo === 'Dashboard Viewer') {
+            setAbaAtiva('dashboard_tv');
+        } else {
+            setAbaAtiva(usuarioData.cidade === 'Recife' ? 'op_recife' : 'op_moreno');
+        }
         if (!usuarioData.email_pessoal) {
             setModalEmailPessoal(true);
         }

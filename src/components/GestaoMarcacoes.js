@@ -214,7 +214,8 @@ export default function GestaoMarcacoes({ socket }) {
     }
 
     async function toggleStatus(token) {
-        const novoStatus = token.status === 'ativo' ? 'inativo' : 'ativo';
+        const efetivo = statusEfetivo(token);
+        const novoStatus = efetivo === 'ativo' ? 'inativo' : 'ativo';
         try {
             await api.put(`/api/tokens/${token.id}`, { status: novoStatus });
             setTokens(prev => prev.map(t => t.id === token.id ? { ...t, status: novoStatus } : t));

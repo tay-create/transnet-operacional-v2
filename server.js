@@ -276,13 +276,14 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
         if (telefone.length < 12 || telefone.length > 13) {
             return res.status(400).json({ success: false, message: 'Telefone inválido.' });
         }
-        // Bloqueia se já existe token ativo para este número
-        const ativo = await dbGet(
-            "SELECT id FROM tokens_motoristas WHERE telefone = ? AND status = 'ativo'",
-            [telefone]
+        // Bloqueia se já existe qualquer link para este número (pelos 8 últimos dígitos)
+        const ultimos8 = telefone.slice(-8);
+        const duplicado = await dbGet(
+            "SELECT id, status FROM tokens_motoristas WHERE RIGHT(telefone, 8) = $1 LIMIT 1",
+            [ultimos8]
         );
-        if (ativo) {
-            return res.status(400).json({ success: false, message: 'Já existe um link ativo para este número. Inative-o antes de gerar um novo.' });
+        if (duplicado) {
+            return res.status(400).json({ success: false, message: 'Já existe um link para este número. Reative o link existente ao invés de criar um novo.' });
         }
         const token = require('crypto').randomUUID();
         const expiracao = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
@@ -2093,6 +2094,20 @@ app.post('/api/checklists', authMiddleware, authorize(['Conferente', 'Coordenado
         const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
         if (!veiculo_id || !placa_carreta || !assinatura) {
             return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando.' });
+        }
+
+        // Bloquear checklist duplicado — conferente não pode enviar novo sem reset do Coordenador
+        const chkExistente = await dbGet(
+            "SELECT id, status FROM checklists_carreta WHERE veiculo_id = ? AND status IN ('PENDENTE', 'APROVADO') LIMIT 1",
+            [veiculo_id]
+        );
+        if (chkExistente) {
+            return res.status(400).json({
+                success: false,
+                message: chkExistente.status === 'APROVADO'
+                    ? 'Este veículo já possui checklist aprovado.'
+                    : 'Este veículo já possui checklist pendente de aprovação. Aguarde a revisão.'
+            });
         }
 
         // Auto-aprovação: condições perfeitas dispensam revisão manual do Coordenador

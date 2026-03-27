@@ -5,6 +5,10 @@ import { Warehouse, AlertTriangle } from 'lucide-react';
 import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
+import useAuthStore from '../store/useAuthStore';
+
+// Telas extras (Paletes Diário e Fluxo Mensal) — mudar para true no lançamento do sistema
+const TELAS_EXTRAS_ATIVAS = false;
 
 const CORES_KPI = {
     delta: '#2563eb',
@@ -67,6 +71,10 @@ const PRIORIDADE_STATUS = {
 };
 
 export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
+    const { user } = useAuthStore();
+    const ehViewer = user?.cargo === 'Dashboard Viewer';
+    const totalTelas = (ehViewer && !TELAS_EXTRAS_ATIVAS) ? 3 : 5;
+
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
     const [tempoRotacao, setTempoRotacao] = useState(20);
@@ -74,7 +82,6 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     const [docasInterditadas, setDocasInterditadas] = useState([]);
     const [ocorrenciasHoje, setOcorrenciasHoje] = useState([]);
     const [paletesHoje, setPaletesHoje] = useState([]);
-    const totalTelas = 5;
     const t = TEMAS[tema];
 
     // Filtro para cards de hoje (comparar data_prevista ou data_criacao com hoje)
@@ -195,7 +202,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px' }}>
-                    {nomeTelas.map((nome, i) => (
+                    {nomeTelas.slice(0, totalTelas).map((nome, i) => (
                         <button key={i} onClick={() => setTelaAtiva(i)} style={{
                             padding: '4px 12px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold',
                             background: telaAtiva === i ? '#3b82f6' : (tema === 'dark' ? 'rgba(255,255,255,0.08)' : '#cbd5e1'),
