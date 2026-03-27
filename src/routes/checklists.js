@@ -321,7 +321,11 @@ module.exports = function createChecklistsRouter(io) {
                 if (!isFrota) {
                     const placasVeiculo = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
                     if (placasVeiculo.length > 0) {
-                        const provV = await dbGet(`SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1) LIMIT 1`, [placasVeiculo]);
+                        const ph = placasVeiculo.map(() => '?').join(', ');
+                        const provV = await dbGet(
+                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa IN (${ph}) OR carreta IN (${ph})) LIMIT 1`,
+                            [...placasVeiculo, ...placasVeiculo]
+                        );
                         if (provV) isFrota = true;
                     }
                 }
@@ -681,6 +685,19 @@ module.exports = function createChecklistsRouter(io) {
             if (!isFrota && veiculo.motorista) {
                 const checkFrotaBd = await dbGet("SELECT is_frota FROM marcacoes_placas WHERE nome_motorista = ? AND nome_motorista != '' ORDER BY data_marcacao DESC LIMIT 1", [veiculo.motorista]);
                 if (checkFrotaBd && checkFrotaBd.is_frota === 1) isFrota = true;
+            }
+
+            // Placas cadastradas no Provisionamento também ignoram as travas (igual frota)
+            if (!isFrota) {
+                const placasVeiculo = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
+                if (placasVeiculo.length > 0) {
+                    const ph = placasVeiculo.map(() => '?').join(', ');
+                    const provV = await dbGet(
+                        `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa IN (${ph}) OR carreta IN (${ph})) LIMIT 1`,
+                        [...placasVeiculo, ...placasVeiculo]
+                    );
+                    if (provV) isFrota = true;
+                }
             }
 
             if (!isFrota) {
