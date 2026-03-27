@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Truck } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 
@@ -47,10 +48,10 @@ export default function MobileLogin() {
                     width: '72px', height: '72px', borderRadius: '20px',
                     background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '32px', margin: '0 auto 16px',
+                    margin: '0 auto 16px',
                     boxShadow: '0 8px 32px rgba(59,130,246,0.4)',
                 }}>
-                    🚛
+                    <Truck size={34} color="#fff" strokeWidth={1.8} />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: '800', color: '#f1f5f9', letterSpacing: '-0.5px' }}>
                     Transnet

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Truck, FileText, Play, Pause } from 'lucide-react';
 import api from '../services/apiService';
 
 const TELAS = ['Embarques', 'Operação', 'CT-e'];
@@ -82,8 +83,13 @@ export default function MobileDashboardTV({ socket }) {
                         borderRadius: '8px', color: autoplay ? '#a78bfa' : '#475569',
                         fontSize: '11px', fontWeight: '700', padding: '5px 10px', cursor: 'pointer',
                         WebkitTapHighlightColor: 'transparent',
+                        display: 'flex', alignItems: 'center', gap: '5px',
                     }}>
-                        {autoplay ? '⏸ Auto' : '▶ Auto'}
+                        {autoplay
+                            ? <Pause size={11} strokeWidth={2} />
+                            : <Play size={11} strokeWidth={2} />
+                        }
+                        Auto
                     </button>
                 </div>
                 <div style={{ display: 'flex' }}>
@@ -130,7 +136,9 @@ export default function MobileDashboardTV({ socket }) {
                                     })}
                                     {Object.keys(contsPorStatus).length === 0 && (
                                         <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '32px', color: '#334155' }}>
-                                            <div style={{ fontSize: '24px' }}>🚛</div>
+                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                                <Truck size={24} color="#334155" strokeWidth={1.5} />
+                                            </div>
                                             <div style={{ fontSize: '12px', marginTop: '8px' }}>Nenhum embarque hoje.</div>
                                         </div>
                                     )}
@@ -224,14 +232,21 @@ export default function MobileDashboardTV({ socket }) {
                                                 {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ')[0]}</span>}
                                             </div>
                                             <div style={{ textAlign: 'right' }}>
-                                                {v.numero_cte ? <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700' }}>✅ {v.numero_cte}</div> : <div style={{ fontSize: '10px', color: '#f59e0b' }}>{v.status}</div>}
+                                                {v.numero_cte
+                                                    ? <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'flex-end' }}>
+                                                        <FileText size={10} color="#4ade80" strokeWidth={2} /> {v.numero_cte}
+                                                      </div>
+                                                    : <div style={{ fontSize: '10px', color: '#f59e0b' }}>{v.status}</div>
+                                                }
                                                 <div style={{ fontSize: '10px', color: '#334155' }}>{v.origem}</div>
                                             </div>
                                         </div>
                                     ))}
                                     {ctes.length === 0 && (
                                         <div style={{ textAlign: 'center', padding: '32px', color: '#334155' }}>
-                                            <div style={{ fontSize: '24px', marginBottom: '8px' }}>📄</div>
+                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                                <FileText size={24} color="#334155" strokeWidth={1.5} />
+                                            </div>
                                             <div style={{ fontSize: '12px' }}>Nenhum CT-e hoje.</div>
                                         </div>
                                     )}

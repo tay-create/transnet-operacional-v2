@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Copy, RefreshCw, PauseCircle, Trash2, Link2, Car, Clock, MapPin, Map, CheckCircle, Plus } from 'lucide-react';
 import api from '../services/apiService';
 
 // ── Funções utilitárias ──────────────────────────────────────────────────────
@@ -201,7 +202,7 @@ export default function MobileMarcacoes({ socket }) {
                 vibrar();
                 setNovoTel(''); setNovoNome('');
                 setSheetNovoLink(false);
-                mostrarToast('✅ Link gerado!');
+                mostrarToast('Link gerado com sucesso!');
                 carregarTokens();
             } else {
                 mostrarToast(r.data.message || 'Erro ao gerar link.');
@@ -219,7 +220,7 @@ export default function MobileMarcacoes({ socket }) {
             setTokens(prev => prev.map(t => t.id === token.id ? { ...t, status: novoSt } : t));
             setSheetToken(prev => prev ? { ...prev, status: novoSt } : null);
             vibrar();
-            mostrarToast(novoSt === 'ativo' ? '✅ Link reativado.' : 'Link inativado.');
+            mostrarToast(novoSt === 'ativo' ? 'Link reativado.' : 'Link inativado.');
         } catch { mostrarToast('Erro ao atualizar.'); }
     };
 
@@ -230,7 +231,7 @@ export default function MobileMarcacoes({ socket }) {
             setTokens(prev => prev.filter(t => t.id !== id));
             setSheetToken(null);
             vibrar();
-            mostrarToast('🗑 Link excluído.');
+            mostrarToast('Link excluído.');
         } catch { mostrarToast('Erro ao excluir.'); }
     };
 
@@ -262,14 +263,14 @@ export default function MobileMarcacoes({ socket }) {
                             cursor: 'pointer', boxShadow: '0 2px 8px rgba(59,130,246,0.4)',
                             WebkitTapHighlightColor: 'transparent',
                         }}>
-                            + Novo Link
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Plus size={14} strokeWidth={2.5} /> Novo Link</span>
                         </button>
                     )}
                 </div>
 
                 {/* Abas */}
                 <div style={{ display: 'flex', borderBottom: '1px solid #1e293b' }}>
-                    {[{ id: 'links', label: '🔗 Links' }, { id: 'marcacoes', label: '🚗 Marcações' }].map(a => (
+                    {[{ id: 'links', label: 'Links' }, { id: 'marcacoes', label: 'Marcações' }].map(a => (
                         <button key={a.id} onClick={() => setAba(a.id)} style={{
                             flex: 1, padding: '10px 4px', background: 'none', border: 'none',
                             borderBottom: aba === a.id ? '2px solid #3b82f6' : '2px solid transparent',
@@ -319,7 +320,7 @@ export default function MobileMarcacoes({ socket }) {
                         {aba === 'links' && (
                             tokensFiltrados.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔗</div>
+                                    <Link2 size={32} color="#334155" strokeWidth={1.5} style={{ marginBottom: '8px' }} />
                                     <div style={{ fontSize: '13px' }}>Nenhum link gerado ainda.</div>
                                 </div>
                             ) : tokensFiltrados.map(t => {
@@ -367,7 +368,7 @@ export default function MobileMarcacoes({ socket }) {
                         {aba === 'marcacoes' && (
                             marcacoes.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🚗</div>
+                                    <Car size={32} color="#334155" strokeWidth={1.5} style={{ marginBottom: '8px' }} />
                                     <div style={{ fontSize: '13px' }}>Nenhuma marcação encontrada.</div>
                                 </div>
                             ) : marcacoes.map(m => {
@@ -387,18 +388,23 @@ export default function MobileMarcacoes({ socket }) {
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '13px', fontWeight: '700', color: '#f1f5f9' }}>{m.nome_motorista}</span>
-                                            <span style={{ fontSize: '12px', fontWeight: '700', color: cor }}>
-                                                ⏱ {formatarTempo(tempoMin)}
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: cor }}>
+                                                <Clock size={11} color={cor} strokeWidth={2} />
+                                                {formatarTempo(tempoMin)}
                                             </span>
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             {m.disponibilidade && (
-                                                <span style={{ fontSize: '10px', color: dispCor, fontWeight: '600' }}>
-                                                    📍 {m.disponibilidade}
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: dispCor, fontWeight: '600' }}>
+                                                    <MapPin size={10} color={dispCor} strokeWidth={2} />
+                                                    {m.disponibilidade}
                                                 </span>
                                             )}
                                             {m.estado && (
-                                                <span style={{ fontSize: '10px', color: '#475569', fontWeight: '600' }}>🗺 {m.estado}</span>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#475569', fontWeight: '600' }}>
+                                                    <Map size={10} color="#475569" strokeWidth={2} />
+                                                    {m.estado}
+                                                </span>
                                             )}
                                             {m.tipo_veiculo && (
                                                 <span style={{ fontSize: '10px', color: '#475569' }}>{m.tipo_veiculo}</span>
@@ -447,7 +453,7 @@ export default function MobileMarcacoes({ socket }) {
                             fontSize: '15px', fontWeight: '700', cursor: gerando ? 'not-allowed' : 'pointer',
                             boxShadow: gerando ? 'none' : '0 4px 16px rgba(59,130,246,0.4)',
                         }}>
-                            {gerando ? 'Gerando...' : '🔗 Gerar Link'}
+                            {gerando ? 'Gerando...' : <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Link2 size={16} strokeWidth={2} /> Gerar Link</span>}
                         </button>
                     </div>
                 </BottomSheet>
@@ -493,7 +499,7 @@ export default function MobileMarcacoes({ socket }) {
                                 border: '1px solid rgba(59,130,246,0.3)', borderRadius: '12px',
                                 color: '#60a5fa', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
                             }}>
-                                📋 Copiar Link
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Copy size={16} strokeWidth={2} /> Copiar Link</span>
                             </button>
 
                             {(ef === 'inativo' || ef === 'utilizado' || ef === 'expirado') && (
@@ -502,7 +508,7 @@ export default function MobileMarcacoes({ socket }) {
                                     border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px',
                                     color: '#4ade80', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
                                 }}>
-                                    ♻ Reativar Link
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><RefreshCw size={16} strokeWidth={2} /> Reativar Link</span>
                                 </button>
                             )}
 
@@ -512,7 +518,7 @@ export default function MobileMarcacoes({ socket }) {
                                     border: '1px solid rgba(245,158,11,0.3)', borderRadius: '12px',
                                     color: '#fbbf24', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
                                 }}>
-                                    ⏸ Inativar Link
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><PauseCircle size={16} strokeWidth={2} /> Inativar Link</span>
                                 </button>
                             )}
 
@@ -521,7 +527,7 @@ export default function MobileMarcacoes({ socket }) {
                                 border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px',
                                 color: '#f87171', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
                             }}>
-                                🗑 Excluir Link
+                                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}><Trash2 size={16} strokeWidth={2} /> Excluir Link</span>
                             </button>
                         </div>
                     </BottomSheet>
@@ -542,7 +548,7 @@ export default function MobileMarcacoes({ socket }) {
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                     {[
-                                        { label: 'Tempo de Espera', value: <span style={{ color: corTempo(tempoMin), fontWeight: '700' }}>⏱ {formatarTempo(tempoMin)}</span> },
+                                        { label: 'Tempo de Espera', value: <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: corTempo(tempoMin), fontWeight: '700' }}><Clock size={12} color={corTempo(tempoMin)} strokeWidth={2} />{formatarTempo(tempoMin)}</span> },
                                         { label: 'Localização', value: <span style={{ color: dispCor }}>{m.disponibilidade || '—'}</span> },
                                         { label: 'Estado', value: m.estado || '—' },
                                         { label: 'Tipo Veículo', value: m.tipo_veiculo || '—' },

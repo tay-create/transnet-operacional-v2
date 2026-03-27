@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Home, Truck, ShieldCheck, Link2, Monitor } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import MobileLogin from './MobileLogin';
 import MobileHome from './MobileHome';
@@ -8,11 +9,11 @@ import MobileMarcacoes from './MobileMarcacoes';
 import MobileDashboardTV from './MobileDashboardTV';
 
 const NAV_ITEMS = [
-    { id: 'home',        icon: '🏠', label: 'Home' },
-    { id: 'operacional', icon: '🚛', label: 'Operação' },
-    { id: 'cadastro',    icon: '📋', label: 'Ger. Risco' },
-    { id: 'marcacoes',   icon: '🔗', label: 'Marcações' },
-    { id: 'dashboard',   icon: '📺', label: 'Dashboard' },
+    { id: 'home',        Icon: Home,         label: 'Home' },
+    { id: 'operacional', Icon: Truck,        label: 'Operação' },
+    { id: 'cadastro',    Icon: ShieldCheck,  label: 'Ger. Risco' },
+    { id: 'marcacoes',   Icon: Link2,        label: 'Marcações' },
+    { id: 'dashboard',   Icon: Monitor,      label: 'Dashboard' },
 ];
 
 export default function MobileApp({ socket }) {
@@ -92,7 +93,7 @@ export default function MobileApp({ socket }) {
                                 outline: 'none',
                             }}
                         >
-                            <span style={{ fontSize: '20px', lineHeight: 1 }}>{item.icon}</span>
+                            <item.Icon size={20} color={ativo ? '#3b82f6' : '#475569'} strokeWidth={ativo ? 2.5 : 1.8} />
                             <span style={{
                                 fontSize: '10px',
                                 fontWeight: ativo ? '700' : '500',

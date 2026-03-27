@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Truck, RefreshCw, FileText, Package } from 'lucide-react';
 import api from '../services/apiService';
 
 const STATUS_COR = {
@@ -140,7 +141,9 @@ export default function MobileOperacional() {
                     <div style={{ textAlign: 'center', padding: '48px', color: '#475569' }}>Carregando...</div>
                 ) : veiculos.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '48px 24px', color: '#334155' }}>
-                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🚛</div>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                            <Truck size={32} color="#334155" strokeWidth={1.5} />
+                        </div>
                         <div style={{ fontSize: '13px' }}>Nenhum veículo neste período.</div>
                     </div>
                 ) : veiculos.map(v => {
@@ -192,18 +195,18 @@ export default function MobileOperacional() {
                             {/* Info adicional */}
                             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                                 {v.doca && (
-                                    <span style={{ fontSize: '11px', color: '#475569' }}>
-                                        📦 Doca {v.doca}
+                                    <span style={{ fontSize: '11px', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <Package size={10} color="#475569" strokeWidth={2} /> Doca {v.doca}
                                     </span>
                                 )}
                                 {v.operacao && (
-                                    <span style={{ fontSize: '11px', color: '#475569', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        🔄 {v.operacao}
+                                    <span style={{ fontSize: '11px', color: '#475569', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <RefreshCw size={10} color="#475569" strokeWidth={2} /> {v.operacao}
                                     </span>
                                 )}
                                 {cteEmitido && (
-                                    <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '700' }}>
-                                        ✅ CT-e {v.numero_cte}
+                                    <span style={{ fontSize: '11px', color: '#22c55e', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                        <FileText size={10} color="#22c55e" strokeWidth={2} /> CT-e {v.numero_cte}
                                     </span>
                                 )}
                             </div>

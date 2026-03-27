@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Truck, ShieldCheck, Link2, Monitor, ArrowRight, Wifi, WifiOff, LogOut } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 
 const CARDS = [
     {
         id: 'operacional',
-        icon: '🚛',
+        Icon: Truck,
         titulo: 'Painel Operacional',
         descricao: 'Recife & Moreno',
         cor: '#3b82f6',
@@ -14,7 +15,7 @@ const CARDS = [
     },
     {
         id: 'cadastro',
-        icon: '📋',
+        Icon: ShieldCheck,
         titulo: 'Ger. Risco',
         descricao: 'CT-e & Liberações',
         cor: '#f59e0b',
@@ -23,7 +24,7 @@ const CARDS = [
     },
     {
         id: 'marcacoes',
-        icon: '🔗',
+        Icon: Link2,
         titulo: 'Marcação de Placas',
         descricao: 'Links & Motoristas',
         cor: '#22c55e',
@@ -32,7 +33,7 @@ const CARDS = [
     },
     {
         id: 'dashboard',
-        icon: '📺',
+        Icon: Monitor,
         titulo: 'Dashboard TV',
         descricao: 'Visão geral',
         cor: '#a78bfa',
@@ -96,7 +97,7 @@ export default function MobileHome({ onNavegar }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <div style={{ fontSize: '13px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
-                            Olá, {user?.nome?.split(' ')[0]} 👋
+                            Olá, {user?.nome?.split(' ')[0]}
                         </div>
                         <div style={{ fontSize: '28px', fontWeight: '800', color: '#f1f5f9', letterSpacing: '-1px', lineHeight: 1 }}>
                             {formatarHora(hora)}
@@ -113,17 +114,22 @@ export default function MobileHome({ onNavegar }) {
                             background: online ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                             border: `1px solid ${online ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
                         }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: online ? '#22c55e' : '#ef4444' }} />
+                            {online
+                                ? <Wifi size={11} color="#4ade80" strokeWidth={2} />
+                                : <WifiOff size={11} color="#f87171" strokeWidth={2} />
+                            }
                             <span style={{ fontSize: '11px', fontWeight: '600', color: online ? '#4ade80' : '#f87171' }}>
                                 {online ? 'Online' : 'Offline'}
                             </span>
                         </div>
                         {/* Logout */}
                         <button onClick={logout} style={{
+                            display: 'flex', alignItems: 'center', gap: '5px',
                             background: 'none', border: '1px solid #1e293b', borderRadius: '8px',
                             color: '#475569', fontSize: '11px', padding: '4px 10px', cursor: 'pointer',
                             WebkitTapHighlightColor: 'transparent',
                         }}>
+                            <LogOut size={11} strokeWidth={2} />
                             Sair
                         </button>
                     </div>
@@ -182,9 +188,7 @@ export default function MobileHome({ onNavegar }) {
                         )}
 
                         <div>
-                            <div style={{ fontSize: '28px', marginBottom: '10px', lineHeight: 1 }}>
-                                {card.icon}
-                            </div>
+                            <card.Icon size={28} color={card.cor} strokeWidth={1.6} style={{ marginBottom: '10px' }} />
                         </div>
 
                         <div>
@@ -197,11 +201,8 @@ export default function MobileHome({ onNavegar }) {
                         </div>
 
                         {/* Seta indicadora */}
-                        <div style={{
-                            position: 'absolute', bottom: '12px', right: '14px',
-                            color: card.cor, fontSize: '14px', opacity: 0.6,
-                        }}>
-                            →
+                        <div style={{ position: 'absolute', bottom: '12px', right: '14px', opacity: 0.5 }}>
+                            <ArrowRight size={14} color={card.cor} strokeWidth={2} />
                         </div>
                     </button>
                 ))}

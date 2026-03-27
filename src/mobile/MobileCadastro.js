@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Check, X, RefreshCw, Truck, Car, User } from 'lucide-react';
 import api from '../services/apiService';
 
 const CHECKLIST_LABELS = { cnh: 'CNH', antt: 'ANTT', tacografo: 'Tacógrafo', crlv: 'CRLV' };
@@ -28,8 +29,9 @@ function TimerBadge({ dataLiberacao }) {
             background: `rgba(${hexToRgb(info.cor)},0.1)`,
             border: `1px solid rgba(${hexToRgb(info.cor)},0.3)`,
             borderRadius: '8px', padding: '2px 8px',
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
         }}>
-            ⏱ {info.label}
+            <RefreshCw size={10} strokeWidth={2} /> {info.label}
         </span>
     );
 }
@@ -114,7 +116,9 @@ export default function MobileCadastro() {
                         {aba === 'espera' && (
                             espera.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>
+                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                        <Check size={28} color="#334155" strokeWidth={1.5} />
+                                    </div>
                                     <div style={{ fontSize: '13px' }}>Nenhum motorista em espera.</div>
                                 </div>
                             ) : espera.map(m => (
@@ -136,15 +140,21 @@ export default function MobileCadastro() {
                                                     background: ok ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                                                     border: `1px solid ${ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
                                                     borderRadius: '6px', padding: '2px 7px',
+                                                    display: 'inline-flex', alignItems: 'center', gap: '3px',
                                                 }}>
-                                                    {ok ? '✓' : '✗'} {label}
+                                                    {ok
+                                                        ? <Check size={9} strokeWidth={3} />
+                                                        : <X size={9} strokeWidth={3} />
+                                                    }
+                                                    {label}
                                                 </span>
                                             );
                                         })}
                                     </div>
                                     {m.operacao && (
-                                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#475569' }}>
-                                            🔄 {m.operacao}
+                                        <div style={{ marginTop: '6px', fontSize: '11px', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <RefreshCw size={10} color="#475569" strokeWidth={2} />
+                                            {m.operacao}
                                         </div>
                                     )}
                                 </div>
@@ -155,7 +165,9 @@ export default function MobileCadastro() {
                         {aba === 'operacao' && (
                             operacao.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🚛</div>
+                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                        <Truck size={28} color="#334155" strokeWidth={1.5} />
+                                    </div>
                                     <div style={{ fontSize: '13px' }}>Nenhum veículo neste período.</div>
                                 </div>
                             ) : operacao.map(v => {
@@ -183,7 +195,9 @@ export default function MobileCadastro() {
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                             {v.seguradora_cad && (
-                                                <span style={{ fontSize: '11px', color: '#475569' }}>🛡 {v.seguradora_cad}</span>
+                                                <span style={{ fontSize: '11px', color: '#475569', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                                    <Check size={10} color="#475569" strokeWidth={2} /> {v.seguradora_cad}
+                                                </span>
                                             )}
                                             <TimerBadge dataLiberacao={v.data_liberacao_cad} />
                                         </div>
@@ -196,7 +210,9 @@ export default function MobileCadastro() {
                         {aba === 'frota' && (
                             frota.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🚗</div>
+                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                        <Car size={28} color="#334155" strokeWidth={1.5} />
+                                    </div>
                                     <div style={{ fontSize: '13px' }}>Nenhum motorista na frota.</div>
                                 </div>
                             ) : (
@@ -206,7 +222,9 @@ export default function MobileCadastro() {
                                             background: '#0f172a', border: '1px solid #1e293b',
                                             borderRadius: '12px', padding: '14px 12px', textAlign: 'center',
                                         }}>
-                                            <div style={{ fontSize: '28px', marginBottom: '8px' }}>🧑</div>
+                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                                <User size={28} color="#475569" strokeWidth={1.5} />
+                                            </div>
                                             <div style={{ fontWeight: '700', fontSize: '12px', color: '#f1f5f9', lineHeight: 1.3, marginBottom: '4px' }}>
                                                 {m.nome_motorista}
                                             </div>
