@@ -2629,12 +2629,6 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         const dataFim = datasEntrega[datasEntrega.length - 1] || data_saida;
         const destinosJson = JSON.stringify(entradas);
 
-        // Último destino por data (campo destino simples para exibição no grid)
-        const destinoResumo = entradas
-            .filter(e => e.data && e.cidade)
-            .sort((a, b) => a.data.localeCompare(b.data))
-            .pop()?.cidade || null;
-
         // Gerar todos os dias no intervalo [data_saida, dataFim]
         const dias = [];
         const cursor = new Date(data_saida + 'T00:00:00Z');
@@ -2645,15 +2639,22 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         }
 
         for (const dia of dias) {
-            // Dia do carregamento = CARREGANDO; dias seguintes = EM_VIAGEM
+            // Dia de saída = CARREGANDO; dias seguintes = EM_VIAGEM
             const statusDia = dia === data_saida ? 'CARREGANDO' : 'EM_VIAGEM';
+
+            // Destino: apenas no dia de chegada a cada cidade (null nos dias de trânsito)
+            const entregasNoDia = entradas.filter(e => e.data === dia && e.cidade && e.cidade.trim());
+            const destinoDia = entregasNoDia.length > 0
+                ? [...new Set(entregasNoDia.map(e => e.cidade.trim()))].join(' / ')
+                : null;
+
             await dbRun(
                 `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
                  VALUES ($1, $2, $6, $3, $4, $5)
                  ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $6, motorista = $3, destino = $4, destinos_json = $5`,
-                [veiculo_id, dia, motorista || null, destinoResumo, destinosJson, statusDia]
+                [veiculo_id, dia, motorista || null, destinoDia, destinosJson, statusDia]
             );
-            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoResumo });
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoDia });
         }
 
         res.json({ success: true, dias_afetados: dias.length });

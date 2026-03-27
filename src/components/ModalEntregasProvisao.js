@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, X, Truck } from 'lucide-react';
+import { Plus, Trash2, X, Truck, Calendar } from 'lucide-react';
 import api from '../services/apiService';
 
 /**
@@ -14,6 +14,7 @@ import api from '../services/apiService';
  *   onCancelar — callback ao cancelar (limpa a placa no form pai)
  */
 export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, onConfirmar, onCancelar }) {
+    const [dataSaidaEdit, setDataSaidaEdit] = useState(dataSaida || '');
     const [entradas, setEntradas] = useState([{ cidade: '', data: dataSaida || '' }]);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -22,7 +23,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
     const removeEntrada = (i) => setEntradas(prev => prev.filter((_, idx) => idx !== i));
     const updateEntrada = (i, campo, valor) => setEntradas(prev => prev.map((e, idx) => idx === i ? { ...e, [campo]: valor } : e));
 
-    const podeSalvar = entradas.length > 0 && entradas.every(e => e.cidade.trim() && e.data);
+    const podeSalvar = dataSaidaEdit && entradas.length > 0 && entradas.every(e => e.cidade.trim() && e.data);
 
     async function confirmar() {
         if (!podeSalvar) return;
@@ -32,7 +33,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
             await api.post('/api/provisionamento/viagem', {
                 veiculo_id: veiculo.id,
                 motorista: motorista || veiculo.motorista || '',
-                data_saida: dataSaida,
+                data_saida: dataSaidaEdit,
                 entradas: entradas.map(e => ({ cidade: e.cidade.trim(), data: e.data })),
             });
             onConfirmar(entradas);
@@ -43,6 +44,12 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
     }
 
     const placaLabel = veiculo.carreta ? `${veiculo.placa} / ${veiculo.carreta}` : veiculo.placa;
+
+    const inputStyle = {
+        background: '#1e293b', border: '1px solid #334155',
+        borderRadius: '6px', color: '#f1f5f9', padding: '8px 10px',
+        fontSize: '13px', outline: 'none',
+    };
 
     return (
         <div style={{
@@ -74,12 +81,30 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
 
                 <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px', lineHeight: '1.5' }}>
                     Este veículo está cadastrado no <strong style={{ color: '#60a5fa' }}>Provisionamento de Frota</strong>.
-                    Informe os destinos e datas de entrega para registrar os dias como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
+                    Informe a data de saída e os destinos para registrar os dias como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
                 </p>
+
+                {/* Data de Saída */}
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    DATA DE SAÍDA (INÍCIO DA VIAGEM)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', padding: '12px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px' }}>
+                    <Calendar size={15} color="#60a5fa" />
+                    <span style={{ color: '#94a3b8', fontSize: '12px', flex: 1 }}>Sai em viagem em:</span>
+                    <input
+                        type="date"
+                        value={dataSaidaEdit}
+                        onChange={e => setDataSaidaEdit(e.target.value)}
+                        style={{ ...inputStyle, width: '150px' }}
+                    />
+                </div>
 
                 {/* Destinos e Datas de Entrega */}
                 <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
                     DESTINOS E DATAS DE ENTREGA
+                </div>
+                <div style={{ color: '#475569', fontSize: '11px', marginBottom: '10px', lineHeight: '1.4' }}>
+                    O nome do destino aparece na coluna do dia de chegada no provisionamento.
                 </div>
 
                 {/* Entradas */}
@@ -90,21 +115,13 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                                 value={e.cidade}
                                 onChange={ev => updateEntrada(i, 'cidade', ev.target.value)}
                                 placeholder="Cidade de entrega"
-                                style={{
-                                    flex: 1, background: '#1e293b', border: '1px solid #334155',
-                                    borderRadius: '6px', color: '#f1f5f9', padding: '8px 10px',
-                                    fontSize: '13px', outline: 'none',
-                                }}
+                                style={{ ...inputStyle, flex: 1 }}
                             />
                             <input
                                 type="date"
                                 value={e.data}
                                 onChange={ev => updateEntrada(i, 'data', ev.target.value)}
-                                style={{
-                                    width: '140px', background: '#1e293b', border: '1px solid #334155',
-                                    borderRadius: '6px', color: '#f1f5f9', padding: '8px 10px',
-                                    fontSize: '13px', outline: 'none',
-                                }}
+                                style={{ ...inputStyle, width: '140px' }}
                             />
                             {entradas.length > 1 && (
                                 <button onClick={() => removeEntrada(i)} style={{
