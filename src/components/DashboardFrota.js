@@ -1177,108 +1177,167 @@ export default function DashboardFrota({ socket }) {
             {abaAtiva === 'programacao' && (() => {
                 const veiculosAtivos = progDia.filter(v => v.status !== 'DISPONIVEL' || v.motorista);
 
-                const gerarDescricao = (v) => {
-                    let destinosTxt = '';
+                const gerarDestinos = (v) => {
                     if (v.destinos_json) {
                         try {
                             const ds = JSON.parse(v.destinos_json);
-                            destinosTxt = ds.map(d => {
+                            return ds.map(d => {
                                 const ag = d.data && d.data !== dataProgDia
-                                    ? `(AG:${d.data.split('-').reverse().slice(0,2).join('/')})` : '';
+                                    ? ` (AG:${d.data.split('-').reverse().slice(0,2).join('/')})` : '';
                                 return `${d.cidade}${ag}`;
-                            }).join(', ');
+                            }).join(' → ');
                         } catch {}
                     }
-                    if (!destinosTxt && v.destino) destinosTxt = v.destino;
-                    const label = STATUS_LABEL_PROG[v.status] || v.status;
-                    return [destinosTxt, label].filter(Boolean).join(' · ');
+                    return v.destino || '';
                 };
 
-                const sTh = { padding: '10px 14px', color: '#64748b', fontWeight: '600', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid #1e293b' };
-                const sTd = { padding: '10px 14px', color: '#cbd5e1', fontSize: '13px', borderBottom: '1px solid rgba(255,255,255,0.04)' };
+                const corStatus = (s) => STATUS_COR_PROG[s] || '#475569';
+                const rgbStatus = (s) => hexToRgb(corStatus(s));
+                const labelStatus = (s) => STATUS_LABEL_PROG[s] || s;
+
+                // Cor do tipo de veículo
+                const corTipo = (tipo) => {
+                    if (!tipo) return '#475569';
+                    if (tipo === 'CONJUNTO') return '#fb923c';
+                    if (tipo === 'TRUCK') return '#60a5fa';
+                    if (tipo === 'CARRETA') return '#34d399';
+                    if (tipo === '3/4') return '#a78bfa';
+                    return '#475569';
+                };
 
                 return (
                     <div>
                         {/* Cabeçalho */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                            <h2 style={{ color: '#f1f5f9', margin: 0, fontSize: '18px', fontWeight: '700' }}>
-                                Programação · {formatarDataExibicao(dataProgDia)}
-                            </h2>
-                            <input type="date" value={dataProgDia}
-                                onChange={e => setDataProgDia(e.target.value)}
-                                style={{ background: '#1e293b', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '6px', padding: '5px 10px', fontSize: '13px', outline: 'none' }}
-                            />
-                            {dataProgDia !== hoje && (
-                                <button onClick={() => setDataProgDia(hoje)}
-                                    style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', color: '#60a5fa', cursor: 'pointer', padding: '5px 10px', fontSize: '11px', fontWeight: '600' }}>
-                                    Hoje
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                            <div>
+                                <div style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Programação da Frota</div>
+                                <div style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: '800', letterSpacing: '-0.5px' }}>{formatarDataExibicao(dataProgDia)}</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
+                                <input type="date" value={dataProgDia}
+                                    onChange={e => setDataProgDia(e.target.value)}
+                                    style={{ background: '#1e293b', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '8px', padding: '6px 10px', fontSize: '13px', outline: 'none' }}
+                                />
+                                {dataProgDia !== hoje && (
+                                    <button onClick={() => setDataProgDia(hoje)}
+                                        style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', color: '#60a5fa', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600' }}>
+                                        Hoje
+                                    </button>
+                                )}
+                                <button onClick={() => carregarProgDia(dataProgDia)} disabled={carregandoProg}
+                                    style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '8px', color: '#a5b4fc', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600', opacity: carregandoProg ? 0.6 : 1 }}>
+                                    ↻
                                 </button>
-                            )}
-                            <button onClick={() => carregarProgDia(dataProgDia)} disabled={carregandoProg}
-                                style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '6px', color: '#a5b4fc', cursor: 'pointer', padding: '5px 12px', fontSize: '12px', fontWeight: '600', opacity: carregandoProg ? 0.6 : 1 }}>
-                                ↻ Atualizar
-                            </button>
+                            </div>
                         </div>
 
-                        {/* Tabela de veículos */}
-                        <div style={{ background: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', overflow: 'hidden', marginBottom: '16px' }}>
-                            {carregandoProg ? (
-                                <div style={{ padding: '32px', textAlign: 'center', color: '#475569' }}>Carregando...</div>
-                            ) : veiculosAtivos.length === 0 ? (
-                                <div style={{ padding: '32px', textAlign: 'center', color: '#475569' }}>Nenhum veículo em operação neste dia.</div>
-                            ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead>
-                                        <tr>
-                                            <th style={sTh}>Motorista</th>
-                                            <th style={sTh}>Placas</th>
-                                            <th style={sTh}>Descrição</th>
-                                            <th style={sTh}>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {veiculosAtivos.map(v => (
-                                            <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                                <td style={{ ...sTd, fontWeight: '600', color: '#e2e8f0' }}>
-                                                    {v.motorista || <span style={{ color: '#475569' }}>----</span>}
-                                                </td>
-                                                <td style={{ ...sTd, fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>
-                                                    {v.placa && v.placa !== '-' ? v.placa : ''}
-                                                    {v.carreta ? ` / ${v.carreta}` : ''}
-                                                </td>
-                                                <td style={{ ...sTd, color: '#94a3b8' }}>{gerarDescricao(v)}</td>
-                                                <td style={sTd}>
-                                                    <span style={{
-                                                        padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: '700',
-                                                        background: `rgba(${hexToRgb(STATUS_COR_PROG[v.status] || '#475569')},0.15)`,
-                                                        color: STATUS_COR_PROG[v.status] || '#94a3b8',
-                                                        border: `1px solid rgba(${hexToRgb(STATUS_COR_PROG[v.status] || '#475569')},0.3)`,
-                                                    }}>
-                                                        {STATUS_LABEL_PROG[v.status] || v.status}
+                        {/* Cards de veículos */}
+                        {carregandoProg ? (
+                            <div style={{ padding: '48px', textAlign: 'center', color: '#475569' }}>Carregando...</div>
+                        ) : veiculosAtivos.length === 0 ? (
+                            <div style={{ padding: '48px', textAlign: 'center', color: '#334155', background: '#0f172a', borderRadius: '16px', border: '1px solid #1e293b' }}>
+                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🚛</div>
+                                <div style={{ color: '#475569', fontSize: '14px' }}>Nenhum veículo em operação neste dia.</div>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                                {veiculosAtivos.map(v => {
+                                    const cor = corStatus(v.status);
+                                    const rgb = rgbStatus(v.status);
+                                    const destinos = gerarDestinos(v);
+                                    const placas = [v.placa && v.placa !== '-' ? v.placa : null, v.carreta || null].filter(Boolean).join(' / ');
+                                    const cTipo = corTipo(v.tipo_veiculo);
+                                    return (
+                                        <div key={v.id} style={{
+                                            background: `linear-gradient(135deg, #0f172a 0%, rgba(${rgb},0.04) 100%)`,
+                                            border: `1px solid rgba(${rgb},0.2)`,
+                                            borderLeft: `3px solid ${cor}`,
+                                            borderRadius: '12px',
+                                            padding: '14px 18px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '16px',
+                                            transition: 'border-color 0.2s',
+                                            boxShadow: `0 2px 12px rgba(${rgb},0.06)`,
+                                        }}>
+                                            {/* Tipo */}
+                                            <div style={{
+                                                minWidth: '64px', textAlign: 'center',
+                                                padding: '4px 8px', borderRadius: '6px',
+                                                background: `rgba(${hexToRgb(cTipo)},0.12)`,
+                                                border: `1px solid rgba(${hexToRgb(cTipo)},0.25)`,
+                                                color: cTipo, fontSize: '10px', fontWeight: '800',
+                                                letterSpacing: '0.5px',
+                                            }}>
+                                                {v.tipo_veiculo || '—'}
+                                            </div>
+
+                                            {/* Motorista */}
+                                            <div style={{ minWidth: '160px' }}>
+                                                <div style={{ color: v.motorista ? '#f1f5f9' : '#334155', fontWeight: '700', fontSize: '13px', lineHeight: 1.2 }}>
+                                                    {v.motorista || '— —'}
+                                                </div>
+                                            </div>
+
+                                            {/* Placas */}
+                                            <div style={{ minWidth: '140px' }}>
+                                                {placas ? (
+                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '800', letterSpacing: '1px', background: 'rgba(251,146,60,0.08)', padding: '3px 8px', borderRadius: '5px', border: '1px solid rgba(251,146,60,0.2)' }}>
+                                                        {placas}
                                                     </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
+                                                ) : <span style={{ color: '#334155' }}>—</span>}
+                                            </div>
+
+                                            {/* Destinos */}
+                                            <div style={{ flex: 1, color: '#94a3b8', fontSize: '12px', minWidth: 0 }}>
+                                                {destinos ? (
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <span style={{ color: '#475569', fontSize: '10px' }}>📍</span>
+                                                        {destinos}
+                                                    </span>
+                                                ) : <span style={{ color: '#334155' }}>—</span>}
+                                            </div>
+
+                                            {/* Status badge */}
+                                            <div style={{
+                                                padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                background: `rgba(${rgb},0.12)`,
+                                                color: cor,
+                                                border: `1px solid rgba(${rgb},0.3)`,
+                                                whiteSpace: 'nowrap',
+                                                letterSpacing: '0.3px',
+                                            }}>
+                                                {labelStatus(v.status)}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* OBS do dia */}
-                        <div style={{ background: '#1e293b', borderRadius: '10px', padding: '16px', border: '1px solid #334155' }}>
-                            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                                OBS do Dia
+                        <div style={{
+                            background: 'linear-gradient(135deg, #0f172a 0%, #111827 100%)',
+                            borderRadius: '14px', padding: '18px 20px',
+                            border: '1px solid #1e293b',
+                            boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                <div style={{ width: '3px', height: '16px', background: '#f59e0b', borderRadius: '2px' }} />
+                                <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Observações do Dia</span>
                             </div>
                             <textarea
                                 value={obsDia}
                                 onChange={e => setObsDia(e.target.value)}
                                 placeholder="Ex: Disponibilizar motorista carreteiro para possíveis movimentações..."
-                                style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', color: '#f1f5f9', borderRadius: '6px', padding: '10px', fontSize: '13px', resize: 'vertical', minHeight: '64px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }}
+                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid #1e293b', color: '#f1f5f9', borderRadius: '8px', padding: '12px', fontSize: '13px', resize: 'vertical', minHeight: '72px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', lineHeight: '1.5' }}
                             />
-                            <button onClick={salvarObs} disabled={obsSalvando}
-                                style={{ marginTop: '8px', padding: '6px 18px', background: obsSalvando ? '#334155' : '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: obsSalvando ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                                {obsSalvando ? 'Salvando...' : 'Salvar'}
-                            </button>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                <button onClick={salvarObs} disabled={obsSalvando}
+                                    style={{ padding: '7px 22px', background: obsSalvando ? '#1e293b' : 'linear-gradient(135deg,#3b82f6,#2563eb)', color: obsSalvando ? '#475569' : '#fff', border: 'none', borderRadius: '8px', cursor: obsSalvando ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '700', boxShadow: obsSalvando ? 'none' : '0 2px 8px rgba(59,130,246,0.3)' }}>
+                                    {obsSalvando ? 'Salvando...' : '✓ Salvar'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 );
