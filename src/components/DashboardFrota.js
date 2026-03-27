@@ -1235,6 +1235,40 @@ export default function DashboardFrota({ socket }) {
                             </div>
                         </div>
 
+                        {/* Ticker OBS */}
+                        {obsSalvo && (
+                            <div style={{
+                                marginBottom: '20px',
+                                background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+                                border: '1px solid rgba(245,158,11,0.25)',
+                                borderRadius: '10px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                alignItems: 'center',
+                                height: '36px',
+                            }}>
+                                <div style={{
+                                    minWidth: '90px',
+                                    background: 'rgba(245,158,11,0.12)',
+                                    borderRight: '1px solid rgba(245,158,11,0.25)',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '0 14px',
+                                    flexShrink: 0,
+                                }}>
+                                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px' }}>📢 OBS</span>
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                                    <div style={{ display: 'flex', animation: 'ticker-scroll 20s linear infinite', whiteSpace: 'nowrap' }}>
+                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingLeft: '24px', paddingRight: '80px' }}>{obsSalvo}</span>
+                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingRight: '80px' }}>{obsSalvo}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Cards de veículos */}
                         {carregandoProg ? (
                             <div style={{ padding: '48px', textAlign: 'center', color: '#475569' }}>Carregando...</div>
@@ -1344,40 +1378,6 @@ export default function DashboardFrota({ socket }) {
                             </div>
                         </div>
 
-                        {/* Ticker OBS */}
-                        {obsSalvo && (
-                            <div style={{
-                                marginTop: '16px',
-                                background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-                                border: '1px solid rgba(245,158,11,0.25)',
-                                borderRadius: '10px',
-                                padding: '0',
-                                overflow: 'hidden',
-                                display: 'flex',
-                                alignItems: 'center',
-                                height: '36px',
-                            }}>
-                                <div style={{
-                                    minWidth: '90px',
-                                    background: 'rgba(245,158,11,0.12)',
-                                    borderRight: '1px solid rgba(245,158,11,0.25)',
-                                    height: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    padding: '0 14px',
-                                    flexShrink: 0,
-                                }}>
-                                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px' }}>📢 OBS</span>
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-                                    <div style={{ display: 'flex', animation: 'ticker-scroll 20s linear infinite', whiteSpace: 'nowrap' }}>
-                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingLeft: '24px', paddingRight: '80px' }}>{obsSalvo}</span>
-                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingRight: '80px' }}>{obsSalvo}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 );
             })()}
