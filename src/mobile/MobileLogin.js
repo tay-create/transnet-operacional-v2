@@ -18,7 +18,7 @@ export default function MobileLogin() {
         try {
             const res = await api.post('/login', { nome: usuario.trim(), senha });
             if (res.data.success) {
-                login(res.data.user, res.data.token);
+                login(res.data.usuario, res.data.token);
             } else {
                 setErro(res.data.message || 'Usuário ou senha incorretos.');
             }

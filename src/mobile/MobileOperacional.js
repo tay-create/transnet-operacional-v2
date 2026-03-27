@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Truck, RefreshCw, FileText, Package, Search } from 'lucide-react';
 import api from '../services/apiService';
 
+// Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
-    'AGUARDANDO':        '#64748b',
-    'EM SEPARAÇÃO':      '#a78bfa',
-    'LIBERADO P/ DOCA':  '#f59e0b',
-    'EM CARREGAMENTO':   '#3b82f6',
-    'CARREGADO':         '#06b6d4',
-    'LIBERADO P/ CT-e':  '#22c55e',
+    'AGUARDANDO':        '#94a3b8',
+    'EM SEPARAÇÃO':      '#facc15',
+    'LIBERADO P/ DOCA':  '#60a5fa',
+    'EM CARREGAMENTO':   '#fb923c',
+    'CARREGADO':         '#4ade80',
+    'LIBERADO P/ CT-e':  '#c084fc',
 };
 
 function hexToRgb(hex) {
