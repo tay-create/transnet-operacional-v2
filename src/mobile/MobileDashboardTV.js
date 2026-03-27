@@ -111,8 +111,11 @@ export default function MobileDashboardTV({ socket }) {
 
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
 
-    // Veículos do dia — filtra por data_prevista (igual ao PainelOperacional.js)
-    const veiculosHoje = veiculos.filter(v => (v.data_prevista || '').split('T')[0] === hoje);
+    // Veículos do dia — fallback data_criacao igual ao DashboardTV desktop
+    const veiculosHoje = veiculos.filter(v => {
+        const d = (v.data_prevista || v.data_criacao || '').split('T')[0];
+        return d === hoje;
+    });
 
     // Tela 0 — Embarques: agrupa por operação
     const contOp = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
@@ -128,13 +131,20 @@ export default function MobileDashboardTV({ socket }) {
         emitido:    ctes.filter(c => c.status === 'Emitido').length,
     };
 
-    // Tela 1 — Operação: contagem por status (só números)
+    // Tela 1 — Operação: contagem por status com lista fixa (mostra LIBERADO P/ CT-e sempre)
+    const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+
+    // Filtrar por origem igual ao desktop
+    const vRecife = veiculosHoje.filter(v => (v.operacao || '').includes('RECIFE'));
+    const vMoreno = veiculosHoje.filter(v => {
+        const op = v.operacao || '';
+        return op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+    });
+
     const statusRecife = {};
     const statusMoreno = {};
-    veiculosHoje.forEach(v => {
-        if (v.status_recife) statusRecife[v.status_recife] = (statusRecife[v.status_recife] || 0) + 1;
-        if (v.status_moreno) statusMoreno[v.status_moreno] = (statusMoreno[v.status_moreno] || 0) + 1;
-    });
+    vRecife.forEach(v => { if (v.status_recife) statusRecife[v.status_recife] = (statusRecife[v.status_recife] || 0) + 1; });
+    vMoreno.forEach(v => { if (v.status_moreno) statusMoreno[v.status_moreno] = (statusMoreno[v.status_moreno] || 0) + 1; });
 
     // Tela 2 — CT-e
     const ctesRecife = ctes.filter(c => c.origem === 'Recife');
@@ -220,30 +230,34 @@ export default function MobileDashboardTV({ socket }) {
                             </div>
                         )}
 
-                        {/* TELA 1: Operação — só números */}
+                        {/* TELA 1: Operação — só números, lista fixa de 6 statuses */}
                         {tela === 1 && (
                             <div>
                                 <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                     Operação Hoje · {veiculosHoje.length} veículos
                                 </div>
 
-                                {Object.keys(statusRecife).length > 0 && (
+                                {(vRecife.length > 0 || veiculosHoje.length === 0) && (
                                     <div style={{ marginBottom: '16px' }}>
-                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Recife</div>
+                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                                            Recife · {vRecife.length}
+                                        </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                            {Object.entries(statusRecife).map(([st, qtd]) => (
-                                                <KpiCard key={st} valor={qtd} label={st} cor={STATUS_COR[st] || '#475569'} />
+                                            {STATUS_ORDEM.map(st => (
+                                                <KpiCard key={st} valor={statusRecife[st] || 0} label={st} cor={STATUS_COR[st] || '#475569'} />
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
-                                {Object.keys(statusMoreno).length > 0 && (
+                                {vMoreno.length > 0 && (
                                     <div>
-                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Moreno</div>
+                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                                            Moreno · {vMoreno.length}
+                                        </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                            {Object.entries(statusMoreno).map(([st, qtd]) => (
-                                                <KpiCard key={st} valor={qtd} label={st} cor={STATUS_COR[st] || '#475569'} />
+                                            {STATUS_ORDEM.map(st => (
+                                                <KpiCard key={st} valor={statusMoreno[st] || 0} label={st} cor={STATUS_COR[st] || '#475569'} />
                                             ))}
                                         </div>
                                     </div>

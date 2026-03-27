@@ -21,6 +21,7 @@ export default function MobileOperacional() {
     const [todosVeiculos, setTodosVeiculos] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [busca, setBusca] = useState('');
+    const [filtroStatus, setFiltroStatus] = useState(null);
     const [puxando, setPuxando] = useState(false);
     const [startY, setStartY] = useState(null);
 
@@ -77,6 +78,14 @@ export default function MobileOperacional() {
         acc[s] = (acc[s] || 0) + 1;
         return acc;
     }, {});
+
+    // Aplicar filtro de status (após calcular contagens)
+    const veiculosFiltrados = filtroStatus
+        ? veiculos.filter(v => status(v) === filtroStatus)
+        : veiculos;
+
+    // Resetar filtro quando mudar origem/datas/busca
+    useEffect(() => { setFiltroStatus(null); }, [origem, dataInicio, dataFim, busca]);
 
     // Pull to refresh
     const onTouchStart = (e) => setStartY(e.touches[0].clientY);
@@ -145,19 +154,29 @@ export default function MobileOperacional() {
             {/* Pills de status */}
             {veiculos.length > 0 && (
                 <div style={{ padding: '8px 16px', display: 'flex', gap: '6px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <div style={{ flexShrink: 0, background: '#1e293b', borderRadius: '6px', padding: '4px 10px', fontSize: '11px', color: '#94a3b8', fontWeight: '600' }}>
+                    <button onClick={() => setFiltroStatus(null)} style={{
+                        flexShrink: 0, background: filtroStatus === null ? '#334155' : '#1e293b',
+                        borderRadius: '6px', padding: '4px 10px', fontSize: '11px',
+                        color: filtroStatus === null ? '#f1f5f9' : '#94a3b8', fontWeight: '600',
+                        border: filtroStatus === null ? '1px solid #475569' : '1px solid transparent',
+                        cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                    }}>
                         {veiculos.length} total
-                    </div>
+                    </button>
                     {Object.entries(contsPorStatus).map(([s, qtd]) => {
                         const cor = STATUS_COR[s] || '#475569';
+                        const ativo = filtroStatus === s;
                         return (
-                            <div key={s} style={{
+                            <button key={s} onClick={() => setFiltroStatus(f => f === s ? null : s)} style={{
                                 flexShrink: 0, borderRadius: '6px', padding: '4px 10px', fontSize: '11px', fontWeight: '700',
-                                background: `rgba(${hexToRgb(cor)},0.12)`, color: cor,
-                                border: `1px solid rgba(${hexToRgb(cor)},0.3)`,
+                                background: ativo ? `rgba(${hexToRgb(cor)},0.25)` : `rgba(${hexToRgb(cor)},0.08)`,
+                                color: cor,
+                                border: ativo ? `1px solid ${cor}` : `1px solid rgba(${hexToRgb(cor)},0.25)`,
+                                cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+                                opacity: filtroStatus && !ativo ? 0.5 : 1,
                             }}>
                                 {s}: {qtd}
-                            </div>
+                            </button>
                         );
                     })}
                 </div>
@@ -167,14 +186,16 @@ export default function MobileOperacional() {
             <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {carregando ? (
                     <div style={{ textAlign: 'center', padding: '48px', color: '#475569' }}>Carregando...</div>
-                ) : veiculos.length === 0 ? (
+                ) : veiculosFiltrados.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '48px 24px', color: '#334155' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
                             <Truck size={32} color="#334155" strokeWidth={1.5} />
                         </div>
-                        <div style={{ fontSize: '13px' }}>Nenhum veículo neste período.</div>
+                        <div style={{ fontSize: '13px' }}>
+                            {filtroStatus ? `Nenhum veículo com status "${filtroStatus}".` : 'Nenhum veículo neste período.'}
+                        </div>
                     </div>
-                ) : veiculos.map(v => {
+                ) : veiculosFiltrados.map(v => {
                     const st = status(v);
                     const cor = STATUS_COR[st] || '#475569';
                     const placa = v.placa1Motorista || v.placa || '—';

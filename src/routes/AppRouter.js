@@ -6,8 +6,6 @@ import LoginScreen from '../components/LoginScreen';
 import RedefinirSenha from '../components/RedefinirSenha';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
-import ChecklistLogin from '../checklist/ChecklistLogin';
-import ChecklistApp from '../checklist/ChecklistApp';
 import io from 'socket.io-client';
 
 const MobileApp = React.lazy(() => import('../mobile/MobileApp'));
@@ -54,12 +52,10 @@ function AppRouter() {
         );
     }
 
-    // 4. Rota do Checklist (Coordenador PWA)
+    // 4. Rota do Checklist — redirecionada para /mobile (integrado)
     if (path.startsWith('/checklist')) {
-        if (!isAuthenticated || user?.cargo !== 'Coordenador') {
-            return <ChecklistLogin />;
-        }
-        return <ChecklistApp socket={socket} />;
+        window.location.replace('/mobile');
+        return null;
     }
 
     // 3. Verificação de Autenticação para o Sistema Principal

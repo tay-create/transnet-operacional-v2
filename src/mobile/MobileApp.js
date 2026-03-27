@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Home, Truck, ShieldCheck, Link2, Monitor } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Home, Truck, ShieldCheck, Link2, Monitor, ClipboardCheck } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useConfigStore from '../store/useConfigStore';
 import MobileLogin from './MobileLogin';
@@ -8,27 +8,70 @@ import MobileOperacional from './MobileOperacional';
 import MobileCadastro from './MobileCadastro';
 import MobileMarcacoes from './MobileMarcacoes';
 import MobileDashboardTV from './MobileDashboardTV';
+import ChecklistPainel from '../checklist/ChecklistPainel';
+
+const CARGOS_CHECKLIST = ['Coordenador', 'Planejamento', 'Aux. Operacional', 'Encarregado'];
 
 const NAV_ITEMS = [
-    { id: 'home',        Icon: Home,         label: 'Home' },
-    { id: 'operacional', Icon: Truck,        label: 'Operação' },
-    { id: 'cadastro',    Icon: ShieldCheck,  label: 'Ger. Risco' },
-    { id: 'marcacoes',   Icon: Link2,        label: 'Marcações' },
-    { id: 'dashboard',   Icon: Monitor,      label: 'Dashboard' },
+    { id: 'home',        Icon: Home,            label: 'Home' },
+    { id: 'operacional', Icon: Truck,           label: 'Operação' },
+    { id: 'cadastro',    Icon: ShieldCheck,     label: 'Ger. Risco' },
+    { id: 'marcacoes',   Icon: Link2,           label: 'Marcações' },
+    { id: 'dashboard',   Icon: Monitor,         label: 'Dashboard' },
+    { id: 'checklist',   Icon: ClipboardCheck,  label: 'Checklist' },
 ];
 
+function playBeep() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.5);
+    } catch { /* não suportado */ }
+}
+
 export default function MobileApp({ socket }) {
-    const { isAuthenticated, temAcesso } = useAuthStore();
+    const { isAuthenticated, temAcesso, user } = useAuthStore();
     const { carregarPermissoes } = useConfigStore();
     const [tela, setTela] = useState('home');
+    const [toasts, setToasts] = useState([]);
+    const [pendentesChecklist, setPendentesChecklist] = useState(0);
+
+    const addToast = useCallback(({ tipo, mensagem }) => {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, tipo, mensagem }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+    }, []);
 
     useEffect(() => {
         if (isAuthenticated) carregarPermissoes();
     }, [isAuthenticated, carregarPermissoes]);
 
+    useEffect(() => {
+        if (!socket) return;
+        const handler = (data) => {
+            if (data?.tipo === 'checklist_pendente') {
+                playBeep();
+                addToast({ tipo: 'info', mensagem: `Novo checklist pendente: ${data.mensagem || ''}` });
+                setPendentesChecklist(n => n + 1);
+            }
+        };
+        socket.on('receber_alerta', handler);
+        return () => socket.off('receber_alerta', handler);
+    }, [socket, addToast]);
+
     if (!isAuthenticated) {
         return <MobileLogin />;
     }
+
+    const temChecklist = CARGOS_CHECKLIST.includes(user?.cargo);
 
     const renderTela = () => {
         switch (tela) {
@@ -36,6 +79,12 @@ export default function MobileApp({ socket }) {
             case 'cadastro':    return <MobileCadastro socket={socket} />;
             case 'marcacoes':   return <MobileMarcacoes socket={socket} />;
             case 'dashboard':   return <MobileDashboardTV socket={socket} />;
+            case 'checklist':   return (
+                <div style={{ padding: '16px', paddingTop: 'env(safe-area-inset-top)' }}>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9', marginBottom: '16px' }}>Checklist</div>
+                    <ChecklistPainel socket={socket} addToast={addToast} />
+                </div>
+            );
             default:            return <MobileHome onNavegar={setTela} socket={socket} />;
         }
     };
@@ -51,6 +100,19 @@ export default function MobileApp({ socket }) {
             color: '#f1f5f9',
             overflowX: 'hidden',
         }}>
+            {/* Toasts */}
+            {toasts.length > 0 && (
+                <div style={{ position: 'fixed', top: '12px', right: '12px', zIndex: 2000, display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '300px', width: 'calc(100% - 24px)' }}>
+                    {toasts.map(t => (
+                        <div key={t.id} onClick={() => setToasts(p => p.filter(x => x.id !== t.id))} style={{
+                            background: t.tipo === 'info' ? 'rgba(59,130,246,0.95)' : t.tipo === 'success' ? 'rgba(34,197,94,0.95)' : 'rgba(239,68,68,0.95)',
+                            borderRadius: '10px', padding: '10px 14px', fontSize: '13px', fontWeight: 500,
+                            color: 'white', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                        }}>{t.mensagem}</div>
+                    ))}
+                </div>
+            )}
+
             {/* Conteúdo */}
             <div style={{
                 flex: 1,
@@ -77,12 +139,17 @@ export default function MobileApp({ socket }) {
                 paddingBottom: 'env(safe-area-inset-bottom)',
                 zIndex: 1000,
             }}>
-                {NAV_ITEMS.filter(item => item.id !== 'marcacoes' || temAcesso('marcacao_placas')).map(item => {
+                {NAV_ITEMS.filter(item => {
+                    if (item.id === 'marcacoes') return temAcesso('marcacao_placas');
+                    if (item.id === 'checklist') return temChecklist;
+                    return true;
+                }).map(item => {
                     const ativo = tela === item.id;
+                    const badge = item.id === 'checklist' && pendentesChecklist > 0 ? pendentesChecklist : 0;
                     return (
                         <button
                             key={item.id}
-                            onClick={() => setTela(item.id)}
+                            onClick={() => { setTela(item.id); if (item.id === 'checklist') setPendentesChecklist(0); }}
                             style={{
                                 flex: 1,
                                 display: 'flex',
@@ -97,9 +164,20 @@ export default function MobileApp({ socket }) {
                                 minHeight: '56px',
                                 WebkitTapHighlightColor: 'transparent',
                                 outline: 'none',
+                                position: 'relative',
                             }}
                         >
-                            <item.Icon size={20} color={ativo ? '#3b82f6' : '#475569'} strokeWidth={ativo ? 2.5 : 1.8} />
+                            <div style={{ position: 'relative' }}>
+                                <item.Icon size={20} color={ativo ? '#3b82f6' : '#475569'} strokeWidth={ativo ? 2.5 : 1.8} />
+                                {badge > 0 && (
+                                    <span style={{
+                                        position: 'absolute', top: '-5px', right: '-7px',
+                                        background: '#f59e0b', color: '#000', borderRadius: '50%',
+                                        fontSize: '9px', fontWeight: '900', width: '15px', height: '15px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                                    }}>{badge > 9 ? '9+' : badge}</span>
+                                )}
+                            </div>
                             <span style={{
                                 fontSize: '10px',
                                 fontWeight: ativo ? '700' : '500',

@@ -2912,13 +2912,9 @@ if (process.env.NODE_ENV === 'production') {
         res.send(html);
     });
 
-    // PWA Checklist: serve index.html com manifest correto para /checklist e subpaths
+    // /checklist foi integrado ao /mobile — redirecionar permanentemente
     app.get(['/checklist', '/checklist/*splat'], (req, res) => {
-        const indexPath = path.join(__dirname, 'build', 'index.html');
-        let html = fs.readFileSync(indexPath, 'utf8');
-        html = html.replace('/manifest.json', '/checklist-manifest.json');
-        res.set('Content-Type', 'text/html');
-        res.send(html);
+        res.redirect(301, '/mobile');
     });
 
     // PWA Mobile: serve index.html com manifest correto para /mobile e subpaths
