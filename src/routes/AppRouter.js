@@ -10,6 +10,8 @@ import ChecklistLogin from '../checklist/ChecklistLogin';
 import ChecklistApp from '../checklist/ChecklistApp';
 import io from 'socket.io-client';
 
+const MobileApp = React.lazy(() => import('../mobile/MobileApp'));
+
 const API_URL = process.env.REACT_APP_API_URL || window.location.origin;
 const socket = io(API_URL);
 
@@ -43,7 +45,16 @@ function AppRouter() {
         return <ConferenteApp socket={socket} />;
     }
 
-    // 3. Rota do Checklist (Coordenador PWA)
+    // 3. Rota Mobile (Coordenador PWA Mobile)
+    if (path.startsWith('/mobile')) {
+        return (
+            <React.Suspense fallback={<div style={{ background: '#020617', height: '100vh' }} />}>
+                <MobileApp socket={socket} />
+            </React.Suspense>
+        );
+    }
+
+    // 4. Rota do Checklist (Coordenador PWA)
     if (path.startsWith('/checklist')) {
         if (!isAuthenticated || user?.cargo !== 'Coordenador') {
             return <ChecklistLogin />;

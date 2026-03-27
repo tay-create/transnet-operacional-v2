@@ -60,15 +60,17 @@ const COR_STATUS = {
 
 const STATUS_COM_DESTINO = ['EM_VIAGEM'];
 
-const DIAS_SEMANA = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+function getHoje() {
+    const d = new Date();
+    const offset = -3 * 60;
+    const local = new Date(d.getTime() + (offset - d.getTimezoneOffset()) * 60000);
+    return local.toISOString().substring(0, 10);
+}
 
-function getSegundaFeira(date) {
-    const d = new Date(date);
-    d.setHours(12, 0, 0, 0);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    return d;
+function nomeDiaSemana(dateStr) {
+    const NOMES = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return NOMES[new Date(y, m - 1, d).getDay()];
 }
 
 function formatarDia(dateStr) {
@@ -79,9 +81,12 @@ function formatarDia(dateStr) {
 function formatarSemana(dias) {
     if (!dias || dias.length < 7) return '';
     const [y1, m1, d1] = dias[0].split('-');
-    const [, , d7] = dias[6].split('-');
+    const [y7, m7, d7] = dias[6].split('-');
     const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    return `${d1}/${meses[parseInt(m1, 10) - 1]} – ${d7}/${meses[parseInt(m1, 10) - 1]}/${y1}`;
+    const mesInicio = meses[parseInt(m1, 10) - 1];
+    const mesFim = meses[parseInt(m7, 10) - 1];
+    if (m1 === m7) return `${d1}/${mesInicio} – ${d7}/${mesFim}/${y1}`;
+    return `${d1}/${mesInicio} – ${d7}/${mesFim}/${y7}`;
 }
 
 const FORM_VAZIO = { placa: '', carreta: '', tipo_veiculo: 'TRUCK', modelo: '', motorista: '', ordem: 0 };
@@ -89,10 +94,7 @@ const FORM_VAZIO = { placa: '', carreta: '', tipo_veiculo: 'TRUCK', modelo: '', 
 export default function ProvisionamentoFrota({ socket, user }) {
     const podeEditar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
 
-    const [semanaInicio, setSemanaInicio] = useState(() => {
-        const s = getSegundaFeira(new Date());
-        return s.toISOString().substring(0, 10);
-    });
+    const [semanaInicio, setSemanaInicio] = useState(() => getHoje());
 
     const [veiculos, setVeiculos] = useState([]);
     const [dias, setDias] = useState([]);
@@ -289,7 +291,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                 <th style={{ ...s.th, minWidth: '120px' }}>MOTORISTA</th>
                                 {dias.map((dia, i) => (
                                     <th key={dia} style={{ ...s.th, minWidth: '130px', color: i >= 5 ? '#64748b' : '#f1f5f9' }}>
-                                        <div style={{ fontWeight: '700' }}>{DIAS_SEMANA[i]}</div>
+                                        <div style={{ fontWeight: '700' }}>{nomeDiaSemana(dia)}</div>
                                         <div style={{ fontSize: '11px', fontWeight: '400', color: '#64748b' }}>{formatarDia(dia)}</div>
                                     </th>
                                 ))}
