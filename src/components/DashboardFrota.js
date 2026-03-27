@@ -969,6 +969,7 @@ export default function DashboardFrota({ socket }) {
     // Programação do Dia
     const [progDia, setProgDia] = useState([]);
     const [obsDia, setObsDia] = useState('');
+    const [obsSalvo, setObsSalvo] = useState('');
     const [obsSalvando, setObsSalvando] = useState(false);
     const [dataProgDia, setDataProgDia] = useState(hoje);
     const [carregandoProg, setCarregandoProg] = useState(false);
@@ -981,7 +982,9 @@ export default function DashboardFrota({ socket }) {
                 api.get(`/api/frota/obs-dia?data=${data}`)
             ]);
             if (r1.data.success) setProgDia(r1.data.veiculos);
-            setObsDia(r2.data.observacao || '');
+            const obs = r2.data.observacao || '';
+            setObsDia(obs);
+            setObsSalvo(obs);
         } catch (e) { console.error('Erro prog dia:', e); }
         finally { setCarregandoProg(false); }
     }, []);
@@ -994,6 +997,7 @@ export default function DashboardFrota({ socket }) {
         setObsSalvando(true);
         try {
             await api.put('/api/frota/obs-dia', { data: dataProgDia, observacao: obsDia });
+            setObsSalvo(obsDia);
         } catch (e) { console.error('Erro salvar obs:', e); }
         finally { setObsSalvando(false); }
     };
@@ -1339,6 +1343,41 @@ export default function DashboardFrota({ socket }) {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Ticker OBS */}
+                        {obsSalvo && (
+                            <div style={{
+                                marginTop: '16px',
+                                background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
+                                border: '1px solid rgba(245,158,11,0.25)',
+                                borderRadius: '10px',
+                                padding: '0',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                alignItems: 'center',
+                                height: '36px',
+                            }}>
+                                <div style={{
+                                    minWidth: '90px',
+                                    background: 'rgba(245,158,11,0.12)',
+                                    borderRight: '1px solid rgba(245,158,11,0.25)',
+                                    height: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '0 14px',
+                                    flexShrink: 0,
+                                }}>
+                                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px' }}>📢 OBS</span>
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                                    <div style={{ display: 'flex', animation: 'ticker-scroll 20s linear infinite', whiteSpace: 'nowrap' }}>
+                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingLeft: '24px', paddingRight: '80px' }}>{obsSalvo}</span>
+                                        <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '500', paddingRight: '80px' }}>{obsSalvo}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 );
             })()}
@@ -1346,6 +1385,10 @@ export default function DashboardFrota({ socket }) {
             {/* CSS animation */}
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes ticker-scroll {
+                    0%   { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
             `}</style>
         </div>
     );
