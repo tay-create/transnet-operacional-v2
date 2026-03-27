@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Copy, RefreshCw, PauseCircle, Trash2, Link2, Car, Clock, MapPin, Map, CheckCircle, Plus } from 'lucide-react';
+import { Copy, RefreshCw, PauseCircle, Trash2, Link2, Car, Clock, MapPin, Map, CheckCircle, Plus, Lock } from 'lucide-react';
+import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 
 // ── Funções utilitárias ──────────────────────────────────────────────────────
@@ -118,6 +119,22 @@ function Toast({ msg }) {
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function MobileMarcacoes({ socket }) {
+    const { temAcesso } = useAuthStore();
+    if (!temAcesso('marcacao_placas')) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px', textAlign: 'center', minHeight: '60vh' }}>
+                <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(71,85,105,0.12)', border: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                    <Lock size={24} color="#475569" strokeWidth={1.8} />
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: '#64748b', marginBottom: '6px' }}>Sem permissão</div>
+                <div style={{ fontSize: '12px', color: '#334155', lineHeight: 1.5 }}>Seu cargo não tem acesso à Marcação de Placas.</div>
+            </div>
+        );
+    }
+    return <MobileMarcacoesInner socket={socket} />;
+}
+
+function MobileMarcacoesInner({ socket }) {
     const [aba, setAba] = useState('links');
     const [tokens, setTokens] = useState([]);
     const [marcacoes, setMarcacoes] = useState([]);

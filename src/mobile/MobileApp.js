@@ -17,7 +17,7 @@ const NAV_ITEMS = [
 ];
 
 export default function MobileApp({ socket }) {
-    const { isAuthenticated } = useAuthStore();
+    const { isAuthenticated, temAcesso } = useAuthStore();
     const [tela, setTela] = useState('home');
 
     if (!isAuthenticated) {
@@ -71,7 +71,7 @@ export default function MobileApp({ socket }) {
                 paddingBottom: 'env(safe-area-inset-bottom)',
                 zIndex: 1000,
             }}>
-                {NAV_ITEMS.map(item => {
+                {NAV_ITEMS.filter(item => item.id !== 'marcacoes' || temAcesso('marcacao_placas')).map(item => {
                     const ativo = tela === item.id;
                     return (
                         <button

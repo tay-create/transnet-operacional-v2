@@ -43,7 +43,7 @@ const CARDS = [
 ];
 
 export default function MobileHome({ onNavegar }) {
-    const { user, logout } = useAuthStore();
+    const { user, logout, temAcesso } = useAuthStore();
     const [hora, setHora] = useState(new Date());
     const [stats, setStats] = useState({ veiculos: 0, motoristas: 0, tokens: 0 });
     const [online, setOnline] = useState(navigator.onLine);
@@ -152,7 +152,7 @@ export default function MobileHome({ onNavegar }) {
 
             {/* Grid de cards */}
             <div style={{ padding: '20px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                {CARDS.map(card => (
+                {CARDS.filter(card => card.id !== 'marcacoes' || temAcesso('marcacao_placas')).map(card => (
                     <button
                         key={card.id}
                         onClick={() => onNavegar(card.id)}
