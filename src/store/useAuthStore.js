@@ -116,7 +116,7 @@ const useAuthStore = create(
              */
             isAdmin: () => {
                 const { user } = get();
-                return user?.cargo === 'Coordenador';
+                return ['Coordenador', 'Direção'].includes(user?.cargo);
             },
 
             /**
@@ -127,7 +127,7 @@ const useAuthStore = create(
             podeVerUnidade: (cidadeAlvo) => {
                 const { user, temAcesso } = get();
                 if (!user) return false;
-                if (user.cargo === 'Coordenador') return true;
+                if (['Coordenador', 'Direção'].includes(user.cargo)) return true;
 
                 if (user.usaPermissaoIndividual) {
                     if (cidadeAlvo === 'Recife' && temAcesso('ver_unidade_recife')) return true;

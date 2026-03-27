@@ -392,10 +392,9 @@ export default function MarcacaoForm() {
                 <div style={s.card}>
                     <div style={s.termoBox}>
                         <p><strong>Termo de Responsabilidade – Marcação de Placas</strong></p>
-                        <p>O motorista declara estar ciente de que a marcação da placa deverá ser realizada <strong>somente quando o veículo estiver próximo de ficar vazio ou completamente vazio</strong>.</p>
-                        <p>Caso a marcação seja realizada com o veículo ainda carregado e haja solicitação de carregamento, <strong>a marcação será automaticamente cancelada</strong>, sem qualquer aviso prévio.</p>
-                        <p>O motorista reconhece que as informações prestadas são de sua inteira responsabilidade e declara que estão corretas e atualizadas.</p>
-                        <p>Este link de cadastro é de <strong>uso exclusivo do motorista</strong>, sendo <strong>expressamente proibido o reenvio ou compartilhamento</strong> com terceiros.</p>
+                        <p>Estamos disponibilizando este link para marcação de placas para carregamento. É importante deixar claro que o preenchimento garante apenas o direito de marcação da placa, respeitando a ordem e organização operacional.</p>
+                        <p>O envio das informações não assegura prioridade de carregamento, antecipação de horário ou qualquer tipo de favorecimento, sendo todos os transportadores atendidos de forma justa, conforme disponibilidade, programação logística e critérios internos.</p>
+                        <p>Essa medida visa manter a transparência, igualdade de condições e organização no processo para todos.</p>
                     </div>
                     <label style={{ ...s.radioLabel, fontSize: '14px' }}>
                         <input type="checkbox" checked={form.termo} onChange={e => set('termo', e.target.checked)} required />

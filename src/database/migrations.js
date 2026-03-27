@@ -3,6 +3,7 @@ const { dbRun, dbGet } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento'],
     'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento'],
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
@@ -15,6 +16,7 @@ const PERMISSOES_PADRAO = JSON.stringify({
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
+    'Direção':          ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Encarregado':      ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
@@ -195,6 +197,8 @@ const inicializarBanco = async () => {
             // Provisionamento de Frota — motorista e destinos na programação semanal
             { tabela: 'prov_programacao', coluna: 'motorista', tipo: 'TEXT' },
             { tabela: 'prov_programacao', coluna: 'destinos_json', tipo: 'TEXT' },
+            // Foto do motorista na marcação de placas (frota própria)
+            { tabela: 'marcacoes_placas', coluna: 'foto', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados

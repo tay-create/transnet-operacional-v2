@@ -95,8 +95,8 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
     // Filtro para cards de hoje (comparar data_prevista ou data_criacao com hoje)
     const hoje = obterDataBrasilia();
     const veiculosHoje = listaVeiculos.filter(v => {
-        const dataCard = v.data_prevista || v.data_criacao || '';
-        return dataCard.startsWith(hoje);
+        const dataCard = v.data_carregado_recife || v.data_carregado_moreno || v.data_prevista || '';
+        return dataCard.split('T')[0] === hoje;
     });
 
     useEffect(() => {

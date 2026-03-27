@@ -10,7 +10,7 @@ import MobileMarcacoes from './MobileMarcacoes';
 import MobileDashboardTV from './MobileDashboardTV';
 import ChecklistPainel from '../checklist/ChecklistPainel';
 
-const CARGOS_CHECKLIST = ['Coordenador'];
+const CARGOS_CHECKLIST = ['Coordenador', 'Direção'];
 
 const NAV_ITEMS = [
     { id: 'home',        Icon: Home,            label: 'Home' },

@@ -79,25 +79,23 @@ function hexToRgb(hex) {
 // ── Bottom Sheet ─────────────────────────────────────────────────────────────
 function BottomSheet({ titulo, onClose, children }) {
     return (
-        <>
-            <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 900 }} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 900 }}>
+            {/* backdrop clicável para fechar */}
+            <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
+            {/* sheet — position:absolute para não participar do flex e não capturar touches externos */}
             <div style={{
-                position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 901,
+                position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: '#0f172a', borderTop: '1px solid #334155',
-                borderRadius: '20px 20px 0 0', padding: '0 0 calc(24px + env(safe-area-inset-bottom)) 0',
-                maxHeight: '85vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+                borderRadius: '20px 20px 0 0',
+                padding: '12px 20px calc(20px + env(safe-area-inset-bottom))',
             }}>
-                {/* Handle */}
-                <div style={{ padding: '12px', display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ width: '36px', height: '4px', background: '#334155', borderRadius: '2px' }} />
-                </div>
-                <div style={{ padding: '0 20px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                     <span style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9' }}>{titulo}</span>
                     <button onClick={onClose} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', padding: '4px 10px', fontSize: '18px', cursor: 'pointer', lineHeight: 1 }}>×</button>
                 </div>
-                <div style={{ padding: '0 20px' }}>{children}</div>
+                {children}
             </div>
-        </>
+        </div>
     );
 }
 
@@ -252,6 +250,17 @@ function MobileMarcacoesInner({ socket }) {
         } catch { mostrarToast('Erro ao excluir.'); }
     };
 
+    // ── Excluir marcação ───────────────────────────────────────────────────────
+    const excluirMarcacao = async (id) => {
+        try {
+            await api.delete(`/api/marcacoes/${id}`);
+            setMarcacoes(prev => prev.filter(m => m.id !== id));
+            setSheetMarcacao(null);
+            vibrar();
+            mostrarToast('Motorista removido.');
+        } catch { mostrarToast('Erro ao remover.'); }
+    };
+
     // ── Copiar link ────────────────────────────────────────────────────────────
     const copiarLink = async (token) => {
         const url = `${window.location.origin}/cadastro/${token.token}`;
@@ -392,10 +401,12 @@ function MobileMarcacoesInner({ socket }) {
                                 const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
                                 const cor = corTempo(tempoMin);
                                 const dispCor = m.disponibilidade === 'NO PÁTIO' ? '#4ade80' : m.disponibilidade === 'NO POSTO' ? '#fbbf24' : '#64748b';
+                                const diasMarcado = m.data_marcacao ? Math.floor((Date.now() - new Date(m.data_marcacao).getTime()) / 86400000) : 0;
+                                const velho = diasMarcado >= 15 && !m.data_contratacao;
                                 return (
                                     <button key={m.id} onClick={() => setSheetMarcacao(m)} style={{
                                         display: 'block', width: '100%', textAlign: 'left',
-                                        background: '#0f172a', border: '1px solid #1e293b',
+                                        background: '#0f172a', border: `1px solid ${velho ? 'rgba(251,146,60,0.3)' : '#1e293b'}`,
                                         borderLeft: `3px solid ${cor}`, borderRadius: '12px',
                                         padding: '14px 16px', cursor: 'pointer',
                                         WebkitTapHighlightColor: 'transparent',
@@ -405,22 +416,23 @@ function MobileMarcacoesInner({ socket }) {
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                             <span style={{ fontSize: '13px', fontWeight: '700', color: '#f1f5f9' }}>{m.nome_motorista}</span>
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: cor }}>
-                                                <Clock size={11} color={cor} strokeWidth={2} />
-                                                {formatarTempo(tempoMin)}
-                                            </span>
+                                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                {velho && (
+                                                    <span style={{ fontSize: '9px', fontWeight: '800', color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: '5px', padding: '2px 5px' }}>
+                                                        {diasMarcado}d
+                                                    </span>
+                                                )}
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: cor }}>
+                                                    <Clock size={11} color={cor} strokeWidth={2} />
+                                                    {formatarTempo(tempoMin)}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             {m.disponibilidade && (
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: dispCor, fontWeight: '600' }}>
                                                     <MapPin size={10} color={dispCor} strokeWidth={2} />
                                                     {m.disponibilidade}
-                                                </span>
-                                            )}
-                                            {m.estado && (
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#475569', fontWeight: '600' }}>
-                                                    <Map size={10} color="#475569" strokeWidth={2} />
-                                                    {m.estado}
                                                 </span>
                                             )}
                                             {m.tipo_veiculo && (
@@ -559,26 +571,36 @@ function MobileMarcacoesInner({ socket }) {
                 return (
                     <BottomSheet titulo="Detalhes do Motorista" onClose={() => setSheetMarcacao(null)}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingBottom: '8px' }}>
-                            <div style={{ background: '#1e293b', borderRadius: '12px', padding: '14px' }}>
-                                <div style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9', marginBottom: '12px' }}>
-                                    {m.nome_motorista}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                    {[
-                                        { label: 'Tempo de Espera', value: <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: corTempo(tempoMin), fontWeight: '700' }}><Clock size={12} color={corTempo(tempoMin)} strokeWidth={2} />{formatarTempo(tempoMin)}</span> },
-                                        { label: 'Localização', value: <span style={{ color: dispCor }}>{m.disponibilidade || '—'}</span> },
-                                        { label: 'Estado', value: m.estado || '—' },
-                                        { label: 'Tipo Veículo', value: m.tipo_veiculo || '—' },
-                                        { label: 'Placa', value: m.placa ? <span style={{ fontFamily: 'monospace', color: '#fb923c' }}>{m.placa}</span> : '—' },
-                                        { label: 'Telefone', value: formatarTelefone(m.telefone) },
-                                    ].map(item => (
-                                        <div key={item.label}>
-                                            <div style={{ fontSize: '10px', color: '#475569', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>{item.label}</div>
-                                            <div style={{ fontSize: '13px', color: '#cbd5e1', fontWeight: '500' }}>{item.value}</div>
-                                        </div>
-                                    ))}
-                                </div>
+                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9', marginBottom: '4px' }}>
+                                {m.nome_motorista}
                             </div>
+                            {[
+                                { label: 'Tempo de Espera', value: <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: corTempo(tempoMin), fontWeight: '700' }}><Clock size={12} color={corTempo(tempoMin)} strokeWidth={2} />{formatarTempo(tempoMin)}</span> },
+                                { label: 'Localização', value: <span style={{ color: dispCor }}>{m.disponibilidade || '—'}</span> },
+                                { label: 'Estados Destino', value: (m.estados_destino?.length ? m.estados_destino.join(', ') : '—') },
+                                { label: 'Tipo Veículo', value: m.tipo_veiculo || '—' },
+                                { label: 'Placa', value: m.placa1 ? <span style={{ fontFamily: 'monospace', color: '#fb923c' }}>{m.placa1}</span> : '—' },
+                                { label: 'Telefone', value: formatarTelefone(m.telefone) },
+                            ].map(item => (
+                                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #1e293b' }}>
+                                    <span style={{ fontSize: '11px', color: '#475569', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</span>
+                                    <span style={{ fontSize: '14px', color: '#cbd5e1', fontWeight: '500' }}>{item.value}</span>
+                                </div>
+                            ))}
+                            {(() => {
+                                const diasMarcado = m.data_marcacao ? Math.floor((Date.now() - new Date(m.data_marcacao).getTime()) / 86400000) : 0;
+                                const podeRemover = diasMarcado >= 15 && !m.data_contratacao;
+                                return podeRemover ? (
+                                    <button onClick={() => excluirMarcacao(m.id)} style={{
+                                        marginTop: '14px', width: '100%', height: '46px',
+                                        background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                        borderRadius: '12px', color: '#f87171', fontSize: '14px', fontWeight: '700', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                    }}>
+                                        <Trash2 size={15} strokeWidth={2} /> Remover ({diasMarcado}d sem operação)
+                                    </button>
+                                ) : null;
+                            })()}
                         </div>
                     </BottomSheet>
                 );

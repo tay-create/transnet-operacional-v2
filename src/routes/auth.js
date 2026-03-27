@@ -100,7 +100,7 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
     }
 });
 
-router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT id, nome, email, cidade, cargo, avatarurl, permissoesacesso, permissoesedicao, usapermissaoindividual FROM usuarios");
         const parseJson = (val, fallback = '[]') => { try { return JSON.parse(val || fallback); } catch { return JSON.parse(fallback); } };
@@ -117,7 +117,7 @@ router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Planejamento'
     }
 });
 
-router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(cadastroUsuarioSchema), async (req, res) => {
+router.post('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção']), validate(cadastroUsuarioSchema), async (req, res) => {
     const { nome, email, senha, cidade, cargo } = req.body;
 
     try {
@@ -141,13 +141,13 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador']), validate(ca
     }
 });
 
-router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
     const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome, telefone } = req.body;
     try {
         const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=$1", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
-        const ehCoordenador = req.user.cargo === 'Coordenador';
+        const ehCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
         const cargoFinal = ehCoordenador ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
 
         // Campos de permissão individual só podem ser alterados por Coordenador
@@ -181,7 +181,7 @@ router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Planejame
     }
 });
 
-router.delete('/usuarios/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+router.delete('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
     try {
         await dbRun("DELETE FROM usuarios WHERE id=?", [req.params.id]);
         res.json({ success: true });

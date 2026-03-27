@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Check, X, RefreshCw, Truck, Car, User } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Check, X, RefreshCw, Truck, Car, User, Camera } from 'lucide-react';
 import api from '../services/apiService';
 
 const CHECKLIST_LABELS = { cnh: 'CNH', antt: 'ANTT', tacografo: 'Tacógrafo', crlv: 'CRLV' };
@@ -42,6 +42,28 @@ export default function MobileCadastro() {
     const [operacao, setOperacao] = useState([]);
     const [frota, setFrota] = useState([]);
     const [carregando, setCarregando] = useState(false);
+    const inputFotoRef = useRef(null);
+    const [fotoUploadId, setFotoUploadId] = useState(null);
+
+    const abrirUploadFoto = (id) => {
+        setFotoUploadId(id);
+        inputFotoRef.current?.click();
+    };
+
+    const onFotoSelecionada = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file || !fotoUploadId) return;
+        e.target.value = '';
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const base64 = ev.target.result;
+            try {
+                await api.put(`/api/marcacoes/${fotoUploadId}/foto`, { foto: base64 });
+                setFrota(prev => prev.map(m => m.id === fotoUploadId ? { ...m, foto: base64 } : m));
+            } catch { alert('Erro ao salvar foto.'); }
+        };
+        reader.readAsDataURL(file);
+    };
 
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
     const [dataInicio, setDataInicio] = useState(hoje);
@@ -223,51 +245,64 @@ export default function MobileCadastro() {
 
                         {/* ABA: Frota Própria */}
                         {aba === 'frota' && (
-                            frota.length === 0 ? (
-                                <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                                        <Car size={28} color="#334155" strokeWidth={1.5} />
-                                    </div>
-                                    <div style={{ fontSize: '13px' }}>Nenhum motorista na frota.</div>
-                                </div>
-                            ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                    {frota.map(m => (
-                                        <div key={m.id} style={{
-                                            background: '#0f172a', border: '1px solid #1e293b',
-                                            borderRadius: '12px', padding: '14px 12px', textAlign: 'center',
-                                        }}>
-                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-                                                <User size={24} color="#475569" strokeWidth={1.5} />
-                                            </div>
-                                            <div style={{ fontWeight: '700', fontSize: '12px', color: '#f1f5f9', lineHeight: 1.3, marginBottom: '4px' }}>
-                                                {m.nome_motorista}
-                                            </div>
-                                            {m.placa1 && (
-                                                <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fb923c', fontWeight: '700', marginBottom: '3px' }}>
-                                                    {m.placa1}
-                                                </div>
-                                            )}
-                                            {m.tipo_veiculo && (
-                                                <div style={{ fontSize: '10px', color: '#475569', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
-                                                    {m.tipo_veiculo}
-                                                </div>
-                                            )}
-                                            {m.situacao_cad && (
-                                                <div style={{
-                                                    display: 'inline-block', fontSize: '9px', fontWeight: '700',
-                                                    color: TIPO_COR[m.situacao_cad] || '#475569',
-                                                    background: `rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.1)`,
-                                                    border: `1px solid rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.3)`,
-                                                    borderRadius: '5px', padding: '2px 6px', textTransform: 'uppercase',
-                                                }}>
-                                                    {m.situacao_cad}
-                                                </div>
-                                            )}
+                            <>
+                                <input ref={inputFotoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFotoSelecionada} />
+                                {frota.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                            <Car size={28} color="#334155" strokeWidth={1.5} />
                                         </div>
-                                    ))}
-                                </div>
-                            )
+                                        <div style={{ fontSize: '13px' }}>Nenhum motorista na frota.</div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        {frota.map(m => (
+                                            <div key={m.id} style={{
+                                                background: '#0f172a', border: '1px solid #1e293b',
+                                                borderRadius: '12px', padding: '14px 12px', textAlign: 'center',
+                                            }}>
+                                                {/* Avatar clicável */}
+                                                <div onClick={() => abrirUploadFoto(m.id)}
+                                                    style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px', cursor: 'pointer', position: 'relative', width: 52, margin: '0 auto 8px' }}>
+                                                    {m.foto
+                                                        ? <img src={m.foto} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #334155' }} />
+                                                        : <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#1e293b', border: '2px dashed #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <User size={22} color="#475569" strokeWidth={1.5} />
+                                                          </div>
+                                                    }
+                                                    <div style={{ position: 'absolute', bottom: 0, right: 0, background: '#3b82f6', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Camera size={10} color="#fff" strokeWidth={2.5} />
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontWeight: '700', fontSize: '12px', color: '#f1f5f9', lineHeight: 1.3, marginBottom: '4px' }}>
+                                                    {m.nome_motorista}
+                                                </div>
+                                                {m.placa1 && (
+                                                    <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#fb923c', fontWeight: '700', marginBottom: '3px' }}>
+                                                        {m.placa1}
+                                                    </div>
+                                                )}
+                                                {m.tipo_veiculo && (
+                                                    <div style={{ fontSize: '10px', color: '#475569', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>
+                                                        {m.tipo_veiculo}
+                                                    </div>
+                                                )}
+                                                {m.situacao_cad && (
+                                                    <div style={{
+                                                        display: 'inline-block', fontSize: '9px', fontWeight: '700',
+                                                        color: TIPO_COR[m.situacao_cad] || '#475569',
+                                                        background: `rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.1)`,
+                                                        border: `1px solid rgba(${hexToRgb(TIPO_COR[m.situacao_cad] || '#475569')},0.3)`,
+                                                        borderRadius: '5px', padding: '2px 6px', textTransform: 'uppercase',
+                                                    }}>
+                                                        {m.situacao_cad}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 )}

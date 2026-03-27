@@ -18,7 +18,7 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
     });
 
     // ── POST Nova Ocorrência ─────────────────────────
-    router.post('/api/veiculos/:id/ocorrencias', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
+    router.post('/api/veiculos/:id/ocorrencias', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção']), async (req, res) => {
         try {
             const { descricao, foto_base64, motorista } = req.body;
             const veiculo_id = req.params.id;
@@ -71,7 +71,7 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
     });
 
     // ── DELETE Ocorrência ─────────────────────────────
-    router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+    router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
         try {
             await dbRun("DELETE FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
             if (io) {

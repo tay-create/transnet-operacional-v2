@@ -41,8 +41,8 @@ app.set('trust proxy', 1);
 const DESTINATARIOS_NOTIFICACAO = {
     'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
     'veiculo_carregado':   ['Planejamento'],
-    'admin_cadastro':      ['Coordenador'],
-    'admin_senha':         ['Coordenador'],
+    'admin_cadastro':      ['Coordenador', 'Direção'],
+    'admin_senha':         ['Coordenador', 'Direção'],
     'nova_ocorrencia':     ['Pos Embarque'],
     'nova_marcacao':       ['Pos Embarque'],
     'nova_marcacao_coord': [],
@@ -200,7 +200,7 @@ const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog, io);
 app.use('/', ocorrenciasRouter);
 
 // Reset de senha por Coordenador (gera senha padrão "123" e força troca)
-app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
     try {
         const usuario = await dbGet("SELECT id, nome, email FROM usuarios WHERE id = ?", [req.params.id]);
         if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
@@ -235,7 +235,7 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
     logger.info(`📸 [Avatar] Solicitado update para usuário ${userId}`);
 
     // Usuário só pode alterar o próprio avatar, ou Coordenador altera qualquer um
-    if (req.user.id !== userId && req.user.cargo !== 'Coordenador') {
+    if (req.user.id !== userId && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
         logger.warn(`🚫 [Avatar] Acesso negado: usuário ${req.user.id} tentando alterar avatar de ${userId}`);
         return res.status(403).json({ success: false, message: 'Acesso negado' });
     }
@@ -552,9 +552,9 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
 });
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
-        const semFiltroUnidade = ['Coordenador', 'Planejamento', 'Encarregado'].includes(req.user.cargo);
+        const semFiltroUnidade = ['Coordenador', 'Direção', 'Planejamento', 'Encarregado'].includes(req.user.cargo);
         const cidade = req.user.cidade;
         const cidadeFilter = (!semFiltroUnidade && cidade)
             ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
@@ -592,6 +592,19 @@ app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Plan
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ── PUT: Foto do motorista ────────────────────────────────────────
+app.put('/api/marcacoes/:id/foto', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
+    try {
+        const { foto } = req.body;
+        if (foto && (!foto.startsWith('data:image/') || foto.length > 2 * 1024 * 1024)) {
+            return res.status(400).json({ success: false, message: 'Imagem inválida ou muito grande (máx 2MB).' });
+        }
+        await dbRun('UPDATE marcacoes_placas SET foto = $1 WHERE id = $2', [foto || null, req.params.id]);
+        io.emit('marcacao_atualizada', { tipo: 'foto_atualizada', id: Number(req.params.id) });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // ── PUT: Alterar Status de Disponibilidade (Fila) ────────────────
 app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
@@ -619,9 +632,9 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
 });
 
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
-app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
+app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
-        const isCoordenador = req.user.cargo === 'Coordenador';
+        const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
         const cidade = req.user.cidade;
         const cidadeFilter = (!isCoordenador && cidade)
             ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
@@ -645,13 +658,13 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'E
 });
 
 // ── Frota Própria: listar motoristas de frota para o PainelCadastro ──
-app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         const rows = await dbAll(`
             SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                    data_marcacao, data_contratacao,
                    seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
-                   is_frota
+                   is_frota, foto
             FROM marcacoes_placas
             WHERE is_frota = 1
             ORDER BY nome_motorista ASC
@@ -661,7 +674,7 @@ app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Encarr
 });
 
 // ── Frota Própria: atualizar liberação ──
-app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;
         // data pode vir como data_liberacao_cad ou data_liberacao_manual (compatibilidade com frontend)
@@ -693,7 +706,7 @@ app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'En
 });
 
 // ── Frota Própria: excluir motorista de frota ──
-app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         await dbRun("DELETE FROM marcacoes_placas WHERE id = ? AND is_frota = 1", [req.params.id]);
         await registrarLog('FROTA_DELETADO', req.user?.nome || '?', req.params.id, 'frota', null, null, null);
@@ -701,7 +714,7 @@ app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador', 'Encarregado', 'Cadastro']), async (req, res) => {
+app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
     try {
         const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, seguradora_cad, num_liberacao_cad, origem_cad, destino_uf_cad, destino_cidade_cad, data_liberacao_manual } = req.body;
         const atual = await dbGet("SELECT num_liberacao_cad, data_liberacao_cad FROM marcacoes_placas WHERE id = ?", [req.params.id]);
@@ -998,7 +1011,7 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
 
 // Cadastro direto de motorista da frota própria (sem token)
 // Requer apenas nome e telefone — placas são vinculadas no despacho
-app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
     try {
         const { nome_motorista, telefone } = req.body;
         if (!nome_motorista || !telefone)
@@ -1143,9 +1156,9 @@ app.post('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Plan
 
 // ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
-app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.get('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
-        const isCoordenador = req.user.cargo === 'Coordenador';
+        const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
         const cidade = req.user.cidade;
         let rows;
         if (isCoordenador) {
@@ -1157,7 +1170,7 @@ app.get('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', '
         res.json({ success: true, fila });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-app.post('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.post('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const item = req.body;
         const unidade = item.unidade || req.user.cidade || 'Recife';
@@ -1169,7 +1182,7 @@ app.post('/fila', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 
     } catch (e) { res.status(500).json({ success: false }); }
 });
 // ATENÇÃO: /fila/reordenar deve vir ANTES de /fila/:id para evitar conflito de rota
-app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         const { ordem } = req.body;
         if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
@@ -1179,7 +1192,7 @@ app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Aux. Opera
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
+app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
     try {
         await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]);
         await registrarLog('FILA_ATUALIZADA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
@@ -1187,7 +1200,7 @@ app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Aux. Operacional
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false }); }
 });
-app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
     try {
         await dbRun("DELETE FROM fila WHERE id = ?", [req.params.id]);
         await registrarLog('FILA_REMOVIDA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
@@ -1223,7 +1236,7 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
                 if (alvo && !alvo.includes(meuCargo)) return false;
             }
             // Filtrar por unidade: se tem origem, só mostra para a mesma cidade (Coordenador vê tudo)
-            if (n.origem && meuCargo !== 'Coordenador' && minhaCidade && n.origem !== minhaCidade) return false;
+            if (n.origem && !['Coordenador', 'Direção'].includes(meuCargo) && minhaCidade && n.origem !== minhaCidade) return false;
             // notificacao_direcionada: filtrar por cargos_alvo E unidade
             if (n.cargos_alvo) {
                 if (!n.cargos_alvo.includes(meuCargo)) return false;
@@ -1611,8 +1624,8 @@ app.post('/usuarios/:id/telefone', authMiddleware, async (req, res) => {
         if (!telefone || telefone.replace(/\D/g, '').length < 10) {
             return res.status(400).json({ success: false, message: 'Telefone inválido. Informe DDD + número.' });
         }
-        // Só o próprio usuário ou um Coordenador pode salvar
-        if (req.user.id !== idAlvo && req.user.cargo !== 'Coordenador') {
+        // Só o próprio usuário ou um Coordenador/Direção pode salvar
+        if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
             return res.status(403).json({ success: false, message: 'Sem permissão.' });
         }
         const tel = telefone.replace(/\D/g, '');
@@ -1624,7 +1637,7 @@ app.post('/usuarios/:id/telefone', authMiddleware, async (req, res) => {
 });
 
 // Gerar token de reset de senha (só Coordenador) — retorna código para enviar via WhatsApp
-app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
     try {
         const idAlvo = Number(req.params.id);
         const usuario = await dbGet("SELECT id, nome, telefone FROM usuarios WHERE id = $1", [idAlvo]);
@@ -1666,7 +1679,7 @@ app.post('/logout', authMiddleware, async (req, res) => {
 app.post('/usuarios/:id/email-pessoal', authMiddleware, async (req, res) => {
     try {
         const idAlvo = Number(req.params.id);
-        if (req.user.id !== idAlvo && req.user.cargo !== 'Coordenador') {
+        if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
             return res.status(403).json({ success: false, message: 'Sem permissão.' });
         }
         const { email_pessoal } = req.body;
