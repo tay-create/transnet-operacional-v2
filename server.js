@@ -2620,34 +2620,30 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
 // body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }] }
 app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
     try {
-        const { veiculo_id, motorista, data_saida, entradas } = req.body;
+        const { veiculo_id, motorista, data_saida, data_retorno, entradas } = req.body;
         if (!veiculo_id || !data_saida || !Array.isArray(entradas) || entradas.length === 0) {
             return res.status(400).json({ success: false, message: 'veiculo_id, data_saida e entradas são obrigatórios.' });
         }
-        // Determinar intervalo: data_saida até max(entradas[].data)
+        // Determinar intervalo de viagem: data_saida até max(entradas[].data)
         const datasEntrega = entradas.map(e => e.data).filter(Boolean).sort();
-        const dataFim = datasEntrega[datasEntrega.length - 1] || data_saida;
+        const dataFimViagem = datasEntrega[datasEntrega.length - 1] || data_saida;
         const destinosJson = JSON.stringify(entradas);
 
-        // Gerar todos os dias no intervalo [data_saida, dataFim]
-        const dias = [];
-        const cursor = new Date(data_saida + 'T00:00:00Z');
-        const fim = new Date(dataFim + 'T00:00:00Z');
-        while (cursor <= fim) {
-            dias.push(cursor.toISOString().substring(0, 10));
-            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        // Gerar dias de viagem [data_saida, dataFimViagem] — CARREGANDO ou EM_VIAGEM
+        const diasViagem = [];
+        const cursorV = new Date(data_saida + 'T00:00:00Z');
+        const fimV = new Date(dataFimViagem + 'T00:00:00Z');
+        while (cursorV <= fimV) {
+            diasViagem.push(cursorV.toISOString().substring(0, 10));
+            cursorV.setUTCDate(cursorV.getUTCDate() + 1);
         }
 
-        for (const dia of dias) {
-            // Dia de saída = CARREGANDO; dias seguintes = EM_VIAGEM
+        for (const dia of diasViagem) {
             const statusDia = dia === data_saida ? 'CARREGANDO' : 'EM_VIAGEM';
-
-            // Destino: apenas no dia de chegada a cada cidade (null nos dias de trânsito)
             const entregasNoDia = entradas.filter(e => e.data === dia && e.cidade && e.cidade.trim());
             const destinoDia = entregasNoDia.length > 0
                 ? [...new Set(entregasNoDia.map(e => e.cidade.trim()))].join(' / ')
                 : null;
-
             await dbRun(
                 `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
                  VALUES ($1, $2, $6, $3, $4, $5)
@@ -2657,7 +2653,27 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
             io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoDia });
         }
 
-        res.json({ success: true, dias_afetados: dias.length });
+        // Gerar dias de retorno (dia seguinte ao último destino até data_retorno) — RETORNANDO
+        let diasRetorno = 0;
+        if (data_retorno && data_retorno > dataFimViagem) {
+            const cursorR = new Date(dataFimViagem + 'T00:00:00Z');
+            cursorR.setUTCDate(cursorR.getUTCDate() + 1); // começa no dia seguinte ao último destino
+            const fimR = new Date(data_retorno + 'T00:00:00Z');
+            while (cursorR <= fimR) {
+                const dia = cursorR.toISOString().substring(0, 10);
+                await dbRun(
+                    `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
+                     VALUES ($1, $2, 'RETORNANDO', $3, NULL, $4)
+                     ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'RETORNANDO', motorista = $3, destino = NULL, destinos_json = $4`,
+                    [veiculo_id, dia, motorista || null, destinosJson]
+                );
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'RETORNANDO', motorista: motorista || null, destino: null });
+                cursorR.setUTCDate(cursorR.getUTCDate() + 1);
+                diasRetorno++;
+            }
+        }
+
+        res.json({ success: true, dias_afetados: diasViagem.length + diasRetorno });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 

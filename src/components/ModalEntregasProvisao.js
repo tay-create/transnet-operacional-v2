@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, X, Truck, Calendar } from 'lucide-react';
+import { Plus, Trash2, X, Truck, Calendar, RotateCcw } from 'lucide-react';
 import api from '../services/apiService';
 
 /**
@@ -15,6 +15,7 @@ import api from '../services/apiService';
  */
 export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, onConfirmar, onCancelar }) {
     const [dataSaidaEdit, setDataSaidaEdit] = useState(dataSaida || '');
+    const [dataRetorno, setDataRetorno] = useState('');
     const [entradas, setEntradas] = useState([{ cidade: '', data: dataSaida || '' }]);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
@@ -34,6 +35,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                 veiculo_id: veiculo.id,
                 motorista: motorista || veiculo.motorista || '',
                 data_saida: dataSaidaEdit,
+                data_retorno: dataRetorno || null,
                 entradas: entradas.map(e => ({ cidade: e.cidade.trim(), data: e.data })),
             });
             onConfirmar(entradas);
@@ -143,6 +145,28 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                 }}>
                     <Plus size={13} /> Adicionar destino
                 </button>
+
+                {/* Data de Retorno (opcional) */}
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
+                    DATA PREVISTA DE RETORNO <span style={{ color: '#475569', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', padding: '12px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px' }}>
+                    <RotateCcw size={15} color="#fbbf24" />
+                    <span style={{ color: '#94a3b8', fontSize: '12px', flex: 1 }}>Retorna em:</span>
+                    <input
+                        type="date"
+                        value={dataRetorno}
+                        onChange={e => setDataRetorno(e.target.value)}
+                        style={{ ...inputStyle, width: '150px' }}
+                    />
+                    {dataRetorno && (
+                        <button onClick={() => setDataRetorno('')} style={{
+                            background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '2px',
+                        }}>
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
 
                 {erro && (
                     <div style={{ color: '#f87171', fontSize: '12px', marginBottom: '12px', padding: '8px 12px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px' }}>
