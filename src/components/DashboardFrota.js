@@ -1258,7 +1258,7 @@ export default function DashboardFrota({ socket }) {
                                     padding: '0 14px',
                                     flexShrink: 0,
                                 }}>
-                                    <span style={{ fontSize: '10px', fontWeight: '800', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px' }}>📢 OBS</span>
+                                    <span style={{ fontSize: '16px' }}>📢</span>
                                 </div>
                                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                                     <div style={{ display: 'flex', animation: 'ticker-scroll 20s linear infinite', whiteSpace: 'nowrap' }}>
