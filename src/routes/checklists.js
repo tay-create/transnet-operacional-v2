@@ -400,6 +400,15 @@ module.exports = function createChecklistsRouter(io) {
                 sets.push(`${docaField} = ?`);
                 vals.push(novaDoca);
             }
+
+            // Gravar âncora de data ao marcar CARREGADO (garante que o card fique no dia certo)
+            if (novoStatus === 'CARREGADO') {
+                const campoDataCarregado = cidade === 'Moreno' ? 'data_carregado_moreno' : 'data_carregado_recife';
+                const dataCarregado = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                sets.push(`${campoDataCarregado} = ?`);
+                vals.push(dataCarregado);
+            }
+
             vals.push(veiculoId);
 
             await dbRun(`UPDATE veiculos SET ${sets.join(', ')} WHERE id = ?`, vals);
