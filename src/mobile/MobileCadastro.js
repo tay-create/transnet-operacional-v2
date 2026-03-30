@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, X, RefreshCw, Truck, Car, User, Camera } from 'lucide-react';
+import { Check, X, RefreshCw, Truck, Car, User, Camera, Image, Trash2 } from 'lucide-react';
 import api from '../services/apiService';
 
 const CHECKLIST_LABELS = { cnh: 'CNH', antt: 'ANTT', tacografo: 'Tacógrafo', crlv: 'CRLV' };
@@ -42,27 +42,61 @@ export default function MobileCadastro() {
     const [operacao, setOperacao] = useState([]);
     const [frota, setFrota] = useState([]);
     const [carregando, setCarregando] = useState(false);
-    const inputFotoRef = useRef(null);
+    const inputFotoGaleriaRef = useRef(null);
+    const inputFotoCameraRef = useRef(null);
     const [fotoUploadId, setFotoUploadId] = useState(null);
+    const [menuFotoId, setMenuFotoId] = useState(null); // id do motorista com menu aberto
 
-    const abrirUploadFoto = (id) => {
-        setFotoUploadId(id);
-        inputFotoRef.current?.click();
+    const abrirMenuFoto = (id) => setMenuFotoId(id);
+
+    const processarFoto = async (file, id) => {
+        if (!file) return;
+        // Reduzir se muito grande (>800KB) via canvas
+        const processarImagem = (src) => new Promise((resolve) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const MAX = 800;
+                let { width, height } = img;
+                if (width > MAX || height > MAX) {
+                    const ratio = Math.min(MAX / width, MAX / height);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.82));
+            };
+            img.src = src;
+        });
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+            const base64 = await processarImagem(ev.target.result);
+            try {
+                await api.put(`/api/marcacoes/${id}/foto`, { foto: base64 });
+                setFrota(prev => prev.map(m => m.id === id ? { ...m, foto: base64 } : m));
+            } catch { alert('Erro ao salvar foto.'); }
+        };
+        reader.readAsDataURL(file);
     };
 
     const onFotoSelecionada = async (e) => {
         const file = e.target.files?.[0];
-        if (!file || !fotoUploadId) return;
+        const id = fotoUploadId;
         e.target.value = '';
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const base64 = ev.target.result;
-            try {
-                await api.put(`/api/marcacoes/${fotoUploadId}/foto`, { foto: base64 });
-                setFrota(prev => prev.map(m => m.id === fotoUploadId ? { ...m, foto: base64 } : m));
-            } catch { alert('Erro ao salvar foto.'); }
-        };
-        reader.readAsDataURL(file);
+        setMenuFotoId(null);
+        if (!file || !id) return;
+        await processarFoto(file, id);
+    };
+
+    const removerFoto = async (id) => {
+        setMenuFotoId(null);
+        try {
+            await api.put(`/api/marcacoes/${id}/foto`, { foto: null });
+            setFrota(prev => prev.map(m => m.id === id ? { ...m, foto: null } : m));
+        } catch { alert('Erro ao remover foto.'); }
     };
 
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
@@ -246,7 +280,10 @@ export default function MobileCadastro() {
                         {/* ABA: Frota Própria */}
                         {aba === 'frota' && (
                             <>
-                                <input ref={inputFotoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFotoSelecionada} />
+                                {/* Inputs ocultos — galeria e câmera separados */}
+                                <input ref={inputFotoGaleriaRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onFotoSelecionada} />
+                                <input ref={inputFotoCameraRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onFotoSelecionada} />
+
                                 {frota.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '48px', color: '#334155' }}>
                                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
@@ -255,23 +292,23 @@ export default function MobileCadastro() {
                                         <div style={{ fontSize: '13px' }}>Nenhum motorista na frota.</div>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                         {frota.map(m => (
                                             <div key={m.id} style={{
                                                 background: '#0f172a', border: '1px solid #1e293b',
-                                                borderRadius: '12px', padding: '14px 12px', textAlign: 'center',
+                                                borderRadius: '14px', padding: '16px 12px 14px', textAlign: 'center',
                                             }}>
-                                                {/* Avatar clicável */}
-                                                <div onClick={() => abrirUploadFoto(m.id)}
-                                                    style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px', cursor: 'pointer', position: 'relative', width: 52, margin: '0 auto 8px' }}>
+                                                {/* Avatar clicável — abre menu */}
+                                                <div onClick={() => abrirMenuFoto(m.id)}
+                                                    style={{ position: 'relative', width: 72, margin: '0 auto 10px', cursor: 'pointer' }}>
                                                     {m.foto
-                                                        ? <img src={m.foto} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #334155' }} />
-                                                        : <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#1e293b', border: '2px dashed #334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                            <User size={22} color="#475569" strokeWidth={1.5} />
+                                                        ? <img src={m.foto} alt="" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #334155', display: 'block' }} />
+                                                        : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#1e293b', border: '2px dashed #475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <User size={30} color="#475569" strokeWidth={1.5} />
                                                           </div>
                                                     }
-                                                    <div style={{ position: 'absolute', bottom: 0, right: 0, background: '#3b82f6', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <Camera size={10} color="#fff" strokeWidth={2.5} />
+                                                    <div style={{ position: 'absolute', bottom: 2, right: 2, background: '#3b82f6', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+                                                        <Camera size={12} color="#fff" strokeWidth={2.5} />
                                                     </div>
                                                 </div>
                                                 <div style={{ fontWeight: '700', fontSize: '12px', color: '#f1f5f9', lineHeight: 1.3, marginBottom: '4px' }}>
@@ -300,6 +337,54 @@ export default function MobileCadastro() {
                                                 )}
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+
+                                {/* Menu de foto — sheet simples */}
+                                {menuFotoId !== null && (
+                                    <div style={{ position: 'fixed', inset: 0, zIndex: 900 }}>
+                                        <div onClick={() => setMenuFotoId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
+                                        <div style={{
+                                            position: 'absolute', bottom: 0, left: 0, right: 0,
+                                            background: '#0f172a', borderTop: '1px solid #334155',
+                                            borderRadius: '20px 20px 0 0',
+                                            padding: '20px 20px calc(24px + env(safe-area-inset-bottom))',
+                                        }}>
+                                            <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Foto do motorista
+                                            </div>
+                                            {/* Tirar foto */}
+                                            <button onClick={() => { setFotoUploadId(menuFotoId); setTimeout(() => inputFotoCameraRef.current?.click(), 50); }} style={{
+                                                width: '100%', height: '52px', background: '#1e293b', border: '1px solid #334155',
+                                                borderRadius: '12px', color: '#f1f5f9', fontSize: '15px', fontWeight: '600',
+                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '0 18px',
+                                                cursor: 'pointer', marginBottom: '10px',
+                                            }}>
+                                                <Camera size={20} color="#3b82f6" strokeWidth={2} />
+                                                Tirar foto agora
+                                            </button>
+                                            {/* Escolher da galeria */}
+                                            <button onClick={() => { setFotoUploadId(menuFotoId); setTimeout(() => inputFotoGaleriaRef.current?.click(), 50); }} style={{
+                                                width: '100%', height: '52px', background: '#1e293b', border: '1px solid #334155',
+                                                borderRadius: '12px', color: '#f1f5f9', fontSize: '15px', fontWeight: '600',
+                                                display: 'flex', alignItems: 'center', gap: '12px', padding: '0 18px',
+                                                cursor: 'pointer', marginBottom: frota.find(m => m.id === menuFotoId)?.foto ? '10px' : '0',
+                                            }}>
+                                                <Image size={20} color="#8b5cf6" strokeWidth={2} />
+                                                Escolher da galeria
+                                            </button>
+                                            {/* Remover foto (só se tiver) */}
+                                            {frota.find(m => m.id === menuFotoId)?.foto && (
+                                                <button onClick={() => removerFoto(menuFotoId)} style={{
+                                                    width: '100%', height: '52px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                                                    borderRadius: '12px', color: '#f87171', fontSize: '15px', fontWeight: '600',
+                                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '0 18px', cursor: 'pointer',
+                                                }}>
+                                                    <Trash2 size={18} strokeWidth={2} />
+                                                    Remover foto
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </>
