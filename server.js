@@ -510,12 +510,14 @@ app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Plane
         const mesNum = parseInt(mesStr);
 
         const [contadores, porTipo, porUF, porRastreador, top5, novatosParceiros, resumoMensal] = await Promise.all([
-            // Contadores
+            // Contadores — filtrados pelo mês selecionado
             dbAll(`SELECT
                 COUNT(*) FILTER (WHERE is_frota = 0 OR is_frota IS NULL) AS marcaram_placa,
                 COUNT(*) FILTER (WHERE status_operacional = 'EM OPERACAO') AS em_operacao,
-                COUNT(*) FILTER (WHERE status_operacional = 'CONTRATADO') AS contratados
-             FROM marcacoes_placas`),
+                COUNT(*) FILTER (WHERE status_operacional IN ('CONTRATADO','EM VIAGEM','EM ROTA')) AS contratados
+             FROM marcacoes_placas
+             WHERE EXTRACT(YEAR FROM data_marcacao) = $1
+             AND EXTRACT(MONTH FROM data_marcacao) = $2`, [ano, mesNum]),
             // Por tipo de veículo
             dbAll(`SELECT tipo_veiculo AS tipo, COUNT(*) AS total
              FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
@@ -543,18 +545,18 @@ app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Plane
                 COUNT(*) FILTER (WHERE viagens_realizadas BETWEEN 1 AND 4) AS parceiros_baixo,
                 COUNT(*) FILTER (WHERE viagens_realizadas >= 5) AS parceiros_alto
              FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL`),
-            // Resumo mensal
+            // Resumo mensal — TO_CHAR garante que data chegue como string YYYY-MM-DD
             dbAll(`SELECT
-                DATE(data_marcacao) AS data,
+                TO_CHAR(data_marcacao, 'YYYY-MM-DD') AS data,
                 COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE status_operacional IS NULL OR status_operacional = 'DISPONIVEL') AS disponivel,
                 COUNT(*) FILTER (WHERE status_operacional = 'EM OPERACAO') AS em_operacao,
-                COUNT(*) FILTER (WHERE status_operacional = 'CONTRATADO') AS contratado
+                COUNT(*) FILTER (WHERE status_operacional IN ('CONTRATADO','EM VIAGEM','EM ROTA')) AS contratado
              FROM marcacoes_placas
              WHERE (is_frota = 0 OR is_frota IS NULL)
              AND EXTRACT(YEAR FROM data_marcacao) = $1
              AND EXTRACT(MONTH FROM data_marcacao) = $2
-             GROUP BY DATE(data_marcacao)
+             GROUP BY TO_CHAR(data_marcacao, 'YYYY-MM-DD')
              ORDER BY data ASC`, [ano, mesNum]),
         ]);
 
@@ -2642,7 +2644,7 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
 
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
-const PROV_EDITORES = ['Coordenador', 'Planejamento'];
+const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento'];
 const STATUS_VIAGEM_PROV = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'CARREGANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'];
 
 // GET /api/provisionamento/veiculos — listar veículos ativos
