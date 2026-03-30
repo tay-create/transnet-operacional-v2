@@ -79,21 +79,27 @@ function hexToRgb(hex) {
 // ── Bottom Sheet ─────────────────────────────────────────────────────────────
 function BottomSheet({ titulo, onClose, children }) {
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 900 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100 }}>
             {/* backdrop clicável para fechar */}
             <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
-            {/* sheet — position:absolute para não participar do flex e não capturar touches externos */}
+            {/* sheet acima da nav (zIndex 1100 > nav 1000) */}
             <div style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: '#0f172a', borderTop: '1px solid #334155',
                 borderRadius: '20px 20px 0 0',
-                padding: '12px 20px calc(20px + env(safe-area-inset-bottom))',
+                maxHeight: '80dvh',
+                display: 'flex', flexDirection: 'column',
+                paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                {/* Header fixo */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px 12px', flexShrink: 0, borderBottom: '1px solid #1e293b' }}>
                     <span style={{ fontSize: '16px', fontWeight: '800', color: '#f1f5f9' }}>{titulo}</span>
                     <button onClick={onClose} style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', padding: '4px 10px', fontSize: '18px', cursor: 'pointer', lineHeight: 1 }}>×</button>
                 </div>
-                {children}
+                {/* Conteúdo com scroll */}
+                <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '14px 20px 20px' }}>
+                    {children}
+                </div>
             </div>
         </div>
     );

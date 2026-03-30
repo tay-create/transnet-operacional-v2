@@ -342,13 +342,13 @@ export default function MobileCadastro() {
 
                                 {/* Menu de foto — sheet simples */}
                                 {menuFotoId !== null && (
-                                    <div style={{ position: 'fixed', inset: 0, zIndex: 900 }}>
+                                    <div style={{ position: 'fixed', inset: 0, zIndex: 1100 }}>
                                         <div onClick={() => setMenuFotoId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
                                         <div style={{
                                             position: 'absolute', bottom: 0, left: 0, right: 0,
                                             background: '#0f172a', borderTop: '1px solid #334155',
                                             borderRadius: '20px 20px 0 0',
-                                            padding: '20px 20px calc(24px + env(safe-area-inset-bottom))',
+                                            padding: '20px 20px calc(28px + env(safe-area-inset-bottom))',
                                         }}>
                                             <div style={{ fontSize: '13px', fontWeight: '700', color: '#64748b', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                                                 Foto do motorista
