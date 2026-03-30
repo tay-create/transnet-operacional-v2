@@ -692,6 +692,7 @@ export default function GestaoMarcacoes({ socket }) {
                                         <th style={{ ...s.th, width: '105px' }}>Status</th>
                                         <th style={{ ...s.th, width: '55px' }}>Viagens</th>
                                         <th style={{ ...s.th, width: '65px' }}>Tempo</th>
+                                        <th style={{ ...s.th, width: '115px' }}>Marcado em</th>
                                         <th style={{ ...s.th, width: '90px' }}>Ações</th>
                                     </tr>
                                 </thead>
@@ -788,6 +789,10 @@ export default function GestaoMarcacoes({ socket }) {
                                                         <Clock size={11} />{formatarTempo(tempoMin)}
                                                     </span>
                                                 </td>
+                                                {/* Marcado em */}
+                                                <td style={{ ...s.td, fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                                    {formatarData(m.data_marcacao)}
+                                                </td>
                                                 {/* Ações */}
                                                 <td style={s.td}>
                                                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -802,11 +807,9 @@ export default function GestaoMarcacoes({ socket }) {
                                                                 <MapPin size={14} />
                                                             </a>
                                                         )}
-                                                        {temAnexos && (
-                                                            <button onClick={() => setModalMarcacao(m)} title="Ver anexos" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#94a3b8' }}>
-                                                                <Eye size={14} />
-                                                            </button>
-                                                        )}
+                                                        <button onClick={() => setModalMarcacao(m)} title="Ver detalhes" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#94a3b8' }}>
+                                                            <Eye size={14} />
+                                                        </button>
                                                         <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#f87171' }} onClick={() => excluirMarcacao(m.id)} title="Remover">
                                                             <Trash2 size={14} />
                                                         </button>
