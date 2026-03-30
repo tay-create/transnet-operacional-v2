@@ -46,6 +46,7 @@ export default function MobileCadastro() {
     const inputFotoCameraRef = useRef(null);
     const [fotoUploadId, setFotoUploadId] = useState(null);
     const [menuFotoId, setMenuFotoId] = useState(null); // id do motorista com menu aberto
+    const [fotoExpandida, setFotoExpandida] = useState(null); // { src, nome }
 
     const abrirMenuFoto = (id) => setMenuFotoId(id);
 
@@ -298,16 +299,24 @@ export default function MobileCadastro() {
                                                 background: '#0f172a', border: '1px solid #1e293b',
                                                 borderRadius: '14px', padding: '16px 12px 14px', textAlign: 'center',
                                             }}>
-                                                {/* Avatar clicável — abre menu */}
-                                                <div onClick={() => abrirMenuFoto(m.id)}
-                                                    style={{ position: 'relative', width: 72, margin: '0 auto 10px', cursor: 'pointer' }}>
+                                                {/* Avatar — foto clica para expandir, ícone câmera abre menu */}
+                                                <div style={{ position: 'relative', width: 72, margin: '0 auto 10px' }}>
                                                     {m.foto
-                                                        ? <img src={m.foto} alt="" style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #334155', display: 'block' }} />
-                                                        : <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#1e293b', border: '2px dashed #475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        ? <img
+                                                            src={m.foto} alt=""
+                                                            onClick={() => setFotoExpandida({ src: m.foto, nome: m.nome_motorista })}
+                                                            style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #334155', display: 'block', cursor: 'zoom-in' }}
+                                                          />
+                                                        : <div
+                                                            onClick={() => abrirMenuFoto(m.id)}
+                                                            style={{ width: 72, height: 72, borderRadius: '50%', background: '#1e293b', border: '2px dashed #475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                                                             <User size={30} color="#475569" strokeWidth={1.5} />
                                                           </div>
                                                     }
-                                                    <div style={{ position: 'absolute', bottom: 2, right: 2, background: '#3b82f6', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}>
+                                                    {/* Botão câmera — sempre abre menu */}
+                                                    <div
+                                                        onClick={(e) => { e.stopPropagation(); abrirMenuFoto(m.id); }}
+                                                        style={{ position: 'absolute', bottom: 2, right: 2, background: '#3b82f6', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)', cursor: 'pointer' }}>
                                                         <Camera size={12} color="#fff" strokeWidth={2.5} />
                                                     </div>
                                                 </div>
@@ -337,6 +346,20 @@ export default function MobileCadastro() {
                                                 )}
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+
+                                {/* Lightbox — expandir foto */}
+                                {fotoExpandida && (
+                                    <div
+                                        onClick={() => setFotoExpandida(null)}
+                                        style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.92)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ fontSize: '13px', fontWeight: '700', color: '#94a3b8', marginBottom: '16px' }}>{fotoExpandida.nome}</div>
+                                        <img
+                                            src={fotoExpandida.src} alt=""
+                                            style={{ maxWidth: '92vw', maxHeight: '70vh', borderRadius: '16px', objectFit: 'contain', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}
+                                        />
+                                        <div style={{ marginTop: '20px', fontSize: '12px', color: '#475569' }}>Toque para fechar</div>
                                     </div>
                                 )}
 
