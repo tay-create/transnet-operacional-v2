@@ -296,7 +296,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (marc && marc.is_frota === 1) {
                     await dbRun("UPDATE marcacoes_placas SET data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
                 } else {
-                    await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
+                    await dbRun("UPDATE marcacoes_placas SET disponibilidade = 'Contratado', status_operacional = 'EM OPERACAO', data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [agora, v.id_marcacao]);
                 }
                 io.emit('marcacao_atualizada');
             } else if (telefoneMotorista) {
@@ -304,7 +304,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (marc && marc.is_frota === 1) {
                     await dbRun("UPDATE marcacoes_placas SET data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
                 } else {
-                    await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM ROTA', data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
+                    await dbRun("UPDATE marcacoes_placas SET status_operacional = 'EM OPERACAO', data_contratacao = COALESCE(data_contratacao, ?) WHERE telefone = ?", [agora, telefoneMotorista]);
                 }
                 io.emit('marcacao_atualizada');
             }

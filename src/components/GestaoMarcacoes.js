@@ -275,7 +275,8 @@ export default function GestaoMarcacoes({ socket }) {
 
     async function handleAvancarStatus(m) {
         const atual = m.status_operacional || 'DISPONIVEL';
-        const fluxo = { DISPONIVEL: 'EM OPERACAO', 'EM OPERACAO': 'CONTRATADO', CONTRATADO: 'DISPONIVEL' };
+        // EM VIAGEM e EM ROTA são equivalentes a CONTRATADO (gerados automaticamente pelo sistema)
+        const fluxo = { DISPONIVEL: 'EM OPERACAO', 'EM OPERACAO': 'CONTRATADO', CONTRATADO: 'DISPONIVEL', 'EM VIAGEM': 'DISPONIVEL', 'EM ROTA': 'DISPONIVEL' };
         const novoStatus = fluxo[atual] || 'DISPONIVEL';
         try {
             const r = await api.put(`/api/marcacoes/${m.id}/status`, { status_operacional: novoStatus });
@@ -662,9 +663,6 @@ export default function GestaoMarcacoes({ socket }) {
                             >
                                 <option value="">Todos os tipos</option>
                                 <option value="Truck">Truck</option>
-                                <option value="3/4">3/4</option>
-                                <option value="Conjunto">Conjunto</option>
-                                <option value="Carreta">Carreta</option>
                                 <option value="Bi-Truck">Bi-Truck</option>
                                 <option value="Carreta 4 Eixos">Carreta 4 Eixos</option>
                                 <option value="Carreta 5 Eixos">Carreta 5 Eixos</option>
@@ -702,7 +700,8 @@ export default function GestaoMarcacoes({ socket }) {
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
                                         const statusOp = m.status_operacional || 'DISPONIVEL';
-                                        const statusLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : statusOp === 'CONTRATADO' ? 'Contratado' : statusOp;
+                                        const isContratado = ['CONTRATADO', 'EM VIAGEM', 'EM ROTA'].includes(statusOp);
+                                        const statusLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : isContratado ? 'Contratado' : statusOp;
                                         const statusCor = statusOp === 'DISPONIVEL' ? { bg: 'rgba(34,197,94,0.12)', color: '#4ade80', border: 'rgba(34,197,94,0.25)' } : statusOp === 'EM OPERACAO' ? { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' } : { bg: 'rgba(251,146,60,0.12)', color: '#fb923c', border: 'rgba(251,146,60,0.25)' };
                                         const temAnexos = m.comprovante_pdf || m.anexo_cnh || m.anexo_doc_veiculo || m.anexo_crlv_carreta || m.anexo_antt || m.anexo_outros;
                                         return (

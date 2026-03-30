@@ -103,7 +103,7 @@ function BarraHorizontal({ label, valor, max, cor }) {
     );
 }
 
-const COR_TIPO = { Truck: '#60a5fa', '3/4': '#a78bfa', Conjunto: '#fb923c', Carreta: '#4ade80', 'Bi-Truck': '#f472b6', 'Carreta 4 Eixos': '#34d399', 'Carreta 5 Eixos': '#22d3ee', 'Carreta 6 Eixos': '#818cf8' };
+const COR_TIPO = { Truck: '#60a5fa', 'Bi-Truck': '#a78bfa', 'Carreta 4 Eixos': '#fb923c', 'Carreta 5 Eixos': '#4ade80', 'Carreta 6 Eixos': '#f472b6' };
 
 function obterMesAtual() {
     const d = new Date();
