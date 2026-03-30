@@ -480,14 +480,123 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ── Auto-delete: remove marcações de terceiros com 15+ dias sem sair de Disponível ──
+let ultimaLimpezaMarcacoes = 0;
+async function limparMarcacoesAntigas() {
+    const agora = Date.now();
+    if (agora - ultimaLimpezaMarcacoes < 3600000) return; // max 1x por hora
+    ultimaLimpezaMarcacoes = agora;
+    try {
+        const result = await dbRun(
+            `DELETE FROM marcacoes_placas
+             WHERE (is_frota IS NULL OR is_frota = 0)
+             AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+             AND data_marcacao < NOW() - INTERVAL '15 days'`
+        );
+        if (result && result.changes > 0) {
+            console.log(`[auto-delete] ${result.changes} marcações antigas removidas.`);
+        }
+    } catch (e) {
+        console.error('[auto-delete] Erro:', e.message);
+    }
+}
+
+// ── Stats endpoint para DashboardMarcacoes ────────────────────────────────────
+app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+    try {
+        const mes = req.query.mes || new Date().toISOString().slice(0, 7); // YYYY-MM
+        const [anoStr, mesStr] = mes.split('-');
+        const ano = parseInt(anoStr);
+        const mesNum = parseInt(mesStr);
+
+        const [contadores, porTipo, porUF, porRastreador, top5, novatosParceiros, resumoMensal] = await Promise.all([
+            // Contadores
+            dbAll(`SELECT
+                COUNT(*) FILTER (WHERE is_frota = 0 OR is_frota IS NULL) AS marcaram_placa,
+                COUNT(*) FILTER (WHERE status_operacional = 'EM OPERACAO') AS em_operacao,
+                COUNT(*) FILTER (WHERE status_operacional = 'CONTRATADO') AS contratados
+             FROM marcacoes_placas`),
+            // Por tipo de veículo
+            dbAll(`SELECT tipo_veiculo AS tipo, COUNT(*) AS total
+             FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
+             GROUP BY tipo_veiculo ORDER BY total DESC`),
+            // Por UF (explodir o array estados_destino)
+            dbAll(`SELECT uf, COUNT(*) AS total FROM (
+                SELECT jsonb_array_elements_text(estados_destino::jsonb) AS uf
+                FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
+            ) t GROUP BY uf ORDER BY total DESC`),
+            // Por rastreador
+            dbAll(`SELECT
+                COALESCE(rastreador, 'Não possui') AS rastreador,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status_rastreador = 'Ativo') AS ativos,
+                COUNT(*) FILTER (WHERE status_rastreador = 'Inativo' OR status_rastreador IS NULL) AS inativos
+             FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
+             GROUP BY rastreador ORDER BY total DESC`),
+            // Top 5 por viagens
+            dbAll(`SELECT nome_motorista AS nome, viagens_realizadas AS viagens, favorito, tipo_veiculo
+             FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
+             ORDER BY viagens_realizadas DESC NULLS LAST LIMIT 5`),
+            // Novatos vs Parceiros
+            dbAll(`SELECT
+                COUNT(*) FILTER (WHERE viagens_realizadas = 0 OR viagens_realizadas IS NULL) AS novatos,
+                COUNT(*) FILTER (WHERE viagens_realizadas BETWEEN 1 AND 4) AS parceiros_baixo,
+                COUNT(*) FILTER (WHERE viagens_realizadas >= 5) AS parceiros_alto
+             FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL`),
+            // Resumo mensal
+            dbAll(`SELECT
+                DATE(data_marcacao) AS data,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status_operacional IS NULL OR status_operacional = 'DISPONIVEL') AS disponivel,
+                COUNT(*) FILTER (WHERE status_operacional = 'EM OPERACAO') AS em_operacao,
+                COUNT(*) FILTER (WHERE status_operacional = 'CONTRATADO') AS contratado
+             FROM marcacoes_placas
+             WHERE (is_frota = 0 OR is_frota IS NULL)
+             AND EXTRACT(YEAR FROM data_marcacao) = $1
+             AND EXTRACT(MONTH FROM data_marcacao) = $2
+             GROUP BY DATE(data_marcacao)
+             ORDER BY data ASC`, [ano, mesNum]),
+        ]);
+
+        const c = contadores[0] || {};
+        res.json({
+            success: true,
+            contadores: {
+                marcaram_placa: parseInt(c.marcaram_placa || 0),
+                em_operacao: parseInt(c.em_operacao || 0),
+                contratados: parseInt(c.contratados || 0),
+            },
+            por_tipo_veiculo: porTipo.map(r => ({ tipo: r.tipo || 'Outros', total: parseInt(r.total) })),
+            por_uf: porUF.map(r => ({ uf: r.uf, total: parseInt(r.total) })),
+            por_rastreador: porRastreador.map(r => ({ rastreador: r.rastreador, total: parseInt(r.total), ativos: parseInt(r.ativos || 0), inativos: parseInt(r.inativos || 0) })),
+            top5: top5.map(r => ({ nome: r.nome, viagens: parseInt(r.viagens || 0), favorito: !!r.favorito, tipo_veiculo: r.tipo_veiculo })),
+            novatos_parceiros: {
+                novatos: parseInt(novatosParceiros[0]?.novatos || 0),
+                parceiros_baixo: parseInt(novatosParceiros[0]?.parceiros_baixo || 0),
+                parceiros_alto: parseInt(novatosParceiros[0]?.parceiros_alto || 0),
+            },
+            resumo_mensal: resumoMensal.map(r => ({
+                data: r.data,
+                total: parseInt(r.total),
+                disponivel: parseInt(r.disponivel || 0),
+                em_operacao: parseInt(r.em_operacao || 0),
+                contratado: parseInt(r.contratado || 0),
+            })),
+        });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 // Leitura de todas as marcações (autenticado) — com paginação e projeção de colunas
 app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
+        // Auto-delete de registros antigos (max 1x/hora)
+        limparMarcacoesAntigas();
+
         const limite = Math.min(parseInt(req.query.limit) || 50, 200);
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
         const offset = (pagina - 1) * limite;
 
-        const { disponibilidade, busca, estado } = req.query;
+        const { disponibilidade, busca, estado, tipo_veiculo } = req.query;
         const conditions = [];
         const params = [];
 
@@ -518,6 +627,11 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         if (estado && estado.trim()) {
             params.push(`%"${estado.trim()}"%`);
             conditions.push(`estados_destino::text ILIKE $${params.length}`);
+        }
+
+        if (tipo_veiculo && tipo_veiculo.trim()) {
+            params.push(tipo_veiculo.trim());
+            conditions.push(`tipo_veiculo = $${params.length}`);
         }
 
         const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -623,7 +737,24 @@ app.put('/api/marcacoes/:id/foto', authMiddleware, authorize(['Coordenador', 'Di
 // ── PUT: Alterar Status de Disponibilidade (Fila) ────────────────
 app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
     try {
-        const { status } = req.body;
+        const { status, status_operacional } = req.body;
+
+        // Modo 1: status_operacional (fluxo Disponível → Em Operação → Contratado)
+        if (status_operacional !== undefined) {
+            const statusOpValidos = ['DISPONIVEL', 'EM OPERACAO', 'CONTRATADO'];
+            if (!statusOpValidos.includes(status_operacional)) {
+                return res.status(400).json({ success: false, message: 'status_operacional inválido.' });
+            }
+            await dbRun(
+                `UPDATE marcacoes_placas SET status_operacional = $1 WHERE id = $2`,
+                [status_operacional, req.params.id]
+            );
+            await registrarLog('MARCACAO_STATUS_OP', req.user?.nome || '?', req.params.id, 'marcacao', null, status_operacional, null);
+            io.emit('marcacao_atualizada');
+            return res.json({ success: true });
+        }
+
+        // Modo 2: disponibilidade (localização: EM CASA, NO PÁTIO, NO POSTO, Indisponível, Contratado)
         const statusValidos = ['Disponível', 'Contratado', 'Indisponível', 'EM CASA', 'NO PÁTIO', 'NO POSTO'];
         if (!statusValidos.includes(status)) {
             return res.status(400).json({ success: false, message: 'Status inválido.' });
@@ -631,11 +762,11 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
 
         const timestampDataContratacao = status === 'Contratado' ? obterDataHoraBrasilia() : null;
 
-        await dbRun("UPDATE marcacoes_placas SET disponibilidade = ?, data_contratacao = COALESCE(data_contratacao, ?) WHERE id = ?", [status, timestampDataContratacao, req.params.id]);
+        await dbRun(`UPDATE marcacoes_placas SET disponibilidade = $1, data_contratacao = COALESCE(data_contratacao, $2) WHERE id = $3`, [status, timestampDataContratacao, req.params.id]);
 
         // Se mudou para disponível, zera a data de contratação
         if (status === 'Disponível') {
-            await dbRun("UPDATE marcacoes_placas SET data_contratacao = NULL WHERE id = ?", [req.params.id]);
+            await dbRun(`UPDATE marcacoes_placas SET data_contratacao = NULL WHERE id = $1`, [req.params.id]);
         }
 
         await registrarLog('MARCACAO_STATUS', req.user?.nome || '?', req.params.id, 'marcacao', null, status, null);

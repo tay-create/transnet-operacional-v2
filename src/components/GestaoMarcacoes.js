@@ -106,14 +106,13 @@ export default function GestaoMarcacoes({ socket }) {
     const [tel, setTel] = useState('');
     const [copiado, setCopiado] = useState(null);
     const [toast, setToast] = useState('');
-    const [formFrota, setFormFrota] = useState(FORM_FROTA_INICIAL);
-    const [salvandoFrota, setSalvandoFrota] = useState(false);
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroDisponibilidade, setFiltroDisponibilidade] = useState('');
     const [filtroStatusOp, setFiltroStatusOp] = useState('');
     const [filtroTag, setFiltroTag] = useState('');
+    const [filtroTipoVeiculo, setFiltroTipoVeiculo] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const [totalMarcacoes, setTotalMarcacoes] = useState(0);
     const ITENS_POR_PAGINA = 50;
@@ -144,12 +143,11 @@ export default function GestaoMarcacoes({ socket }) {
         setLoading(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
-            // filtroStatusOp (Disponível/Indisponível/Contratado) e filtroDisponibilidade (EM CASA/NO PÁTIO/NO POSTO)
-            // ambos usam o mesmo param; statusOp tem precedência se os dois estiverem preenchidos
             if (filtroStatusOp) qp.set('disponibilidade', filtroStatusOp);
             else if (filtroDisponibilidade) qp.set('disponibilidade', filtroDisponibilidade);
             if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
             if (filtroEstado) qp.set('estado', filtroEstado);
+            if (filtroTipoVeiculo) qp.set('tipo_veiculo', filtroTipoVeiculo);
             const r = await api.get(`/api/marcacoes?${qp}`);
             if (r.data.success) {
                 setMarcacoes(r.data.marcacoes);
@@ -158,7 +156,7 @@ export default function GestaoMarcacoes({ socket }) {
             }
         } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
-    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado]);
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo]);
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
@@ -169,7 +167,7 @@ export default function GestaoMarcacoes({ socket }) {
     useEffect(() => {
         if (aba !== 'placas') return;
         carregarMarcacoes(1);
-    }, [filtroDisponibilidade, filtroStatusOp, filtroEstado]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Busca com debounce
     useEffect(() => {
@@ -275,6 +273,18 @@ export default function GestaoMarcacoes({ socket }) {
         } catch (e) { mostrarToast('Erro ao atualizar localização.'); }
     }
 
+    async function handleAvancarStatus(m) {
+        const atual = m.status_operacional || 'DISPONIVEL';
+        const fluxo = { DISPONIVEL: 'EM OPERACAO', 'EM OPERACAO': 'CONTRATADO', CONTRATADO: 'DISPONIVEL' };
+        const novoStatus = fluxo[atual] || 'DISPONIVEL';
+        try {
+            const r = await api.put(`/api/marcacoes/${m.id}/status`, { status_operacional: novoStatus });
+            if (r.data.success) {
+                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, status_operacional: novoStatus } : x));
+            }
+        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
+    }
+
     async function toggleTag(m, campo) {
         let body = {};
         if (campo === 'favorito') {
@@ -288,29 +298,6 @@ export default function GestaoMarcacoes({ socket }) {
                 setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, ...body } : x));
             }
         } catch (e) { mostrarToast('Erro ao atualizar tag.'); }
-    }
-
-    // Frota: apenas nome e telefone — placas inseridas depois no despacho
-    async function cadastrarFrota() {
-        const { nome_motorista, telefone } = formFrota;
-        if (!nome_motorista.trim() || !telefone.trim()) {
-            mostrarToast('Preencha Nome e Telefone.');
-            return;
-        }
-        setSalvandoFrota(true);
-        try {
-            const r = await api.post('/api/frota', {
-                nome_motorista: formFrota.nome_motorista,
-                telefone: formFrota.telefone,
-            });
-            if (r.data.success) {
-                setFormFrota(FORM_FROTA_INICIAL);
-                mostrarToast('Motorista da frota adicionado à fila!');
-            } else {
-                mostrarToast(r.data.message || 'Erro ao cadastrar.');
-            }
-        } catch (e) { mostrarToast('Erro de conexão.'); }
-        finally { setSalvandoFrota(false); }
     }
 
     function copiarLink(token) {
@@ -378,8 +365,6 @@ export default function GestaoMarcacoes({ socket }) {
         const d = new Date(dt.endsWith('Z') ? dt : dt + 'Z');
         return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
-
-    const ff = (campo) => (e) => setFormFrota(prev => ({ ...prev, [campo]: e.target.value }));
 
     // Filtros são server-side; exclui is_frota e aplica filtroTag localmente
     const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => {
@@ -665,6 +650,26 @@ export default function GestaoMarcacoes({ socket }) {
                                 <option value="favorito">Favoritos</option>
                                 <option value="problematico">Problemáticos</option>
                             </select>
+                            <select
+                                value={filtroTipoVeiculo}
+                                onChange={e => setFiltroTipoVeiculo(e.target.value)}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '130px', maxWidth: '170px',
+                                    cursor: 'pointer', color: filtroTipoVeiculo ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroTipoVeiculo ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Todos os tipos</option>
+                                <option value="Truck">Truck</option>
+                                <option value="3/4">3/4</option>
+                                <option value="Conjunto">Conjunto</option>
+                                <option value="Carreta">Carreta</option>
+                                <option value="Bi-Truck">Bi-Truck</option>
+                                <option value="Carreta 4 Eixos">Carreta 4 Eixos</option>
+                                <option value="Carreta 5 Eixos">Carreta 5 Eixos</option>
+                                <option value="Carreta 6 Eixos">Carreta 6 Eixos</option>
+                            </select>
                         </div>
                         <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>
                             <RefreshCw size={14} /> Atualizar
@@ -677,200 +682,133 @@ export default function GestaoMarcacoes({ socket }) {
                         <div style={s.empty}>Nenhuma marcação registrada.</div>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={s.table}>
+                            <table style={{ ...s.table, tableLayout: 'fixed', minWidth: '900px', fontSize: '12px' }}>
                                 <thead>
                                     <tr>
-                                        <th style={s.th}>Data</th>
-                                        <th style={s.th}>Motorista</th>
-                                        <th style={s.th}>Telefone</th>
-                                        <th style={s.th}>Placa 1</th>
-                                        <th style={s.th}>Placa 2</th>
-                                        <th style={s.th}>Veículo</th>
-                                        <th style={s.th}>Disponibilidade</th>
-                                        <th style={s.th}>Indisponível</th>
-                                        <th style={s.th}>Tempo Espera</th>
-                                        <th style={s.th}>Rastreador</th>
-                                        <th style={s.th}>Destinos</th>
-                                        <th style={s.th}>Localização</th>
-                                        <th style={s.th}>Status</th>
-                                        <th style={s.th}>Viagens</th>
-                                        <th style={s.th}>Tags</th>
-                                        <th style={s.th}>Anexos</th>
-                                        <th style={s.th}></th>
+                                        <th style={{ ...s.th, width: '180px' }}>Motorista</th>
+                                        <th style={{ ...s.th, width: '90px' }}>Placas</th>
+                                        <th style={{ ...s.th, width: '80px' }}>Veículo</th>
+                                        <th style={{ ...s.th, width: '75px' }}>Destinos</th>
+                                        <th style={{ ...s.th, width: '100px' }}>Rastreador</th>
+                                        <th style={{ ...s.th, width: '105px' }}>Local</th>
+                                        <th style={{ ...s.th, width: '105px' }}>Status</th>
+                                        <th style={{ ...s.th, width: '55px' }}>Viagens</th>
+                                        <th style={{ ...s.th, width: '65px' }}>Tempo</th>
+                                        <th style={{ ...s.th, width: '90px' }}>Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {marcacoesFiltradas.map(m => {
-                                        // tick é usado apenas para forçar re-render periódico
                                         void tick;
                                         const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
+                                        const statusOp = m.status_operacional || 'DISPONIVEL';
+                                        const statusLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : statusOp === 'CONTRATADO' ? 'Contratado' : statusOp;
+                                        const statusCor = statusOp === 'DISPONIVEL' ? { bg: 'rgba(34,197,94,0.12)', color: '#4ade80', border: 'rgba(34,197,94,0.25)' } : statusOp === 'EM OPERACAO' ? { bg: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: 'rgba(59,130,246,0.25)' } : { bg: 'rgba(251,146,60,0.12)', color: '#fb923c', border: 'rgba(251,146,60,0.25)' };
+                                        const temAnexos = m.comprovante_pdf || m.anexo_cnh || m.anexo_doc_veiculo || m.anexo_crlv_carreta || m.anexo_antt || m.anexo_outros;
                                         return (
                                             <tr key={m.id}>
-                                                <td style={s.td}>{formatarData(m.data_marcacao)}</td>
-                                                <td style={s.td}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', textTransform: 'uppercase' }}>
+                                                {/* Motorista */}
+                                                <td style={{ ...s.td, maxWidth: '180px' }}>
+                                                    <div style={{ fontWeight: '700', textTransform: 'uppercase', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {m.nome_motorista}
-                                                        {m.is_frota ? (
-                                                            <span style={s.badgeFreota}>
-                                                                <Truck size={10} /> FROTA
-                                                            </span>
-                                                        ) : null}
-                                                        {!m.is_frota && (m.viagens_realizadas ?? 0) < 5 && (m.ja_carregou === 'Não' || m.ja_carregou === 'Nao' || (!m.ja_carregou && (m.viagens_realizadas ?? 0) === 0)) ? (
-                                                            <span style={{
-                                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
-                                                                fontSize: '10px', fontWeight: '700',
-                                                                color: '#fb923c',
-                                                                background: 'rgba(251,146,60,0.12)',
-                                                                border: '1px solid rgba(251,146,60,0.3)',
-                                                                borderRadius: '4px', padding: '1px 6px'
-                                                            }}>
-                                                                <Star size={9} /> NOVATO
-                                                            </span>
-                                                        ) : null}
-                                                        {m.favorito ? (
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: '700', color: '#facc15', background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)', borderRadius: '4px', padding: '1px 6px' }}>
-                                                                <Star size={9} fill="#facc15" /> FAVORITO
-                                                            </span>
-                                                        ) : null}
-                                                        {m.tag_motorista === 'PROBLEMÁTICO' ? (
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: '700', color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '1px 6px' }}>
-                                                                <AlertTriangle size={9} /> PROBLEMÁTICO
-                                                            </span>
-                                                        ) : null}
                                                     </div>
+                                                    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                                        {m.favorito ? <span style={{ fontSize: '9px', fontWeight: '700', color: '#facc15', background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)', borderRadius: '3px', padding: '0 4px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}><Star size={7} fill="#facc15" />FAV</span> : null}
+                                                        {m.tag_motorista === 'PROBLEMÁTICO' ? <span style={{ fontSize: '9px', fontWeight: '700', color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '0 4px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}><AlertTriangle size={7} />PROB</span> : null}
+                                                        {!m.is_frota && (m.viagens_realizadas ?? 0) === 0 ? <span style={{ fontSize: '9px', fontWeight: '700', color: '#fb923c', background: 'rgba(251,146,60,0.12)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: '3px', padding: '0 4px' }}>NOVATO</span> : null}
+                                                    </div>
+                                                    {linkWpp(m.telefone) ? (
+                                                        <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#475569', fontSize: '10px', textDecoration: 'none' }}>
+                                                            {formatarTelefone(m.telefone)}
+                                                        </a>
+                                                    ) : <span style={{ color: '#475569', fontSize: '10px' }}>{formatarTelefone(m.telefone)}</span>}
                                                 </td>
-                                                <td style={s.td}>{linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}</td>
-                                                <td style={{ ...s.td, fontWeight: '700', color: '#60a5fa' }}>{m.placa1}</td>
-                                                <td style={s.td}>{m.placa2 || '—'}</td>
-                                                <td style={s.td}>{m.tipo_veiculo}</td>
-                                                {/* Disponibilidade (localização: NO PÁTIO / NO POSTO / EM CASA) */}
+                                                {/* Placas */}
+                                                <td style={s.td}>
+                                                    <div style={{ fontWeight: '700', color: '#60a5fa', fontSize: '11px' }}>{m.placa1}</div>
+                                                    {m.placa2 && <div style={{ color: '#94a3b8', fontSize: '10px' }}>{m.placa2}</div>}
+                                                </td>
+                                                {/* Veículo */}
+                                                <td style={{ ...s.td, fontSize: '11px' }}>{m.tipo_veiculo || '—'}</td>
+                                                {/* Destinos */}
+                                                <td style={{ ...s.td, fontSize: '11px' }}>{Array.isArray(m.estados_destino) ? m.estados_destino.join(', ') : '—'}</td>
+                                                {/* Rastreador */}
+                                                <td style={s.td}>
+                                                    <div style={{ fontSize: '11px' }}>{m.rastreador || '—'}</div>
+                                                    <div style={{ fontSize: '10px', color: m.status_rastreador === 'Ativo' ? '#4ade80' : '#64748b' }}>{m.status_rastreador}</div>
+                                                </td>
+                                                {/* Local */}
                                                 <td style={s.td}>
                                                     <select
                                                         value={['EM CASA', 'NO PÁTIO', 'NO POSTO'].includes(m.disponibilidade) ? m.disponibilidade : ''}
                                                         onChange={e => e.target.value && handleAtualizarLocalizacao(m.id, e.target.value)}
                                                         style={{
-                                                            background: 'rgba(255,255,255,0.06)',
-                                                            border: '1px solid rgba(255,255,255,0.1)',
-                                                            borderRadius: '6px', padding: '4px 8px',
+                                                            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                                                            borderRadius: '5px', padding: '3px 6px',
                                                             color: corDisponibilidade(m.disponibilidade),
-                                                            fontSize: '11px', fontWeight: '700',
-                                                            cursor: 'pointer', outline: 'none'
+                                                            fontSize: '10px', fontWeight: '700', cursor: 'pointer', outline: 'none', width: '100%'
                                                         }}
                                                     >
-                                                        <option value="" style={{ color: '#475569' }}>— localização —</option>
+                                                        <option value="" style={{ color: '#475569' }}>— local —</option>
                                                         <option value="EM CASA" style={{ color: 'black' }}>EM CASA</option>
                                                         <option value="NO PÁTIO" style={{ color: 'black' }}>NO PÁTIO</option>
                                                         <option value="NO POSTO" style={{ color: 'black' }}>NO POSTO</option>
                                                     </select>
-                                                </td>
-                                                {/* Checkbox Indisponível */}
-                                                <td style={s.td}>
-                                                    <label style={{
-                                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                                        cursor: 'pointer', fontSize: '11px', fontWeight: '700',
-                                                        color: m.disponibilidade === 'Indisponível' ? '#f87171' : '#64748b'
-                                                    }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={m.disponibilidade === 'Indisponível'}
-                                                            onChange={() => handleToggleIndisponivel(m.id, m.disponibilidade)}
-                                                            style={{ accentColor: '#ef4444', cursor: 'pointer', width: '14px', height: '14px' }}
-                                                        />
-                                                    </label>
-                                                </td>
-                                                {/* Tempo de Espera */}
-                                                <td style={s.td}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: corTempo(tempoMin) }}>
-                                                        <Clock size={12} />
-                                                        {formatarTempo(tempoMin)}
-                                                    </span>
-                                                </td>
-                                                <td style={s.td}>
-                                                    <div>{m.rastreador}</div>
-                                                    <div style={{ fontSize: '11px', color: m.status_rastreador === 'Ativo' ? '#4ade80' : '#94a3b8' }}>
-                                                        {m.status_rastreador}
-                                                    </div>
-                                                </td>
-                                                <td style={s.td}>{Array.isArray(m.estados_destino) ? m.estados_destino.join(', ') : '—'}</td>
-                                                <td style={s.td}>
-                                                    {m.latitude && m.longitude ? (
-                                                        <a href={`https://www.google.com/maps?q=${m.latitude},${m.longitude}`}
-                                                            target="_blank" rel="noreferrer"
-                                                            style={{ color: '#60a5fa', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                                                            <MapPin size={12} />Ver Mapa
-                                                        </a>
-                                                    ) : <span style={{ color: '#475569', fontSize: '12px' }}>Não permitido</span>}
-                                                </td>
-                                                <td style={s.td}>
-                                                    {m.disponibilidade === 'Indisponível' ? (
-                                                        <span style={{
-                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                            background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)'
-                                                        }}>Indisponível</span>
-                                                    ) : m.disponibilidade === 'Contratado' ? (
-                                                        <span style={{
-                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                            background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
-                                                        }}>Contratado</span>
-                                                    ) : m.status_operacional === 'EM VIAGEM' || m.status_operacional === 'EM ROTA' ? (
-                                                        <span style={{
-                                                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                            background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)'
-                                                        }}>Contratado</span>
-                                                    ) : (
-                                                        <span style={s.badgeOp(m.status_operacional || 'DISPONIVEL')}>
-                                                            {(m.status_operacional || 'DISPONIVEL') === 'DISPONIVEL' ? 'Disponível' : m.status_operacional}
-                                                        </span>
+                                                    {m.disponibilidade === 'Indisponível' && (
+                                                        <div style={{ fontSize: '9px', color: '#f87171', fontWeight: '700', marginTop: '2px' }}>INDISPONÍVEL</div>
                                                     )}
                                                 </td>
+                                                {/* Status clicável */}
                                                 <td style={s.td}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#facc15', fontWeight: '700' }}>
-                                                        <Award size={13} />
-                                                        {m.viagens_realizadas ?? 0}
+                                                    <button
+                                                        onClick={() => handleAvancarStatus(m)}
+                                                        title="Clique para avançar: Disponível → Em Operação → Contratado"
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', padding: '3px 8px', borderRadius: '20px',
+                                                            fontSize: '10px', fontWeight: '700', cursor: 'pointer',
+                                                            background: statusCor.bg, color: statusCor.color,
+                                                            border: `1px solid ${statusCor.border}`,
+                                                        }}
+                                                    >
+                                                        {statusLabel}
+                                                    </button>
+                                                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px', cursor: 'pointer', fontSize: '10px', color: m.disponibilidade === 'Indisponível' ? '#f87171' : '#475569' }}>
+                                                        <input type="checkbox" checked={m.disponibilidade === 'Indisponível'} onChange={() => handleToggleIndisponivel(m.id, m.disponibilidade)} style={{ accentColor: '#ef4444', width: '12px', height: '12px' }} />
+                                                        Indisp.
+                                                    </label>
+                                                </td>
+                                                {/* Viagens */}
+                                                <td style={{ ...s.td, textAlign: 'center' }}>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#facc15', fontWeight: '700', fontSize: '12px' }}>
+                                                        <Award size={12} />{m.viagens_realizadas ?? 0}
                                                     </span>
                                                 </td>
+                                                {/* Tempo */}
                                                 <td style={s.td}>
-                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                                        <button
-                                                            onClick={() => toggleTag(m, 'favorito')}
-                                                            title={m.favorito ? 'Remover favorito' : 'Marcar como favorito'}
-                                                            style={{
-                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
-                                                                color: m.favorito ? '#facc15' : '#334155',
-                                                                opacity: m.favorito ? 1 : 0.5
-                                                            }}
-                                                        >
-                                                            <Star size={16} fill={m.favorito ? '#facc15' : 'none'} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => toggleTag(m, 'tag_motorista')}
-                                                            title={m.tag_motorista === 'PROBLEMÁTICO' ? 'Remover tag problemático' : 'Marcar como problemático'}
-                                                            style={{
-                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
-                                                                color: m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : '#334155',
-                                                                opacity: m.tag_motorista === 'PROBLEMÁTICO' ? 1 : 0.5
-                                                            }}
-                                                        >
-                                                            <AlertTriangle size={16} fill={m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : 'none'} />
-                                                        </button>
-                                                    </div>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '700', color: corTempo(tempoMin) }}>
+                                                        <Clock size={11} />{formatarTempo(tempoMin)}
+                                                    </span>
                                                 </td>
+                                                {/* Ações */}
                                                 <td style={s.td}>
-                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '120px' }}>
-                                                        {m.comprovante_pdf && <a href={m.comprovante_pdf} download={`PDF_ORIG_${m.placa1}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>PDF Orig.</a>}
-                                                        {m.anexo_cnh && <a href={m.anexo_cnh} download={`CNH_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>CNH</a>}
-                                                        {m.anexo_doc_veiculo && <a href={m.anexo_doc_veiculo} download={`CRLV_CAV_${m.placa1}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>CRLV Cav.</a>}
-                                                        {m.anexo_crlv_carreta && <a href={m.anexo_crlv_carreta} download={`CRLV_CAR_${m.placa2 || 'CARRETA'}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#fb923c', textDecoration: 'none', background: 'rgba(251,146,60,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(251,146,60,0.3)' }}>CRLV Car.</a>}
-                                                        {m.anexo_antt && <a href={m.anexo_antt} download={`ANTT_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>ANTT</a>}
-                                                        {m.anexo_outros && <a href={m.anexo_outros} download={`OUTROS_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>Outros</a>}
-                                                    </div>
-                                                </td>
-                                                <td style={s.td}>
-                                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                                        <button style={{ ...s.btn('blue'), padding: '6px 8px' }} onClick={() => setModalMarcacao(m)} title="Ver detalhes da marcação">
-                                                            <Eye size={14} />
+                                                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                                        <button onClick={() => toggleTag(m, 'favorito')} title={m.favorito ? 'Remover favorito' : 'Favorito'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: m.favorito ? '#facc15' : '#334155' }}>
+                                                            <Star size={14} fill={m.favorito ? '#facc15' : 'none'} />
                                                         </button>
-                                                        <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
+                                                        <button onClick={() => toggleTag(m, 'tag_motorista')} title={m.tag_motorista === 'PROBLEMÁTICO' ? 'Remover tag' : 'Problemático'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : '#334155' }}>
+                                                            <AlertTriangle size={14} fill={m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : 'none'} />
+                                                        </button>
+                                                        {m.latitude && m.longitude && (
+                                                            <a href={`https://www.google.com/maps?q=${m.latitude},${m.longitude}`} target="_blank" rel="noreferrer" title="Ver localização" style={{ display: 'inline-flex', alignItems: 'center', padding: '2px', color: '#60a5fa' }}>
+                                                                <MapPin size={14} />
+                                                            </a>
+                                                        )}
+                                                        {temAnexos && (
+                                                            <button onClick={() => setModalMarcacao(m)} title="Ver anexos" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#94a3b8' }}>
+                                                                <Eye size={14} />
+                                                            </button>
+                                                        )}
+                                                        <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: '#f87171' }} onClick={() => excluirMarcacao(m.id)} title="Remover">
                                                             <Trash2 size={14} />
                                                         </button>
                                                     </div>

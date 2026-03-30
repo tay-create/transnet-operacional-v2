@@ -49,6 +49,7 @@ export default function MarcacaoForm() {
         termo: false
     });
 
+    const [errosPlaca, setErrosPlaca] = useState({ placa1: '', placa2: '' });
     const [modalRast, setModalRast] = useState(false);
     const [temDocumento, setTemDocumento] = useState('');
     const [modalDocs, setModalDocs] = useState(false);
@@ -98,6 +99,13 @@ export default function MarcacaoForm() {
 
     function set(campo, valor) { setForm(f => ({ ...f, [campo]: valor })); }
 
+    function validarPlaca(valor) {
+        if (!valor) return '';
+        if (valor.length === 6) return 'Placa incompleta — falta 1 caractere';
+        if (valor.length !== 7) return 'Placa inválida — use 7 letras/números (ex: TRA2D70)';
+        return '';
+    }
+
     function handleRadioRastreador(val) {
         set('tem_rastreador', val);
         if (val === 'Sim') setModalRast(true);
@@ -128,6 +136,13 @@ export default function MarcacaoForm() {
 
         if (!form.nome || !form.placa1 || !form.tipo_veiculo) {
             setErroMsg('Preencha todos os campos obrigatórios.'); return;
+        }
+        const errP1 = validarPlaca(form.placa1);
+        const errP2 = form.placa2 ? validarPlaca(form.placa2) : '';
+        if (errP1 || errP2) {
+            setErrosPlaca({ placa1: errP1, placa2: errP2 });
+            setErroMsg('Corrija as placas antes de continuar.');
+            return;
         }
         if (!form.termo) { setErroMsg('Você precisa aceitar os termos.'); return; }
         if (form.estados_destino.length === 0) { setErroMsg('Selecione ao menos 1 estado de destino.'); return; }
@@ -232,15 +247,36 @@ export default function MarcacaoForm() {
                     <div style={s.row}>
                         <div style={s.field}>
                             <label style={s.label}>Placa 1 *</label>
-                            <input style={s.input} value={form.placa1}
-                                onChange={e => set('placa1', e.target.value.toUpperCase())}
-                                placeholder="ABC-1234" maxLength={8} required />
+                            <input
+                                style={{ ...s.input, border: errosPlaca.placa1 ? '1px solid #ef4444' : s.input.border }}
+                                value={form.placa1}
+                                onChange={e => {
+                                    const limpo = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+                                    set('placa1', limpo);
+                                    if (errosPlaca.placa1) setErrosPlaca(p => ({ ...p, placa1: validarPlaca(limpo) }));
+                                }}
+                                onBlur={() => setErrosPlaca(p => ({ ...p, placa1: validarPlaca(form.placa1) }))}
+                                placeholder="TRA2D70"
+                                maxLength={7}
+                                required
+                            />
+                            {errosPlaca.placa1 && <p style={{ color: '#f87171', fontSize: '12px', margin: '4px 0 0' }}>{errosPlaca.placa1}</p>}
                         </div>
                         <div style={s.field}>
                             <label style={s.label}>Placa 2 (opcional)</label>
-                            <input style={s.input} value={form.placa2}
-                                onChange={e => set('placa2', e.target.value.toUpperCase())}
-                                placeholder="ABC-1234" maxLength={8} />
+                            <input
+                                style={{ ...s.input, border: errosPlaca.placa2 ? '1px solid #ef4444' : s.input.border }}
+                                value={form.placa2}
+                                onChange={e => {
+                                    const limpo = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+                                    set('placa2', limpo);
+                                    if (errosPlaca.placa2) setErrosPlaca(p => ({ ...p, placa2: validarPlaca(limpo) }));
+                                }}
+                                onBlur={() => { if (form.placa2) setErrosPlaca(p => ({ ...p, placa2: validarPlaca(form.placa2) })); }}
+                                placeholder="UGV0421"
+                                maxLength={7}
+                            />
+                            {errosPlaca.placa2 && <p style={{ color: '#f87171', fontSize: '12px', margin: '4px 0 0' }}>{errosPlaca.placa2}</p>}
                         </div>
                     </div>
 
