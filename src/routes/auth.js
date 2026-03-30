@@ -42,15 +42,15 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
             });
         }
 
-        // Verificar limite de sessões simultâneas (máximo 2)
+        // Verificar limite de sessões simultâneas (máximo 3)
         const contaSessoes = await dbGet(
             'SELECT COUNT(*) AS count FROM sessoes WHERE usuario_id = $1 AND ativa = TRUE',
             [usuario.id]
         );
-        if (parseInt(contaSessoes?.count || 0) >= 2) {
+        if (parseInt(contaSessoes?.count || 0) >= 3) {
             return res.status(403).json({
                 success: false,
-                message: 'Limite de sessões simultâneas atingido (máximo 2). Faça logout em outro dispositivo ou peça ao administrador para revogar.'
+                message: 'Limite de sessões simultâneas atingido (máximo 3). Faça logout em outro dispositivo ou peça ao administrador para revogar.'
             });
         }
 
