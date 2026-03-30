@@ -116,7 +116,7 @@ export default function PainelCadastro({ user, socket }) {
             const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
             const di = dInicio || hoje;
             const df = dFim || hoje;
-            const r = await api.get(`/api/cadastro/veiculos-em-operacao?dataInicio=${di}&dataFim=${df}`);
+            const r = await api.get(`/api/cadastro/veiculos-em-operacao?dataInicio=${di}&dataFim=${df}&excluirProv=1`);
             if (r.data.success) {
                 // Filtra os motoristas da operação para OMITIR os da frota própria,
                 // já que eles devem ficar exclusivos na aba "Frota Própria"

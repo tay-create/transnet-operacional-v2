@@ -532,7 +532,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
                         rastreador, status_rastreador, latitude, longitude, disponibilidade,
                         data_marcacao, data_contratacao, viagens_realizadas, status_operacional,
                         is_frota, situacao_cad, comprovante_pdf, anexo_cnh, anexo_doc_veiculo,
-                        anexo_crlv_carreta, anexo_antt, anexo_outros
+                        anexo_crlv_carreta, anexo_antt, anexo_outros, favorito, tag_motorista
                  FROM marcacoes_placas
                  ${whereClause}
                  ORDER BY data_marcacao DESC
@@ -578,6 +578,21 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
             estados_destino: (() => { try { return JSON.parse(r.estados_destino || '[]'); } catch { return []; } })()
         }));
         res.json({ success: true, motoristas });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Toggle favorito / tag_motorista
+app.put('/api/marcacoes/:id/tag', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+    try {
+        const { favorito, tag_motorista } = req.body;
+        const campos = [];
+        const params = [];
+        if (favorito !== undefined) { params.push(favorito ? 1 : 0); campos.push(`favorito = $${params.length}`); }
+        if (tag_motorista !== undefined) { params.push(tag_motorista || null); campos.push(`tag_motorista = $${params.length}`); }
+        if (campos.length === 0) return res.status(400).json({ success: false, message: 'Nenhum campo a atualizar' });
+        params.push(req.params.id);
+        await dbRun(`UPDATE marcacoes_placas SET ${campos.join(', ')} WHERE id = $${params.length}`, params);
+        res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -813,10 +828,17 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 // ── Cadastro: motoristas já lançados na operação (tabela veiculos) ────────────
 app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
     try {
-        const { dataInicio, dataFim } = req.query;
+        const { dataInicio, dataFim, excluirProv } = req.query;
         const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
         const dInicio = dataInicio || hoje;
         const dFim = dataFim || hoje;
+        const filtroProvisionamento = excluirProv === '1' ? `
+              AND NOT EXISTS (
+                SELECT 1 FROM prov_veiculos pv
+                WHERE pv.ativo = 1
+                  AND (pv.placa = m.placa1 OR pv.carreta = m.placa1
+                    OR pv.placa = m.placa2 OR pv.carreta = m.placa2)
+              )` : '';
 
         const rows = await dbAll(`
             SELECT v.id, v.motorista, v.dados_json,
@@ -840,6 +862,7 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
               AND (COALESCE(v.data_prevista, v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date)
+              ${filtroProvisionamento}
             ORDER BY v.id DESC
         `, [dInicio, dFim]);
         const veiculos = rows.map(r => {

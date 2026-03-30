@@ -277,6 +277,8 @@ const inicializarBanco = async () => {
             ['marcacoes_placas', 'num_liberacao_cad', 'TEXT'],
             ['marcacoes_placas', 'data_liberacao_cad', 'TEXT'],
             ['marcacoes_placas', 'destino_uf_cad', 'TEXT'],
+            ['marcacoes_placas', 'favorito', 'INTEGER DEFAULT 0'],
+            ['marcacoes_placas', 'tag_motorista', 'TEXT'],
         ]) {
             try { await dbRun(`ALTER TABLE ${tabela} ADD COLUMN IF NOT EXISTS ${coluna} ${tipo} `); } catch (e) { console.error(`Erro ao adicionar ${coluna} em ${tabela}`, e); }
         }

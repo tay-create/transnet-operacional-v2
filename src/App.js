@@ -25,6 +25,7 @@ const NovoLancamento       = React.lazy(() => import('./components/NovoLancament
 const LogsAuditoria        = React.lazy(() => import('./components/LogsAuditoria'));
 const DashboardTV          = React.lazy(() => import('./components/DashboardTV'));
 const GestaoMarcacoes      = React.lazy(() => import('./components/GestaoMarcacoes'));
+const DashboardMarcacoes   = React.lazy(() => import('./components/DashboardMarcacoes'));
 const RelatorioOperacional = React.lazy(() => import('./components/RelatorioOperacional'));
 const PainelCadastro       = React.lazy(() => import('./components/PainelCadastro'));
 const HistoricoLiberacoes  = React.lazy(() => import('./components/HistoricoLiberacoes'));
@@ -1371,6 +1372,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'marcacao_placas' && temAcesso('marcacao_placas') && (
                     <GestaoMarcacoes socket={socket} />
+                )}
+
+                {abaAtiva === 'dashboard_marcacoes' && temAcesso('marcacao_placas') && (
+                    <DashboardMarcacoes />
                 )}
 
                 {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado' || temAcesso('saldo_paletes')) && (

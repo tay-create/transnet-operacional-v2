@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X } from 'lucide-react';
+import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X, AlertTriangle } from 'lucide-react';
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
 
@@ -113,6 +113,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [filtroEstado, setFiltroEstado] = useState('');
     const [filtroDisponibilidade, setFiltroDisponibilidade] = useState('');
     const [filtroStatusOp, setFiltroStatusOp] = useState('');
+    const [filtroTag, setFiltroTag] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const [totalMarcacoes, setTotalMarcacoes] = useState(0);
     const ITENS_POR_PAGINA = 50;
@@ -161,18 +162,18 @@ export default function GestaoMarcacoes({ socket }) {
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
-        else if (aba === 'placas' || aba === 'frota') carregarMarcacoes(1);
+        else if (aba === 'placas') carregarMarcacoes(1);
     }, [aba, carregarTokens, carregarMarcacoes]);
 
     // Recarrega ao mudar filtros (reset para página 1)
     useEffect(() => {
-        if (aba !== 'placas' && aba !== 'frota') return;
+        if (aba !== 'placas') return;
         carregarMarcacoes(1);
     }, [filtroDisponibilidade, filtroStatusOp, filtroEstado]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Busca com debounce
     useEffect(() => {
-        if (aba !== 'placas' && aba !== 'frota') return;
+        if (aba !== 'placas') return;
         const t = setTimeout(() => carregarMarcacoes(1), 400);
         return () => clearTimeout(t);
     }, [buscaMarcacoes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,7 +181,7 @@ export default function GestaoMarcacoes({ socket }) {
     useEffect(() => {
         if (!socket) return;
         const atualizar = (payload) => {
-            if (aba !== 'placas' && aba !== 'frota') return;
+            if (aba !== 'placas') return;
             // Remoção pontual — atualiza estado local sem re-fetch
             if (payload?.tipo === 'marcacao_removida' && payload?.id) {
                 setMarcacoes(prev => {
@@ -274,6 +275,21 @@ export default function GestaoMarcacoes({ socket }) {
         } catch (e) { mostrarToast('Erro ao atualizar localização.'); }
     }
 
+    async function toggleTag(m, campo) {
+        let body = {};
+        if (campo === 'favorito') {
+            body = { favorito: m.favorito ? 0 : 1 };
+        } else if (campo === 'tag_motorista') {
+            body = { tag_motorista: m.tag_motorista === 'PROBLEMÁTICO' ? null : 'PROBLEMÁTICO' };
+        }
+        try {
+            const r = await api.put(`/api/marcacoes/${m.id}/tag`, body);
+            if (r.data.success) {
+                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, ...body } : x));
+            }
+        } catch (e) { mostrarToast('Erro ao atualizar tag.'); }
+    }
+
     // Frota: apenas nome e telefone — placas inseridas depois no despacho
     async function cadastrarFrota() {
         const { nome_motorista, telefone } = formFrota;
@@ -365,8 +381,13 @@ export default function GestaoMarcacoes({ socket }) {
 
     const ff = (campo) => (e) => setFormFrota(prev => ({ ...prev, [campo]: e.target.value }));
 
-    // Filtros são server-side; apenas exclui is_frota localmente
-    const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => !m.is_frota), [marcacoes]);
+    // Filtros são server-side; exclui is_frota e aplica filtroTag localmente
+    const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => {
+        if (m.is_frota) return false;
+        if (filtroTag === 'favorito' && !m.favorito) return false;
+        if (filtroTag === 'problematico' && m.tag_motorista !== 'PROBLEMÁTICO') return false;
+        return true;
+    }), [marcacoes, filtroTag]);
 
     function ModalDetalhes({ m, onClose }) {
         const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
@@ -464,9 +485,6 @@ export default function GestaoMarcacoes({ socket }) {
                 </button>
                 <button style={s.tab(aba === 'placas')} onClick={() => setAba('placas')}>
                     Lista de Marcações
-                </button>
-                <button style={s.tab(aba === 'frota')} onClick={() => setAba('frota')}>
-                    Frota Própria
                 </button>
             </div>
 
@@ -633,6 +651,20 @@ export default function GestaoMarcacoes({ socket }) {
                                 <option value="indisponivel">Indisponível</option>
                                 <option value="contratado">Contratado</option>
                             </select>
+                            <select
+                                value={filtroTag}
+                                onChange={e => setFiltroTag(e.target.value)}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '140px', maxWidth: '180px',
+                                    cursor: 'pointer', color: filtroTag ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroTag ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Todas as tags</option>
+                                <option value="favorito">Favoritos</option>
+                                <option value="problematico">Problemáticos</option>
+                            </select>
                         </div>
                         <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>
                             <RefreshCw size={14} /> Atualizar
@@ -662,6 +694,7 @@ export default function GestaoMarcacoes({ socket }) {
                                         <th style={s.th}>Localização</th>
                                         <th style={s.th}>Status</th>
                                         <th style={s.th}>Viagens</th>
+                                        <th style={s.th}>Tags</th>
                                         <th style={s.th}>Anexos</th>
                                         <th style={s.th}></th>
                                     </tr>
@@ -692,6 +725,16 @@ export default function GestaoMarcacoes({ socket }) {
                                                                 borderRadius: '4px', padding: '1px 6px'
                                                             }}>
                                                                 <Star size={9} /> NOVATO
+                                                            </span>
+                                                        ) : null}
+                                                        {m.favorito ? (
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: '700', color: '#facc15', background: 'rgba(250,204,21,0.12)', border: '1px solid rgba(250,204,21,0.3)', borderRadius: '4px', padding: '1px 6px' }}>
+                                                                <Star size={9} fill="#facc15" /> FAVORITO
+                                                            </span>
+                                                        ) : null}
+                                                        {m.tag_motorista === 'PROBLEMÁTICO' ? (
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: '700', color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '1px 6px' }}>
+                                                                <AlertTriangle size={9} /> PROBLEMÁTICO
                                                             </span>
                                                         ) : null}
                                                     </div>
@@ -787,6 +830,32 @@ export default function GestaoMarcacoes({ socket }) {
                                                     </span>
                                                 </td>
                                                 <td style={s.td}>
+                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                        <button
+                                                            onClick={() => toggleTag(m, 'favorito')}
+                                                            title={m.favorito ? 'Remover favorito' : 'Marcar como favorito'}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                                                                color: m.favorito ? '#facc15' : '#334155',
+                                                                opacity: m.favorito ? 1 : 0.5
+                                                            }}
+                                                        >
+                                                            <Star size={16} fill={m.favorito ? '#facc15' : 'none'} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => toggleTag(m, 'tag_motorista')}
+                                                            title={m.tag_motorista === 'PROBLEMÁTICO' ? 'Remover tag problemático' : 'Marcar como problemático'}
+                                                            style={{
+                                                                background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                                                                color: m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : '#334155',
+                                                                opacity: m.tag_motorista === 'PROBLEMÁTICO' ? 1 : 0.5
+                                                            }}
+                                                        >
+                                                            <AlertTriangle size={16} fill={m.tag_motorista === 'PROBLEMÁTICO' ? '#f87171' : 'none'} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td style={s.td}>
                                                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '120px' }}>
                                                         {m.comprovante_pdf && <a href={m.comprovante_pdf} download={`PDF_ORIG_${m.placa1}_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>PDF Orig.</a>}
                                                         {m.anexo_cnh && <a href={m.anexo_cnh} download={`CNH_${m.nome_motorista}.pdf`} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#60a5fa', textDecoration: 'none', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(59,130,246,0.3)' }}>CNH</a>}
@@ -842,84 +911,6 @@ export default function GestaoMarcacoes({ socket }) {
                 </>
             )}
 
-            {/* ABA: FROTA PRÓPRIA — apenas Nome e Telefone */}
-            {aba === 'frota' && (
-                <>
-                    <div style={s.card}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                            <Truck size={16} color="#60a5fa" />
-                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9' }}>Cadastrar Motorista da Frota</span>
-                        </div>
-                        <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px', marginTop: '-8px' }}>
-                            Adiciona o motorista diretamente na fila de disponíveis, sem necessidade de link.
-                            As placas serão vinculadas no momento do despacho. Identificado como <strong style={{ color: '#60a5fa' }}>FROTA</strong>.
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                            <div>
-                                <label style={s.label}>Nome *</label>
-                                <input style={{ ...s.input, width: '100%' }} value={formFrota.nome_motorista}
-                                    onChange={ff('nome_motorista')} placeholder="Nome completo" />
-                            </div>
-                            <div>
-                                <label style={s.label}>Telefone (com DDD) *</label>
-                                <input style={{ ...s.input, width: '100%' }} value={formFrota.telefone}
-                                    onChange={ff('telefone')} placeholder="(81) 99999-9999" type="tel" />
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button style={s.btn('blue')} onClick={cadastrarFrota} disabled={salvandoFrota}>
-                                <Truck size={15} /> {salvandoFrota ? 'Salvando...' : 'Adicionar à Fila'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div style={{ ...s.card, background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                            <strong style={{ color: '#60a5fa' }}>Dica:</strong> Se o motorista já estiver na fila (mesmo telefone), os dados serão <strong>atualizados</strong> e o SLA reiniciado.
-                        </p>
-                    </div>
-
-                    {/* Lista de Motoristas da Frota */}
-                    <div style={{ overflowX: 'auto', marginTop: '16px' }}>
-                        <table style={s.table}>
-                            <thead>
-                                <tr>
-                                    <th style={s.th}>Motorista</th>
-                                    <th style={s.th}>Telefone</th>
-                                    <th style={s.th}>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {marcacoes.filter(m => m.is_frota === 1).map(m => (
-                                    <tr key={m.id}>
-                                        <td style={s.td}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                                {m.nome_motorista}
-                                                <span style={s.badgeFreota}><Truck size={10} /> FROTA</span>
-                                            </div>
-                                        </td>
-                                        <td style={s.td}>{linkWpp(m.telefone) ? <a href={linkWpp(m.telefone)} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none' }}>{formatarTelefone(m.telefone)}</a> : formatarTelefone(m.telefone)}</td>
-                                        <td style={s.td}>
-                                            <button style={{ ...s.btn('red'), padding: '6px 8px' }} onClick={() => excluirMarcacao(m.id)} title="Remover da fila">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {marcacoes.filter(m => m.is_frota === 1).length === 0 && (
-                                    <tr>
-                                        <td colSpan="3" style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '20px' }}>
-                                            Nenhum motorista de frota na fila.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
-            )}
 
             {modalMarcacao && <ModalDetalhes m={modalMarcacao} onClose={() => setModalMarcacao(null)} />}
             {toast && <div style={s.toast}>{toast}</div>}

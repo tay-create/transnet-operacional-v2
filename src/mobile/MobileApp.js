@@ -140,7 +140,10 @@ export default function MobileApp({ socket }) {
                 zIndex: 1000,
             }}>
                 {NAV_ITEMS.filter(item => {
-                    if (item.id === 'marcacoes') return temAcesso('marcacao_placas');
+                    if (item.id === 'marcacoes') {
+                        const c = (user?.cargo || '').toUpperCase();
+                        return temAcesso('marcacao_placas') || ['COORDENADOR', 'DIREÇÃO', 'PLANEJAMENTO', 'POS EMBARQUE', 'CADASTRO', 'CONHECIMENTO'].includes(c);
+                    }
                     if (item.id === 'checklist') return temChecklist;
                     return true;
                 }).map(item => {

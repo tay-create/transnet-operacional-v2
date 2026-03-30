@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -211,30 +211,39 @@ export default function Sidebar({
                     </>
                 )}
 
-                {/* FROTA */}
-                {(temAcesso('checklist_carreta') || temAcesso('saldo_paletes') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
+                {/* MARCAÇÃO DE PLACAS */}
+                {(ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
+                    <>
+                        <Divider label="Marcação de Placas" aberto={aberto} />
+                        <MenuItem
+                            icon={<MapPin size={20} />}
+                            label="Marcação de Placa"
+                            subItem
+                            aberto={aberto}
+                            onClick={() => setAbaAtiva('marcacao_placas')}
+                        />
+                        <MenuItem
+                            icon={<LayoutDashboard size={20} />}
+                            label="Dashboard de Marcações"
+                            subItem
+                            aberto={aberto}
+                            onClick={() => setAbaAtiva('dashboard_marcacoes')}
+                        />
+                    </>
+                )}
+
+                {/* CHECKLIST */}
+                {(temAcesso('checklist_carreta') || temAcesso('saldo_paletes') || ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE') && (
                     <>
                         <Divider label="Checklist" aberto={aberto} />
                         {(temAcesso('checklist_carreta') || ehCoordenador) && (
                             <MenuItem
                                 icon={<ClipboardCheck size={20} />}
                                 label="Checklist da Carreta"
-
                                 subItem
                                 aberto={aberto}
                                 onClick={() => setAbaAtiva('checklist_carreta')}
                             />
-                        )}
-                        {(ehCoordenador || cargo === 'PLANEJAMENTO' || cargo === 'POS EMBARQUE' || cargo === 'CADASTRO' || cargo === 'CONHECIMENTO') && (
-                            <>
-                                <MenuItem
-                                    icon={<MapPin size={20} />}
-                                    label="Marcação de Placas"
-                                    subItem
-                                    aberto={aberto}
-                                    onClick={() => setAbaAtiva('marcacao_placas')}
-                                />
-                            </>
                         )}
                         {(ehCoordenador || cargo === 'PLANEJAMENTO' || temAcesso('saldo_paletes')) && (
                             <MenuItem

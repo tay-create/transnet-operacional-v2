@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save, Users, Truck } from 'lucide-react';
 import api from '../services/apiService';
 
 const TIPOS_VEICULO = ['TRUCK', 'CARRETA', 'CONJUNTO', '3/4'];
@@ -93,6 +93,51 @@ const FORM_VAZIO = { placa: '', carreta: '', tipo_veiculo: 'TRUCK', modelo: '', 
 
 export default function ProvisionamentoFrota({ socket, user }) {
     const podeEditar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
+
+    const [abaAtiva, setAbaAtiva] = useState('prov'); // 'prov' | 'frota'
+    const [motoristasFreota, setMotoristasFreota] = useState([]);
+    const [loadingFrota, setLoadingFrota] = useState(false);
+    const [formFrota, setFormFrota] = useState({ nome_motorista: '', telefone: '' });
+    const [salvandoFrota, setSalvandoFrota] = useState(false);
+    const [toastFrota, setToastFrota] = useState('');
+
+    function mostrarToastFrota(msg) { setToastFrota(msg); setTimeout(() => setToastFrota(''), 2800); }
+
+    const carregarFrota = useCallback(async () => {
+        setLoadingFrota(true);
+        try {
+            const r = await api.get('/api/cadastro/frota');
+            if (r.data.success) setMotoristasFreota(r.data.motoristas || []);
+        } catch (e) { console.error('Erro ao carregar frota:', e); }
+        finally { setLoadingFrota(false); }
+    }, []);
+
+    useEffect(() => {
+        if (abaAtiva === 'frota') carregarFrota();
+    }, [abaAtiva, carregarFrota]);
+
+    async function cadastrarFrota() {
+        const { nome_motorista, telefone } = formFrota;
+        if (!nome_motorista.trim() || !telefone.trim()) { mostrarToastFrota('Preencha Nome e Telefone.'); return; }
+        setSalvandoFrota(true);
+        try {
+            const r = await api.post('/api/frota', { nome_motorista, telefone });
+            if (r.data.success) {
+                setFormFrota({ nome_motorista: '', telefone: '' });
+                mostrarToastFrota('Motorista adicionado à fila!');
+                carregarFrota();
+            } else { mostrarToastFrota(r.data.message || 'Erro ao cadastrar.'); }
+        } catch (e) { mostrarToastFrota('Erro de conexão.'); }
+        finally { setSalvandoFrota(false); }
+    }
+
+    async function removerFrota(id) {
+        try {
+            await api.delete(`/api/cadastro/frota/${id}`);
+            setMotoristasFreota(prev => prev.filter(m => m.id !== id));
+            mostrarToastFrota('Motorista removido.');
+        } catch (e) { mostrarToastFrota('Erro ao remover.'); }
+    }
 
     const [semanaInicio, setSemanaInicio] = useState(() => getHoje());
 
@@ -257,8 +302,28 @@ export default function ProvisionamentoFrota({ socket, user }) {
     return (
         <div style={{ padding: '16px 20px', height: 'calc(100vh - 124px)', overflowY: 'auto', overflowX: 'auto' }}>
 
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
+                <button onClick={() => setAbaAtiva('prov')} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
+                    borderRadius: '7px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+                    background: abaAtiva === 'prov' ? 'rgba(125,211,252,0.15)' : 'transparent',
+                    color: abaAtiva === 'prov' ? '#7dd3fc' : '#64748b'
+                }}>
+                    <Truck size={14} /> Provisionamento
+                </button>
+                <button onClick={() => setAbaAtiva('frota')} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px',
+                    borderRadius: '7px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
+                    background: abaAtiva === 'frota' ? 'rgba(125,211,252,0.15)' : 'transparent',
+                    color: abaAtiva === 'frota' ? '#7dd3fc' : '#64748b'
+                }}>
+                    <Users size={14} /> Cadastro da Frota
+                </button>
+            </div>
+
+            {/* Header (só na aba Provisionamento) */}
+            {abaAtiva === 'prov' && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                 <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#f1f5f9', letterSpacing: '0.05em' }}>
                     PROVISIONAMENTO DE FROTA
                 </h2>
@@ -274,13 +339,82 @@ export default function ProvisionamentoFrota({ socket, user }) {
                         </button>
                     )}
                 </div>
-            </div>
+            </div>}
 
-            {carregando && (
+            {/* ABA: CADASTRO DA FROTA */}
+            {abaAtiva === 'frota' && (
+                <div>
+                    <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: '700', color: '#f1f5f9', letterSpacing: '0.05em' }}>CADASTRO DA FROTA</h2>
+                    <div style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '20px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                            <Users size={15} color="#7dd3fc" />
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#f1f5f9' }}>Adicionar Motorista da Frota</span>
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 14px' }}>
+                            Adiciona o motorista diretamente na fila de disponíveis, sem link. As placas serão vinculadas no despacho.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <div>
+                                <label style={s.label}>Nome *</label>
+                                <input style={s.input} value={formFrota.nome_motorista}
+                                    onChange={e => setFormFrota(f => ({ ...f, nome_motorista: e.target.value }))}
+                                    placeholder="Nome completo" />
+                            </div>
+                            <div>
+                                <label style={s.label}>Telefone (com DDD) *</label>
+                                <input style={s.input} value={formFrota.telefone}
+                                    onChange={e => setFormFrota(f => ({ ...f, telefone: e.target.value }))}
+                                    placeholder="(81) 99999-9999" type="tel" />
+                            </div>
+                        </div>
+                        <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button style={s.btnPrimary} onClick={cadastrarFrota} disabled={salvandoFrota}>
+                                <Plus size={13} /> {salvandoFrota ? 'Salvando...' : 'Adicionar à Fila'}
+                            </button>
+                        </div>
+                    </div>
+                    {loadingFrota ? (
+                        <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>Carregando...</div>
+                    ) : (
+                        <table style={{ ...s.table, minWidth: '400px' }}>
+                            <thead>
+                                <tr>
+                                    <th style={s.th}>MOTORISTA</th>
+                                    <th style={s.th}>TELEFONE</th>
+                                    {podeEditar && <th style={{ ...s.th, width: '60px' }}></th>}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {motoristasFreota.length === 0 && (
+                                    <tr><td colSpan={podeEditar ? 3 : 2} style={{ ...s.td, textAlign: 'center', color: '#64748b', padding: '30px' }}>Nenhum motorista de frota cadastrado.</td></tr>
+                                )}
+                                {motoristasFreota.map(m => (
+                                    <tr key={m.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                        <td style={s.td}>
+                                            <span style={{ fontWeight: '700', color: '#e2e8f0', textTransform: 'uppercase', fontSize: '12px' }}>{m.nome_motorista}</span>
+                                        </td>
+                                        <td style={{ ...s.td, color: '#94a3b8', fontSize: '12px' }}>{m.telefone}</td>
+                                        {podeEditar && (
+                                            <td style={s.td}>
+                                                <button onClick={() => removerFrota(m.id)} style={{ ...s.btnIcon, color: '#f87171' }} title="Remover">
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </td>
+                                        )}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                    {toastFrota && <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999 }}>{toastFrota}</div>}
+                </div>
+            )}
+
+            {abaAtiva === 'prov' && carregando && (
                 <div style={{ textAlign: 'center', color: '#64748b', padding: '40px' }}>Carregando...</div>
             )}
 
-            {!carregando && (
+            {abaAtiva === 'prov' && !carregando && (
                 <div style={{ overflowX: 'auto' }}>
                     <table style={s.table}>
                         <thead>
