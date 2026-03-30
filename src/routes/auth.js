@@ -10,22 +10,57 @@ const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('h
 
 const router = express.Router();
 
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, message: 'Muitas tentativas de login. Tente novamente em 15 minutos.' }
-});
+// Rate limit por conta: 10 tentativas falhas → bloqueio de 15 min só para aquele usuário
+const TENTATIVAS_MAX = 10;
+const BLOQUEIO_MS = 15 * 60 * 1000;
+const tentativasLogin = new Map(); // email → { count, bloqueadoAte }
 
-router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
+function registrarTentativaFalha(email) {
+    const agora = Date.now();
+    const entrada = tentativasLogin.get(email) || { count: 0, bloqueadoAte: null };
+    // Se o bloqueio anterior já expirou, zera
+    if (entrada.bloqueadoAte && agora > entrada.bloqueadoAte) {
+        entrada.count = 0;
+        entrada.bloqueadoAte = null;
+    }
+    entrada.count++;
+    if (entrada.count >= TENTATIVAS_MAX) {
+        entrada.bloqueadoAte = agora + BLOQUEIO_MS;
+    }
+    tentativasLogin.set(email, entrada);
+}
+
+function estaBloqueado(email) {
+    const entrada = tentativasLogin.get(email);
+    if (!entrada || !entrada.bloqueadoAte) return false;
+    if (Date.now() > entrada.bloqueadoAte) {
+        tentativasLogin.delete(email);
+        return false;
+    }
+    return true;
+}
+
+function limparTentativas(email) {
+    tentativasLogin.delete(email);
+}
+
+router.post('/login', validate(loginSchema), async (req, res) => {
     const { nome, senha } = req.body;
     const emailLogin = nome.trim().toLowerCase();
+
+    // Verificar bloqueio por conta antes de qualquer consulta
+    if (estaBloqueado(emailLogin)) {
+        return res.status(429).json({
+            success: false,
+            message: 'Muitas tentativas de login. Tente novamente em 15 minutos.'
+        });
+    }
 
     try {
         const usuario = await dbGet("SELECT * FROM usuarios WHERE email = ?", [emailLogin]);
 
         if (!usuario) {
+            registrarTentativaFalha(emailLogin);
             return res.status(401).json({
                 success: false,
                 message: 'Credenciais inválidas'
@@ -36,11 +71,15 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
         const senhaValida = await bcrypt.compare(senha, usuario.senha);
 
         if (!senhaValida) {
+            registrarTentativaFalha(emailLogin);
             return res.status(401).json({
                 success: false,
                 message: 'Credenciais inválidas'
             });
         }
+
+        // Login bem-sucedido: limpar contador de tentativas
+        limparTentativas(emailLogin);
 
         // Verificar limite de sessões simultâneas (máximo 3)
         const contaSessoes = await dbGet(
