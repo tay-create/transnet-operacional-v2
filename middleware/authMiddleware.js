@@ -106,7 +106,9 @@ const authorize = (cargosPermitidos) => {
             });
         }
 
-        if (!cargosPermitidos.includes(req.user.cargo)) {
+        const CARGOS_ADMIN = ['Coordenador', 'Direção'];
+        const temAcesso = CARGOS_ADMIN.includes(req.user.cargo) || cargosPermitidos.includes(req.user.cargo);
+        if (!temAcesso) {
             return res.status(403).json({
                 success: false,
                 message: 'Acesso negado: permissão insuficiente'
