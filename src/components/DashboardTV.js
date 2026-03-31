@@ -405,8 +405,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     Status de Embarque Geral
                 </h3>
                 <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 60 }}>
-                        <XAxis dataKey="name" tick={{ fontSize: 9, fill: t.textMuted }} angle={-35} textAnchor="end" interval={0} />
+                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 5 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 8, fill: t.textMuted, fontWeight: '700' }} interval={0} />
                         <YAxis tick={{ fontSize: 10, fill: t.textMuted }} allowDecimals={false} />
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
@@ -1278,7 +1278,7 @@ function StatusBars({ dados, t }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
             {dados.map(d => (
                 <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '130px', fontSize: '10px', color: t.textMuted, textAlign: 'right', flexShrink: 0 }}>{d.name}</span>
+                    <span style={{ width: '130px', fontSize: '11px', fontWeight: '700', color: t.textMuted, textAlign: 'right', flexShrink: 0 }}>{d.name}</span>
                     <div style={{ flex: 1, height: '20px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{
                             width: `${(d.value / max) * 100}%`, height: '100%',
