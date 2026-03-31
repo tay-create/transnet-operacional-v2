@@ -404,9 +404,20 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                 <h3 style={{ fontSize: '12px', fontWeight: '700', color: t.textMuted, marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '2px', textAlign: 'center' }}>
                     Status de Embarque Geral
                 </h3>
-                <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 5 }}>
-                        <XAxis dataKey="name" tick={{ fontSize: 8, fill: t.textMuted, fontWeight: '700' }} interval={0} />
+                <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 30 }}>
+                        <XAxis dataKey="name" interval={0} height={50} tick={(props) => {
+                            const { x, y, payload } = props;
+                            const parts = payload.value.includes('P/') ? payload.value.split('P/') : [payload.value];
+                            const linha1 = parts.length > 1 ? parts[0].trim() + ' P/' : parts[0];
+                            const linha2 = parts.length > 1 ? parts[1].trim() : null;
+                            return (
+                                <g transform={`translate(${x},${y})`}>
+                                    <text x={0} y={0} dy={10} textAnchor="middle" fill={t.textMuted} fontSize={10} fontWeight="700">{linha1}</text>
+                                    {linha2 && <text x={0} y={0} dy={23} textAnchor="middle" fill={t.textMuted} fontSize={10} fontWeight="700">{linha2}</text>}
+                                </g>
+                            );
+                        }} />
                         <YAxis tick={{ fontSize: 10, fill: t.textMuted }} allowDecimals={false} />
                         <Tooltip
                             cursor={{ fill: 'transparent' }}
