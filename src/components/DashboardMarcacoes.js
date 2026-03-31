@@ -296,14 +296,14 @@ export default function DashboardMarcacoes() {
                             )}
                         </div>
                         <div style={s.secao}>
-                            <div style={s.titulo}><Users size={13} /> Novatos vs Parceiros</div>
+                            <div style={s.titulo}><Users size={13} /> Novatos e Parceiros</div>
                             {(() => {
                                 const { novatos, parceiros_baixo, parceiros_alto } = stats.novatos_parceiros;
                                 const total = novatos + parceiros_baixo + parceiros_alto || 1;
                                 return [
-                                    { label: 'Novatos (0 viagens)', valor: novatos, cor: '#fb923c' },
-                                    { label: 'Iniciantes (1-4 viagens)', valor: parceiros_baixo, cor: '#60a5fa' },
-                                    { label: 'Experientes (5+ viagens)', valor: parceiros_alto, cor: '#4ade80' },
+                                    { label: 'Novatos', valor: novatos, cor: '#fb923c' },
+                                    { label: 'Parceiros', valor: parceiros_baixo, cor: '#60a5fa' },
+                                    { label: 'Recorrentes', valor: parceiros_alto, cor: '#4ade80' },
                                 ].map(r => (
                                     <BarraHorizontal key={r.label} label={r.label} valor={r.valor} max={total} cor={r.cor} />
                                 ));

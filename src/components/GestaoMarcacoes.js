@@ -113,6 +113,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [filtroStatusOp, setFiltroStatusOp] = useState('');
     const [filtroTag, setFiltroTag] = useState('');
     const [filtroTipoVeiculo, setFiltroTipoVeiculo] = useState('');
+    const [filtroTempo, setFiltroTempo] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const [totalMarcacoes, setTotalMarcacoes] = useState(0);
     const ITENS_POR_PAGINA = 50;
@@ -372,13 +373,30 @@ export default function GestaoMarcacoes({ socket }) {
         return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
-    // Filtros são server-side; exclui is_frota e aplica filtroTag localmente
+    const FAIXAS_TEMPO = [
+        { label: 'Até 2 horas',    minutos: [0, 120] },
+        { label: '2h a 6 horas',   minutos: [120, 360] },
+        { label: '6h a 12 horas',  minutos: [360, 720] },
+        { label: '12h a 24 horas', minutos: [720, 1440] },
+        { label: '1 a 3 dias',     minutos: [1440, 4320] },
+        { label: '3 a 7 dias',     minutos: [4320, 10080] },
+        { label: '7 a 15 dias',    minutos: [10080, 21600] },
+    ];
+
+    // Filtros são server-side; exclui is_frota e aplica filtroTag/filtroTempo localmente
     const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => {
         if (m.is_frota) return false;
         if (filtroTag === 'favorito' && !m.favorito) return false;
         if (filtroTag === 'problematico' && m.tag_motorista !== 'PROBLEMÁTICO') return false;
+        if (filtroTempo) {
+            const faixa = FAIXAS_TEMPO.find(f => f.label === filtroTempo);
+            if (faixa) {
+                const mins = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
+                if (mins === null || mins < faixa.minutos[0] || mins >= faixa.minutos[1]) return false;
+            }
+        }
         return true;
-    }), [marcacoes, filtroTag]);
+    }), [marcacoes, filtroTag, filtroTempo, tick]); // eslint-disable-line react-hooks/exhaustive-deps
 
     function ModalDetalhes({ m, onClose }) {
         const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
@@ -672,6 +690,21 @@ export default function GestaoMarcacoes({ socket }) {
                                 <option value="Carreta 4 Eixos">Carreta 4 Eixos</option>
                                 <option value="Carreta 5 Eixos">Carreta 5 Eixos</option>
                                 <option value="Carreta 6 Eixos">Carreta 6 Eixos</option>
+                            </select>
+                            <select
+                                value={filtroTempo}
+                                onChange={e => setFiltroTempo(e.target.value)}
+                                style={{
+                                    ...s.input,
+                                    minWidth: '140px', maxWidth: '180px',
+                                    cursor: 'pointer', color: filtroTempo ? '#60a5fa' : '#64748b',
+                                    fontWeight: filtroTempo ? '700' : '400'
+                                }}
+                            >
+                                <option value="">Fila (tempo)</option>
+                                {FAIXAS_TEMPO.map(f => (
+                                    <option key={f.label} value={f.label}>{f.label}</option>
+                                ))}
                             </select>
                         </div>
                         <button style={s.btn()} onClick={() => carregarMarcacoes(paginaMarcacoes)}>
