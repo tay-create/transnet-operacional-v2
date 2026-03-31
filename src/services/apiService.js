@@ -35,15 +35,17 @@ axiosApi.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            const isConferente = window.location.pathname.startsWith('/conferente');
-            if (isConferente) {
-                const url = error.config?.url || '';
+            const pathname = window.location.pathname;
+            const isConferente = pathname.startsWith('/conferente');
+            const isMobile = pathname.startsWith('/mobile');
+            const url = error.config?.url || '';
+            if (isConferente || isMobile) {
                 if (!url.includes('/login')) {
                     useAuthStore.getState().logout();
                 }
             } else {
                 useAuthStore.getState().logout();
-                if (window.location.pathname !== '/login') {
+                if (pathname !== '/login') {
                     window.location.href = '/';
                 }
             }
