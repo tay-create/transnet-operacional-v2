@@ -1459,7 +1459,7 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
                     // Colunas dedicadas têm prioridade sobre dados_json
                     motorista: row.motorista || dados.motorista || '',
                     placa1Motorista: row.placa1 || dados.placa1Motorista || '',
-                    coleta: row.coleta || dados.coleta || '',
+                    coleta: row.coleta || dados.coletaRecife || dados.coletaMoreno || '',
                     numero_liberacao: row.numero_liberacao || dados.numero_liberacao || '',
                     data_liberacao: row.data_liberacao || dados.data_liberacao || null,
                     origem_cad: row.origem_cad || dados.origem_cad || '',
@@ -1504,7 +1504,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
                 origem, status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
-                dados.coleta || null,
+                dados.coletaRecife || dados.coletaMoreno || null,
                 dados.numero_liberacao || null,
                 dados.data_liberacao || null,
                 dados.origem_cad || null,
@@ -1514,7 +1514,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
             ]
         );
         const novo = { id: result.lastID, origem, status, ...dados };
-        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coleta || '-'}`);
+        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coletaRecife || dados.coletaMoreno || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) {
@@ -1534,7 +1534,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
-                dados.coleta || null,
+                dados.coletaRecife || dados.coletaMoreno || null,
                 dados.numero_liberacao || null,
                 dados.data_liberacao || null,
                 dados.origem_cad || null,

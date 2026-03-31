@@ -374,7 +374,13 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
                 // Placas cadastradas no Provisionamento tambem ignoram as travas (igual frota)
                 if (!isFrota) {
-                    const placasVeiculo = [veiculoAntigo.placa, veiculoAntigo.carreta].filter(p => p && p !== '-');
+                    // A placa pode estar na coluna direta ou dentro do dados_json (placa1Motorista/placa2Motorista)
+                    const placasVeiculo = [
+                        veiculoAntigo.placa,
+                        dadosAntigos.placa,
+                        dadosAntigos.placa1Motorista,
+                        dadosAntigos.placa2Motorista,
+                    ].filter(p => p && p !== '-' && p.trim() !== '');
                     if (placasVeiculo.length > 0) {
                         const ph = placasVeiculo.map(() => '?').join(', ');
                         const provV = await dbGet(

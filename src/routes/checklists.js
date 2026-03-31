@@ -319,7 +319,12 @@ module.exports = function createChecklistsRouter(io) {
 
                 // Placas cadastradas no Provisionamento também ignoram as travas (igual frota)
                 if (!isFrota) {
-                    const placasVeiculo = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
+                    const placasVeiculo = [
+                        veiculo.placa,
+                        dados.placa,
+                        dados.placa1Motorista,
+                        dados.placa2Motorista,
+                    ].filter(p => p && p !== '-' && p.trim() !== '');
                     if (placasVeiculo.length > 0) {
                         const ph = placasVeiculo.map(() => '?').join(', ');
                         const provV = await dbGet(

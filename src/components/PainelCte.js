@@ -1,7 +1,13 @@
-import React, { useEffect } from 'react';
-import { Copy } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Copy, ChevronRight, Loader, Trash2 } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
+
+const COR_STATUS_CTE = {
+    'Aguardando Emissão': { border: '#f59e0b', text: '#fcd34d', bg: 'rgba(245,158,11,0.15)' },
+    'Em Emissão':         { border: '#3b82f6', text: '#93c5fd', bg: 'rgba(59,130,246,0.15)' },
+    'Emitido':            { border: '#22c55e', text: '#86efac', bg: 'rgba(34,197,94,0.15)'  },
+};
 
 export default function PainelCte({
     abaAtiva,
@@ -111,7 +117,50 @@ export default function PainelCte({
                 {ctesFiltrados.map((cte) => {
                     const realIndex = listaCtes.findIndex(c => c.id === cte.id);
                     return (
-                    <div key={cte.id ?? realIndex} className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
+                    <CardCte
+                        key={cte.id ?? realIndex}
+                        cte={cte}
+                        realIndex={realIndex}
+                        listaCtes={listaCtes}
+                        setListaAtual={setListaAtual}
+                        corTema={corTema}
+                        bgBadge={bgBadge}
+                        isRecife={isRecife}
+                        podeEditar={podeEditar}
+                        updateListCte={updateListCte}
+                        setToastCopiaMsg={setToastCopiaMsg}
+                    />
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, isRecife, podeEditar, updateListCte, setToastCopiaMsg }) {
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+
+    const idxAtual = OPCOES_STATUS_CTE.indexOf(cte.status);
+    const proximoStatus = OPCOES_STATUS_CTE[idxAtual + 1] || null;
+    const corAtual = COR_STATUS_CTE[cte.status] || { border: '#64748b', text: '#94a3b8', bg: 'rgba(100,116,139,0.15)' };
+    const corProximo = proximoStatus ? COR_STATUS_CTE[proximoStatus] : null;
+
+    const avancarStatus = async () => {
+        if (!proximoStatus || salvando) return;
+        setSalvando(true);
+        setErro('');
+        try {
+            await updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, isRecife ? 'Recife' : 'Moreno');
+        } catch (e) {
+            setErro(e.response?.data?.message || 'Erro ao atualizar status.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    return (
+                    <div className="card-cte-glass" style={{ borderLeft: `4px solid ${corTema}` }}>
                         {/* Topo do Card */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
                             <div style={{ flex: 1 }}>
@@ -164,9 +213,9 @@ export default function PainelCte({
                                         setListaAtual(prev => prev.filter(c => c.id !== cte.id));
                                     }}
                                     title="Remover Card"
-                                    style={{ border: 'none', background: 'rgba(239, 68, 68, 0.2)', color: '#fca5a5', borderRadius: '6px', padding: '6px', cursor: 'pointer', transition: '0.2s', marginLeft: '8px' }}
+                                    style={{ border: 'none', background: 'rgba(239,68,68,0.15)', color: '#fca5a5', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', marginLeft: '8px', display: 'flex', alignItems: 'center' }}
                                 >
-                                    🗑️
+                                    <Trash2 size={14} />
                                 </button>
                             )}
                         </div>
@@ -191,17 +240,45 @@ export default function PainelCte({
                                 <label>MOTORISTA RESPONSÁVEL</label>
                                 <input value={cte.motorista} readOnly />
                             </div>
-                            <div>
-                                <label>STATUS EMISSÃO</label>
-                                <select
-                                    value={cte.status}
-                                    onChange={e => updateListCte(listaCtes, setListaAtual, realIndex, 'status', e.target.value, isRecife ? 'Recife' : 'Moreno')}
-                                    disabled={!podeEditar('cte')}
-                                    style={{ borderColor: cte.status === 'Emitido' ? '#22c55e' : 'rgba(255,255,255,0.1)' }}
-                                >
-                                    {OPCOES_STATUS_CTE.map(st => <option key={st}>{st}</option>)}
-                                </select>
+
+                            {/* Status atual como badge */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>STATUS</label>
+                                <span style={{
+                                    padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700',
+                                    color: corAtual.text, background: corAtual.bg, border: `1px solid ${corAtual.border}`,
+                                }}>
+                                    {cte.status}
+                                </span>
                             </div>
+
+                            {/* Botão avançar status */}
+                            {podeEditar('cte') && proximoStatus && (
+                                <button
+                                    onClick={avancarStatus}
+                                    disabled={salvando}
+                                    style={{
+                                        width: '100%', padding: '11px',
+                                        borderRadius: '10px', border: 'none',
+                                        background: salvando ? 'rgba(255,255,255,0.05)' : `linear-gradient(135deg, ${corProximo.border}, ${corProximo.border}99)`,
+                                        color: 'white', fontSize: '13px', fontWeight: '700',
+                                        cursor: salvando ? 'not-allowed' : 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                        boxShadow: salvando ? 'none' : `0 4px 14px ${corProximo.border}44`,
+                                    }}
+                                >
+                                    {salvando
+                                        ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Salvando...</>
+                                        : <><ChevronRight size={14} /> {proximoStatus}</>
+                                    }
+                                </button>
+                            )}
+
+                            {erro && (
+                                <div style={{ fontSize: '11px', color: '#f87171', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', padding: '6px 10px' }}>
+                                    {erro}
+                                </div>
+                            )}
 
                             {/* Nº Liberação com botão Copiar */}
                             {cte.numero_liberacao && (
@@ -283,22 +360,18 @@ export default function PainelCte({
                             </div>
                             {cte.timestamps?.tempo_aguardando_emissao > 0 && (
                                 <div style={{ marginTop: '6px', fontSize: '11px', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    ⏱️ Aguardou: <strong>{cte.timestamps.tempo_aguardando_emissao} min</strong>
+                                    Aguardou: <strong>{cte.timestamps.tempo_aguardando_emissao} min</strong>
                                 </div>
                             )}
                             {cte.timestamps?.fim_emissao && (
                                 <div style={{ marginTop: '6px', fontSize: '11px', display: 'flex', justifyContent: 'space-between' }}>
                                     <span style={{ color: '#94a3b8' }}>Fim: <strong style={{ color: 'white' }}>{cte.timestamps.fim_emissao}</strong></span>
                                     {cte.minutos_cte > 0 && (
-                                        <span style={{ color: '#4ade80', fontWeight: '700' }}>⏱ {cte.minutos_cte} min</span>
+                                        <span style={{ color: '#4ade80', fontWeight: '700' }}>{cte.minutos_cte} min</span>
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
-                );
-                })}
-            </div>
-        </section>
     );
 }

@@ -396,6 +396,11 @@ function App({ socket }) {
         carregarVeiculos();
         carregarNotificacoes();
         carregarFila();
+        // Limpar CT-es antes de recarregar para não exibir dados de sessões anteriores
+        setCtesRecife([]);
+        setCtesMoreno([]);
+        setCtesRecifeHoje([]);
+        setCtesMorenoHoje([]);
         carregarCtes();
         // Verificar e-mail pessoal (cobre tanto login novo quanto sessão restaurada do localStorage)
         if (!user?.email_pessoal) {
@@ -600,7 +605,7 @@ function App({ socket }) {
         const duracao = calcularDiferencaHoras(item.timestamps?.inicio_emissao, item.timestamps?.fim_emissao);
         try {
             await api.post('/historico_cte', {
-                coleta: item.coleta,
+                coleta: item.coletaRecife || item.coletaMoreno,
                 motorista: item.motorista,
                 origem: origem,
                 inicio_emissao: item.timestamps?.inicio_emissao,
@@ -648,7 +653,6 @@ function App({ socket }) {
             status_coleta: { solicitado: '', liberado: '' },
             coletaRecife: formLanca.coletaRecife,
             coletaMoreno: formLanca.coletaMoreno,
-            coleta: unidadeForcada === 'Recife' ? formLanca.coletaRecife : formLanca.coletaMoreno,
             origem_criacao: unidadeForcada,
             inicio_rota: unidadeForcada,
             data_prevista: formLanca.data_prevista,
@@ -846,8 +850,7 @@ function App({ socket }) {
                     if (resp.data?.success && resp.data.veiculo) dadosAlerta = resp.data.veiculo;
                 } catch (_) { }
 
-                const coletaValida = (dadosAlerta.coleta && dadosAlerta.coleta.trim()) ||
-                    (dadosAlerta.coletaRecife && dadosAlerta.coletaRecife.trim()) ||
+                const coletaValida = (dadosAlerta.coletaRecife && dadosAlerta.coletaRecife.trim()) ||
                     (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim());
                 const motoristaValido = dadosAlerta.motorista && dadosAlerta.motorista.trim();
 
@@ -875,7 +878,7 @@ function App({ socket }) {
             if (campo.includes('status') && valor === 'LIBERADO P/ DOCA') {
                 const doca = origem === 'Recife' ? itemAtual.doca_recife : itemAtual.doca_moreno;
                 socket.emit('enviar_alerta', {
-                    coleta: itemAtual.coleta,
+                    coleta: origem === 'Recife' ? itemAtual.coletaRecife : itemAtual.coletaMoreno,
                     doca: doca || '?',
                     origem,
                     tipo: 'doca',
@@ -936,8 +939,7 @@ function App({ socket }) {
                 } catch (_) { /* usa dados locais como fallback */ }
 
                 const coletaValida = (dadosParaAlerta.coletaRecife && dadosParaAlerta.coletaRecife.trim()) ||
-                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim()) ||
-                    (dadosParaAlerta.coleta && dadosParaAlerta.coleta.trim());
+                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim());
                 const motorista = dadosParaAlerta.motorista?.trim();
 
                 if (motorista) {
@@ -995,7 +997,7 @@ function App({ socket }) {
                     statusAntigo: statusAnterior,
                     statusNovo: valor,
                     origem: origem,
-                    coleta: itemAtual.coleta || itemAtual.numero_coleta || 'N/A',
+                    coleta: itemAtual.coletaRecife || itemAtual.coletaMoreno || 'N/A',
                     usuario: user.nome
                 });
             } catch (error) {
