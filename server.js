@@ -1104,36 +1104,6 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
                 [num_liberacao_cad || null, novaDataLib, origem_cad || null, destino_uf_cad || null, destino_cidade_cad || null, atual.motorista]
             );
 
-            // Se CT-e ficou LIBERADO, criar registro em ctes_ativos automaticamente (se ainda não existe)
-            if (situacao === 'LIBERADO') {
-                const cteExistente = await dbGet(
-                    `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND coleta = $2 AND status != 'Emitido'`,
-                    [atual.motorista, dj.numero_coleta || dj.coleta || '']
-                );
-                if (!cteExistente) {
-                    const origemVeiculo = dj.unidade || dj.origem_criacao || dj.inicio_rota || 'Recife';
-                    const novoCte = {
-                        motorista: atual.motorista,
-                        placa: dj.placa1Motorista || dj.placa || '',
-                        coleta: dj.numero_coleta || dj.coleta || '',
-                        operacao: dj.operacao || '',
-                        data_entrada_cte: new Date().toLocaleDateString('pt-BR'),
-                        numero_liberacao: num_liberacao_cad || '',
-                        data_liberacao: novaDataLib,
-                        origem_cad: origem_cad || dj.origem_cad || '',
-                        destino_uf_cad: destino_uf_cad || dj.destino_uf_cad || '',
-                        destino_cidade_cad: destino_cidade_cad || dj.destino_cidade_cad || '',
-                        veiculo_id: Number(req.params.id),
-                    };
-                    const result = await dbRun(
-                        `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [origemVeiculo, 'Aguardando Emissão', JSON.stringify(novoCte), atual.motorista, novoCte.placa, novoCte.coleta, num_liberacao_cad || null, novaDataLib, origem_cad || null, destino_uf_cad || null, destino_cidade_cad || null]
-                    );
-                    novoCte.id = result.lastID;
-                    io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novoCte });
-                }
-            }
 
             const ctesMotorista = await dbAll(
                 `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND status != 'Emitido'`,
