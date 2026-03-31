@@ -306,7 +306,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
 
     // Dados para gráfico de barras de status geral (Recife + Moreno separados)
     const dadosBarrasStatus = OPCOES_STATUS.map(s => ({
-        name: s.replace('AGUARDANDO P/ SEPARAÇÃO', 'AGUARDANDO').replace('LIBERADO P/ CARREGAMENTO', 'LIB CARREG.').replace('LIBERADO P/ ', 'LIB ').replace('EM ', ''),
+        name: s,
         fullName: s,
         Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && (v.status_recife === s || (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') || (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife))).length,
         Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && (v.status_moreno === s || (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_moreno === 'AGUARDANDO') || (s === 'LIBERADO P/ CARREGAMENTO' && v.status_moreno === 'LIBERADO P/ DOCA') || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno))).length,
@@ -405,8 +405,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     Status de Embarque Geral
                 </h3>
                 <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 5 }}>
-                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: t.textMuted }} />
+                    <BarChart data={dadosBarrasStatus} margin={{ top: 20, right: 20, left: -15, bottom: 60 }}>
+                        <XAxis dataKey="name" tick={{ fontSize: 9, fill: t.textMuted }} angle={-35} textAnchor="end" interval={0} />
                         <YAxis tick={{ fontSize: 10, fill: t.textMuted }} allowDecimals={false} />
                         <Tooltip
                             cursor={{ fill: 'transparent' }}

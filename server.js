@@ -2604,6 +2604,38 @@ async function verificarExpiracaoLiberacoes() {
 // Rodar a cada 15 minutos, todos os dias
 cron.schedule('*/15 * * * *', verificarExpiracaoLiberacoes, { scheduled: true, timezone: "America/Sao_Paulo" });
 
+// ── PAUSA AUTOMÁTICA: 21:50 BRT — pausa todos os cards "EM SEPARAÇÃO" ────────
+cron.schedule('50 21 * * *', async () => {
+    console.log('[CRON-PAUSA] 21:50 — pausando todos os veículos EM SEPARAÇÃO...');
+    try {
+        const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const veiculos = await dbAll(
+            `SELECT id, status_recife, status_moreno, pausas_status FROM veiculos
+             WHERE data_prevista = ? AND (status_recife = 'EM SEPARAÇÃO' OR status_moreno = 'EM SEPARAÇÃO')`,
+            [hoje]
+        );
+        let pausados = 0;
+        for (const v of veiculos) {
+            const pausas = JSON.parse(v.pausas_status || '[]');
+            const unidades = [];
+            if (v.status_recife === 'EM SEPARAÇÃO') unidades.push('Recife');
+            if (v.status_moreno === 'EM SEPARAÇÃO') unidades.push('Moreno');
+            for (const unidade of unidades) {
+                const jaAtiva = pausas.find(p => p.unidade === unidade && p.fonte === 'operacao' && p.fim === null);
+                if (!jaAtiva) {
+                    pausas.push({ inicio: new Date().toISOString(), fim: null, motivo: 'Pausa automática 21:50', unidade, fonte: 'operacao' });
+                    pausados++;
+                }
+            }
+            await dbRun('UPDATE veiculos SET pausas_status = ? WHERE id = ?', [JSON.stringify(pausas), v.id]);
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(v.id) });
+        }
+        console.log(`[CRON-PAUSA] ${pausados} pausa(s) aplicada(s) em ${veiculos.length} veículo(s).`);
+    } catch (e) {
+        console.error('[CRON-PAUSA] Erro:', e);
+    }
+}, { scheduled: true, timezone: 'America/Sao_Paulo' });
+
 // ── ROLLOVER AUTOMÁTICO REMOVIDO — agora é manual via botão "Finalizar Operação" nos painéis ──
 
 // ── AUDITORIA DE DEPENDÊNCIAS (A cada 15 dias) ───────────────────────
