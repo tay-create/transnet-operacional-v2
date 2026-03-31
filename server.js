@@ -535,11 +535,11 @@ app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Plane
             dbAll(`SELECT nome_motorista AS nome, viagens_realizadas AS viagens, favorito, tipo_veiculo
              FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
              ORDER BY viagens_realizadas DESC NULLS LAST LIMIT 5`),
-            // Novatos vs Parceiros
+            // Novatos e Parceiros
             dbAll(`SELECT
-                COUNT(*) FILTER (WHERE viagens_realizadas = 0 OR viagens_realizadas IS NULL) AS novatos,
-                COUNT(*) FILTER (WHERE viagens_realizadas BETWEEN 1 AND 4) AS parceiros_baixo,
-                COUNT(*) FILTER (WHERE viagens_realizadas >= 5) AS parceiros_alto
+                COUNT(*) FILTER (WHERE ja_carregou = 'Nao' AND (viagens_realizadas IS NULL OR viagens_realizadas < 2)) AS novatos,
+                COUNT(*) FILTER (WHERE NOT (ja_carregou = 'Nao' AND (viagens_realizadas IS NULL OR viagens_realizadas < 2)) AND (viagens_realizadas IS NULL OR viagens_realizadas < 2)) AS parceiros_baixo,
+                COUNT(*) FILTER (WHERE viagens_realizadas >= 2) AS parceiros_alto
              FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL`),
             // Resumo mensal — TO_CHAR garante que data chegue como string YYYY-MM-DD
             dbAll(`SELECT
@@ -594,7 +594,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
         const offset = (pagina - 1) * limite;
 
-        const { disponibilidade, busca, estado, tipo_veiculo } = req.query;
+        const { disponibilidade, busca, estado, tipo_veiculo, tag, tempo_min, tempo_max } = req.query;
         const conditions = [];
         const params = [];
 
@@ -630,6 +630,24 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         if (tipo_veiculo && tipo_veiculo.trim()) {
             params.push(tipo_veiculo.trim());
             conditions.push(`tipo_veiculo = $${params.length}`);
+        }
+
+        if (tag === 'favorito') {
+            conditions.push(`favorito = 1`);
+        } else if (tag === 'problematico') {
+            conditions.push(`tag_motorista = 'PROBLEMÁTICO'`);
+        }
+
+        if (tempo_min !== undefined && tempo_max !== undefined) {
+            const minVal = parseInt(tempo_min);
+            const maxVal = parseInt(tempo_max);
+            if (!isNaN(minVal) && !isNaN(maxVal)) {
+                // Tempo desde data_marcacao (ou data_contratacao se contratado) em minutos
+                conditions.push(
+                    `EXTRACT(EPOCH FROM (NOW() - COALESCE(data_contratacao, data_marcacao))) / 60 >= ${minVal}` +
+                    ` AND EXTRACT(EPOCH FROM (NOW() - COALESCE(data_contratacao, data_marcacao))) / 60 < ${maxVal}`
+                );
+            }
         }
 
         const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';

@@ -97,6 +97,16 @@ function corDisponibilidade(disp) {
 // ── Estado inicial do form de frota (apenas nome e telefone) ─────────────────
 const FORM_FROTA_INICIAL = { nome_motorista: '', telefone: '' };
 
+const FAIXAS_TEMPO = [
+    { label: 'Até 2 horas',    minutos: [0, 120] },
+    { label: '2h a 6 horas',   minutos: [120, 360] },
+    { label: '6h a 12 horas',  minutos: [360, 720] },
+    { label: '12h a 24 horas', minutos: [720, 1440] },
+    { label: '1 a 3 dias',     minutos: [1440, 4320] },
+    { label: '3 a 7 dias',     minutos: [4320, 10080] },
+    { label: '7 a 15 dias',    minutos: [10080, 21600] },
+];
+
 export default function GestaoMarcacoes({ socket }) {
     const [aba, setAba] = useState('links');
     const [tokens, setTokens] = useState([]);
@@ -149,6 +159,11 @@ export default function GestaoMarcacoes({ socket }) {
             if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
             if (filtroEstado) qp.set('estado', filtroEstado);
             if (filtroTipoVeiculo) qp.set('tipo_veiculo', filtroTipoVeiculo);
+            if (filtroTag) qp.set('tag', filtroTag);
+            if (filtroTempo) {
+                const faixa = FAIXAS_TEMPO.find(f => f.label === filtroTempo);
+                if (faixa) { qp.set('tempo_min', faixa.minutos[0]); qp.set('tempo_max', faixa.minutos[1]); }
+            }
             const r = await api.get(`/api/marcacoes?${qp}`);
             if (r.data.success) {
                 setMarcacoes(r.data.marcacoes);
@@ -157,7 +172,7 @@ export default function GestaoMarcacoes({ socket }) {
             }
         } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
-    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo]);
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (aba === 'links') carregarTokens();
@@ -168,7 +183,7 @@ export default function GestaoMarcacoes({ socket }) {
     useEffect(() => {
         if (aba !== 'placas') return;
         carregarMarcacoes(1);
-    }, [filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Busca com debounce
     useEffect(() => {
@@ -373,30 +388,8 @@ export default function GestaoMarcacoes({ socket }) {
         return d.toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
 
-    const FAIXAS_TEMPO = [
-        { label: 'Até 2 horas',    minutos: [0, 120] },
-        { label: '2h a 6 horas',   minutos: [120, 360] },
-        { label: '6h a 12 horas',  minutos: [360, 720] },
-        { label: '12h a 24 horas', minutos: [720, 1440] },
-        { label: '1 a 3 dias',     minutos: [1440, 4320] },
-        { label: '3 a 7 dias',     minutos: [4320, 10080] },
-        { label: '7 a 15 dias',    minutos: [10080, 21600] },
-    ];
-
-    // Filtros são server-side; exclui is_frota e aplica filtroTag/filtroTempo localmente
-    const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => {
-        if (m.is_frota) return false;
-        if (filtroTag === 'favorito' && !m.favorito) return false;
-        if (filtroTag === 'problematico' && m.tag_motorista !== 'PROBLEMÁTICO') return false;
-        if (filtroTempo) {
-            const faixa = FAIXAS_TEMPO.find(f => f.label === filtroTempo);
-            if (faixa) {
-                const mins = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
-                if (mins === null || mins < faixa.minutos[0] || mins >= faixa.minutos[1]) return false;
-            }
-        }
-        return true;
-    }), [marcacoes, filtroTag, filtroTempo, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Filtros são server-side; apenas exclui registros is_frota que eventualmente cheguem
+    const marcacoesFiltradas = useMemo(() => marcacoes.filter(m => !m.is_frota), [marcacoes]);
 
     function ModalDetalhes({ m, onClose }) {
         const dim = [m.altura, m.largura, m.comprimento].filter(Boolean);
