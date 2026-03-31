@@ -42,7 +42,7 @@ export const OPCOES_OPERACAO = [
     "DELTA(MORENO)/ELETRIK", "DELTA(MORENO)/PORCELANA", "DELTA(MORENO)/PORCELANA/ELETRIK"
 ];
 
-export const OPCOES_STATUS = ["AGUARDANDO", "EM SEPARAÇÃO", "LIBERADO P/ DOCA", "EM CARREGAMENTO", "CARREGADO", "LIBERADO P/ CT-e"];
+export const OPCOES_STATUS = ["AGUARDANDO P/ SEPARAÇÃO", "EM SEPARAÇÃO", "LIBERADO P/ CARREGAMENTO", "EM CARREGAMENTO", "CARREGADO", "LIBERADO P/ CT-e"];
 export const OPCOES_STATUS_CTE = ["Aguardando Emissão", "Em Emissão", "Emitido"];
 export const OPCOES_VEICULO = ["TRUCK", "3/4", "CARRETA"];
 
@@ -50,8 +50,10 @@ export const DOCAS_RECIFE_LISTA = ["SELECIONE", "2 DELTA", "3 DELTA", "4 DELTA",
 export const DOCAS_MORENO_LISTA = ["SELECIONE", "ELETRIK", "1 PORCELANA", "2 PORCELANA", "3 PORCELANA", "4 PORCELANA", "5 PORCELANA", "6 PORCELANA", "7 PORCELANA", "8 PORCELANA", "1 DELTA", "2 DELTA", "3 DELTA", "4 DELTA", "5 DELTA", "6 DELTA"];
 
 export const CORES_STATUS = {
+    'AGUARDANDO P/ SEPARAÇÃO': { border: '#64748b', text: '#94a3b8' },
     'AGUARDANDO': { border: '#64748b', text: '#94a3b8' },
     'EM SEPARAÇÃO': { border: '#eab308', text: '#facc15' },
+    'LIBERADO P/ CARREGAMENTO': { border: '#3b82f6', text: '#60a5fa' },
     'LIBERADO P/ DOCA': { border: '#3b82f6', text: '#60a5fa' },
     'EM CARREGAMENTO': { border: '#f97316', text: '#fb923c' },
     'CARREGADO': { border: '#22c55e', text: '#4ade80' },
