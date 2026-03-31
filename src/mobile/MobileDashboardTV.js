@@ -43,8 +43,8 @@ function addDias(dateStr, n) {
 
 function classificarOperacao(op) {
     if (!op) return null;
-    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)') return 'delta';
-    if (op === 'DELTA(RECIFE X MORENO)') return 'deltaRxM';
+    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)' || op === 'PLÁSTICO(RECIFE)' || op === 'PLÁSTICO(MORENO)') return 'delta';
+    if (op === 'DELTA(RECIFE X MORENO)' || op === 'PLÁSTICO(RECIFE X MORENO)') return 'deltaRxM';
     if (op === 'PORCELANA') return 'porcelana';
     if (op === 'ELETRIK') return 'eletrik';
     if (op.includes('/')) return 'consolidado';

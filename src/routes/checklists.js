@@ -166,7 +166,7 @@ module.exports = function createChecklistsRouter(io) {
     router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), async (req, res) => {
         try {
             const cidade = req.user.cidade; // 'Recife', 'Moreno' ou 'Ambas' (teste)
-            const STATUS_CONFERENTE = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
+            const STATUS_CONFERENTE = ['AGUARDANDO P/ SEPARAÇÃO', 'AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
             const placeholders = STATUS_CONFERENTE.map(() => '?').join(', ');
             const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
 
@@ -299,7 +299,7 @@ module.exports = function createChecklistsRouter(io) {
             console.log(`🔄 [Conferente/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || 'S/motorista'}): ${statusAtual} → ${novoStatus}${novaDoca ? ` | Doca: ${novaDoca}` : ''}`);
 
             // Ordem dos status para validar progressão
-            const ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
+            const ORDEM = ['AGUARDANDO P/ SEPARAÇÃO', 'AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
 
             let dados = {};
             try { dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : (veiculo.dados_json || {}); } catch { }
@@ -389,7 +389,7 @@ module.exports = function createChecklistsRouter(io) {
             if (novoStatus === 'EM SEPARAÇÃO' && (forcar || !ts[`separacao_${prefix}_at`])) {
                 ts[`separacao_${prefix}_at`] = agora;
             }
-            if (novoStatus === 'LIBERADO P/ DOCA' && (forcar || !ts[`lib_doca_${prefix}_at`])) {
+            if ((novoStatus === 'LIBERADO P/ CARREGAMENTO' || novoStatus === 'LIBERADO P/ DOCA') && (forcar || !ts[`lib_doca_${prefix}_at`])) {
                 ts[`lib_doca_${prefix}_at`] = agora;
             }
             if (novoStatus === 'EM CARREGAMENTO') {
@@ -479,12 +479,12 @@ module.exports = function createChecklistsRouter(io) {
                 const coletaInfo = coletaNum ? ` | Coleta: ${coletaNum}` : '';
 
                 // Todos os status → notifica Auxiliar Operacional
-                const cargosAlvo = novoStatus === 'LIBERADO P/ DOCA'
+                const cargosAlvo = (novoStatus === 'LIBERADO P/ CARREGAMENTO' || novoStatus === 'LIBERADO P/ DOCA')
                     ? ['Cadastro', 'Conhecimento']
                     : ['Auxiliar Operacional'];
 
-                // LIBERADO P/ DOCA → também notifica Cadastro e Conhecimento
-                if (novoStatus === 'LIBERADO P/ DOCA') {
+                // LIBERADO P/ CARREGAMENTO → também notifica Cadastro e Conhecimento
+                if (novoStatus === 'LIBERADO P/ CARREGAMENTO' || novoStatus === 'LIBERADO P/ DOCA') {
                     io.emit('conferente_novo_veiculo', {
                         veiculoId,
                         motorista: motoristaNome,
@@ -676,8 +676,8 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             const statusAtual = veiculo[statusField];
-            if (statusAtual !== 'LIBERADO P/ DOCA') {
-                return res.status(400).json({ success: false, message: `Status atual é "${statusAtual}", esperado "LIBERADO P/ DOCA".` });
+            if (statusAtual !== 'LIBERADO P/ CARREGAMENTO' && statusAtual !== 'LIBERADO P/ DOCA') {
+                return res.status(400).json({ success: false, message: `Status atual é "${statusAtual}", esperado "LIBERADO P/ CARREGAMENTO".` });
             }
 
             // Verificar travas (Ger. Risco + Checklist)

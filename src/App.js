@@ -93,7 +93,7 @@ function App({ socket }) {
     const [filtroDataFimCte, setFiltroDataFimCte] = useState(obterDataBrasilia());
     const [toastCopiaMsg, setToastCopiaMsg] = useState('');
     const [formLanca, setFormLanca] = useState({
-        operacao: 'DELTA(RECIFE)',
+        operacao: 'PLÁSTICO(RECIFE)',
         data_prevista: hojeISO,
         motorista: '',
         tipoVeiculo: 'TRUCK',

@@ -11,7 +11,14 @@ import { DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA, CORES_STATUS } from '../constan
 import ModalOcorrencia from '../components/ModalOcorrencia';
 
 // Ordem dos status que o conferente gerencia
-const STATUS_CONFERENTE = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
+const STATUS_CONFERENTE = ['AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
+
+// Normaliza status antigos do banco para os novos nomes
+const normalizarStatusDisplay = (s) => {
+    if (s === 'AGUARDANDO') return 'AGUARDANDO P/ SEPARAÇÃO';
+    if (s === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
+    return s;
+};
 
 // Badges de tempo ao vivo (mini versão para o card conferente)
 function MiniTimer({ inicioAt, pausas = [], unidade = 'recife' }) {
@@ -106,8 +113,9 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
         return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     });
 
-    const corStatus = CORES_STATUS[v.status] || { border: '#64748b', text: '#94a3b8' };
-    const idxAtual = STATUS_CONFERENTE.indexOf(v.status);
+    const statusNormalizado = normalizarStatusDisplay(v.status);
+    const corStatus = CORES_STATUS[statusNormalizado] || CORES_STATUS[v.status] || { border: '#64748b', text: '#94a3b8' };
+    const idxAtual = STATUS_CONFERENTE.indexOf(statusNormalizado);
 
     // Timestamp da etapa atual para o timer ao vivo
     const ts = v.timestamps_status || {};
@@ -116,7 +124,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     // Conferente só enxerga pausas com fonte='conferente' (isolado do botão em lote do header)
     const temPausaAtiva = pausas.some(p => p.unidade === unidade && p.fonte === 'conferente' && p.fim === null);
     const timerAtKey = v.status === 'EM SEPARAÇÃO' ? `separacao_${unidade}_at`
-        : v.status === 'LIBERADO P/ DOCA' ? `lib_doca_${unidade}_at`
+        : (v.status === 'LIBERADO P/ CARREGAMENTO' || v.status === 'LIBERADO P/ DOCA') ? `lib_doca_${unidade}_at`
             : v.status === 'EM CARREGAMENTO' ? `carregamento_${unidade}_at`
                 : v.status === 'CARREGADO' ? `carregado_${unidade}_at`
                     : null;
@@ -207,7 +215,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     // Para operação mista: checklist só na unidade de início da rota
     // Para operação de unidade única: o card já filtrado pela API pertence a esta unidade, sem restrição de inicio_rota
     const ehUnidadeInicioRota = !v.isMista || !v.inicio_rota || v.inicio_rota === unidadeCard;
-    const precisaChecklist = v.status === 'LIBERADO P/ DOCA' && !v.isFrotaMotorista
+    const precisaChecklist = (v.status === 'LIBERADO P/ CARREGAMENTO' || v.status === 'LIBERADO P/ DOCA') && !v.isFrotaMotorista
         && !(v.isMista && v.checklistAprovado)
         && ehUnidadeInicioRota;
 
@@ -257,7 +265,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`,
                             color: corStatus.text, whiteSpace: 'nowrap'
                         }}>
-                            {v.status}
+                            {statusNormalizado}
                         </span>
                         <button
                             onClick={e => { e.stopPropagation(); setStatusManual(v.status); setModalAlterarStatus(true); }}
@@ -388,7 +396,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                     </button>
 
                     {/* Botão Pausar/Retomar */}
-                    {v.status !== 'AGUARDANDO' && v.status !== 'CARREGADO' && (
+                    {v.status !== 'AGUARDANDO' && v.status !== 'AGUARDANDO P/ SEPARAÇÃO' && v.status !== 'CARREGADO' && (
                         <button
                             onClick={() => setModalPausa(true)}
                             style={{

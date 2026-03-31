@@ -53,8 +53,8 @@ const glassCard = (t, extraBorder) => ({
 
 const classificarOperacao = (op) => {
     if (!op) return null;
-    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)') return 'delta';
-    if (op === 'DELTA(RECIFE X MORENO)') return 'deltaRxM';
+    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)' || op === 'PLÁSTICO(RECIFE)' || op === 'PLÁSTICO(MORENO)') return 'delta';
+    if (op === 'DELTA(RECIFE X MORENO)' || op === 'PLÁSTICO(RECIFE X MORENO)') return 'deltaRxM';
     if (op === 'PORCELANA') return 'porcelana';
     if (op === 'ELETRIK') return 'eletrik';
     if (op.includes('/')) return 'consolidado';
@@ -273,6 +273,7 @@ const btnS = (t) => ({ padding: '4px 10px', borderRadius: '4px', border: `1px so
 // ================================================================
 function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, ocorrenciasHoje = [] }) {
     const [modalOcorrencias, setModalOcorrencias] = useState(false);
+    const [imgExpandida, setImgExpandida] = useState(null);
     const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
     veiculos.forEach(v => {
         const cat = classificarOperacao(v.operacao);
@@ -292,7 +293,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const kpis = [
         { label: 'Plástico', valor: contadores.delta, cor: CORES_KPI.delta },
         { label: 'Consolidado', valor: contadores.consolidado, cor: CORES_KPI.consolidado },
-        { label: 'Recife/Moreno', valor: contadores.deltaRxM, cor: CORES_KPI.deltaRxM },
+        { label: 'Plástico Recife/Moreno', valor: contadores.deltaRxM, cor: CORES_KPI.deltaRxM },
         { label: '100% Porcelana', valor: contadores.porcelana, cor: CORES_KPI.porcelana },
         { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik }
     ];
@@ -446,7 +447,12 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
 
             {/* Modal de ocorrências */}
             {modalOcorrencias && (
-                <div onClick={() => setModalOcorrencias(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                <div onClick={() => { setModalOcorrencias(false); setImgExpandida(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    {imgExpandida ? (
+                        <div onClick={e => { e.stopPropagation(); setImgExpandida(null); }} style={{ maxWidth: '90vw', maxHeight: '90vh', cursor: 'zoom-out' }}>
+                            <img src={imgExpandida} alt="Ocorrência" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: '12px', boxShadow: '0 24px 64px rgba(0,0,0,0.9)' }} />
+                        </div>
+                    ) : (
                     <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(245,158,11,0.35)', borderRadius: '16px', padding: '28px', maxWidth: '720px', width: '100%', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.8)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -462,18 +468,30 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                                 {ocorrenciasHoje.map((oc, idx) => (
                                     <div key={idx} style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '14px 16px' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24' }}>{oc.titulo || 'Sem título'}</span>
+                                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#fbbf24' }}>{oc.operacao || oc.titulo || 'Sem título'}</span>
                                             <div style={{ display: 'flex', gap: '8px', flexShrink: 0, marginLeft: '12px' }}>
                                                 {oc.unidade && <span style={{ fontSize: '10px', fontWeight: '700', background: oc.unidade === 'Moreno' ? 'rgba(251,146,60,0.15)' : 'rgba(96,165,250,0.15)', color: oc.unidade === 'Moreno' ? '#fb923c' : '#60a5fa', border: `1px solid ${oc.unidade === 'Moreno' ? 'rgba(251,146,60,0.3)' : 'rgba(96,165,250,0.3)'}`, borderRadius: '20px', padding: '2px 8px' }}>{oc.unidade}</span>}
                                                 <span style={{ fontSize: '10px', color: '#64748b' }}>{oc.data_criacao ? new Date(oc.data_criacao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' }) : ''}</span>
                                             </div>
                                         </div>
+                                        {oc.motorista && <div style={{ fontSize: '12px', color: '#60a5fa', marginBottom: '4px', fontWeight: '600' }}>{oc.motorista}</div>}
                                         {oc.descricao && <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5' }}>{oc.descricao}</div>}
+                                        {oc.foto_base64 && (
+                                            <div style={{ marginTop: '10px' }}>
+                                                <img
+                                                    src={oc.foto_base64.startsWith('data:') ? oc.foto_base64 : `data:image/jpeg;base64,${oc.foto_base64}`}
+                                                    alt="Foto da ocorrência"
+                                                    onClick={e => { e.stopPropagation(); setImgExpandida(oc.foto_base64.startsWith('data:') ? oc.foto_base64 : `data:image/jpeg;base64,${oc.foto_base64}`); }}
+                                                    style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '8px', cursor: 'zoom-in', objectFit: 'cover', border: '1px solid rgba(245,158,11,0.3)' }}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
             )}
         </div>
@@ -659,9 +677,9 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                             ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
                                         }}>{doca}</div>
                                         <div style={{
-                                            fontSize: '8px',
+                                            fontSize: '11px',
                                             color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
-                                            marginTop: '2px', fontWeight: livre ? '700' : 'normal'
+                                            marginTop: '2px', fontWeight: '700'
                                         }}>{statusDoca || 'Livre'}</div>
                                         {isHovered && veiculo && (
                                             <div style={{
@@ -699,7 +717,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                         <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out', flex: 1 }}>
                             <div>
                                 <div style={{ fontSize: '16px', fontWeight: '700', color: t.text }}>{item.label}</div>
-                                <div style={{ fontSize: '12px', color: t.textDim }}>{item.desc}</div>
+                                <div style={{ fontSize: '14px', color: t.textDim }}>{item.desc}</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <span style={{ fontSize: '40px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>
@@ -1293,7 +1311,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         if (cat === 'porcelana') contOp.porcelana++;
         else if (cat === 'eletrik') contOp.eletrik++;
         else if (cat === 'deltaRxM') contOp.deltaRxM++;
-        else if (v.operacao && v.operacao.includes('DELTA(MORENO)')) contOp.deltaMoreno++;
+        else if (v.operacao && (v.operacao.includes('DELTA(MORENO)') || v.operacao.includes('PLÁSTICO(MORENO)'))) contOp.deltaMoreno++;
     });
 
     // Status operacional (compatível com valores antigos e novos)
@@ -1420,9 +1438,9 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                     ...(livre && tema === 'dark' ? { filter: 'drop-shadow(0 0 8px rgba(52,211,153,0.8))' } : {})
                 }}>{doca}</div>
                 <div style={{
-                    fontSize: '8px',
+                    fontSize: '11px',
                     color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
-                    marginTop: '2px', fontWeight: livre ? '700' : 'normal'
+                    marginTop: '2px', fontWeight: '700'
                 }}>{statusDoca || 'Livre'}</div>
                 {isHovered && veiculo && (
                     <div style={{
@@ -1525,7 +1543,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                                 <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.5s ease-in-out', flex: 1 }}>
                                     <div>
                                         <div style={{ fontSize: '16px', fontWeight: '700', color: t.text }}>{item.label}</div>
-                                        <div style={{ fontSize: '12px', color: t.textDim }}>{item.desc}</div>
+                                        <div style={{ fontSize: '14px', color: t.textDim }}>{item.desc}</div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <span style={{ fontSize: '40px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>

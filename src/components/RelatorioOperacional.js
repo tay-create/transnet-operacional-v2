@@ -14,8 +14,8 @@ import * as XLSX from 'xlsx';
 
 const classificarOperacao = (op) => {
     if (!op) return null;
-    if (op === 'DELTA(RECIFE)') return 'delta';
-    if (op === 'DELTA(RECIFE X MORENO)') return 'deltaRxM';
+    if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)' || op === 'PLÁSTICO(RECIFE)' || op === 'PLÁSTICO(MORENO)') return 'delta';
+    if (op === 'DELTA(RECIFE X MORENO)' || op === 'PLÁSTICO(RECIFE X MORENO)') return 'deltaRxM';
     if (op === 'PORCELANA') return 'porcelana';
     if (op === 'ELETRIK') return 'eletrik';
     if (op.includes('/')) return 'consolidado';
@@ -26,9 +26,9 @@ const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const TIPOS_OP = [
-    { id: 'delta', label: 'Delta', cor: '#2563eb' },
+    { id: 'delta', label: 'Plástico', cor: '#2563eb' },
     { id: 'consolidado', label: 'Consolidado', cor: '#3b82f6' },
-    { id: 'deltaRxM', label: 'Delta R×M', cor: '#60a5fa' },
+    { id: 'deltaRxM', label: 'Plástico R×M', cor: '#60a5fa' },
     { id: 'porcelana', label: 'Porcelana', cor: '#93c5fd' },
     { id: 'eletrik', label: 'Eletrik', cor: '#bfdbfe' },
 ];
