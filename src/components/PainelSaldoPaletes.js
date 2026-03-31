@@ -85,15 +85,14 @@ function KpiCard({ label, valor, cor, sub, icone }) {
 // ── Modal de Devolução ──────────────────────────────────────────────────────
 function ModalDevolucao({ registro, onClose, onConfirm }) {
     const [modo, setModo] = useState('total');
-    const isDesc = registro.tipo_palete === 'DESCARTAVEL';
-    const qtdTotal = isDesc ? (registro.qtd_descartavel || 0) : (registro.qtd_pbr || 0);
+    const qtdTotal = registro.qtd_pbr || 0;
     const [qtdParcial, setQtdParcial] = useState(0);
 
     const confirmar = () => {
         if (modo === 'total') {
             onConfirm({ total: true });
         } else {
-            onConfirm(isDesc ? { qtd_devolvida_desc: qtdParcial } : { qtd_devolvida_pbr: qtdParcial });
+            onConfirm({ qtd_devolvida_pbr: qtdParcial });
         }
     };
 
@@ -119,7 +118,7 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
                 <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
                     <div style={{ fontSize: '12px', color: '#94a3b8' }}>Motorista: <strong style={{ color: '#f1f5f9' }}>{registro.motorista}</strong></div>
                     <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                        {isDesc ? 'Descartável' : 'PBR'}: <strong style={{ color: isDesc ? '#f97316' : '#60a5fa' }}>{qtdTotal}</strong>
+                        PBR: <strong style={{ color: '#60a5fa' }}>{qtdTotal}</strong>
                     </div>
                 </div>
 
@@ -130,7 +129,7 @@ function ModalDevolucao({ registro, onClose, onConfirm }) {
 
                 {modo === 'parcial' && (
                     <div style={{ marginBottom: '16px' }}>
-                        <label style={s.label}>Qtd {isDesc ? 'Descartável' : 'PBR'} devolvidos (max: {qtdTotal})</label>
+                        <label style={s.label}>Qtd PBR devolvidos (max: {qtdTotal})</label>
                         <input type="number" min="0" max={qtdTotal} value={qtdParcial}
                             onChange={e => setQtdParcial(Math.min(Number(e.target.value), qtdTotal))}
                             style={s.input} />
@@ -365,17 +364,18 @@ export default function PainelSaldoPaletes() {
     };
 
     // ── Filtros ──
-    const filtrados = registros.filter(r => {
+    const registrosPbr = registros.filter(r => r.tipo_palete !== 'DESCARTAVEL');
+    const filtrados = registrosPbr.filter(r => {
         if (filtroStatus === 'PENDENTE' && r.devolvido) return false;
         if (filtroStatus === 'DEVOLVIDO' && !r.devolvido) return false;
         return true;
     });
 
     // ── KPIs ──
-    const totalPbr = registros.reduce((acc, r) => acc + (r.qtd_pbr || 0), 0);
-    const totalDevPbr = registros.reduce((acc, r) => acc + (r.qtd_devolvida_pbr || 0), 0);
+    const totalPbr = registrosPbr.reduce((acc, r) => acc + (r.qtd_pbr || 0), 0);
+    const totalDevPbr = registrosPbr.reduce((acc, r) => acc + (r.qtd_devolvida_pbr || 0), 0);
     const saldoPbr = totalPbr - totalDevPbr;
-    const pendentes = registros.filter(r => !r.devolvido).length;
+    const pendentes = registrosPbr.filter(r => !r.devolvido).length;
 
     function formatarData(dt) {
         if (!dt) return '—';
@@ -384,7 +384,7 @@ export default function PainelSaldoPaletes() {
     }
 
     const handleExportarPDF = () => {
-        gerarPDFPaletes(registros, { totalPbr, saldoPbr, totalDevPbr, pendentes });
+        gerarPDFPaletes(registrosPbr, { totalPbr, saldoPbr, totalDevPbr, pendentes });
         mostrarToast('📄 PDF gerado!');
     };
 
@@ -403,7 +403,7 @@ export default function PainelSaldoPaletes() {
                     </div>
                     <div>
                         <div style={{ fontSize: '20px', fontWeight: '800', color: '#f1f5f9' }}>Saldo de Paletes PBR</div>
-                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{registros.length} registros totais</div>
+                        <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{registrosPbr.length} registros totais</div>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>

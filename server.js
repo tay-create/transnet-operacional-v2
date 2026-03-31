@@ -1483,7 +1483,8 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
                     origem_cad: row.origem_cad || dados.origem_cad || '',
                     destino_uf_cad: row.destino_uf_cad || dados.destino_uf_cad || '',
                     destino_cidade_cad: row.destino_cidade_cad || dados.destino_cidade_cad || '',
-                    usuario_aceitou: row.usuario_aceitou || dados.usuario_aceitou || ''
+                    usuario_aceitou: row.usuario_aceitou || dados.usuario_aceitou || '',
+                    data_emissao: row.data_emissao || null
                 };
             } catch (_) {
                 return { id: row.id, origem: row.origem, status: row.status };
@@ -1547,7 +1548,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
         const { dados } = req.body;
         const status = dados.status || 'Aguardando Emissão';
         await dbRun(
-            `UPDATE ctes_ativos SET status = ?, dados_json = ?, motorista = ?, placa1 = ?, coleta = ?, numero_liberacao = ?, data_liberacao = ?, origem_cad = ?, destino_uf_cad = ?, destino_cidade_cad = ?, usuario_aceitou = ? WHERE id = ?`,
+            `UPDATE ctes_ativos SET status = ?, dados_json = ?, motorista = ?, placa1 = ?, coleta = ?, numero_liberacao = ?, data_liberacao = ?, origem_cad = ?, destino_uf_cad = ?, destino_cidade_cad = ?, usuario_aceitou = ?, data_emissao = CASE WHEN ? = 'Emitido' THEN NOW() ELSE data_emissao END WHERE id = ?`,
             [
                 status, JSON.stringify(dados),
                 dados.motorista || null,
@@ -1559,6 +1560,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 dados.destino_uf_cad || null,
                 dados.destino_cidade_cad || null,
                 dados.usuario_aceitou || null,
+                status,
                 req.params.id
             ]
         );
