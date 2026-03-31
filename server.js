@@ -365,7 +365,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
         const {
             token_id, nome_motorista, telefone, placa1, placa2,
             tipo_veiculo, altura, largura, comprimento,
-            estados_destino, estado_origem, ja_carregou,
+            estados_destino, ja_carregou,
             rastreador, status_rastreador, latitude, longitude,
             disponibilidade, comprovante_pdf,
             anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros
@@ -401,10 +401,6 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
             [nomeNormalizado, telefoneLimpo]
         );
         if (duplicataNome) {
-            // Marca token como utilizado mesmo assim (evita reenvio)
-            if (token_id) {
-                await dbRun("UPDATE tokens_motoristas SET status = 'utilizado' WHERE id = ?", [token_id]);
-            }
             return res.status(409).json({
                 success: false,
                 message: 'Já existe uma marcação ativa para este motorista hoje. Aguarde o operador ou realize nova marcação pelo link mais recente.'
@@ -423,7 +419,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
             await dbRun(
                 `UPDATE marcacoes_placas SET
                     token_id=?, nome_motorista=?, placa1=?, placa2=?, tipo_veiculo=?,
-                    altura=?, largura=?, comprimento=?, estados_destino=?, estado_origem=?,
+                    altura=?, largura=?, comprimento=?, estados_destino=?,
                     ja_carregou=?, rastreador=?, status_rastreador=?, latitude=?, longitude=?,
                     disponibilidade=?, comprovante_pdf=?,
                     anexo_cnh=?, anexo_doc_veiculo=?, anexo_crlv_carreta=?, anexo_antt=?, anexo_outros=?,
@@ -434,7 +430,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
                 [
                     token_id, nome_motorista, placa1, placa2 || '',
                     tipo_veiculo, altura || null, largura || null, comprimento || null,
-                    estadosJson, estado_origem || '',
+                    estadosJson,
                     ja_carregou || '', rastreador || 'Não possui', status_rastreador || 'Inativo',
                     latitude || '', longitude || '',
                     novaDisponibilidade, comprovante_pdf || null,
@@ -447,16 +443,16 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
             await dbRun(
                 `INSERT INTO marcacoes_placas
                  (token_id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                  altura, largura, comprimento, estados_destino, estado_origem,
+                  altura, largura, comprimento, estados_destino,
                   ja_carregou, rastreador, status_rastreador, latitude, longitude,
                   disponibilidade, comprovante_pdf,
                   anexo_cnh, anexo_doc_veiculo, anexo_crlv_carreta, anexo_antt, anexo_outros,
                   status_operacional, data_contratacao)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DISPONIVEL',NULL)`,
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'DISPONIVEL',NULL)`,
                 [
                     token_id, nome_motorista, telefoneLimpo, placa1, placa2 || '',
                     tipo_veiculo, altura || null, largura || null, comprimento || null,
-                    estadosJson, estado_origem || '',
+                    estadosJson,
                     ja_carregou || '', rastreador || 'Não possui', status_rastreador || 'Inativo',
                     latitude || '', longitude || '',
                     disponibilidade || '', comprovante_pdf || null,
@@ -1107,6 +1103,38 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
                  WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($6)) AND status != 'Emitido'`,
                 [num_liberacao_cad || null, novaDataLib, origem_cad || null, destino_uf_cad || null, destino_cidade_cad || null, atual.motorista]
             );
+
+            // Se CT-e ficou LIBERADO, criar registro em ctes_ativos automaticamente (se ainda não existe)
+            if (situacao === 'LIBERADO') {
+                const cteExistente = await dbGet(
+                    `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND coleta = $2 AND status != 'Emitido'`,
+                    [atual.motorista, dj.numero_coleta || dj.coleta || '']
+                );
+                if (!cteExistente) {
+                    const origemVeiculo = dj.unidade || dj.origem_criacao || dj.inicio_rota || 'Recife';
+                    const novoCte = {
+                        motorista: atual.motorista,
+                        placa: dj.placa1Motorista || dj.placa || '',
+                        coleta: dj.numero_coleta || dj.coleta || '',
+                        operacao: dj.operacao || '',
+                        data_entrada_cte: new Date().toLocaleDateString('pt-BR'),
+                        numero_liberacao: num_liberacao_cad || '',
+                        data_liberacao: novaDataLib,
+                        origem_cad: origem_cad || dj.origem_cad || '',
+                        destino_uf_cad: destino_uf_cad || dj.destino_uf_cad || '',
+                        destino_cidade_cad: destino_cidade_cad || dj.destino_cidade_cad || '',
+                        veiculo_id: Number(req.params.id),
+                    };
+                    const result = await dbRun(
+                        `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [origemVeiculo, 'Aguardando Emissão', JSON.stringify(novoCte), atual.motorista, novoCte.placa, novoCte.coleta, num_liberacao_cad || null, novaDataLib, origem_cad || null, destino_uf_cad || null, destino_cidade_cad || null]
+                    );
+                    novoCte.id = result.lastID;
+                    io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novoCte });
+                }
+            }
+
             const ctesMotorista = await dbAll(
                 `SELECT id FROM ctes_ativos WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1)) AND status != 'Emitido'`,
                 [atual.motorista]
@@ -1433,7 +1461,7 @@ app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Plane
 // --- ROTAS DE CT-E ATIVOS ---
 
 // Listar todos os CT-es ativos
-app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
+app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Conhecimento', 'Dashboard Viewer']), async (req, res) => {
     try {
         const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
         const dataInicio = req.query.dataInicio || hoje;

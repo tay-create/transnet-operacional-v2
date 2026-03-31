@@ -191,7 +191,12 @@ export default function GestaoMarcacoes({ socket }) {
             }
             // Eventos de token não afetam a lista de marcações
             if (payload?.tipo?.startsWith('token_')) return;
-            // Para nova_marcacao ou outros eventos, recarrega a página atual
+            // Para nova_marcacao, vai para página 1 para garantir que o novo registro apareça
+            if (payload?.tipo === 'nova_marcacao') {
+                carregarMarcacoes(1);
+                return;
+            }
+            // Para outros eventos, recarrega a página atual
             carregarMarcacoes(paginaMarcacoes);
         };
         socket.on('marcacao_atualizada', atualizar);
