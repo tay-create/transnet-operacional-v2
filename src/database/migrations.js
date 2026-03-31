@@ -3,8 +3,8 @@ const { dbRun, dbGet } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento'],
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento'],
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
