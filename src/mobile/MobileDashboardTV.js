@@ -24,9 +24,9 @@ const CORES_OP = {
 };
 
 const LABELS_OP = {
-    delta:       'Delta 100%',
+    delta:       'Plástico 100%',
     consolidado: 'Consolidado',
-    deltaRxM:    'Delta RxM',
+    deltaRxM:    'Plástico R×M',
     porcelana:   'Porcelana',
     eletrik:     'Eletrik',
 };

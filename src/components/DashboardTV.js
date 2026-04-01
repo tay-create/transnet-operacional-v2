@@ -1526,14 +1526,14 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                             </div>
                         </div>
 
-                        {/* SESSÃO 2: DELTA E ELETRIK */}
+                        {/* SESSÃO 2: PLÁSTICO E ELETRIK */}
                         <div style={{ ...glassCard(t), padding: '16px' }}>
                             <h2 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: tema === 'light' ? '#334155' : '#f8fafc' }}>
                                 <Warehouse size={16} color="#64748b" />
-                                Gestão Visual Docas - Delta e Eletrik
+                                Gestão Visual Docas - Plástico e Eletrik
                             </h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                                {docasFisicas.filter(d => d.includes('DELTA') || d.includes('ELETRIK')).map(doca => renderDoca(doca))}
+                                {docasFisicas.filter(d => d.includes('PLÁSTICO') || d.includes('ELETRIK')).map(doca => renderDoca(doca))}
                             </div>
                         </div>
                     </div>
