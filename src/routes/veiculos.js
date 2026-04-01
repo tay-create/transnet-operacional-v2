@@ -339,7 +339,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             res.json({ success: true, id: result.lastID });
         } catch (e) { console.error(e); res.status(500).json({ success: false }); }
     });
-    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), async (req, res) => {
         try {
             const v = req.body;
             console.log(`[DEBUG veiculos.js] PUT /veiculos/${req.params.id} -> req.body.motorista: "${v.motorista}", old motorista in req: "${v.itemOriginal?.motorista}"`);
