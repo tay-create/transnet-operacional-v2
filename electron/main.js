@@ -89,6 +89,7 @@ function createWindow() {
     // Atalhos locais — só disparam quando esta janela está focada
     mainWindow.webContents.on('before-input-event', (event, input) => {
         if (input.type !== 'keyDown') return;
+        const ctrl = input.control || input.meta;
         if (input.key === 'F5') {
             mainWindow.webContents.reload();
             event.preventDefault();
@@ -98,9 +99,30 @@ function createWindow() {
         } else if (input.key === 'F12') {
             mainWindow.webContents.toggleDevTools();
             event.preventDefault();
-        } else if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+        } else if (ctrl && input.key.toLowerCase() === 'r') {
             mainWindow.webContents.reload();
             event.preventDefault();
+        } else if (ctrl && (input.key === '=' || input.key === '+')) {
+            const cur = mainWindow.webContents.getZoomFactor();
+            mainWindow.webContents.setZoomFactor(Math.min(cur + 0.1, 3.0));
+            event.preventDefault();
+        } else if (ctrl && input.key === '-') {
+            const cur = mainWindow.webContents.getZoomFactor();
+            mainWindow.webContents.setZoomFactor(Math.max(cur - 0.1, 0.3));
+            event.preventDefault();
+        } else if (ctrl && input.key === '0') {
+            mainWindow.webContents.setZoomFactor(1.0);
+            event.preventDefault();
+        }
+    });
+
+    // Ctrl + Scroll para zoom
+    mainWindow.webContents.on('zoom-changed', (event, zoomDirection) => {
+        const cur = mainWindow.webContents.getZoomFactor();
+        if (zoomDirection === 'in') {
+            mainWindow.webContents.setZoomFactor(Math.min(cur + 0.1, 3.0));
+        } else {
+            mainWindow.webContents.setZoomFactor(Math.max(cur - 0.1, 0.3));
         }
     });
 }
