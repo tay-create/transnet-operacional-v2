@@ -36,6 +36,11 @@ O sistema é dividido em submódulos isolados por permissão de acesso (RBAC), p
   - Auditoria física com assinaturas digitais, fotos contra vazamentos/avarias e controles de avarias (Canvas).
 - **🧱 Saldo de Paletes**
   - Rastreamento e gestão financeira de estoques (PBR / Descartáveis) repassados ou retidos com agregados/frota.
+- **🗓️ Provisionamento de Frota**
+  - Grid semanal de status por veículo com atualização em tempo real via Socket.io.
+  - Ciclo de vida automático ao lançar um veículo: `EM OPERAÇÃO` → `CARREGANDO` (conferente) → `CARREGADO` → `EM VIAGEM` → `RETORNANDO` → `DISPONÍVEL`.
+  - Modal de registro de viagem simplificado: informa apenas as datas de entrega e retorno. O destino aparece no grid somente no dia da entrega; dias de trânsito ficam sem texto.
+  - O dia de retorno informado é automaticamente marcado como `DISPONÍVEL`.
 - **📱 Portal Mobile — PWA para Coordenador** *(novo em v0.3.3)*
   - Acesso via `https://portal.tnethub.com.br/mobile` — instalável como app no iOS e Android.
   - Visualização de Painel Operacional (Recife/Moreno), Ger. Risco/CT-e e Dashboard TV em tempo real.
