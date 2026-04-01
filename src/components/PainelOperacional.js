@@ -1123,7 +1123,7 @@ export default function PainelOperacional({
 
                                             {/* Linha de Placa — visível e editável para Aux. Operacional e Cadastro */}
                                             {(() => {
-                                                const podEditarPlaca = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento'].includes(user.cargo);
+                                                const podEditarPlaca = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Conferente'].includes(user.cargo);
                                                 const placaExibida = item.placa1Motorista || item.placa || '—';
                                                 const placa2Exibida = item.placa2Motorista || '';
                                                 if (editandoPlaca === item.id) {
