@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, X, Truck, Calendar, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, X, Truck, RotateCcw } from 'lucide-react';
 import api from '../services/apiService';
 
 /**
- * Modal obrigatório para registrar destinos/datas de entrega quando uma placa
+ * Modal obrigatório para registrar datas de entrega quando uma placa
  * cadastrada no Provisionamento de Frota é utilizada em um lançamento.
  *
  * Props:
@@ -14,17 +14,16 @@ import api from '../services/apiService';
  *   onCancelar — callback ao cancelar (limpa a placa no form pai)
  */
 export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, onConfirmar, onCancelar }) {
-    const [dataSaidaEdit, setDataSaidaEdit] = useState(dataSaida || '');
     const [dataRetorno, setDataRetorno] = useState('');
-    const [entradas, setEntradas] = useState([{ cidade: '', data: dataSaida || '' }]);
+    const [entradas, setEntradas] = useState([{ data: dataSaida || '' }]);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
 
-    const addEntrada = () => setEntradas(prev => [...prev, { cidade: '', data: '' }]);
+    const addEntrada = () => setEntradas(prev => [...prev, { data: '' }]);
     const removeEntrada = (i) => setEntradas(prev => prev.filter((_, idx) => idx !== i));
-    const updateEntrada = (i, campo, valor) => setEntradas(prev => prev.map((e, idx) => idx === i ? { ...e, [campo]: valor } : e));
+    const updateEntrada = (i, valor) => setEntradas(prev => prev.map((e, idx) => idx === i ? { ...e, data: valor } : e));
 
-    const podeSalvar = dataSaidaEdit && entradas.length > 0 && entradas.every(e => e.cidade.trim() && e.data);
+    const podeSalvar = entradas.length > 0 && entradas.every(e => e.data);
 
     async function confirmar() {
         if (!podeSalvar) return;
@@ -34,9 +33,9 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
             await api.post('/api/provisionamento/viagem', {
                 veiculo_id: veiculo.id,
                 motorista: motorista || veiculo.motorista || '',
-                data_saida: dataSaidaEdit,
+                data_saida: dataSaida,
                 data_retorno: dataRetorno || null,
-                entradas: entradas.map(e => ({ cidade: e.cidade.trim(), data: e.data })),
+                entradas: entradas.map(e => ({ cidade: '', data: e.data })),
             });
             onConfirmar(entradas);
         } catch (e) {
@@ -60,7 +59,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
         }}>
             <div style={{
                 background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px',
-                padding: '24px', width: '480px', maxWidth: '95vw', maxHeight: '90vh',
+                padding: '24px', width: '420px', maxWidth: '95vw', maxHeight: '90vh',
                 overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
             }}>
                 {/* Header */}
@@ -83,47 +82,22 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
 
                 <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px', lineHeight: '1.5' }}>
                     Este veículo está cadastrado no <strong style={{ color: '#60a5fa' }}>Provisionamento de Frota</strong>.
-                    Informe a data de saída e os destinos para registrar os dias como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
+                    Informe as datas de entrega para registrar os dias como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
                 </p>
 
-                {/* Data de Saída */}
-                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                    DATA DE SAÍDA (INÍCIO DA VIAGEM)
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', padding: '12px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px' }}>
-                    <Calendar size={15} color="#60a5fa" />
-                    <span style={{ color: '#94a3b8', fontSize: '12px', flex: 1 }}>Sai em viagem em:</span>
-                    <input
-                        type="date"
-                        value={dataSaidaEdit}
-                        onChange={e => setDataSaidaEdit(e.target.value)}
-                        style={{ ...inputStyle, width: '150px' }}
-                    />
+                {/* Datas de Entrega */}
+                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                    DATAS DE ENTREGA
                 </div>
 
-                {/* Destinos e Datas de Entrega */}
-                <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', letterSpacing: '0.5px', marginBottom: '8px' }}>
-                    DESTINOS E DATAS DE ENTREGA
-                </div>
-                <div style={{ color: '#475569', fontSize: '11px', marginBottom: '10px', lineHeight: '1.4' }}>
-                    O nome do destino aparece na coluna do dia de chegada no provisionamento.
-                </div>
-
-                {/* Entradas */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                     {entradas.map((e, i) => (
                         <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <input
-                                value={e.cidade}
-                                onChange={ev => updateEntrada(i, 'cidade', ev.target.value)}
-                                placeholder="Cidade de entrega"
-                                style={{ ...inputStyle, flex: 1 }}
-                            />
-                            <input
                                 type="date"
                                 value={e.data}
-                                onChange={ev => updateEntrada(i, 'data', ev.target.value)}
-                                style={{ ...inputStyle, width: '140px' }}
+                                onChange={ev => updateEntrada(i, ev.target.value)}
+                                style={{ ...inputStyle, flex: 1 }}
                             />
                             {entradas.length > 1 && (
                                 <button onClick={() => removeEntrada(i)} style={{
@@ -143,7 +117,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                     borderRadius: '6px', color: '#60a5fa', cursor: 'pointer', padding: '7px 12px',
                     fontSize: '12px', marginBottom: '20px',
                 }}>
-                    <Plus size={13} /> Adicionar destino
+                    <Plus size={13} /> Adicionar data de entrega
                 </button>
 
                 {/* Data de Retorno (opcional) */}

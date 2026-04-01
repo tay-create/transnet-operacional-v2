@@ -2859,7 +2859,10 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
 
         for (const dia of diasViagem) {
             const statusDia = dia === data_saida ? 'CARREGANDO' : 'EM_VIAGEM';
-            const entregasNoDia = entradas.filter(e => e.data === dia && e.cidade && e.cidade.trim());
+            // Destino só aparece no último dia (dia de entrega), não nos dias de trânsito
+            const entregasNoDia = dia === dataFimViagem
+                ? entradas.filter(e => e.data === dia && e.cidade && e.cidade.trim())
+                : [];
             const destinoDia = entregasNoDia.length > 0
                 ? [...new Set(entregasNoDia.map(e => e.cidade.trim()))].join(' / ')
                 : null;
@@ -2872,13 +2875,14 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
             io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoDia });
         }
 
-        // Gerar dias de retorno (dia seguinte ao último destino até data_retorno) — RETORNANDO
+        // Gerar dias de retorno (dia seguinte ao último destino até o dia ANTERIOR ao retorno) — RETORNANDO
+        // O próprio dia de retorno fica DISPONIVEL
         let diasRetorno = 0;
         if (data_retorno && data_retorno > dataFimViagem) {
             const cursorR = new Date(dataFimViagem + 'T00:00:00Z');
             cursorR.setUTCDate(cursorR.getUTCDate() + 1); // começa no dia seguinte ao último destino
             const fimR = new Date(data_retorno + 'T00:00:00Z');
-            while (cursorR <= fimR) {
+            while (cursorR < fimR) {
                 const dia = cursorR.toISOString().substring(0, 10);
                 await dbRun(
                     `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
@@ -2890,6 +2894,15 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
                 cursorR.setUTCDate(cursorR.getUTCDate() + 1);
                 diasRetorno++;
             }
+            // Dia de retorno = DISPONIVEL
+            await dbRun(
+                `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
+                 VALUES ($1, $2, 'DISPONIVEL', $3, NULL, $4)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'DISPONIVEL', motorista = $3, destino = NULL, destinos_json = $4`,
+                [veiculo_id, data_retorno, motorista || null, destinosJson]
+            );
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: data_retorno, status: 'DISPONIVEL', motorista: motorista || null, destino: null });
+            diasRetorno++;
         }
 
         res.json({ success: true, dias_afetados: diasViagem.length + diasRetorno });

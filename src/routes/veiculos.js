@@ -309,6 +309,31 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 io.emit('marcacao_atualizada');
             }
 
+            // Sincronizar status EM_OPERACAO no Provisionamento de Frota
+            try {
+                const dataPrev = v.data_prevista ? v.data_prevista.substring(0, 10) : null;
+                const placasLancamento = [v.placa1Motorista, v.placa2Motorista]
+                    .filter(p => p && p.trim() !== '');
+                if (dataPrev && placasLancamento.length > 0) {
+                    const ph = placasLancamento.map(() => '?').join(', ');
+                    const provVeiculo = await dbGet(
+                        `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa IN (${ph}) OR carreta IN (${ph})) LIMIT 1`,
+                        [...placasLancamento, ...placasLancamento]
+                    );
+                    if (provVeiculo) {
+                        await dbRun(
+                            `INSERT INTO prov_programacao (veiculo_id, data, status, motorista)
+                             VALUES ($1, $2, 'EM_OPERACAO', $3)
+                             ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_OPERACAO', motorista = $3`,
+                            [provVeiculo.id, dataPrev, v.motorista || null]
+                        );
+                        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provVeiculo.id, data: dataPrev, status: 'EM_OPERACAO', motorista: v.motorista || null, destino: null });
+                    }
+                }
+            } catch (provErr) {
+                console.error('[prov] Erro ao sincronizar EM_OPERACAO:', provErr.message);
+            }
+
             const novo = {
                 id: result.lastID, ...v, data_criacao,
                 telefone: telefoneMotorista || '',
