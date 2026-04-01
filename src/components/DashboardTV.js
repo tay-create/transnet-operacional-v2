@@ -75,7 +75,7 @@ const PRIORIDADE_STATUS = {
 export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
-    const totalTelas = (ehViewer && !TELAS_EXTRAS_ATIVAS) ? 3 : 5;
+    const totalTelas = (ehViewer && !TELAS_EXTRAS_ATIVAS) ? 3 : 4;
 
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
@@ -257,8 +257,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 3 && <TelaConfrontoEmbarques veiculos={veiculosHoje} ctes={[...ctesRecife, ...ctesMoreno]} t={t} tema={tema} />}
-                {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
 
@@ -280,6 +279,12 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
         if (cat && contadores[cat] !== undefined) contadores[cat]++;
     });
     const totalGeral = Object.values(contadores).reduce((a, b) => a + b, 0);
+
+    const totalDia = veiculos.length;
+    const frotaDia = veiculos.filter(v => v.isFrotaMotorista).length;
+    const terceirosDia = totalDia - frotaDia;
+    const pctFrotaDia = totalDia > 0 ? Math.round((frotaDia / totalDia) * 100) : 0;
+    const pctTercDia = totalDia > 0 ? 100 - pctFrotaDia : 0;
 
     const todosCtes = [...ctesRecife, ...ctesMoreno];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
@@ -361,7 +366,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                             <span style={{ fontSize: '11px', color: t.textMuted }}>{u.label}</span>
                         </div>
                     ))}
-                    <div style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(251,191,36,0.6)', fontWeight: '600' }}>clique para ver detalhes</div>
+                    <div style={{ marginLeft: 'auto' }} />
                 </div>
 
                 {/* CT-e status */}
@@ -398,6 +403,28 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     )}
                 </div>
             </div>
+
+            {/* Frota vs Terceiros — compacto */}
+            {totalDia > 0 && (
+                <div style={{ ...glassCard(t, 'rgba(59,130,246,0.12)'), padding: '14px 20px', marginBottom: '14px', borderLeft: '4px solid #3b82f6', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '2px', whiteSpace: 'nowrap' }}>Frota vs Terceiros</span>
+                    <div style={{ height: '28px', width: '1px', background: 'rgba(59,130,246,0.25)' }} />
+                    {[
+                        { label: 'Total Hoje', valor: totalDia, cor: '#94a3b8' },
+                        { label: `Frota (${pctFrotaDia}%)`, valor: frotaDia, cor: '#3b82f6' },
+                        { label: `Terceiros (${pctTercDia}%)`, valor: terceirosDia, cor: '#f59e0b' },
+                    ].map(k => (
+                        <div key={k.label} style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '28px', fontWeight: '900', color: k.cor, lineHeight: 1, filter: `drop-shadow(0 0 6px ${k.cor}60)` }}>{k.valor}</span>
+                            <span style={{ fontSize: '10px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{k.label}</span>
+                        </div>
+                    ))}
+                    <div style={{ flex: 1, height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.05)', minWidth: '80px' }}>
+                        <div style={{ width: `${pctFrotaDia}%`, background: '#3b82f6', transition: 'width 0.6s ease' }} />
+                        <div style={{ flex: 1, background: '#f59e0b' }} />
+                    </div>
+                </div>
+            )}
 
             {/* Gráfico de barras — Status de Embarque Geral (ocupa largura total) */}
             <div style={{ ...glassCard(t), padding: '20px' }}>
@@ -1095,48 +1122,27 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                 </div>
             )}
 
-            {/* ── FROTA vs TERCEIROS + POR OPERAÇÃO ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                {/* Card Frota vs Terceiros */}
-                <div style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '12px', padding: '16px' }}>
-                    <div style={{ fontSize: '10px', color: t.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>Frota vs Terceiros</div>
-                    <div style={{ display: 'flex', gap: '20px', marginBottom: '12px', alignItems: 'flex-end' }}>
-                        <div>
-                            <span style={{ fontSize: '40px', fontWeight: '900', color: '#3b82f6', lineHeight: 1 }}>{frotaMes}</span>
-                            <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '6px' }}>frota</span>
+            {/* ── FROTA vs TERCEIROS ── */}
+            {totalMes > 0 && (
+                <div style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '12px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '2px', whiteSpace: 'nowrap' }}>Frota vs Terceiros</span>
+                    <div style={{ height: '28px', width: '1px', background: 'rgba(59,130,246,0.25)' }} />
+                    {[
+                        { label: 'Total Mês', valor: totalMes, cor: '#94a3b8' },
+                        { label: `Frota (${totalMes > 0 ? Math.round((frotaMes / totalMes) * 100) : 0}%)`, valor: frotaMes, cor: '#3b82f6' },
+                        { label: `Terceiros (${totalMes > 0 ? Math.round((terceirosMes / totalMes) * 100) : 0}%)`, valor: terceirosMes, cor: '#f59e0b' },
+                    ].map(k => (
+                        <div key={k.label} style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                            <span style={{ fontSize: '28px', fontWeight: '900', color: k.cor, lineHeight: 1 }}>{k.valor}</span>
+                            <span style={{ fontSize: '10px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{k.label}</span>
                         </div>
-                        <div>
-                            <span style={{ fontSize: '40px', fontWeight: '900', color: '#f59e0b', lineHeight: 1 }}>{terceirosMes}</span>
-                            <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '6px' }}>terceiros</span>
-                        </div>
+                    ))}
+                    <div style={{ flex: 1, height: '8px', borderRadius: '4px', overflow: 'hidden', display: 'flex', background: 'rgba(255,255,255,0.05)', minWidth: '80px' }}>
+                        <div style={{ width: `${totalMes > 0 ? Math.round((frotaMes / totalMes) * 100) : 0}%`, background: '#3b82f6', transition: 'width 0.6s ease' }} />
+                        <div style={{ flex: 1, background: '#f59e0b' }} />
                     </div>
-                    {dadosFrotaTerceiros.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={90}>
-                            <PieChart>
-                                <Pie data={dadosFrotaTerceiros} cx="50%" cy="50%" innerRadius={22} outerRadius={40} dataKey="value">
-                                    {dadosFrotaTerceiros.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                                </Pie>
-                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '6px', fontSize: '11px', color: t.text }} formatter={(v, n) => { const tot = dadosFrotaTerceiros.reduce((a,d)=>a+d.value,0); return [`${v} (${tot>0?((v/tot)*100).toFixed(0):0}%)`, n]; }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    ) : <div style={{ textAlign: 'center', padding: '20px', color: t.textDim, fontSize: '12px' }}>Sem dados</div>}
                 </div>
-
-                {/* Card Por Operação */}
-                <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${t.border}`, borderRadius: '12px', padding: '16px' }}>
-                    <div style={{ fontSize: '10px', color: t.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '12px' }}>Por Operação — Mês</div>
-                    {dadosPieOp.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={130}>
-                            <PieChart>
-                                <Pie data={dadosPieOp} cx="50%" cy="50%" innerRadius={25} outerRadius={48} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} style={{ fontSize: '9px' }}>
-                                    {dadosPieOp.map((entry, idx) => <Cell key={idx} fill={entry.fill} />)}
-                                </Pie>
-                                <Tooltip contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '6px', fontSize: '11px', color: t.text }} formatter={(v, n) => { const tot = dadosPieOp.reduce((a,d)=>a+d.value,0); return [`${v} (${tot>0?((v/tot)*100).toFixed(0):0}%)`, n]; }} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    ) : <div style={{ textAlign: 'center', padding: '40px', color: t.textDim, fontSize: '12px' }}>Sem dados</div>}
-                </div>
-            </div>
+            )}
         </div>
     );
 }
