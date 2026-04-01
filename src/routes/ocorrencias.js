@@ -20,13 +20,15 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
     // ── POST Nova Ocorrência ─────────────────────────
     router.post('/api/veiculos/:id/ocorrencias', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção']), async (req, res) => {
         try {
-            const { descricao, foto_base64, motorista } = req.body;
+            const { descricao, foto_base64, midias_json, motorista } = req.body;
             const veiculo_id = req.params.id;
 
+            const midiasStr = midias_json ? JSON.stringify(midias_json) : null;
+
             const result = await dbRun(
-                `INSERT INTO operacao_ocorrencias (veiculo_id, motorista, descricao, foto_base64)
-             VALUES (?, ?, ?, ?)`,
-                [veiculo_id, motorista || 'N/A', descricao, foto_base64 || null]
+                `INSERT INTO operacao_ocorrencias (veiculo_id, motorista, descricao, foto_base64, midias_json)
+             VALUES (?, ?, ?, ?, ?)`,
+                [veiculo_id, motorista || 'N/A', descricao, foto_base64 || null, midiasStr]
             );
 
             const criador = req.user?.nome || 'desconhecido';

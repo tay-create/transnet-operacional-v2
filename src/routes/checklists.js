@@ -62,28 +62,29 @@ module.exports = function createChecklistsRouter(io) {
         try {
             const {
                 veiculo_id, motorista_nome, placa_carreta, placa_confere,
-                condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+                condicao_bau, cordas, foto_vazamento, midias_json, assinatura, conferente_nome,
                 is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
             } = req.body;
 
             const created_at = new Date().toISOString();
+            const midiasStr = midias_json ? JSON.stringify(midias_json) : null;
 
             // ── Auto-Aprovação ──
             const isAprovadoAto = placa_confere === true &&
                 condicao_bau === 'Limpo e Intacto' &&
-                !foto_vazamento;
+                !foto_vazamento && !midias_json?.length;
 
             const statusChecklist = isAprovadoAto ? 'APROVADO' : 'PENDENTE';
 
             const result = await dbRun(
                 `INSERT INTO checklists_carreta (
                     veiculo_id, motorista_nome, placa_carreta, placa_confere,
-                    condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+                    condicao_bau, cordas, foto_vazamento, midias_json, assinatura, conferente_nome,
                     created_at, status, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0,
-                    condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+                    condicao_bau, cordas, foto_vazamento, midiasStr, assinatura, conferente_nome,
                     created_at, statusChecklist, is_paletizado, tipo_palete, qtd_paletes,
                     fornecedor_pbr || null
                 ]
@@ -107,8 +108,8 @@ module.exports = function createChecklistsRouter(io) {
 
             res.json({ success: true, id: result.lastID, status: statusChecklist });
         } catch (e) {
-            console.error('Erro ao criar checklist:', e);
-            res.status(500).json({ success: false, message: 'Erro ao salvar checklist.' });
+            console.error('Erro ao criar checklist:', e.message, e.stack);
+            res.status(500).json({ success: false, message: e.message || 'Erro ao salvar checklist.' });
         }
     });
 
@@ -423,28 +424,34 @@ module.exports = function createChecklistsRouter(io) {
             await dbRun(`UPDATE veiculos SET ${sets.join(', ')} WHERE id = ?`, vals);
             console.log(`✅ [Conferente/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || 'S/motorista'}) atualizado para "${novoStatus}" por ${req.user?.nome || 'conferente'}`);
 
-            // ── Sync Provisionamento: EM CARREGAMENTO → CARREGANDO ──
-            if (novoStatus === 'EM CARREGAMENTO') {
+            // ── Sync Provisionamento: EM CARREGAMENTO → CARREGANDO / CARREGADO → CARREGADO ──
+            if (novoStatus === 'EM CARREGAMENTO' || novoStatus === 'CARREGADO') {
                 try {
-                    const dataCarregamento = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
-                    const placas = [veiculo.placa, veiculo.carreta].filter(p => p && p !== '-');
+                    const dataSync = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                    const placas = [
+                        veiculo.placa,
+                        veiculo.carreta,
+                        dados.placa1Motorista,
+                        dados.placa2Motorista,
+                    ].filter(p => p && p !== '-' && p.trim() !== '');
                     if (placas.length > 0) {
                         const provV = await dbGet(
-                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND placa = ANY($1)`,
+                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa = ANY($1) OR COALESCE(carreta,'') = ANY($1))`,
                             [placas]
                         );
                         if (provV) {
+                            const statusProv = novoStatus === 'CARREGADO' ? 'CARREGADO' : 'CARREGANDO';
                             await dbRun(
                                 `INSERT INTO prov_programacao (veiculo_id, data, status)
-                                 VALUES ($1, $2, 'CARREGANDO')
-                                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'CARREGANDO'`,
-                                [provV.id, dataCarregamento]
+                                 VALUES ($1, $2, $3)
+                                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $3`,
+                                [provV.id, dataSync, statusProv]
                             );
-                            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataCarregamento, status: 'CARREGANDO' });
+                            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataSync, status: statusProv });
                         }
                     }
                 } catch (syncErr) {
-                    console.error('⚠️ [Sync Prov] Erro ao atualizar provisionamento para CARREGANDO:', syncErr);
+                    console.error('⚠️ [Sync Prov] Erro ao atualizar provisionamento:', syncErr);
                 }
             }
             // ──────────────────────────────────────────────────────────

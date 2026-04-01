@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft, Image, Video, Play } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 
@@ -12,7 +12,12 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     const [temCordas, setTemCordas] = useState(false);
     const [qtdCordas, setQtdCordas] = useState('');
     const [temVazamento, setTemVazamento] = useState(false);
-    const [fotoVazamento, setFotoVazamento] = useState(null);
+    const [fotoVazamento, setFotoVazamento] = useState(null); // legado — primeira foto
+    const [midiasAvaria, setMidiasAvaria] = useState([]); // [{ tipo, data, thumb? }]
+    const fotoAvariaRef = useRef(null);
+    const galeriaAvariaRef = useRef(null);
+    const videoAvariaRef = useRef(null);
+    const videoGaleriaAvariaRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState('');
     const [placaCarreta, setPlacaCarreta] = useState('');
@@ -85,13 +90,76 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCapturePhoto = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setFotoVazamento(reader.result);
-            reader.readAsDataURL(file);
-        }
+    const comprimirImagem = (file) => new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const MAX = 1000;
+            let w = img.width, h = img.height;
+            if (w > MAX || h > MAX) {
+                if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                else { w = Math.round(w * MAX / h); h = MAX; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = url;
+    });
+
+    const gerarThumbVideo = (file) => new Promise((resolve) => {
+        const video = document.createElement('video');
+        const url = URL.createObjectURL(file);
+        video.src = url;
+        video.muted = true;
+        video.currentTime = 0.5;
+        video.onloadeddata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 320; canvas.height = 180;
+            canvas.getContext('2d').drawImage(video, 0, 0, 320, 180);
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
+        };
+        video.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    });
+
+    const handleAdicionarFotoAvaria = async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        const novas = await Promise.all(files.map(async (f) => ({
+            tipo: 'foto',
+            data: await comprimirImagem(f)
+        })));
+        setMidiasAvaria(prev => {
+            const atualizado = [...prev, ...novas];
+            if (!fotoVazamento && atualizado[0]?.tipo === 'foto') setFotoVazamento(atualizado[0].data);
+            return atualizado;
+        });
+        e.target.value = '';
+    };
+
+    const handleAdicionarVideoAvaria = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 50 * 1024 * 1024) { alert('Vídeo muito grande. Máximo 50MB.'); e.target.value = ''; return; }
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const thumb = await gerarThumbVideo(file);
+            setMidiasAvaria(prev => [...prev, { tipo: 'video', data: reader.result, thumb }]);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    };
+
+    const removerMidiaAvaria = (idx) => {
+        setMidiasAvaria(prev => {
+            const atualizado = prev.filter((_, i) => i !== idx);
+            const primeiraFoto = atualizado.find(m => m.tipo === 'foto');
+            setFotoVazamento(primeiraFoto?.data || null);
+            return atualizado;
+        });
     };
 
     const handleSubmit = async (e) => {
@@ -102,8 +170,8 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             setErro('Informe se a placa confere.');
             return;
         }
-        if (temVazamento && !fotoVazamento) {
-            setErro('Foto da avaria é obrigatória quando há vazamento/furo.');
+        if (temVazamento && midiasAvaria.length === 0) {
+            setErro('Pelo menos uma foto ou vídeo da avaria é obrigatório.');
             return;
         }
         if (!isPaletizado) {
@@ -134,7 +202,8 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             placa_confere: placaConfere,
             condicao_bau: condicaoBau === 'Outro' ? condicaoOutra : condicaoBau,
             cordas: temCordas ? parseInt(qtdCordas) : 0,
-            foto_vazamento: temVazamento ? fotoVazamento : null,
+            foto_vazamento: temVazamento ? (fotoVazamento || null) : null,
+            midias_json: temVazamento && midiasAvaria.length > 0 ? midiasAvaria : undefined,
             assinatura: assinaturaBase,
             conferente_nome: user?.nome || 'Desconhecido',
             is_paletizado: isPaletizado,
@@ -341,7 +410,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                     <span style={label}>5. Estrutura</span>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: temVazamento ? '14px' : '0' }}>
                         <span style={{ fontSize: '13px', color: '#94a3b8' }}>Há vazamentos ou furos no teto?</span>
-                        <button type="button" onClick={() => { setTemVazamento(!temVazamento); if (temVazamento) setFotoVazamento(null); }}
+                        <button type="button" onClick={() => { setTemVazamento(!temVazamento); if (temVazamento) { setFotoVazamento(null); setMidiasAvaria([]); } }}
                             style={{
                                 width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer',
                                 background: temVazamento ? '#f87171' : 'rgba(255,255,255,0.1)',
@@ -354,24 +423,63 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                     {temVazamento && (
                         <div style={{ padding: '14px', borderRadius: '10px', border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.06)' }}>
                             <p style={{ fontSize: '12px', color: '#f87171', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <AlertTriangle size={14} /> Registro fotográfico obrigatório.
+                                <AlertTriangle size={14} /> Pelo menos uma foto ou vídeo é obrigatório.
                             </p>
-                            {!fotoVazamento ? (
-                                <label style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                    height: '100px', border: '2px dashed rgba(248,113,113,0.4)', borderRadius: '10px',
-                                    cursor: 'pointer', color: '#f87171', gap: '8px', fontSize: '13px', fontWeight: '600',
-                                }}>
-                                    <Camera size={22} /> Tirar Foto da Avaria
-                                    <input type="file" accept="image/*" capture="environment" onChange={handleCapturePhoto} style={{ display: 'none' }} />
-                                </label>
-                            ) : (
-                                <div style={{ position: 'relative' }}>
-                                    <img src={fotoVazamento} alt="Avaria" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '10px' }} />
-                                    <button type="button" onClick={() => setFotoVazamento(null)}
-                                        style={{ position: 'absolute', top: '8px', right: '8px', background: '#ef4444', border: 'none', color: 'white', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                                        <Trash2 size={14} />
+
+                            {/* inputs ocultos */}
+                            <input ref={fotoAvariaRef} type="file" accept="image/*" capture="environment" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
+                            <input ref={galeriaAvariaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
+                            <input ref={videoAvariaRef} type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
+                            <input ref={videoGaleriaAvariaRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
+
+                            {/* botões de adicionar */}
+                            <div style={{ display: 'flex', gap: '8px', marginBottom: midiasAvaria.length ? '12px' : '0' }}>
+                                {[
+                                    { ref: fotoAvariaRef, icon: <Camera size={18} />, label: 'Câmera' },
+                                    { ref: galeriaAvariaRef, icon: <Image size={18} />, label: 'Fotos' },
+                                    { ref: videoAvariaRef, icon: <Video size={18} />, label: 'Gravar' },
+                                    { ref: videoGaleriaAvariaRef, icon: <Play size={18} />, label: 'Vídeo' },
+                                ].map(({ ref, icon, label }) => (
+                                    <button key={label} type="button" onClick={() => ref.current?.click()} style={{
+                                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        gap: '4px', padding: '10px 6px', border: '2px dashed rgba(248,113,113,0.3)',
+                                        borderRadius: '10px', background: 'rgba(248,113,113,0.04)', cursor: 'pointer',
+                                        color: '#f87171', fontSize: '10px', fontWeight: '600'
+                                    }}>
+                                        {icon} {label}
                                     </button>
+                                ))}
+                            </div>
+
+                            {/* preview das mídias */}
+                            {midiasAvaria.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {midiasAvaria.map((m, i) => (
+                                        <div key={i} style={{ position: 'relative' }}>
+                                            {m.tipo === 'video' ? (
+                                                <div style={{ width: '90px', height: '90px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    {m.thumb
+                                                        ? <img src={m.thumb} alt="Vídeo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        : <Video size={26} color="#f87171" />
+                                                    }
+                                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Play size={18} color="white" style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))' }} />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <img src={m.data} alt={`Avaria ${i + 1}`} style={{ width: '90px', height: '90px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.2)', display: 'block' }} />
+                                            )}
+                                            <button type="button" onClick={() => removerMidiaAvaria(i)} style={{
+                                                position: 'absolute', top: -8, right: -8,
+                                                background: '#ef4444', border: 'none', color: 'white',
+                                                borderRadius: '50%', width: 24, height: 24,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.5)'
+                                            }}>
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
