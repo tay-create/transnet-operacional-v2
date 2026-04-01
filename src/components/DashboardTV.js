@@ -605,7 +605,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                 {[
                     { label: 'Plástico', valor: contOp.delta, cor: '#2563eb' },
                     { label: 'Consolidado', valor: contOp.consolidado, cor: '#3b82f6' },
-                    { label: 'Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
+                    { label: 'Plástico Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
                     { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#f59e0b', icon: true }
                 ].map(c => (
                     <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
@@ -823,7 +823,7 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
     const dadosPieOp = [
         { name: 'Plástico', value: contadores.delta, fill: CORES_KPI.delta },
         { name: 'Consolidado', value: contadores.consolidado, fill: CORES_KPI.consolidado },
-        { name: 'Recife/Moreno', value: contadores.deltaRxM, fill: CORES_KPI.deltaRxM },
+        { name: 'Plástico Recife/Moreno', value: contadores.deltaRxM, fill: CORES_KPI.deltaRxM },
         { name: 'Porcelana', value: contadores.porcelana, fill: CORES_KPI.porcelana },
         { name: 'Eletrik', value: contadores.eletrik, fill: CORES_KPI.eletrik }
     ].filter(d => d.value > 0);
@@ -1495,7 +1495,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                                 { label: '100% Porcelana', valor: contOp.porcelana, cor: '#1d4ed8' },
                                 { label: 'Eletrik', valor: contOp.eletrik, cor: '#2563eb' },
                                 { label: 'Plástico Moreno', valor: contOp.deltaMoreno, cor: '#3b82f6' },
-                                { label: 'Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
+                                { label: 'Plástico Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
                                 { label: 'Consolidados', valor: consolidadosMoreno, cor: '#93c5fd' },
                                 { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#f59e0b', icon: true }
                             ].map(c => (
