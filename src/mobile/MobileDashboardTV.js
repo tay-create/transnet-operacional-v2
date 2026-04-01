@@ -429,48 +429,85 @@ export default function MobileDashboardTV({ socket }) {
                         )}
 
                         {/* TELA 2: CT-e */}
-                        {tela === 2 && (
-                            <div>
-                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    CT-e · {labelData}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-                                    {[
-                                        { label: 'Recife',   qtd: ctesRecife.length,                       cor: '#3b82f6' },
-                                        { label: 'Moreno',   qtd: ctesMoreno.length,                       cor: '#22c55e' },
-                                        { label: 'Total',    qtd: ctes.length,                             cor: '#a78bfa' },
-                                        { label: 'Com CT-e', qtd: ctes.filter(c => c.numero_cte).length,   cor: '#f59e0b' },
-                                    ].map(item => (
-                                        <KpiCard key={item.label} valor={item.qtd} label={item.label} cor={item.cor} />
-                                    ))}
-                                </div>
+                        {tela === 2 && (() => {
+                            // Funil Recife
+                            const emEmissaoR = ctesRecife.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
+                            const emitidoR   = ctesRecife.filter(c => c.status === 'Emitido').length;
+                            const aguardandoR = Math.max(0, vRecife.length - emEmissaoR - emitidoR);
+                            const totalR = vRecife.length;
+                            const pctR = (v) => totalR > 0 ? `${Math.round((v / totalR) * 100)}%` : '0%';
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {ctes.slice(0, 30).map(v => {
-                                        const corOrigem = v.origem === 'Recife' ? '#3b82f6' : '#22c55e';
-                                        const placa = v.placa1Motorista || v.placa || 'Não inf.';
-                                        return (
-                                            <div key={v.id} style={{
-                                                background: '#0f172a', border: '1px solid #1e293b',
-                                                borderLeft: `3px solid ${corOrigem}`, borderRadius: '8px',
-                                                padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            // Funil Moreno
+                            const emEmissaoM = ctesMoreno.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
+                            const emitidoM   = ctesMoreno.filter(c => c.status === 'Emitido').length;
+                            const aguardandoM = Math.max(0, vMoreno.length - emEmissaoM - emitidoM);
+                            const totalM = vMoreno.length;
+                            const pctM = (v) => totalM > 0 ? `${Math.round((v / totalM) * 100)}%` : '0%';
+
+                            const FunilUnidade = ({ label, cor, items, pct }) => (
+                                <div style={{ marginBottom: '16px' }}>
+                                    <div style={{ fontSize: '10px', fontWeight: '700', color: cor, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cor, boxShadow: `0 0 6px ${cor}` }} />
+                                        Fluxo CT-e — {label}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {items.map(item => (
+                                            <div key={item.label} style={{
+                                                background: `rgba(${hexToRgb(item.cor)},0.07)`,
+                                                border: `1px solid rgba(${hexToRgb(item.cor)},0.2)`,
+                                                borderLeft: `4px solid ${item.cor}`,
+                                                borderRadius: '10px', padding: '12px 14px',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                             }}>
-                                                <div>
-                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '700' }}>{placa}</span>
-                                                    {v.motorista && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>{v.motorista.split(' ')[0]}</span>}
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    {v.numero_cte
-                                                        ? <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', justifyContent: 'flex-end' }}>
-                                                            <FileText size={10} color="#4ade80" strokeWidth={2} /> {v.numero_cte}
-                                                          </div>
-                                                        : <div style={{ fontSize: '10px', color: '#f59e0b' }}>{v.status}</div>
-                                                    }
-                                                    <div style={{ fontSize: '10px', color: '#334155' }}>{v.origem}</div>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#cbd5e1' }}>{item.label}</div>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                                    <span style={{ fontSize: '32px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 5px ${item.cor}60)`, lineHeight: 1 }}>{item.valor}</span>
+                                                    <span style={{ fontSize: '11px', color: '#475569' }}>{pct(item.valor)}</span>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+
+                            return (
+                                <div>
+                                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        CT-e · {labelData}
+                                    </div>
+
+                                    {/* KPIs totais */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+                                        {[
+                                            { label: 'Total CT-e',  qtd: ctes.length,                           cor: '#a78bfa' },
+                                            { label: 'Emitidos',    qtd: ctes.filter(c => c.status === 'Emitido').length, cor: '#22c55e' },
+                                            { label: 'Em Emissão',  qtd: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length, cor: '#3b82f6' },
+                                            { label: 'Aguardando',  qtd: ctes.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length, cor: '#f59e0b' },
+                                        ].map(item => (
+                                            <KpiCard key={item.label} valor={item.qtd} label={item.label} cor={item.cor} />
+                                        ))}
+                                    </div>
+
+                                    {/* Funil Recife */}
+                                    <FunilUnidade
+                                        label="Recife" cor="#60a5fa" pct={pctR}
+                                        items={[
+                                            { label: 'Aguardando P/ Emissão', valor: aguardandoR, cor: '#f59e0b' },
+                                            { label: 'Em Emissão',            valor: emEmissaoR,  cor: '#3b82f6' },
+                                            { label: 'Emitido',               valor: emitidoR,    cor: '#34d399' },
+                                        ]}
+                                    />
+
+                                    {/* Funil Moreno */}
+                                    <FunilUnidade
+                                        label="Moreno" cor="#fbbf24" pct={pctM}
+                                        items={[
+                                            { label: 'Aguardando P/ Emissão', valor: aguardandoM, cor: '#f59e0b' },
+                                            { label: 'Em Emissão',            valor: emEmissaoM,  cor: '#3b82f6' },
+                                            { label: 'Emitido',               valor: emitidoM,    cor: '#34d399' },
+                                        ]}
+                                    />
+
                                     {ctes.length === 0 && (
                                         <div style={{ textAlign: 'center', padding: '32px', color: '#334155' }}>
                                             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
@@ -480,8 +517,8 @@ export default function MobileDashboardTV({ socket }) {
                                         </div>
                                     )}
                                 </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </>
                 )}
             </div>
