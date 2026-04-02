@@ -197,10 +197,11 @@ export default function MobileDashboardTV({ socket }) {
     const totalGeral = Object.values(contOp).reduce((a, b) => a + b, 0);
 
     const statusCte = {
-        aguardando: ctes.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length,
-        emEmissao:  ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
-        emitido:    ctes.filter(c => c.status === 'Emitido').length,
+        emEmissao: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
+        emitido:   ctes.filter(c => c.status === 'Emitido').length,
     };
+    // Aguardando = total de veículos lançados - os que já têm CT-e em algum estado
+    statusCte.aguardando = Math.max(0, (vRecife.length + vMoreno.length) - statusCte.emEmissao - statusCte.emitido);
 
     // Tela 1 — Operação
     const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
@@ -479,10 +480,10 @@ export default function MobileDashboardTV({ socket }) {
                                     {/* KPIs totais */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                                         {[
-                                            { label: 'Total CT-e',  qtd: ctes.length,                           cor: '#a78bfa' },
+                                            { label: 'Total CT-e',  qtd: vRecife.length + vMoreno.length,        cor: '#a78bfa' },
                                             { label: 'Emitidos',    qtd: ctes.filter(c => c.status === 'Emitido').length, cor: '#22c55e' },
                                             { label: 'Em Emissão',  qtd: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length, cor: '#3b82f6' },
-                                            { label: 'Aguardando',  qtd: ctes.filter(c => c.status === 'Aguardando Emissão' || c.status === 'Aguardando Emissao').length, cor: '#f59e0b' },
+                                            { label: 'Aguardando',  qtd: Math.max(0, (vRecife.length + vMoreno.length) - ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length - ctes.filter(c => c.status === 'Emitido').length), cor: '#f59e0b' },
                                         ].map(item => (
                                             <KpiCard key={item.label} valor={item.qtd} label={item.label} cor={item.cor} />
                                         ))}

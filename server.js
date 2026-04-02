@@ -2849,7 +2849,8 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         const dataFimViagem = datasEntrega[datasEntrega.length - 1] || data_saida;
         const destinosJson = JSON.stringify(entradas);
 
-        // Gerar dias de viagem [data_saida, dataFimViagem] — CARREGANDO ou EM_VIAGEM
+        // Gerar dias de viagem [data_saida, dataFimViagem] — todos EM_VIAGEM
+        // Os dias anteriores a data_saida (CARREGADO) não são tocados aqui.
         const diasViagem = [];
         const cursorV = new Date(data_saida + 'T00:00:00Z');
         const fimV = new Date(dataFimViagem + 'T00:00:00Z');
@@ -2859,21 +2860,18 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         }
 
         for (const dia of diasViagem) {
-            const statusDia = dia === data_saida ? 'CARREGANDO' : 'EM_VIAGEM';
-            // Destino só aparece no último dia (dia de entrega), não nos dias de trânsito
-            const entregasNoDia = dia === dataFimViagem
-                ? entradas.filter(e => e.data === dia && e.cidade && e.cidade.trim())
-                : [];
-            const destinoDia = entregasNoDia.length > 0
-                ? [...new Set(entregasNoDia.map(e => e.cidade.trim()))].join(' / ')
-                : null;
+            // Destino preenchido apenas nos dias que coincidem com alguma entrada que tem cidade
+            const cidadesDoDia = entradas
+                .filter(e => e.data === dia && e.cidade && e.cidade.trim())
+                .map(e => e.cidade.trim());
+            const destinoDia = cidadesDoDia.length > 0 ? [...new Set(cidadesDoDia)].join(' / ') : null;
             await dbRun(
                 `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
-                 VALUES ($1, $2, $6, $3, $4, $5)
-                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $6, motorista = $3, destino = $4, destinos_json = $5`,
-                [veiculo_id, dia, motorista || null, destinoDia, destinosJson, statusDia]
+                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4, $5)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destino = $4, destinos_json = $5`,
+                [veiculo_id, dia, motorista || null, destinoDia, destinosJson]
             );
-            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoDia });
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null, destino: destinoDia });
         }
 
         // Gerar dias de retorno (dia seguinte ao último destino até o dia ANTERIOR ao retorno) — RETORNANDO
