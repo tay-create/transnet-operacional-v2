@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, X, Save, Loader, AlertTriangle, Trash2, Image, Video, Play } from 'lucide-react';
+import { Camera, X, Save, Loader, AlertTriangle, Trash2, Image as ImageIcon, Video as VideoIcon, Play } from 'lucide-react';
 import api from '../services/apiService';
 
 export default function ModalOcorrencia({ onClose, veiculo }) {
@@ -206,7 +206,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                                                     style={{ position: 'relative', display: 'inline-block' }}>
                                                                     {m.thumb
                                                                         ? <img src={m.thumb} alt="Vídeo" style={{ height: '80px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }} />
-                                                                        : <div style={{ width: '80px', height: '80px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={24} color="#94a3b8" /></div>
+                                                                        : <div style={{ width: '80px', height: '80px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><VideoIcon size={24} color="#94a3b8" /></div>
                                                                     }
                                                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                                         <Play size={20} color="white" style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.8))' }} />
@@ -271,11 +271,11 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                     Câmera
                                 </label>
                                 <label htmlFor="oc-galeria" style={btnMidia}>
-                                    <Image size={20} color="#475569" />
+                                    <ImageIcon size={20} color="#475569" />
                                     Fotos
                                 </label>
                                 <label htmlFor="oc-gravar" style={btnMidia}>
-                                    <Video size={20} color="#475569" />
+                                    <VideoIcon size={20} color="#475569" />
                                     Gravar
                                 </label>
                                 <label htmlFor="oc-videogaleria" style={btnMidia}>
@@ -293,7 +293,7 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                                 <div style={{ width: '90px', height: '90px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     {m.thumb
                                                         ? <img src={m.thumb} alt="Vídeo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                        : <Video size={28} color="#94a3b8" />
+                                                        : <VideoIcon size={28} color="#94a3b8" />
                                                     }
                                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <Play size={18} color="white" style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))' }} />

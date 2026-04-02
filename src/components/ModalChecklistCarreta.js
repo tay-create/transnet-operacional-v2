@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft, Image, Video, Play } from 'lucide-react';
+import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft, Image as ImageIcon, Video as VideoIcon, Play } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 
@@ -432,8 +432,8 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                             <div style={{ display: 'flex', gap: '8px', marginBottom: midiasAvaria.length ? '12px' : '0' }}>
                                 {[
                                     { htmlFor: 'chk-camera', icon: <Camera size={18} />, label: 'Câmera' },
-                                    { htmlFor: 'chk-galeria', icon: <Image size={18} />, label: 'Fotos' },
-                                    { htmlFor: 'chk-gravar', icon: <Video size={18} />, label: 'Gravar' },
+                                    { htmlFor: 'chk-galeria', icon: <ImageIcon size={18} />, label: 'Fotos' },
+                                    { htmlFor: 'chk-gravar', icon: <VideoIcon size={18} />, label: 'Gravar' },
                                     { htmlFor: 'chk-videogaleria', icon: <Play size={18} />, label: 'Vídeo' },
                                 ].map(({ htmlFor, icon, label }) => (
                                     <label key={label} htmlFor={htmlFor} style={{
@@ -456,7 +456,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                                                 <div style={{ width: '90px', height: '90px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                     {m.thumb
                                                         ? <img src={m.thumb} alt="Vídeo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                        : <Video size={26} color="#f87171" />
+                                                        : <VideoIcon size={26} color="#f87171" />
                                                     }
                                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <Play size={18} color="white" style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.8))' }} />
