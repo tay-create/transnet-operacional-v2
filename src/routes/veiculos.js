@@ -24,24 +24,23 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 whereParams.push(dataInicio, dataFim);
             }
 
-            const [rows, countRow] = await Promise.all([
+            const [rows, countRow, provVeiculos] = await Promise.all([
                 dbAll(`
                 SELECT v.*,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
                        (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
-                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count,
-                       (SELECT 1 FROM prov_veiculos pv WHERE pv.ativo = 1 AND (
-                           UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
-                       ) LIMIT 1) as is_frota_prov
+                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count
                 FROM veiculos v
                 ${whereClause}
                 ORDER BY v.id DESC LIMIT ? OFFSET ?
             `, [...whereParams, limit, offset]),
-                dbAll(`SELECT COUNT(*) as total FROM veiculos v ${whereClause}`, whereParams)
+                dbAll(`SELECT COUNT(*) as total FROM veiculos v ${whereClause}`, whereParams),
+                dbAll(`SELECT placa, COALESCE(carreta,'') as carreta FROM prov_veiculos WHERE ativo = 1`, [])
             ]);
+
+            // Set de placas da frota (normalizado) para detecção de isFrotaMotorista
+            const normPlaca = p => (p || '').replace(/[-\s]/g, '').toUpperCase();
+            const placasProvisao = new Set(provVeiculos.flatMap(pv => [normPlaca(pv.placa), normPlaca(pv.carreta)].filter(Boolean)));
 
             const total = countRow[0]?.total || 0;
             const veiculos = rows.map(row => {
@@ -83,7 +82,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     placa2Motorista: dados_json.placa2Motorista || '',
                     telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                     telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || row.is_frota_prov === 1 || false,
+                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || placasProvisao.has(normPlaca(dados_json.placa1Motorista)) || placasProvisao.has(normPlaca(row.placa)) || false,
                     checklistFeito: parseInt(row.checklist_count) > 0,
                     dados_json: row.dados_json || '{}'
                 };
@@ -94,19 +93,18 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
     router.get('/veiculos/:id', authMiddleware, async (req, res) => {
         try {
-            const row = await dbGet(`
-                SELECT v.*,
-                       (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
-                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
-                       (SELECT 1 FROM prov_veiculos pv WHERE pv.ativo = 1 AND (
-                           UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
-                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
-                       ) LIMIT 1) as is_frota_prov
-                FROM veiculos v WHERE v.id = ?
-            `, [req.params.id]);
+            const [row, provVeiculosId] = await Promise.all([
+                dbGet(`
+                    SELECT v.*,
+                           (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
+                           (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                    FROM veiculos v WHERE v.id = ?
+                `, [req.params.id]),
+                dbAll(`SELECT placa, COALESCE(carreta,'') as carreta FROM prov_veiculos WHERE ativo = 1`, [])
+            ]);
             if (!row) return res.status(404).json({ success: false });
+            const normPlacaId = p => (p || '').replace(/[-\s]/g, '').toUpperCase();
+            const placasProvId = new Set(provVeiculosId.flatMap(pv => [normPlacaId(pv.placa), normPlacaId(pv.carreta)].filter(Boolean)));
             const dados_json = (() => { try { return JSON.parse(row.dados_json || '{}'); } catch { return {}; } })();
             
             // Standardize transformation (same logic as GET /veiculos)
@@ -141,7 +139,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 placa2Motorista: dados_json.placa2Motorista || '',
                 telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                 telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || row.is_frota_prov === 1 || false,
+                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || placasProvId.has(normPlacaId(dados_json.placa1Motorista)) || placasProvId.has(normPlacaId(row.placa)) || false,
                 dados_json: row.dados_json || '{}'
             };
             res.json({ success: true, veiculo });
