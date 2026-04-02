@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle, Search, Trash2, Loader, Image, X, RefreshCw, Filter } from 'lucide-react';
+import { AlertTriangle, Search, Trash2, Loader, Image as ImageIcon, Video as VideoIcon, X, RefreshCw, Filter } from 'lucide-react';
 import api from '../services/apiService';
 
 export default function PainelOcorrencias() {
@@ -237,24 +237,38 @@ export default function PainelOcorrencias() {
                                     {o.descricao}
                                 </p>
 
-                                {/* Foto */}
-                                {o.foto_base64 && (
-                                    <div style={{ marginTop: '10px' }}>
-                                        <button
-                                            onClick={() => setImagemAberta(o.foto_base64)}
-                                            style={{
-                                                background: 'none', border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: '8px', padding: '4px', cursor: 'pointer',
-                                                display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '11px'
-                                            }}
-                                        >
-                                            <img src={o.foto_base64} alt="Evidência" style={{ height: '60px', borderRadius: '6px' }} />
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <Image size={12} /> Ver foto
-                                            </span>
-                                        </button>
-                                    </div>
-                                )}
+                                {/* Mídias (novo formato midias_json + legado foto_base64) */}
+                                {(() => {
+                                    let midias = [];
+                                    if (o.midias_json) {
+                                        try { midias = JSON.parse(o.midias_json); } catch (_) {}
+                                    }
+                                    if (!midias.length && o.foto_base64) {
+                                        midias = [{ tipo: 'foto', data: o.foto_base64 }];
+                                    }
+                                    if (!midias.length) return null;
+                                    return (
+                                        <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                            {midias.map((m, i) => m.tipo === 'foto' ? (
+                                                <button key={i} onClick={() => setImagemAberta(m.data)}
+                                                    style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '3px', cursor: 'pointer' }}>
+                                                    <img src={m.data} alt="Evidência" style={{ height: '60px', width: '60px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
+                                                </button>
+                                            ) : (
+                                                <div key={i} style={{ position: 'relative', width: '80px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', cursor: 'pointer' }}
+                                                    onClick={() => setImagemAberta({ tipo: 'video', data: m.data })}>
+                                                    {m.thumb
+                                                        ? <img src={m.thumb} alt="Vídeo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><VideoIcon size={24} color="#94a3b8" /></div>
+                                                    }
+                                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
+                                                        <VideoIcon size={18} color="white" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         );
                     })}
@@ -283,12 +297,10 @@ export default function PainelOcorrencias() {
                     >
                         <X size={20} />
                     </button>
-                    <img
-                        src={imagemAberta}
-                        alt="Evidência ampliada"
-                        style={{ maxWidth: '90%', maxHeight: '90vh', borderRadius: '12px', objectFit: 'contain' }}
-                        onClick={(e) => e.stopPropagation()}
-                    />
+                    {imagemAberta?.tipo === 'video'
+                        ? <video src={imagemAberta.data} controls autoPlay style={{ maxWidth: '90%', maxHeight: '90vh', borderRadius: '12px' }} onClick={e => e.stopPropagation()} />
+                        : <img src={typeof imagemAberta === 'string' ? imagemAberta : imagemAberta?.data} alt="Evidência ampliada" style={{ maxWidth: '90%', maxHeight: '90vh', borderRadius: '12px', objectFit: 'contain' }} onClick={(e) => e.stopPropagation()} />
+                    }
                 </div>
             )}
         </div>
