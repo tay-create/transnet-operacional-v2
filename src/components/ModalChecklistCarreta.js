@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft, Image, Video, Play } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
@@ -14,10 +14,6 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     const [temVazamento, setTemVazamento] = useState(false);
     const [fotoVazamento, setFotoVazamento] = useState(null); // legado — primeira foto
     const [midiasAvaria, setMidiasAvaria] = useState([]); // [{ tipo, data, thumb? }]
-    const fotoAvariaRef = useRef(null);
-    const galeriaAvariaRef = useRef(null);
-    const videoAvariaRef = useRef(null);
-    const videoGaleriaAvariaRef = useRef(null);
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState('');
     const [placaCarreta, setPlacaCarreta] = useState('');
@@ -142,15 +138,15 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
 
     const handleAdicionarVideoAvaria = async (e) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
-        if (file.size > 50 * 1024 * 1024) { alert('Vídeo muito grande. Máximo 50MB.'); e.target.value = ''; return; }
+        if (file.size > 50 * 1024 * 1024) { alert('Vídeo muito grande. Máximo 50MB.'); return; }
         const reader = new FileReader();
         reader.onloadend = async () => {
             const thumb = await gerarThumbVideo(file);
             setMidiasAvaria(prev => [...prev, { tipo: 'video', data: reader.result, thumb }]);
         };
         reader.readAsDataURL(file);
-        e.target.value = '';
     };
 
     const removerMidiaAvaria = (idx) => {
@@ -426,28 +422,28 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                                 <AlertTriangle size={14} /> Pelo menos uma foto ou vídeo é obrigatório.
                             </p>
 
-                            {/* inputs ocultos */}
-                            <input ref={fotoAvariaRef} type="file" accept="image/*" capture="environment" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
-                            <input ref={galeriaAvariaRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
-                            <input ref={videoAvariaRef} type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
-                            <input ref={videoGaleriaAvariaRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
+                            {/* inputs de arquivo — label htmlFor garante funcionamento no Android */}
+                            <input id="chk-camera" type="file" accept="image/*" capture="environment" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
+                            <input id="chk-galeria" type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleAdicionarFotoAvaria} />
+                            <input id="chk-gravar" type="file" accept="video/*" capture="environment" style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
+                            <input id="chk-videogaleria" type="file" accept="video/*" multiple style={{ display: 'none' }} onChange={handleAdicionarVideoAvaria} />
 
                             {/* botões de adicionar */}
                             <div style={{ display: 'flex', gap: '8px', marginBottom: midiasAvaria.length ? '12px' : '0' }}>
                                 {[
-                                    { ref: fotoAvariaRef, icon: <Camera size={18} />, label: 'Câmera' },
-                                    { ref: galeriaAvariaRef, icon: <Image size={18} />, label: 'Fotos' },
-                                    { ref: videoAvariaRef, icon: <Video size={18} />, label: 'Gravar' },
-                                    { ref: videoGaleriaAvariaRef, icon: <Play size={18} />, label: 'Vídeo' },
-                                ].map(({ ref, icon, label }) => (
-                                    <button key={label} type="button" onClick={() => ref.current?.click()} style={{
+                                    { htmlFor: 'chk-camera', icon: <Camera size={18} />, label: 'Câmera' },
+                                    { htmlFor: 'chk-galeria', icon: <Image size={18} />, label: 'Fotos' },
+                                    { htmlFor: 'chk-gravar', icon: <Video size={18} />, label: 'Gravar' },
+                                    { htmlFor: 'chk-videogaleria', icon: <Play size={18} />, label: 'Vídeo' },
+                                ].map(({ htmlFor, icon, label }) => (
+                                    <label key={label} htmlFor={htmlFor} style={{
                                         flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                                         gap: '4px', padding: '10px 6px', border: '2px dashed rgba(248,113,113,0.3)',
                                         borderRadius: '10px', background: 'rgba(248,113,113,0.04)', cursor: 'pointer',
                                         color: '#f87171', fontSize: '10px', fontWeight: '600'
                                     }}>
                                         {icon} {label}
-                                    </button>
+                                    </label>
                                 ))}
                             </div>
 

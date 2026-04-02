@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Camera, X, Save, Loader, AlertTriangle, Trash2, Image, Video, Play } from 'lucide-react';
 import api from '../services/apiService';
 
@@ -9,10 +9,6 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     const [carregandoListagem, setCarregandoListagem] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [erroSalvar, setErroSalvar] = useState('');
-    const fotoInputRef = useRef(null);
-    const galeriaInputRef = useRef(null);
-    const videoInputRef = useRef(null);
-    const videoGaleriaRef = useRef(null);
 
     useEffect(() => {
         if (!veiculo?.id) return;
@@ -73,11 +69,11 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
 
     const handleAdicionarVideo = async (e) => {
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (!file) return;
         const MAX_MB = 50;
         if (file.size > MAX_MB * 1024 * 1024) {
             alert(`Vídeo muito grande. Máximo ${MAX_MB}MB.`);
-            e.target.value = '';
             return;
         }
         const reader = new FileReader();
@@ -86,7 +82,6 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
             setMidias(prev => [...prev, { tipo: 'video', data: reader.result, thumb }]);
         };
         reader.readAsDataURL(file);
-        e.target.value = '';
     };
 
     const removerMidia = (idx) => setMidias(prev => prev.filter((_, i) => i !== idx));
@@ -263,30 +258,30 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                 Evidências (Opcional)
                             </label>
 
-                            {/* inputs ocultos */}
-                            <input ref={fotoInputRef} type="file" style={{ display: 'none' }} accept="image/*" capture="environment" multiple onChange={handleAdicionarFoto} />
-                            <input ref={galeriaInputRef} type="file" style={{ display: 'none' }} accept="image/*" multiple onChange={handleAdicionarFoto} />
-                            <input ref={videoInputRef} type="file" style={{ display: 'none' }} accept="video/*" capture="environment" onChange={handleAdicionarVideo} />
-                            <input ref={videoGaleriaRef} type="file" style={{ display: 'none' }} accept="video/*" onChange={handleAdicionarVideo} />
+                            {/* inputs de arquivo — label htmlFor garante funcionamento no Android */}
+                            <input id="oc-camera" type="file" style={{ display: 'none' }} accept="image/*" capture="environment" multiple onChange={handleAdicionarFoto} />
+                            <input id="oc-galeria" type="file" style={{ display: 'none' }} accept="image/*" multiple onChange={handleAdicionarFoto} />
+                            <input id="oc-gravar" type="file" style={{ display: 'none' }} accept="video/*" capture="environment" onChange={handleAdicionarVideo} />
+                            <input id="oc-videogaleria" type="file" style={{ display: 'none' }} accept="video/*" multiple onChange={handleAdicionarVideo} />
 
                             {/* botões de adicionar */}
                             <div style={{ display: 'flex', gap: '8px', marginBottom: midias.length ? '12px' : '0' }}>
-                                <button type="button" onClick={() => fotoInputRef.current?.click()} style={btnMidia}>
+                                <label htmlFor="oc-camera" style={btnMidia}>
                                     <Camera size={20} color="#475569" />
                                     Câmera
-                                </button>
-                                <button type="button" onClick={() => galeriaInputRef.current?.click()} style={btnMidia}>
+                                </label>
+                                <label htmlFor="oc-galeria" style={btnMidia}>
                                     <Image size={20} color="#475569" />
                                     Fotos
-                                </button>
-                                <button type="button" onClick={() => videoInputRef.current?.click()} style={btnMidia}>
+                                </label>
+                                <label htmlFor="oc-gravar" style={btnMidia}>
                                     <Video size={20} color="#475569" />
                                     Gravar
-                                </button>
-                                <button type="button" onClick={() => videoGaleriaRef.current?.click()} style={btnMidia}>
+                                </label>
+                                <label htmlFor="oc-videogaleria" style={btnMidia}>
                                     <Play size={20} color="#475569" />
                                     Vídeo
-                                </button>
+                                </label>
                             </div>
 
                             {/* preview das mídias adicionadas */}
