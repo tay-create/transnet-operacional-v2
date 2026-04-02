@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Check, X, RefreshCw, Truck, Car, User, Camera, Image, Trash2 } from 'lucide-react';
+import { Check, X, RefreshCw, Truck, Car, User, Camera, Image as ImageIcon, Trash2 } from 'lucide-react';
 import api from '../services/apiService';
 
 const CHECKLIST_LABELS = { cnh: 'CNH', antt: 'ANTT', tacografo: 'Tacógrafo', crlv: 'CRLV' };
@@ -393,7 +393,7 @@ export default function MobileCadastro() {
                                                 display: 'flex', alignItems: 'center', gap: '12px', padding: '0 18px',
                                                 cursor: 'pointer', marginBottom: frota.find(m => m.id === menuFotoId)?.foto ? '10px' : '0',
                                             }}>
-                                                <Image size={20} color="#8b5cf6" strokeWidth={2} />
+                                                <ImageIcon size={20} color="#8b5cf6" strokeWidth={2} />
                                                 Escolher da galeria
                                             </button>
                                             {/* Remover foto (só se tiver) */}

@@ -196,13 +196,6 @@ export default function MobileDashboardTV({ socket }) {
     });
     const totalGeral = Object.values(contOp).reduce((a, b) => a + b, 0);
 
-    const statusCte = {
-        emEmissao: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
-        emitido:   ctes.filter(c => c.status === 'Emitido').length,
-    };
-    // Aguardando = total de veículos lançados - os que já têm CT-e em algum estado
-    statusCte.aguardando = Math.max(0, (vRecife.length + vMoreno.length) - statusCte.emEmissao - statusCte.emitido);
-
     // Tela 1 — Operação
     const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
 
@@ -211,6 +204,13 @@ export default function MobileDashboardTV({ socket }) {
         const op = v.operacao || '';
         return op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
     });
+
+    const statusCte = {
+        emEmissao: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
+        emitido:   ctes.filter(c => c.status === 'Emitido').length,
+    };
+    // Aguardando = total de veículos lançados - os que já têm CT-e em algum estado
+    statusCte.aguardando = Math.max(0, (vRecife.length + vMoreno.length) - statusCte.emEmissao - statusCte.emitido);
 
     const statusRecife = {};
     const statusMoreno = {};
