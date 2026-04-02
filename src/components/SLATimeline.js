@@ -178,7 +178,7 @@ export default function SLATimeline({ item, unidade, pausas }) {
                 );
             })}
             {dataInicioPatio && (
-                <TotalPatioCard dataInicioPatio={dataInicioPatio} cteAt={cteAt} />
+                <TotalPatioCard dataInicioPatio={dataInicioPatio} cteAt={ts?.[`carregado_${unidade}_at`] || cteAt} />
             )}
         </div>
     );
