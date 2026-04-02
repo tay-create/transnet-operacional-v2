@@ -95,7 +95,7 @@ function formatarSemana(dias) {
 const FORM_VAZIO = { placa: '', carreta: '', tipo_veiculo: 'TRUCK', modelo: '', motorista: '', ordem: 0 };
 
 export default function ProvisionamentoFrota({ socket, user }) {
-    const podeEditar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
+    const podeEditar = ['Coordenador', 'Planejamento', 'Adm Frota'].includes(user?.cargo);
 
     const [abaAtiva, setAbaAtiva] = useState('prov'); // 'prov' | 'frota'
     const [motoristasFreota, setMotoristasFreota] = useState([]);

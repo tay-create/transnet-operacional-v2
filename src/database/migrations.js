@@ -5,6 +5,7 @@ const { dbRun, dbGet } = require('./db');
 const PERMISSOES_PADRAO = JSON.stringify({
     'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
+    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
     'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
@@ -18,6 +19,7 @@ const PERMISSOES_PADRAO = JSON.stringify({
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
     'Direção':          ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Adm Frota':        ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Encarregado':      ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
     'Aux. Operacional': ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'fila'],

@@ -2694,7 +2694,7 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
 
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
-const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento'];
+const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota'];
 const STATUS_VIAGEM_PROV = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'CARREGANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'];
 
 // GET /api/provisionamento/veiculos — listar veículos ativos
