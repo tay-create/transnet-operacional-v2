@@ -3104,7 +3104,7 @@ app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordena
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador']), async (req, res) => {
+app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador', 'Encarregado']), async (req, res) => {
     try {
         await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
         await registrarLog('PALETE_DELETADO', req.user?.nome || '?', req.params.id, 'palete', null, null, null);

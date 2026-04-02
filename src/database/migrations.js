@@ -7,7 +7,7 @@ const PERMISSOES_PADRAO = JSON.stringify({
     'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
-    'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro'],
+    'Encarregado':      ['operacao', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes'],
     'Aux. Operacional': ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
     'Conhecimento':     ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
     'Cadastro':         ['operacao', 'cte', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
