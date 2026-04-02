@@ -60,6 +60,7 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "blob:", "https:"],
             connectSrc: ["'self'", "ws:", "wss:", "http://localhost:3001", "https://portal.tnethub.com.br", "https://cloudflareinsights.com", "https://static.cloudflareinsights.com", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+            mediaSrc: ["'self'", "blob:", "data:"],
             objectSrc: ["'none'"],
         },
     },
