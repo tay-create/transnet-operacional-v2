@@ -7,13 +7,17 @@ const TELAS = ['Embarques', 'Operação', 'CT-e'];
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
-    'AGUARDANDO':        '#94a3b8',
-    'EM SEPARAÇÃO':      '#facc15',
-    'LIBERADO P/ DOCA':  '#60a5fa',
-    'EM CARREGAMENTO':   '#fb923c',
-    'CARREGADO':         '#4ade80',
-    'LIBERADO P/ CT-e':  '#c084fc',
+    'AGUARDANDO':                '#94a3b8',
+    'EM SEPARAÇÃO':              '#facc15',
+    'LIBERADO P/ DOCA':          '#60a5fa',
+    'LIBERADO P/ CARREGAMENTO':  '#60a5fa',
+    'EM CARREGAMENTO':           '#fb923c',
+    'CARREGADO':                 '#4ade80',
+    'LIBERADO P/ CT-e':          '#c084fc',
 };
+
+// Valor no banco é 'LIBERADO P/ DOCA' mas o nome exibido é 'LIBERADO P/ CARREGAMENTO'
+const traduzirStatus = st => st === 'LIBERADO P/ DOCA' ? 'LIBERADO P/ CARREGAMENTO' : st;
 
 const CORES_OP = {
     delta:       '#2563eb',
@@ -198,6 +202,7 @@ export default function MobileDashboardTV({ socket }) {
 
     // Tela 1 — Operação
     const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+    // STATUS_ORDEM usa o valor do banco ('LIBERADO P/ DOCA') para buscar contagens; label exibido é traduzido.
 
     const vRecife = veiculosHoje.filter(v => (v.operacao || '').includes('RECIFE'));
     const vMoreno = veiculosHoje.filter(v => {
@@ -403,7 +408,7 @@ export default function MobileDashboardTV({ socket }) {
                                     {STATUS_ORDEM.map(st => (
                                         <KpiCard key={st}
                                             valor={abaOp === 'recife' ? (statusRecife[st] || 0) : (statusMoreno[st] || 0)}
-                                            label={st} cor={STATUS_COR[st] || '#475569'} />
+                                            label={traduzirStatus(st)} cor={STATUS_COR[st] || '#475569'} />
                                     ))}
                                 </div>
 

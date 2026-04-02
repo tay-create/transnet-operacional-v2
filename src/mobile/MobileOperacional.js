@@ -4,13 +4,17 @@ import api from '../services/apiService';
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
-    'AGUARDANDO':        '#94a3b8',
-    'EM SEPARAÇÃO':      '#facc15',
-    'LIBERADO P/ DOCA':  '#60a5fa',
-    'EM CARREGAMENTO':   '#fb923c',
-    'CARREGADO':         '#4ade80',
-    'LIBERADO P/ CT-e':  '#c084fc',
+    'AGUARDANDO':                '#94a3b8',
+    'EM SEPARAÇÃO':              '#facc15',
+    'LIBERADO P/ DOCA':          '#60a5fa',
+    'LIBERADO P/ CARREGAMENTO':  '#60a5fa',
+    'EM CARREGAMENTO':           '#fb923c',
+    'CARREGADO':                 '#4ade80',
+    'LIBERADO P/ CT-e':          '#c084fc',
 };
+
+// Valor no banco é 'LIBERADO P/ DOCA' mas o nome exibido é 'LIBERADO P/ CARREGAMENTO'
+const traduzirStatus = st => st === 'LIBERADO P/ DOCA' ? 'LIBERADO P/ CARREGAMENTO' : st;
 
 function hexToRgb(hex) {
     const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -176,7 +180,7 @@ export default function MobileOperacional() {
                                 cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
                                 opacity: filtroStatus && !ativo ? 0.5 : 1,
                             }}>
-                                {s}: {qtd}
+                                {traduzirStatus(s)}: {qtd}
                             </button>
                         );
                     })}
@@ -193,7 +197,7 @@ export default function MobileOperacional() {
                             <Truck size={32} color="#334155" strokeWidth={1.5} />
                         </div>
                         <div style={{ fontSize: '13px' }}>
-                            {filtroStatus ? `Nenhum veículo com status "${filtroStatus}".` : 'Nenhum veículo neste período.'}
+                            {filtroStatus ? `Nenhum veículo com status "${traduzirStatus(filtroStatus)}".` : 'Nenhum veículo neste período.'}
                         </div>
                     </div>
                 ) : veiculosFiltrados.map(v => {
@@ -225,7 +229,7 @@ export default function MobileOperacional() {
                                     padding: '2px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '700',
                                     background: `rgba(${hexToRgb(cor)},0.12)`, color: cor,
                                     border: `1px solid rgba(${hexToRgb(cor)},0.3)`, whiteSpace: 'nowrap',
-                                }}>{st}</span>
+                                }}>{traduzirStatus(st)}</span>
                             </div>
 
                             {/* Motorista */}
