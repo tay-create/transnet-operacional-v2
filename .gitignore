@@ -33,3 +33,7 @@ release/
 # Scripts locais com credenciais hardcoded
 upd.js
 update_paulo.js
+
+# Arquivos locais de ferramentas e documentação interna
+.claude/
+docs/

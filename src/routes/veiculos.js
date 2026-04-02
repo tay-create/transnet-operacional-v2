@@ -247,14 +247,21 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             // data_inicio_patio: herda data_marcacao (Tempo de Espera) se motorista tem marcação
+            // Frota própria não conta tempo de pátio (circulam várias vezes por dia)
             let data_inicio_patio = null;
-            if (motoristaNome && motoristaNome !== 'A DEFINIR') {
+            if (motoristaNome && motoristaNome !== 'A DEFINIR' && !isFrotaMotorista) {
                 if (v.id_marcacao) {
-                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
-                    data_inicio_patio = marcPatio?.data_marcacao || data_criacao;
+                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
+                    if (marcPatio && !marcPatio.is_frota) {
+                        data_inicio_patio = marcPatio.data_marcacao || data_criacao;
+                    }
                 } else if (telefoneMotorista) {
-                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefoneMotorista]);
-                    data_inicio_patio = marcPatio?.data_marcacao || data_criacao;
+                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefoneMotorista]);
+                    if (marcPatio && !marcPatio.is_frota) {
+                        data_inicio_patio = marcPatio.data_marcacao || data_criacao;
+                    } else if (!marcPatio) {
+                        data_inicio_patio = data_criacao;
+                    }
                 } else {
                     data_inicio_patio = data_criacao;
                 }
@@ -564,6 +571,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     if (v.status_moreno === 'LIBERADO P/ CT-e' && !ts.cte_moreno_at) ts.cte_moreno_at = agora;
                 }
 
+                // Fluxo antecipado (cte_antecipado_* setado sem mudar status):
+                // garantir que cte_*_at é gravado para fechar o card CARREGADO no SLA
+                if (v.cte_antecipado_recife && !ts.cte_recife_at) {
+                    ts.cte_recife_at = typeof v.cte_antecipado_recife === 'string' ? v.cte_antecipado_recife : agora;
+                }
+                if (v.cte_antecipado_moreno && !ts.cte_moreno_at) {
+                    ts.cte_moreno_at = typeof v.cte_antecipado_moreno === 'string' ? v.cte_antecipado_moreno : agora;
+                }
+
                 v.timestamps_status = ts;
             }
             // ───────────────────────────────────────────────────────────────────────
@@ -609,17 +625,28 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.destino_cidade_cad = '';
             }
 
-            // Se motorista está sendo atribuído agora e data_inicio_patio era null, setar
+            // data_inicio_patio: rebuscar marcação sempre que motorista muda.
+            // Frota não conta tempo de pátio. Tempo não deve persistir entre viagens.
             let data_inicio_patio_novo = veiculoAntigo?.data_inicio_patio || null;
-            if (motoristaNovo && motoristaNovo !== 'A DEFINIR' && !data_inicio_patio_novo) {
-                // Buscar data_marcacao do motorista se disponível (herda Tempo de Espera)
+            const motoristaMudou = motoristaNovo && motoristaNovo !== 'A DEFINIR' && motoristaNovo !== veiculoAntigo?.motorista;
+            if (motoristaMudou || (motoristaNovo && motoristaNovo !== 'A DEFINIR' && !data_inicio_patio_novo)) {
+                data_inicio_patio_novo = null; // resetar antes de rebuscar
                 const telefone = (v.telefoneMotorista || '').replace(/\D/g, '');
                 if (telefone) {
-                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefone]);
-                    data_inicio_patio_novo = marcPatio?.data_marcacao || obterDataHoraBrasilia();
+                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefone]);
+                    if (marcPatio && !marcPatio.is_frota) {
+                        data_inicio_patio_novo = marcPatio.data_marcacao || obterDataHoraBrasilia();
+                    }
                 } else {
-                    const marcPatio = await dbGet("SELECT data_marcacao FROM marcacoes_placas WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?)) ORDER BY data_marcacao DESC LIMIT 1", [motoristaNovo]);
-                    data_inicio_patio_novo = marcPatio?.data_marcacao || obterDataHoraBrasilia();
+                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?)) ORDER BY data_marcacao DESC LIMIT 1", [motoristaNovo]);
+                    if (marcPatio && !marcPatio.is_frota) {
+                        data_inicio_patio_novo = marcPatio.data_marcacao || obterDataHoraBrasilia();
+                    }
+                }
+                // Fallback para terceiros sem marcação
+                const ehFrotaPut = (typeof isFrota !== 'undefined' ? isFrota : false) || v.isFrotaMotorista === true || String(v.isFrotaMotorista) === 'true';
+                if (!data_inicio_patio_novo && !ehFrotaPut) {
+                    data_inicio_patio_novo = veiculoAntigo?.data_criacao || obterDataHoraBrasilia();
                 }
             }
 
