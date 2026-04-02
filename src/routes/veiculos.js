@@ -29,7 +29,13 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 SELECT v.*,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
                        (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
-                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count
+                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count,
+                       (SELECT 1 FROM prov_veiculos pv WHERE pv.ativo = 1 AND (
+                           UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
+                       ) LIMIT 1) as is_frota_prov
                 FROM veiculos v
                 ${whereClause}
                 ORDER BY v.id DESC LIMIT ? OFFSET ?
@@ -77,7 +83,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     placa2Motorista: dados_json.placa2Motorista || '',
                     telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                     telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || row.is_frota_prov === 1 || false,
                     checklistFeito: parseInt(row.checklist_count) > 0,
                     dados_json: row.dados_json || '{}'
                 };
@@ -91,7 +97,13 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const row = await dbGet(`
                 SELECT v.*,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
-                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                       (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
+                       (SELECT 1 FROM prov_veiculos pv WHERE pv.ativo = 1 AND (
+                           UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE(v.placa,''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(pv.placa,'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
+                           OR UPPER(REPLACE(REPLACE(COALESCE(pv.carreta,''),'-',''),' ','')) = UPPER(REPLACE(REPLACE(COALESCE((v.dados_json::jsonb->>'placa1Motorista'),''),'-',''),' ',''))
+                       ) LIMIT 1) as is_frota_prov
                 FROM veiculos v WHERE v.id = ?
             `, [req.params.id]);
             if (!row) return res.status(404).json({ success: false });
@@ -129,7 +141,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 placa2Motorista: dados_json.placa2Motorista || '',
                 telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                 telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || row.is_frota_prov === 1 || false,
                 dados_json: row.dados_json || '{}'
             };
             res.json({ success: true, veiculo });
