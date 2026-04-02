@@ -263,7 +263,7 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
 // ==================== MARCAÇÃO DE PLACAS ====================
 
 // Gestão de tokens (links de motorista)
-app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Direção', 'Adm Frota', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque', 'Encarregado']), async (req, res) => {
     try {
         const rows = await dbAll("SELECT * FROM tokens_motoristas ORDER BY data_criacao DESC");
         res.json({ success: true, tokens: rows });
@@ -1546,12 +1546,19 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
 // Atualizar CT-e ativo
 app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
     try {
-        const { dados } = req.body;
+        const { dados, origem } = req.body;
         const status = dados.status || 'Aguardando Emissão';
+        const origemCte = origem || dados.origem || 'Recife';
         await dbRun(
-            `UPDATE ctes_ativos SET status = ?, dados_json = ?, motorista = ?, placa1 = ?, coleta = ?, numero_liberacao = ?, data_liberacao = ?, origem_cad = ?, destino_uf_cad = ?, destino_cidade_cad = ?, usuario_aceitou = ?, data_emissao = CASE WHEN ? = 'Emitido' THEN NOW() ELSE data_emissao END WHERE id = ?`,
+            `INSERT INTO ctes_ativos (id, origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou, data_emissao)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CASE WHEN $3 = 'Emitido' THEN NOW() ELSE NULL END)
+             ON CONFLICT (id) DO UPDATE SET
+                status = $3, dados_json = $4, motorista = $5, placa1 = $6, coleta = $7,
+                numero_liberacao = $8, data_liberacao = $9, origem_cad = $10,
+                destino_uf_cad = $11, destino_cidade_cad = $12, usuario_aceitou = $13,
+                data_emissao = CASE WHEN $3 = 'Emitido' THEN NOW() ELSE ctes_ativos.data_emissao END`,
             [
-                status, JSON.stringify(dados),
+                req.params.id, origemCte, status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
                 dados.coletaRecife || dados.coletaMoreno || null,
@@ -1561,8 +1568,6 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 dados.destino_uf_cad || null,
                 dados.destino_cidade_cad || null,
                 dados.usuario_aceitou || null,
-                status,
-                req.params.id
             ]
         );
         // Quando CT-e é emitido, salvar no histórico de liberações + remover do cadastro

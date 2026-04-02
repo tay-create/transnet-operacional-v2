@@ -280,15 +280,18 @@ function App({ socket }) {
         }
 
         // Filtrar por unidade: se a notificação tem origem, só exibe para usuários da mesma cidade (Coordenador vê tudo)
+        // Exceção: tipos que devem atravessar unidades (doca: Cadastro/Conhecimento precisam ver ambas)
+        const TIPOS_SEM_FILTRO_CIDADE = ['doca', 'aceite_cte_pendente', 'admin_senha', 'admin_cadastro'];
         const minhaCidade = userRef.current?.cidade || '';
-        if (dados.origem && meuCargo !== 'Coordenador' && minhaCidade && dados.origem !== minhaCidade) {
+        if (dados.origem && meuCargo !== 'Coordenador' && minhaCidade && dados.origem !== minhaCidade && !TIPOS_SEM_FILTRO_CIDADE.includes(dados.tipo)) {
             console.log(`🚫 Alerta ignorado: origem '${dados.origem}' não é da minha cidade '${minhaCidade}'.`);
             return;
         }
 
         const notificacaoComId = {
             ...dados,
-            idInterno: dados.idInterno || (dados.tipo + '_' + Date.now())
+            idInterno: dados.idInterno || (dados.tipo + '_' + Date.now()),
+            data_criacao: dados.data_criacao || new Date().toISOString()
         };
         adicionarNotificacao(notificacaoComId);
         
@@ -1046,7 +1049,7 @@ function App({ socket }) {
             // Persiste status Emitido no banco (card permanece visível no painel CT-e)
             if (itemAtual.id) {
                 try {
-                    await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual });
+                    await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual, origem });
                     setLista(prev => prev.map((c, mIndex) => mIndex === index ? itemAtual : c));
                     mostrarNotificacao("✅ CT-e Emitido!");
                 } catch (error) {
@@ -1068,7 +1071,7 @@ function App({ socket }) {
         // Persistir alteracoes no banco de dados (exceto se ja foi removido por ser Emitido)
         if (itemAtual.id && valor !== 'Emitido') {
             try {
-                await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual });
+                await api.put(`/ctes/${itemAtual.id}`, { dados: itemAtual, origem });
             } catch (error) {
                 const erroMsg = error.response?.data?.message || 'Erro ao persistir CT-e no servidor.';
                 mostrarNotificacao(`⚠️ ${erroMsg}`);

@@ -179,7 +179,12 @@ export default function Header({
                                                 {!['aceite_cte_pendente', 'liberacao_expirada', 'liberacao_vencendo', 'admin_senha'].includes(notif.tipo) && <Bell size={16} />}
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <p style={{ margin: '0 0 5px 0', lineHeight: '1.4' }}>{notif.mensagem}</p>
+                                                <p style={{ margin: '0 0 4px 0', lineHeight: '1.4' }}>{notif.mensagem}</p>
+                                                {notif.data_criacao && (
+                                                    <span style={{ fontSize: '10px', color: '#475569' }}>
+                                                        {new Date(notif.data_criacao).toLocaleString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                )}
                                                 {notif.tipo === 'aceite_cte_pendente' && (
                                                     <button onClick={() => { aceitarCtePelaNotificacao(notif); toggleNotificacoes(); }} style={{ background: '#22c55e', border: 'none', color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px' }}>ACEITAR CT-E</button>
                                                 )}
