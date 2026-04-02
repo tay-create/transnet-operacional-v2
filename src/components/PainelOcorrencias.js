@@ -9,6 +9,7 @@ export default function PainelOcorrencias() {
     const [filtroOrigem, setFiltroOrigem] = useState('Todas');
     const [imagemAberta, setImagemAberta] = useState(null);
     const [confirmandoExcluir, setConfirmandoExcluir] = useState(null);
+    const [carregandoVideo, setCarregandoVideo] = useState(false);
 
     const carregarOcorrencias = useCallback(async () => {
         setCarregando(true);
@@ -241,7 +242,9 @@ export default function PainelOcorrencias() {
                                 {(() => {
                                     let midias = [];
                                     if (o.midias_json) {
-                                        try { midias = JSON.parse(o.midias_json); } catch (_) {}
+                                        try {
+                                            midias = typeof o.midias_json === 'string' ? JSON.parse(o.midias_json) : o.midias_json;
+                                        } catch (_) {}
                                     }
                                     if (!midias.length && o.foto_base64) {
                                         midias = [{ tipo: 'foto', data: o.foto_base64 }];
@@ -255,14 +258,23 @@ export default function PainelOcorrencias() {
                                                     <img src={m.data} alt="Evidência" style={{ height: '60px', width: '60px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
                                                 </button>
                                             ) : (
-                                                <div key={i} style={{ position: 'relative', width: '80px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', cursor: 'pointer' }}
-                                                    onClick={() => setImagemAberta({ tipo: 'video', data: m.data })}>
+                                                <div key={i} style={{ position: 'relative', width: '80px', height: '60px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)', cursor: carregandoVideo ? 'wait' : 'pointer' }}
+                                                    onClick={async () => {
+                                                        if (carregandoVideo) return;
+                                                        if (m.data) { setImagemAberta({ tipo: 'video', data: m.data }); return; }
+                                                        setCarregandoVideo(true);
+                                                        try {
+                                                            const r = await api.get(`/api/ocorrencias/${o.id}/midias`);
+                                                            const video = (r.data.midias || []).find(v => v.tipo === 'video');
+                                                            if (video?.data) setImagemAberta({ tipo: 'video', data: video.data });
+                                                        } catch (_) {} finally { setCarregandoVideo(false); }
+                                                    }}>
                                                     {m.thumb
                                                         ? <img src={m.thumb} alt="Vídeo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><VideoIcon size={24} color="#94a3b8" /></div>
                                                     }
                                                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
-                                                        <VideoIcon size={18} color="white" />
+                                                        {carregandoVideo ? <Loader size={18} color="white" /> : <VideoIcon size={18} color="white" />}
                                                     </div>
                                                 </div>
                                             ))}

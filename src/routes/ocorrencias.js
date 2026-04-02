@@ -65,10 +65,35 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
             LEFT JOIN veiculos v ON o.veiculo_id = v.id
             ORDER BY o.data_criacao DESC
         `);
-            res.json({ success: true, ocorrencias });
+            // Para vídeos: omitir campo 'data' (base64 pesado) na listagem, manter só thumb
+            const ocorrenciasLeves = ocorrencias.map(o => {
+                if (!o.midias_json) return o;
+                try {
+                    const midias = typeof o.midias_json === 'string' ? JSON.parse(o.midias_json) : o.midias_json;
+                    if (!Array.isArray(midias)) return o;
+                    const midiasLeves = midias.map(m => m.tipo === 'video' ? { tipo: 'video', thumb: m.thumb || null, tem_video: true } : m);
+                    return { ...o, midias_json: JSON.stringify(midiasLeves) };
+                } catch (_) { return o; }
+            });
+            res.json({ success: true, ocorrencias: ocorrenciasLeves });
         } catch (e) {
             console.error('Erro ao buscar ocorrências:', e);
             res.status(500).json({ success: false, message: 'Erro ao buscar ocorrências.' });
+        }
+    });
+
+    // ── GET Mídias completas de uma ocorrência (inclui vídeo base64) ──
+    router.get('/api/ocorrencias/:id/midias', authMiddleware, async (req, res) => {
+        try {
+            const o = await dbGet("SELECT midias_json FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
+            if (!o) return res.status(404).json({ success: false });
+            let midias = [];
+            if (o.midias_json) {
+                try { midias = typeof o.midias_json === 'string' ? JSON.parse(o.midias_json) : o.midias_json; } catch (_) {}
+            }
+            res.json({ success: true, midias });
+        } catch (e) {
+            res.status(500).json({ success: false, message: e.message });
         }
     });
 

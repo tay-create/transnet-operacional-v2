@@ -2,6 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { Camera, X, Save, Loader, AlertTriangle, Trash2, Image as ImageIcon, Video as VideoIcon, Play } from 'lucide-react';
 import api from '../services/apiService';
 
+function VideoPlayerLazy({ ocorrenciaId, thumb, api: apiInst }) {
+    const [src, setSrc] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const carregar = async () => {
+        if (src || loading) return;
+        setLoading(true);
+        try {
+            const r = await (apiInst || api).get(`/api/ocorrencias/${ocorrenciaId}/midias`);
+            const video = (r.data.midias || []).find(v => v.tipo === 'video');
+            if (video?.data) setSrc(video.data);
+        } catch (_) {} finally { setLoading(false); }
+    };
+    if (src) return <video src={src} controls autoPlay style={{ height: '120px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', display: 'block', background: '#000' }} />;
+    return (
+        <div onClick={carregar} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#000', cursor: loading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+            {thumb && <img src={thumb} alt="Vídeo" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                {loading ? <Loader size={20} color="white" /> : <Play size={20} color="white" />}
+            </div>
+        </div>
+    );
+}
+
 export default function ModalOcorrencia({ onClose, veiculo }) {
     const [descricao, setDescricao] = useState('');
     const [midias, setMidias] = useState([]); // [{ tipo: 'foto'|'video', data: base64, thumb?: base64 }]
@@ -115,7 +138,10 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
 
     const getMidiasOcorrencia = (o) => {
         if (o.midias_json) {
-            try { return JSON.parse(o.midias_json); } catch (_) {}
+            try {
+                const parsed = typeof o.midias_json === 'string' ? JSON.parse(o.midias_json) : o.midias_json;
+                if (Array.isArray(parsed) && parsed.length) return parsed;
+            } catch (_) {}
         }
         if (o.foto_base64) return [{ tipo: 'foto', data: o.foto_base64 }];
         return [];
@@ -202,16 +228,9 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                                         {mds.map((m, i) => (
                                                             m.tipo === 'video' ? (
-                                                                <a key={i} href={m.data} target="_blank" rel="noopener noreferrer"
-                                                                    style={{ position: 'relative', display: 'inline-block' }}>
-                                                                    {m.thumb
-                                                                        ? <img src={m.thumb} alt="Vídeo" style={{ height: '80px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }} />
-                                                                        : <div style={{ width: '80px', height: '80px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><VideoIcon size={24} color="#94a3b8" /></div>
-                                                                    }
-                                                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                        <Play size={20} color="white" style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.8))' }} />
-                                                                    </div>
-                                                                </a>
+                                                                m.data
+                                                                    ? <video key={i} src={m.data} controls style={{ height: '120px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', display: 'block', background: '#000' }} />
+                                                                    : <VideoPlayerLazy key={i} ocorrenciaId={o.id} thumb={m.thumb} api={api} />
                                                             ) : (
                                                                 <a key={i} href={m.data} target="_blank" rel="noopener noreferrer">
                                                                     <img src={m.data} alt={`Evidência ${i + 1}`} style={{ height: '80px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }} />
