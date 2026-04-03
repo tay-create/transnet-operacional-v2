@@ -3134,6 +3134,10 @@ app.use((err, req, res, next) => {
     });
 });
 
+// ── Task Dashboard (antes do catch-all do React) ─────────────────────────────
+const tasksRouter = require('./src/routes/tasks')(adminAuth);
+app.use('/', tasksRouter);
+
 // ── Fallback para React (SPA) ────────────────────────────────────────────────
 // Deve ser uma das últimas rotas para não interferir nas rotas da API
 if (process.env.NODE_ENV === 'production') {
