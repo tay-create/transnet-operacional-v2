@@ -1078,7 +1078,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 `UPDATE veiculos SET data_prevista = $1, foi_reprogramado = $2 WHERE id = $3`,
                 [nova_data, foi_reprogramado ? 1 : 0, req.params.id]
             );
-            io.emit('update');
+            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), data_prevista: nova_data, foi_reprogramado: foi_reprogramado ? 1 : 0 });
             res.json({ success: true });
         } catch (e) { console.error('Erro PUT /veiculos/:id/reprogramar', e); res.status(500).json({ success: false }); }
     });
