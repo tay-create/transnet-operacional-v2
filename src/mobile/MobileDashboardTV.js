@@ -153,18 +153,26 @@ export default function MobileDashboardTV({ socket }) {
 
     useEffect(() => {
         if (!socket) return;
-        const handleVeiculos = () => {
-            api.get('/veiculos?limit=500').then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
+        const handleCtes = () => {
+            api.get(`/ctes?dataInicio=${dataSel}&dataFim=${dataSel}`).then(r => {
+                if (r.data.success) setCtes(r.data.ctes || []);
+            });
         };
         const handleDocas = () => {
             api.get(`/api/docas-interditadas?data=${dataSel}`).then(r => {
                 if (r.data.success) setDocasInterditadas(r.data.docas || []);
             });
         };
-        socket.on('receber_atualizacao', handleVeiculos);
+        const handleAtualizacao = (data) => {
+            api.get('/veiculos?limit=500').then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
+            if (data?.tipo === 'novo_cte' || data?.tipo === 'atualiza_cte' || data?.tipo === 'remove_cte') {
+                handleCtes();
+            }
+        };
+        socket.on('receber_atualizacao', handleAtualizacao);
         socket.on('docas_interditadas_update', handleDocas);
         return () => {
-            socket.off('receber_atualizacao', handleVeiculos);
+            socket.off('receber_atualizacao', handleAtualizacao);
             socket.off('docas_interditadas_update', handleDocas);
         };
     }, [socket, dataSel]);
@@ -186,9 +194,9 @@ export default function MobileDashboardTV({ socket }) {
         touchStartX.current = null;
     };
 
-    // Veículos do dia selecionado
+    // Veículos do dia selecionado — data_prevista tem prioridade (igual ao DashboardTV desktop)
     const veiculosHoje = veiculos.filter(v => {
-        const dataR = v.data_carregado_recife || v.data_carregado_moreno || v.data_prevista || dataSel + 'T00:00:00';
+        const dataR = v.data_prevista || v.data_carregado_recife || v.data_carregado_moreno || '';
         return dataR.split('T')[0] === dataSel;
     });
 
