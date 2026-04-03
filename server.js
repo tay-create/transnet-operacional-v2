@@ -3175,7 +3175,7 @@ server.listen(PORT, () => {
     // Cleanup de sessões expiradas (1x por hora) — remove sessões com mais de 9h
     setInterval(async () => {
         try {
-            await dbRun("DELETE FROM sessoes WHERE criada_em < NOW() - INTERVAL '9 hours'");
+            await dbRun("DELETE FROM sessoes WHERE criada_em < NOW() - INTERVAL '9 hours' AND expires_at IS NOT NULL");
         } catch (_) {}
     }, 60 * 60 * 1000);
 
