@@ -131,6 +131,10 @@ const generateToken = (user, manterConectado = false) => {
         cargo: user.cargo,
         cidade: user.cidade
     };
+    // Dashboard Viewer fica sempre online (TV/painel sem interação humana) — JWT sem expiração
+    if (user.cargo === 'Dashboard Viewer') {
+        return jwt.sign(payload, JWT_SECRET);
+    }
     const expiresIn = manterConectado ? '7d' : '8h';
     return jwt.sign(payload, JWT_SECRET, { expiresIn });
 };
