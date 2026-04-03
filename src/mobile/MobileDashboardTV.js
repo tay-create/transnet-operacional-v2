@@ -222,8 +222,9 @@ export default function MobileDashboardTV({ socket }) {
         emEmissao: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length,
         emitido:   ctes.filter(c => c.status === 'Emitido').length,
     };
-    // Aguardando = total de veículos lançados - os que já têm CT-e em algum estado
-    statusCte.aguardando = Math.max(0, (vRecife.length + vMoreno.length) - statusCte.emEmissao - statusCte.emitido);
+    // Aguardando = total de veículos do dia - os que já têm CT-e em algum estado
+    // Usar veiculosHoje.length (não vRecife+vMoreno) para evitar dupla contagem de operações R×M
+    statusCte.aguardando = Math.max(0, veiculosHoje.length - statusCte.emEmissao - statusCte.emitido);
 
     const statusRecife = {};
     const statusMoreno = {};
@@ -493,10 +494,10 @@ export default function MobileDashboardTV({ socket }) {
                                     {/* KPIs totais */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                                         {[
-                                            { label: 'Total CT-e',  qtd: vRecife.length + vMoreno.length,        cor: '#a78bfa' },
+                                            { label: 'Total CT-e',  qtd: veiculosHoje.length,        cor: '#a78bfa' },
                                             { label: 'Emitidos',    qtd: ctes.filter(c => c.status === 'Emitido').length, cor: '#22c55e' },
                                             { label: 'Em Emissão',  qtd: ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length, cor: '#3b82f6' },
-                                            { label: 'Aguardando',  qtd: Math.max(0, (vRecife.length + vMoreno.length) - ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length - ctes.filter(c => c.status === 'Emitido').length), cor: '#f59e0b' },
+                                            { label: 'Aguardando',  qtd: statusCte.aguardando, cor: '#f59e0b' },
                                         ].map(item => (
                                             <KpiCard key={item.label} valor={item.qtd} label={item.label} cor={item.cor} />
                                         ))}
