@@ -75,7 +75,7 @@ const PRIORIDADE_STATUS = {
 export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
-    const totalTelas = (ehViewer && !TELAS_EXTRAS_ATIVAS) ? 3 : 4;
+    const totalTelas = 4;
 
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
@@ -171,7 +171,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Confronto de Embarques', 'Fluxo Mensal'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Fluxo Mensal'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
