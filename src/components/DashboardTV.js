@@ -93,10 +93,11 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         esconderBarraTimer.current = setTimeout(() => setBarraVisivel(false), 3000);
     };
 
-    // Filtro para cards de hoje (comparar data_prevista ou data_criacao com hoje)
+    // Filtro para cards de hoje — data_prevista tem prioridade (é o campo editável)
+    // data_carregado_* só como fallback quando não há data_prevista
     const hoje = obterDataBrasilia();
     const veiculosHoje = listaVeiculos.filter(v => {
-        const dataCard = v.data_carregado_recife || v.data_carregado_moreno || v.data_prevista || '';
+        const dataCard = v.data_prevista || v.data_carregado_recife || v.data_carregado_moreno || '';
         return dataCard.split('T')[0] === hoje;
     });
 
