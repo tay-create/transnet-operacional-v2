@@ -215,6 +215,8 @@ export default function MobileDashboardTV({ socket }) {
     const vRecife = veiculosHoje.filter(v => (v.operacao || '').includes('RECIFE'));
     const vMoreno = veiculosHoje.filter(v => {
         const op = v.operacao || '';
+        // Excluir consolidados que têm RECIFE na operação (ex: PLÁSTICO(RECIFE)/PORCELANA)
+        if (op.includes('RECIFE')) return false;
         return op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
     });
 
