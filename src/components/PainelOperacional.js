@@ -53,6 +53,18 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     const criouEmMoreno = origemCriacao === 'Moreno' || origemCriacao === 'Porcelana' || origemCriacao === 'Eletrik' || origemCriacao === 'Delta Moreno';
     const criouEmRecife = origemCriacao === 'Recife';
 
+    // Corrigir unidade/origem_criacao baseado na operação, não em quem criou
+    if (!precisaRecife && precisaMoreno) {
+        itemAtualizado.unidade = 'Moreno';
+        itemAtualizado.origem_criacao = 'Moreno';
+        itemAtualizado.inicio_rota = 'Moreno';
+    } else if (precisaRecife && !precisaMoreno) {
+        itemAtualizado.unidade = 'Recife';
+        itemAtualizado.origem_criacao = 'Recife';
+        itemAtualizado.inicio_rota = 'Recife';
+    }
+    // misto: manter origem_criacao existente (define 1ª parada)
+
     if (precisaRecife && precisaMoreno) {
         // Operacao mista: definir paradas baseado na origem de criacao
         if (criouEmMoreno) {

@@ -630,8 +630,10 @@ function App({ socket }) {
         if (precisaRecife && !formLanca.coletaRecife) return mostrarNotificacao("⚠️ Digite a coleta de Recife!");
         if (precisaMoreno && !formLanca.coletaMoreno) return mostrarNotificacao("⚠️ Digite a coleta de Moreno!");
 
-        const ehEletrikOuPorcelana = formLanca.operacao === 'ELETRIK' || formLanca.operacao === 'PORCELANA' || formLanca.operacao === 'PORCELANA/ELETRIK';
-        const unidadeForcada = ehEletrikOuPorcelana ? 'Moreno' : (formLanca.inicio || 'Recife');
+        // Unidade determinada pela operação, não pela cidade do usuário
+        const unidadeForcada = (!precisaRecife && precisaMoreno) ? 'Moreno'
+            : (!precisaMoreno && precisaRecife) ? 'Recife'
+            : (formLanca.inicio || 'Recife'); // misto: usa seleção manual
 
         const novoItem = {
             placa: formLanca.placa1Motorista || '',
