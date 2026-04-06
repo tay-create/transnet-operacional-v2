@@ -46,22 +46,14 @@ jobs:
       - name: Escrever .env.staging
         run: |
           mkdir -p /opt/transnet/staging
-          cat > /opt/transnet/staging/.env.staging << 'ENVEOF'
-          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
-          PORT=3001
-          MAX_FILE_SIZE=200mb
-          NODE_ENV=production
-          GENERATE_SOURCEMAP=false
-          DB_USER=${{ secrets.STAGING_DB_USER }}
-          DB_HOST=db
-          DB_NAME=transnet_staging
-          DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
-          DB_PORT=5432
-          FRONTEND_URL=https://homolog.tnethub.com.br
-          GMAIL_USER=${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
-          ADMIN_MASTER_PASSWORD=${{ secrets.STAGING_ADMIN_PASSWORD }}
-          ENVEOF
+          printf 'JWT_SECRET=%s\nPORT=3001\nMAX_FILE_SIZE=200mb\nNODE_ENV=production\nGENERATE_SOURCEMAP=false\nDB_USER=%s\nDB_HOST=db\nDB_NAME=transnet_staging\nDB_PASSWORD=%s\nDB_PORT=5432\nFRONTEND_URL=https://homolog.tnethub.com.br\nGMAIL_USER=%s\nGMAIL_APP_PASSWORD=%s\nADMIN_MASTER_PASSWORD=%s\n' \
+            '${{ secrets.STAGING_JWT_SECRET }}' \
+            '${{ secrets.STAGING_DB_USER }}' \
+            '${{ secrets.STAGING_DB_PASSWORD }}' \
+            '${{ secrets.GMAIL_USER }}' \
+            '${{ secrets.GMAIL_APP_PASSWORD }}' \
+            '${{ secrets.STAGING_ADMIN_PASSWORD }}' \
+            > /opt/transnet/staging/.env.staging
 
       - name: Copiar docker-compose.staging.yml
         run: cp ${{ github.workspace }}/docker-compose.staging.yml /opt/transnet/staging/
