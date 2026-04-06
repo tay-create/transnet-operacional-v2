@@ -60,6 +60,8 @@ jobs:
 
       - name: Deploy via Docker Compose
         run: |
+          # Para o PM2 se ainda estiver rodando (migração para Docker)
+          pm2 stop transnet 2>/dev/null || true
           cd /opt/transnet/prod
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker compose -f docker-compose.prod.yml pull app
