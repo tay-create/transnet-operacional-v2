@@ -36,65 +36,37 @@ jobs:
 
   deploy:
     name: Deploy no servidor de Homologação
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-and-push
 
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v4
+      - name: Escrever .env.staging
+        run: |
+          mkdir -p /opt/transnet/staging
+          cat > /opt/transnet/staging/.env.staging << 'ENVEOF'
+          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
+          PORT=3001
+          MAX_FILE_SIZE=200mb
+          NODE_ENV=production
+          GENERATE_SOURCEMAP=false
+          DB_USER=${{ secrets.STAGING_DB_USER }}
+          DB_HOST=db
+          DB_NAME=transnet_staging
+          DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          DB_PORT=5432
+          FRONTEND_URL=https://homolog.tnethub.com.br
+          GMAIL_USER=${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          ADMIN_MASTER_PASSWORD=${{ secrets.STAGING_ADMIN_PASSWORD }}
+          ENVEOF
 
-      - name: Escrever .env.staging no servidor
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ssh.tnethub.com.br
-          proxy_username: ${{ secrets.PROD_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            mkdir -p /opt/transnet/staging
-            cat > /opt/transnet/staging/.env.staging << 'ENVEOF'
-            JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
-            PORT=3001
-            MAX_FILE_SIZE=200mb
-            NODE_ENV=production
-            GENERATE_SOURCEMAP=false
-            DB_USER=${{ secrets.STAGING_DB_USER }}
-            DB_HOST=db
-            DB_NAME=transnet_staging
-            DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
-            DB_PORT=5432
-            FRONTEND_URL=https://homolog.tnethub.com.br
-            GMAIL_USER=${{ secrets.GMAIL_USER }}
-            GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
-            ADMIN_MASTER_PASSWORD=${{ secrets.STAGING_ADMIN_PASSWORD }}
-            ENVEOF
-
-      - name: Copiar docker-compose.staging.yml para o servidor
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ssh.tnethub.com.br
-          proxy_username: ${{ secrets.PROD_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          source: docker-compose.staging.yml
-          target: /opt/transnet/staging/
+      - name: Copiar docker-compose.staging.yml
+        run: cp ${{ github.workspace }}/docker-compose.staging.yml /opt/transnet/staging/
 
       - name: Deploy via Docker Compose
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
-          proxy_host: ssh.tnethub.com.br
-          proxy_username: ${{ secrets.PROD_USER }}
-          proxy_key: ${{ secrets.PROD_SSH_KEY }}
-          script: |
-            cd /opt/transnet/staging
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose -f docker-compose.staging.yml pull app
-            docker compose -f docker-compose.staging.yml up -d --no-deps app
-            docker image prune -f
+        run: |
+          cd /opt/transnet/staging
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker compose -f docker-compose.staging.yml pull app
+          docker compose -f docker-compose.staging.yml up -d --no-deps app
+          docker image prune -f
