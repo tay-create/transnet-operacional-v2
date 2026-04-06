@@ -473,6 +473,29 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
         io.emit('receber_alerta', { tipo: 'nova_marcacao_coord', mensagem: `${nomeMarcacao} marcou placa`, criador: nomeMarcacao, data_criacao: new Date().toISOString() });
         io.emit('marcacao_atualizada', { tipo: 'nova_marcacao' });
 
+        // ── Envio para Torre de Monitoramento (fire-and-forget, não bloqueia resposta) ──
+        if (process.env.TORRE_SUPABASE_URL && process.env.TORRE_SUPABASE_KEY) {
+            const torrePayload = {
+                nome: nome_motorista,
+                telefone: telefoneLimpo,
+                placa1: placa1,
+                ...(placa2 ? { placa2 } : {})
+            };
+            fetch(`${process.env.TORRE_SUPABASE_URL}/rest/v1/third_party_drivers`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': process.env.TORRE_SUPABASE_KEY,
+                    'Authorization': `Bearer ${process.env.TORRE_SUPABASE_KEY}`,
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify(torrePayload)
+            }).then(r => {
+                if (!r.ok) r.text().then(t => console.warn(`[TORRE] Falha ao cadastrar motorista: ${r.status} ${t}`));
+                else console.log(`[TORRE] Motorista cadastrado: ${nome_motorista} (${placa1})`);
+            }).catch(err => console.warn(`[TORRE] Erro de conexão: ${err.message}`));
+        }
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
