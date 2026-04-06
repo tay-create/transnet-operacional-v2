@@ -476,10 +476,10 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
         // ── Envio para Torre de Monitoramento (fire-and-forget, não bloqueia resposta) ──
         if (process.env.TORRE_SUPABASE_URL && process.env.TORRE_SUPABASE_KEY) {
             const torrePayload = {
-                nome: nome_motorista,
-                telefone: telefoneLimpo,
-                placa1: placa1,
-                ...(placa2 ? { placa2 } : {})
+                driver_name: nome_motorista,
+                phone: telefoneLimpo,
+                plate1: placa1,
+                ...(placa2 ? { plate2: placa2 } : {})
             };
             fetch(`${process.env.TORRE_SUPABASE_URL}/rest/v1/third_party_drivers`, {
                 method: 'POST',
