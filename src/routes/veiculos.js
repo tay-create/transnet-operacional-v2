@@ -1298,18 +1298,25 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
     router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
         try {
-            const { unidade, confirmarMisto } = req.body; // 'Recife' ou 'Moreno'
+            const { unidade, confirmarMisto, proxima_data } = req.body; // 'Recife' ou 'Moreno'
             if (!unidade || !['Recife', 'Moreno'].includes(unidade)) {
                 return res.status(400).json({ success: false, message: 'Unidade inválida.' });
             }
 
-            // Calcular hoje e próximo dia útil (pula domingo)
+            // Calcular hoje
             const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
             const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
-            const prox = new Date(agora);
-            prox.setDate(prox.getDate() + 1);
-            if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // domingo → segunda
-            const amanhaStr = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, '0')}-${String(prox.getDate()).padStart(2, '0')}`;
+
+            // Próxima data: usar a fornecida pelo cliente (escolha sáb/seg) ou calcular automaticamente (pula domingo)
+            let amanhaStr;
+            if (proxima_data && /^\d{4}-\d{2}-\d{2}$/.test(proxima_data)) {
+                amanhaStr = proxima_data;
+            } else {
+                const prox = new Date(agora);
+                prox.setDate(prox.getDate() + 1);
+                if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // domingo → segunda
+                amanhaStr = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, '0')}-${String(prox.getDate()).padStart(2, '0')}`;
+            }
 
             const campoStatus = unidade === 'Recife' ? 'status_recife' : 'status_moreno';
             const campoCarregado = unidade === 'Recife' ? 'data_carregado_recife' : 'data_carregado_moreno';

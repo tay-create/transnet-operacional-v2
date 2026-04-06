@@ -162,6 +162,8 @@ export default function PainelOperacional({
     const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
+    const [proximaDataFinalizar, setProximaDataFinalizar] = useState(null); // data escolhida (sexta → sáb ou seg)
+    const [modalEscolhaDia, setModalEscolhaDia] = useState(false); // modal sexta-feira
     const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
@@ -594,7 +596,16 @@ export default function PainelOperacional({
                                 })()}
                                 {origem === 'Recife' && (podeEditarNaUnidade('operacao') || user.cargo === 'Conhecimento') && (
                                     <button
-                                        onClick={() => setConfirmarFinalizar(true)}
+                                        onClick={() => {
+                                            const hoje = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+                                            if (hoje.getDay() === 5) {
+                                                // Sexta-feira: perguntar se vai para sábado ou segunda
+                                                setModalEscolhaDia(true);
+                                            } else {
+                                                setProximaDataFinalizar(null);
+                                                setConfirmarFinalizar(true);
+                                            }
+                                        }}
                                         title="Finalizar operação: avança cards pendentes para o próximo dia útil (ambas as unidades)"
                                         style={{
                                             marginLeft: '8px',
@@ -1599,11 +1610,65 @@ export default function PainelOperacional({
                 />
             )}
 
+            {/* Modal Escolha de Dia — Sexta-feira */}
+            {modalEscolhaDia && (
+                <div className="modal-overlay">
+                    <div className="modal-neon-panel" style={{ width: '420px', textAlign: 'center' }}>
+                        <h3 style={{ color: '#fbbf24', marginBottom: '8px', fontSize: '16px', fontWeight: '700' }}>
+                            Finalizar Operação — Sexta-feira
+                        </h3>
+                        <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '24px' }}>
+                            Para qual dia os cards pendentes devem ser avançados?
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                            <button
+                                onClick={() => {
+                                    // Sábado = amanhã
+                                    const hoje = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+                                    const sab = new Date(hoje);
+                                    sab.setDate(sab.getDate() + 1);
+                                    const sabStr = `${sab.getFullYear()}-${String(sab.getMonth() + 1).padStart(2, '0')}-${String(sab.getDate()).padStart(2, '0')}`;
+                                    setProximaDataFinalizar(sabStr);
+                                    setModalEscolhaDia(false);
+                                    setConfirmarFinalizar(true);
+                                }}
+                                className="btn-neon"
+                                style={{ flex: 1, padding: '12px', fontSize: '14px', fontWeight: '700' }}
+                            >
+                                Sábado
+                            </button>
+                            <button
+                                onClick={() => {
+                                    // Segunda = hoje + 3 dias
+                                    const hoje = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+                                    const seg = new Date(hoje);
+                                    seg.setDate(seg.getDate() + 3);
+                                    const segStr = `${seg.getFullYear()}-${String(seg.getMonth() + 1).padStart(2, '0')}-${String(seg.getDate()).padStart(2, '0')}`;
+                                    setProximaDataFinalizar(segStr);
+                                    setModalEscolhaDia(false);
+                                    setConfirmarFinalizar(true);
+                                }}
+                                className="btn-neon"
+                                style={{ flex: 1, padding: '12px', fontSize: '14px', fontWeight: '700', background: 'rgba(167,139,250,0.15)', borderColor: '#a78bfa', color: '#a78bfa' }}
+                            >
+                                Segunda-feira
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => setModalEscolhaDia(false)}
+                            style={{ marginTop: '16px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '13px' }}
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Modal de Confirmação — Finalizar Operação (ambas unidades) */}
             {confirmarFinalizar && (
                 <ModalConfirm
                     titulo="Finalizar Operação — Recife + Moreno"
-                    mensagem="Isso vai avançar todos os veículos pendentes (Aguardando até Em Carregamento) de AMBAS as unidades para o próximo dia útil. Deseja continuar?"
+                    mensagem={`Isso vai avançar todos os veículos pendentes (Aguardando até Em Carregamento) de AMBAS as unidades para ${proximaDataFinalizar ? new Date(proximaDataFinalizar + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }) : 'o próximo dia útil'}. Deseja continuar?`}
                     textConfirm={finalizando ? 'Aguarde...' : 'Finalizar'}
                     textCancel="Cancelar"
                     variante="perigo"
@@ -1611,14 +1676,14 @@ export default function PainelOperacional({
                         if (finalizando) return;
                         setFinalizando(true);
                         try {
-                            // Finaliza Recife
-                            const r1 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Recife', confirmarMisto: true });
-                            // Finaliza Moreno
-                            const r2 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Moreno', confirmarMisto: true });
+                            const payload = { confirmarMisto: true, ...(proximaDataFinalizar ? { proxima_data: proximaDataFinalizar } : {}) };
+                            const r1 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Recife', ...payload });
+                            const r2 = await api.post('/veiculos/finalizar-operacao', { unidade: 'Moreno', ...payload });
                             const totalRec = r1.data.veiculosAvancados || 0;
                             const totalMor = r2.data.veiculosAvancados || 0;
                             mostrarNotificacao?.(`✅ Finalizado! Recife: ${totalRec} veículo(s) | Moreno: ${totalMor} veículo(s)`);
                             setConfirmarFinalizar(false);
+                            setProximaDataFinalizar(null);
                         } catch (err) {
                             const msg = err.response?.data?.message || 'Erro ao finalizar operação.';
                             mostrarNotificacao?.(`⚠️ ${msg}`);
@@ -1626,7 +1691,7 @@ export default function PainelOperacional({
                             setFinalizando(false);
                         }
                     }}
-                    onCancel={() => { if (!finalizando) setConfirmarFinalizar(false); }}
+                    onCancel={() => { if (!finalizando) { setConfirmarFinalizar(false); setProximaDataFinalizar(null); } }}
                 />
             )}
 
