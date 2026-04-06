@@ -335,6 +335,14 @@ function App({ socket }) {
                     }
                 }).catch(() => {});
             }
+            // Auto-remover da fila quando status mudar para EM SEPARAÇÃO
+            if (data.status_recife === 'EM SEPARAÇÃO' || data.status_moreno === 'EM SEPARAÇÃO') {
+                setFila(prev => {
+                    const item = prev.find(f => f.veiculo_id === data.id);
+                    if (item?.id) api.delete(`/fila/${item.id}`).catch(() => {});
+                    return prev;
+                });
+            }
         }
         else if (data.tipo === 'remove_veiculo') setListaVeiculos(prev => prev.filter(c => c.id !== data.id));
 
@@ -676,11 +684,23 @@ function App({ socket }) {
         };
 
         try {
-            await api.post('/veiculos', novoItem);
+            const respLanca = await api.post('/veiculos', novoItem);
 
             // Se veio da fila, remove o item original
             if (formLanca.idFilaOriginal) {
                 await removerDaFila(formLanca.idFilaOriginal);
+            }
+
+            // Auto-adicionar à fila de separação
+            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coleta || '';
+            if (coletaFila && !formLanca.idFilaOriginal) {
+                await api.post('/fila', {
+                    coleta: coletaFila,
+                    motorista: novoItem.motorista || '',
+                    unidade: novoItem.unidade || user?.cidade || 'Recife',
+                    pendente: false,
+                    veiculo_id: respLanca.data?.id
+                });
             }
 
             setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });

@@ -193,104 +193,131 @@ export const ModalFila = ({ isOpen, onClose, fila, setFila, onDragSort, updateLi
                 <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {fila.length === 0 && <p style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '20px' }}>Fila vazia.</p>}
 
-                    {fila.map((item, index) => (
-                        <div
-                            key={index}
-                            draggable
-                            onDragStart={() => handleDragStart(index)}
-                            onDragEnter={() => handleDragEnter(index)}
-                            onDragEnd={handleDragEnd}
-                            onDragOver={(e) => e.preventDefault()}
-                            style={{
-                                display: 'flex',
-                                gap: '10px',
-                                alignItems: 'center',
-                                background: 'rgba(0,0,0,0.3)',
-                                padding: '10px',
-                                borderRadius: '8px',
-                                border: `1px solid ${item.unidade === 'Moreno' ? 'rgba(167,139,250,0.25)' : 'rgba(255,255,255,0.05)'}`,
-                                cursor: 'grab',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <span style={{ color: '#64748b', display: 'flex', alignItems: 'center' }} title="Arraste para organizar">
-                                <GripVertical size={20} />
-                            </span>
-                            {item.unidade && (
-                                <span style={{
-                                    fontSize: '10px', fontWeight: '700', padding: '2px 7px', borderRadius: '10px', whiteSpace: 'nowrap',
-                                    background: item.unidade === 'Moreno' ? 'rgba(167,139,250,0.15)' : 'rgba(56,189,248,0.15)',
-                                    color: item.unidade === 'Moreno' ? '#a78bfa' : '#38bdf8',
-                                    border: `1px solid ${item.unidade === 'Moreno' ? 'rgba(167,139,250,0.3)' : 'rgba(56,189,248,0.3)'}`
-                                }}>{item.unidade}</span>
-                            )}
-                            <input
-                                placeholder="Coleta"
-                                value={item.coleta || ''}
-                                onChange={e => updateList(index, 'coleta', e.target.value)}
+                    {(() => {
+                        const prontos = fila.filter(f => !f.pendente);
+                        const pendentes = fila.filter(f => f.pendente);
+
+                        const renderItem = (item, index) => (
+                            <div
+                                key={item.id || index}
+                                draggable
+                                onDragStart={() => handleDragStart(index)}
+                                onDragEnter={() => handleDragEnter(index)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => e.preventDefault()}
                                 style={{
-                                    flex: 1,
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '6px',
-                                    padding: '8px 12px',
-                                    color: 'white',
-                                    fontSize: '13px'
-                                }}
-                            />
-                            <input
-                                placeholder="Motorista"
-                                value={item.motorista || ''}
-                                onChange={e => updateList(index, 'motorista', e.target.value)}
-                                style={{
-                                    flex: 1,
-                                    background: 'rgba(255,255,255,0.05)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '6px',
-                                    padding: '8px 12px',
-                                    color: 'white',
-                                    fontSize: '13px'
-                                }}
-                            />
-                            <button
-                                onClick={() => onPromote(item)}
-                                title="Lançar para Operação"
-                                style={{
-                                    color: '#34d399',
-                                    border: 'none',
-                                    background: 'rgba(52, 211, 153, 0.1)',
-                                    cursor: 'pointer',
                                     display: 'flex',
+                                    gap: '10px',
                                     alignItems: 'center',
-                                    padding: '8px',
-                                    borderRadius: '6px',
-                                    transition: 'all 0.2s'
+                                    background: item.pendente ? 'rgba(239,68,68,0.05)' : 'rgba(0,0,0,0.3)',
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${item.pendente ? 'rgba(239,68,68,0.2)' : (item.unidade === 'Moreno' ? 'rgba(167,139,250,0.25)' : 'rgba(255,255,255,0.05)')}`,
+                                    cursor: 'grab',
+                                    transition: 'all 0.2s',
+                                    opacity: item.pendente ? 0.75 : 1
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(52, 211, 153, 0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(52, 211, 153, 0.1)'}
                             >
-                                <TrendingUp size={18} />
-                            </button>
-                            <button
-                                onClick={() => item.id ? onRemove(item.id) : setFila(fila.filter((_, i) => i !== index))}
-                                style={{
-                                    color: '#ef4444',
-                                    border: 'none',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: '8px',
-                                    borderRadius: '6px',
-                                    transition: 'all 0.2s'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                        </div>
-                    ))}
+                                <span style={{ color: '#64748b', display: 'flex', alignItems: 'center' }} title="Arraste para organizar">
+                                    <GripVertical size={20} />
+                                </span>
+                                {item.unidade && (
+                                    <span style={{
+                                        fontSize: '10px', fontWeight: '700', padding: '2px 7px', borderRadius: '10px', whiteSpace: 'nowrap',
+                                        background: item.unidade === 'Moreno' ? 'rgba(167,139,250,0.15)' : 'rgba(56,189,248,0.15)',
+                                        color: item.unidade === 'Moreno' ? '#a78bfa' : '#38bdf8',
+                                        border: `1px solid ${item.unidade === 'Moreno' ? 'rgba(167,139,250,0.3)' : 'rgba(56,189,248,0.3)'}`
+                                    }}>{item.unidade}</span>
+                                )}
+                                <input
+                                    placeholder="Coleta"
+                                    value={item.coleta || ''}
+                                    onChange={e => updateList(index, 'coleta', e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '6px',
+                                        padding: '8px 12px',
+                                        color: 'white',
+                                        fontSize: '13px'
+                                    }}
+                                />
+                                <input
+                                    placeholder="Motorista"
+                                    value={item.motorista || ''}
+                                    onChange={e => updateList(index, 'motorista', e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '6px',
+                                        padding: '8px 12px',
+                                        color: 'white',
+                                        fontSize: '13px'
+                                    }}
+                                />
+                                <input
+                                    type="checkbox"
+                                    checked={item.pendente || false}
+                                    onChange={() => updateList(index, 'pendente', !item.pendente)}
+                                    title="Marcar como pendente"
+                                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#ef4444', flexShrink: 0 }}
+                                />
+                                <button
+                                    onClick={() => onPromote(item)}
+                                    title="Lançar para Operação"
+                                    style={{
+                                        color: '#34d399',
+                                        border: 'none',
+                                        background: 'rgba(52, 211, 153, 0.1)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '8px',
+                                        borderRadius: '6px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(52, 211, 153, 0.2)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(52, 211, 153, 0.1)'}
+                                >
+                                    <TrendingUp size={18} />
+                                </button>
+                                <button
+                                    onClick={() => item.id ? onRemove(item.id) : setFila(fila.filter((_, i) => i !== index))}
+                                    style={{
+                                        color: '#ef4444',
+                                        border: 'none',
+                                        background: 'rgba(239, 68, 68, 0.1)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '8px',
+                                        borderRadius: '6px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        );
+
+                        return (
+                            <>
+                                {prontos.map((item) => renderItem(item, fila.indexOf(item)))}
+                                {pendentes.length > 0 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
+                                        <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(239,68,68,0.3)' }} />
+                                        <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pendentes</span>
+                                        <hr style={{ flex: 1, border: 'none', borderTop: '1px solid rgba(239,68,68,0.3)' }} />
+                                    </div>
+                                )}
+                                {pendentes.map((item) => renderItem(item, fila.indexOf(item)))}
+                            </>
+                        );
+                    })()}
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>

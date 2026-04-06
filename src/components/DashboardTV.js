@@ -598,13 +598,14 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
         }
     });
 
-    // Mapa doca → veículo para tooltip
+    // Mapa doca → veículo(s) para tooltip (array para suportar múltiplos veículos na mesma doca)
     const docaVeiculoMapR = {};
     veiculosRecife.forEach(v => {
         if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_recife;
         if (!doca || doca === 'SELECIONE') return;
-        docaVeiculoMapR[doca] = { motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' };
+        if (!docaVeiculoMapR[doca]) docaVeiculoMapR[doca] = [];
+        docaVeiculoMapR[doca].push({ motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' });
     });
 
     // Fluxo CT-e para Recife
@@ -683,7 +684,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                                 color: tema === 'light' ? '#dc2626' : '#ef4444',
                                                 marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
                                             }}>CONTAINER</div>
-                                            {isHovered && veiculo && (
+                                            {isHovered && veiculo && veiculo.length > 0 && (
                                                 <div style={{
                                                     position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
                                                     background: tema === 'light' ? '#1e293b' : '#0f172a',
@@ -692,8 +693,12 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                                     boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                                                     pointerEvents: 'none'
                                                 }}>
-                                                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
-                                                    {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                                                    {veiculo.map((vv, i) => (
+                                                        <div key={i} style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: i > 0 ? '6px' : 0, marginTop: i > 0 ? '6px' : 0 }}>
+                                                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{vv.motorista}</div>
+                                                            {vv.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {vv.coleta}</div>}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div>
@@ -706,7 +711,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                         background: bgCor, border: `1px solid ${borderCor}${tema === 'light' ? '80' : '50'}`,
                                         transition: 'all 0.5s ease-in-out',
                                         boxShadow: livre && tema === 'dark' ? '0 0 8px rgba(52,211,153,0.2)' : 'none',
-                                        position: 'relative', cursor: veiculo ? 'default' : 'default'
+                                        position: 'relative', cursor: 'default'
                                     }}
                                         onMouseEnter={() => setHoveredDocaR(doca)}
                                         onMouseLeave={() => setHoveredDocaR(null)}
@@ -720,7 +725,7 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                             color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
                                             marginTop: '2px', fontWeight: '700'
                                         }}>{statusDoca || 'Livre'}</div>
-                                        {isHovered && veiculo && (
+                                        {isHovered && veiculo && veiculo.length > 0 && (
                                             <div style={{
                                                 position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
                                                 background: tema === 'light' ? '#1e293b' : '#0f172a',
@@ -729,8 +734,12 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                                                 boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                                                 pointerEvents: 'none'
                                             }}>
-                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
-                                                {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                                                {veiculo.map((vv, i) => (
+                                                    <div key={i} style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: i > 0 ? '6px' : 0, marginTop: i > 0 ? '6px' : 0 }}>
+                                                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{vv.motorista}</div>
+                                                        {vv.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {vv.coleta}</div>}
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -1375,20 +1384,26 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         }
     });
 
-    // Mapa doca → veículo para tooltip
+    // Mapa doca → veículo(s) para tooltip (array para suportar múltiplos veículos na mesma doca)
     const docaVeiculoMapM = {};
     veiculosMoreno.forEach(v => {
         if (v.status_moreno === 'CARREGADO' || v.status_moreno === 'LIBERADO P/ CT-e') return;
         const doca = v.doca_moreno;
         if (!doca || doca === 'SELECIONE') return;
-        docaVeiculoMapM[doca] = { motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' };
+        if (!docaVeiculoMapM[doca]) docaVeiculoMapM[doca] = [];
+        docaVeiculoMapM[doca].push({ motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' });
     });
 
-    // Fluxo CT-e para Moreno
+    // Fluxo CT-e para Moreno — Consolidado/R×M só entram quando usuario_aceitou estiver preenchido
+    const veiculosFunilNormalM = veiculosMoreno.filter(v => {
+        const cat = classificarOperacao(v.operacao);
+        return cat !== 'consolidado' && cat !== 'deltaRxM';
+    });
+    const ctesMorenoEspeciaisAtivos = ctesMoreno.filter(c => c.usuario_aceitou);
     const emEmissaoCte = ctesMoreno.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const emitidoCte = ctesMoreno.filter(c => c.status === 'Emitido').length;
-    const aguardandoCte = Math.max(0, veiculosMoreno.length - emEmissaoCte - emitidoCte);
-    const totalFluxoCte = veiculosMoreno.length;
+    const totalFluxoCte = veiculosFunilNormalM.length + ctesMorenoEspeciaisAtivos.length;
+    const aguardandoCte = Math.max(0, totalFluxoCte - emEmissaoCte - emitidoCte);
     const pct = (v) => totalFluxoCte > 0 ? `${Math.round((v / totalFluxoCte) * 100)}%` : '0%';
 
     const renderDoca = (doca) => {
@@ -1423,7 +1438,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         color: tema === 'light' ? '#dc2626' : '#ef4444',
                         marginTop: '4px', fontWeight: '900', letterSpacing: '0.5px'
                     }}>CONTAINER</div>
-                    {isHovered && veiculo && (
+                    {isHovered && veiculo && veiculo.length > 0 && (
                         <div style={{
                             position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
                             background: tema === 'light' ? '#1e293b' : '#0f172a',
@@ -1432,8 +1447,12 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                             boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                             pointerEvents: 'none'
                         }}>
-                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
-                            {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                            {veiculo.map((vv, i) => (
+                                <div key={i} style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: i > 0 ? '6px' : 0, marginTop: i > 0 ? '6px' : 0 }}>
+                                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{vv.motorista}</div>
+                                    {vv.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {vv.coleta}</div>}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
@@ -1460,7 +1479,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                     color: livre ? (tema === 'light' ? '#059669' : '#34d399') : t.textDim,
                     marginTop: '2px', fontWeight: '700'
                 }}>{statusDoca || 'Livre'}</div>
-                {isHovered && veiculo && (
+                {isHovered && veiculo && veiculo.length > 0 && (
                     <div style={{
                         position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)',
                         background: tema === 'light' ? '#1e293b' : '#0f172a',
@@ -1469,8 +1488,12 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                         boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
                         pointerEvents: 'none'
                     }}>
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{veiculo.motorista}</div>
-                        {veiculo.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {veiculo.coleta}</div>}
+                        {veiculo.map((vv, i) => (
+                            <div key={i} style={{ borderTop: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', paddingTop: i > 0 ? '6px' : 0, marginTop: i > 0 ? '6px' : 0 }}>
+                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>{vv.motorista}</div>
+                                {vv.coleta && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>Coleta {vv.coleta}</div>}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
