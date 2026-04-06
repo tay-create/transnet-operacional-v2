@@ -1282,8 +1282,8 @@ app.post('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 
 
         await dbRun(
             `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT DO NOTHING`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             ON CONFLICT (motorista_nome, num_liberacao, num_coleta) DO NOTHING`,
             [primeira_letra, nomeLimpo, num_coleta || '', num_liberacao || '', datetime_cte || new Date().toISOString(), origem || '', destino_uf || '', destino_cidade || '', placa || '', operacao || '', veiculo_id || null]
         );
 
@@ -1542,7 +1542,8 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
         const status = dados.status || 'Aguardando Emissão';
         const result = await dbRun(
             `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (motorista, numero_liberacao) WHERE status != 'Emitido' DO NOTHING`,
             [
                 origem, status, JSON.stringify(dados),
                 dados.motorista || null,
@@ -1601,8 +1602,8 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                     const nomeLimpo = cte.motorista.trim().toUpperCase();
                     await dbRun(
                         `INSERT INTO historico_liberacoes (primeira_letra, motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON CONFLICT DO NOTHING`,
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                         ON CONFLICT (motorista_nome, num_liberacao, num_coleta) DO NOTHING`,
                         [
                             nomeLimpo[0] || '#', nomeLimpo,
                             cte.coleta || '',
@@ -2063,6 +2064,55 @@ app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamen
         if (dataFim) registros = registros.filter(r => r.data_registro <= dataFim);
         res.json({ success: true, registros });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Relatório CT-e — histórico_liberacoes com métricas de tempo e turno
+app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), async (req, res) => {
+    try {
+        const { de, ate } = req.query;
+        if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+
+        const rows = await dbAll(`
+            SELECT
+                hl.id, hl.motorista_nome, hl.num_coleta, hl.num_liberacao,
+                hl.datetime_cte, hl.origem, hl.destino_uf, hl.destino_cidade,
+                hl.operacao, hl.veiculo_id,
+                v.data_criacao AS data_lancamento,
+                EXTRACT(EPOCH FROM (hl.datetime_cte::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_lancamento_cte
+            FROM historico_liberacoes hl
+            LEFT JOIN veiculos v ON v.id = hl.veiculo_id
+            WHERE hl.datetime_cte >= $1 AND hl.datetime_cte < ($2::date + interval '1 day')
+            ORDER BY hl.datetime_cte DESC
+        `, [de, ate]);
+
+        function turno(dtStr) {
+            if (!dtStr) return 'Indefinido';
+            const h = new Date(dtStr).getHours();
+            if (h >= 6 && h < 12) return 'Manhã';
+            if (h >= 12 && h < 18) return 'Tarde';
+            return 'Noite';
+        }
+
+        const registros = rows.map(row => ({
+            id: row.id,
+            motorista: row.motorista_nome,
+            num_coleta: row.num_coleta || '',
+            num_liberacao: row.num_liberacao || '',
+            datetime_cte: row.datetime_cte,
+            data_lancamento: row.data_lancamento || null,
+            horas_lancamento_cte: row.horas_lancamento_cte !== null ? parseFloat(parseFloat(row.horas_lancamento_cte).toFixed(2)) : null,
+            origem: row.origem || '',
+            destino_uf: row.destino_uf || '',
+            destino_cidade: row.destino_cidade || '',
+            operacao: row.operacao || '',
+            turno: turno(row.datetime_cte),
+        }));
+
+        res.json({ success: true, registros });
+    } catch (e) {
+        console.error('Erro ao buscar relatório CT-e:', e);
+        res.status(500).json({ success: false, message: 'Erro interno.' });
+    }
 });
 
 // Endpoint para atualizar status de CT-e com auditoria

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PieChart, Calculator, PlusCircle, Monitor,
-    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard
+    MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
+    Clock, CheckCircle
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -187,6 +188,9 @@ export default function Sidebar({
                     <>
                         <Divider label="Relatórios" aberto={aberto} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Relatório Operacional" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_op'); }} />
+                        <MenuItem icon={<BarChart3 size={20} />} label="Performance de Embarque" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_performance'); }} />
+                        <MenuItem icon={<Clock size={20} />} label="Tempo de Liberação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
+                        <MenuItem icon={<FileText size={20} />} label="CT-e & Liberações" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />
                         {temAcesso('performance_cte') && (
                             <MenuItem icon={<PieChart size={20} />} label="Performance CT-e" subItem aberto={aberto} onClick={() => { buscarRelatorioCte(); }} />
                         )}

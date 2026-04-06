@@ -35,6 +35,9 @@ const PainelOcorrencias    = React.lazy(() => import('./components/PainelOcorren
 const PainelSaldoPaletes   = React.lazy(() => import('./components/PainelSaldoPaletes'));
 const ProvisionamentoFrota = React.lazy(() => import('./components/ProvisionamentoFrota'));
 const DashboardFrota       = React.lazy(() => import('./components/DashboardFrota'));
+const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
+const RelatorioLiberacoes  = React.lazy(() => import('./components/RelatorioLiberacoes'));
+const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
 
 // Modals lazy — só carregam quando abertos
 const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
@@ -1411,6 +1414,18 @@ function App({ socket }) {
 
                 {abaAtiva === 'relatorio_op' && temAcesso('relatorios') && (
                     <RelatorioOperacional />
+                )}
+
+                {abaAtiva === 'relatorio_performance' && temAcesso('relatorios') && (
+                    <RelatorioPerformance />
+                )}
+
+                {abaAtiva === 'relatorio_liberacoes' && temAcesso('relatorios') && (
+                    <RelatorioLiberacoes />
+                )}
+
+                {abaAtiva === 'relatorio_cte' && temAcesso('relatorios') && (
+                    <RelatorioCte />
                 )}
 
                 {abaAtiva === 'cadastro' && temAcesso('cadastro') && (

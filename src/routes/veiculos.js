@@ -1294,6 +1294,138 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         }
     });
 
+    // ── Relatório: Performance de Embarque ────────────────────────────────
+    router.get('/api/relatorio/performance', authMiddleware, async (req, res) => {
+        try {
+            const { de, ate, unidade } = req.query;
+            if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+
+            const rows = await dbAll(`
+                SELECT v.*,
+                    (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                FROM veiculos v
+                WHERE v.data_prevista >= $1 AND v.data_prevista <= $2
+                ORDER BY v.data_prevista ASC, v.id ASC
+            `, [de, ate]);
+
+            function calcMin(hhmm) {
+                if (!hhmm || typeof hhmm !== 'string') return null;
+                const p = hhmm.split(':');
+                const h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+                return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+            }
+            function diffMin(ini, fim) {
+                const i = calcMin(ini), f = calcMin(fim);
+                if (i === null || f === null) return null;
+                return f >= i ? f - i : null;
+            }
+
+            const linhas = [];
+            for (const row of rows) {
+                let dados_json = {};
+                try { dados_json = JSON.parse(row.dados_json || '{}'); } catch {}
+                const pausas = (() => { try { return JSON.parse(row.pausas_status || '[]'); } catch { return []; } })();
+
+                const processarUnidade = (unidadeNome, temposStr, status) => {
+                    if (!status || status === 'AGUARDANDO') return;
+                    const tempos = (() => { try { return JSON.parse(temposStr || '{}'); } catch { return {}; } })();
+                    if (!tempos.t_inicio_separacao && !tempos.t_inicio_carregamento) return;
+
+                    const unidadeLower = unidadeNome.toLowerCase();
+                    const pausas_min = pausas
+                        .filter(p => p.unidade === unidadeLower && p.fim !== null)
+                        .reduce((acc, p) => {
+                            const diff = Math.floor((new Date(p.fim) - new Date(p.inicio)) / 60000);
+                            return acc + Math.max(0, diff);
+                        }, 0);
+
+                    const duracao_min = diffMin(tempos.t_inicio_separacao, tempos.fim_carregamento);
+                    const efetivo_min = duracao_min !== null ? Math.max(0, duracao_min - pausas_min) : null;
+
+                    linhas.push({
+                        id: row.id,
+                        motorista: row.motorista,
+                        data: row.data_prevista,
+                        unidade: unidadeNome,
+                        operacao: row.operacao || '',
+                        status,
+                        t_inicio_separacao: tempos.t_inicio_separacao || null,
+                        fim_separacao: tempos.fim_separacao || null,
+                        t_inicio_carregamento: tempos.t_inicio_carregamento || null,
+                        fim_carregamento: tempos.fim_carregamento || null,
+                        duracao_min,
+                        pausas_min,
+                        efetivo_min,
+                        foi_reprogramado: !!(row.foi_reprogramado === 1 || row.foi_reprogramado === true),
+                        is_frota: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                    });
+                };
+
+                if (!unidade || unidade === 'todas' || unidade === 'Recife') {
+                    processarUnidade('Recife', row.tempos_recife, row.status_recife);
+                }
+                if (!unidade || unidade === 'todas' || unidade === 'Moreno') {
+                    processarUnidade('Moreno', row.tempos_moreno, row.status_moreno);
+                }
+            }
+
+            res.json({ success: true, linhas });
+        } catch (e) {
+            console.error('Erro ao buscar relatório de performance:', e);
+            res.status(500).json({ success: false, message: 'Erro interno.' });
+        }
+    });
+
+    // ── Relatório: Tempo de Liberação ──────────────────────────────────────
+    router.get('/api/relatorio/liberacoes', authMiddleware, async (req, res) => {
+        try {
+            const { de, ate } = req.query;
+            if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+
+            const rows = await dbAll(`
+                SELECT
+                    v.id, v.motorista, v.operacao, v.data_prevista, v.data_criacao,
+                    v.data_liberacao, v.numero_liberacao, v.situacao_cadastro,
+                    v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv,
+                    v.dados_json,
+                    m.is_frota, m.tipo_veiculo_cad,
+                    EXTRACT(EPOCH FROM (v.data_liberacao::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_ate_liberacao
+                FROM veiculos v
+                LEFT JOIN marcacoes_placas m ON LOWER(TRIM(m.nome_motorista)) = LOWER(TRIM(v.motorista))
+                WHERE v.data_prevista >= $1 AND v.data_prevista <= $2
+                  AND v.data_liberacao IS NOT NULL
+                ORDER BY v.data_prevista ASC, v.id ASC
+            `, [de, ate]);
+
+            const liberacoes = rows.map(row => {
+                let dados_json = {};
+                try { dados_json = JSON.parse(row.dados_json || '{}'); } catch {}
+                return {
+                    id: row.id,
+                    motorista: row.motorista,
+                    data: row.data_prevista,
+                    operacao: row.operacao || '',
+                    numero_liberacao: row.numero_liberacao || '',
+                    data_criacao: row.data_criacao,
+                    data_liberacao: row.data_liberacao,
+                    horas_ate_liberacao: row.horas_ate_liberacao !== null ? parseFloat(parseFloat(row.horas_ate_liberacao).toFixed(2)) : null,
+                    situacao_cadastro: row.situacao_cadastro || 'NÃO CONFERIDO',
+                    chk_cnh: row.chk_cnh || 0,
+                    chk_antt: row.chk_antt || 0,
+                    chk_tacografo: row.chk_tacografo || 0,
+                    chk_crlv: row.chk_crlv || 0,
+                    is_frota: row.is_frota === 1 || dados_json.isFrotaMotorista || false,
+                    tipo_veiculo: row.tipo_veiculo_cad || dados_json.tipoVeiculo || '',
+                };
+            });
+
+            res.json({ success: true, liberacoes });
+        } catch (e) {
+            console.error('Erro ao buscar relatório de liberações:', e);
+            res.status(500).json({ success: false, message: 'Erro interno.' });
+        }
+    });
+
     // ── Finalizar Operação (manual) ────────────────────────────────────────
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
     router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
