@@ -1351,14 +1351,16 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
-            // Avança apenas veículos do dia de hoje (não toca dias anteriores)
-            // Seta foi_reprogramado=1 pois estão sendo avançados para o próximo dia
+            // Avança apenas veículos do dia de hoje que realmente pertencem à unidade
+            // (coleta da unidade preenchida — evita avançar PLÁSTICO(RECIFE) ao finalizar Moreno)
+            const campoColeta = unidade === 'Recife' ? 'coletarecife' : 'coletamoreno';
             const query = `
                 UPDATE veiculos
                 SET data_prevista = ?, foi_reprogramado = 1
                 WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
                   AND data_prevista = ?
                   AND ${campoCarregado} IS NULL
+                  AND (${campoColeta} IS NOT NULL AND ${campoColeta} <> '')
             `;
             const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, hojeStr]);
 
