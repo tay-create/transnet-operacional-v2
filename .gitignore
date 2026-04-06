@@ -29,6 +29,9 @@ node_modules/
 .env
 dist/
 release/
+actions-runner/
+cloudflared.deb
+1
 
 # Scripts locais com credenciais hardcoded
 upd.js
