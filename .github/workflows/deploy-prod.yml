@@ -40,6 +40,9 @@ jobs:
     needs: build-and-push
 
     steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
       - name: Escrever .env.prod
         run: |
           mkdir -p /opt/transnet/prod
