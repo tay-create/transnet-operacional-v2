@@ -51,6 +51,9 @@ jobs:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ssh.tnethub.com.br
+          proxy_username: ${{ secrets.PROD_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           script: |
             mkdir -p /opt/transnet/staging
             cat > /opt/transnet/staging/.env.staging << 'ENVEOF'
@@ -76,6 +79,9 @@ jobs:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ssh.tnethub.com.br
+          proxy_username: ${{ secrets.PROD_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           source: docker-compose.staging.yml
           target: /opt/transnet/staging/
 
@@ -85,6 +91,9 @@ jobs:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ssh.tnethub.com.br
+          proxy_username: ${{ secrets.PROD_USER }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           script: |
             cd /opt/transnet/staging
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
