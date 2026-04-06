@@ -39,7 +39,11 @@ axiosApi.interceptors.response.use(
             const isConferente = pathname.startsWith('/conferente');
             const isMobile = pathname.startsWith('/mobile');
             const url = error.config?.url || '';
-            if (isConferente || isMobile) {
+            // Dashboard Viewer nunca é deslogado por 401 (sessão permanente, TV/painel)
+            const cargo = useAuthStore.getState().user?.cargo;
+            if (cargo === 'Dashboard Viewer') {
+                // Apenas ignorar — sessão permanente, o servidor pode ter reiniciado
+            } else if (isConferente || isMobile) {
                 if (!url.includes('/login')) {
                     useAuthStore.getState().logout();
                 }
