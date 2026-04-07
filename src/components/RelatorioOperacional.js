@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
-import { Filter, Calendar, MapPin, BarChart3, RefreshCw, PauseCircle, Printer } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList, Cell } from 'recharts';
+import { Filter, Calendar, MapPin, BarChart3, RefreshCw, Printer } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 
@@ -20,80 +20,6 @@ const classificarOperacao = (op) => {
 const ehOperacaoRecife = (op) => op && (op.includes('RECIFE') || (op.includes('/') && op.includes('RECIFE')));
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK') || (op.includes('/') && !op.includes('RECIFE')));
 
-// ── Utilitários de tempo ──────────────────────────────────────────────────────
-
-function horaAtualBrasilia() {
-    return new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Recife', hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function calcularBruto(l) {
-    if (!l.t_inicio_separacao) return null;
-    const fim = l.fim_carregamento || (l.em_andamento ? horaAtualBrasilia() : null);
-    return diffMin(l.t_inicio_separacao, fim);
-}
-
-function calcularMinutos(hhmm) {
-    if (!hhmm || typeof hhmm !== 'string') return null;
-    const p = hhmm.split(':');
-    const h = parseInt(p[0], 10), m = parseInt(p[1], 10);
-    return isNaN(h) || isNaN(m) ? null : h * 60 + m;
-}
-function diffMin(inicio, fim) {
-    const i = calcularMinutos(inicio), f = calcularMinutos(fim);
-    if (i === null || f === null) return null;
-    return f >= i ? f - i : null;
-}
-function formatMin(min) {
-    if (min === null || min === undefined) return '—';
-    const h = Math.floor(min / 60), m = min % 60;
-    return h > 0 ? `${h}h${String(m).padStart(2, '0')}` : `${m}min`;
-}
-
-// ── Construção de linhas planas ───────────────────────────────────────────────
-
-function construirLinhas(listaVeiculos) {
-    const linhas = [];
-    for (const v of listaVeiculos) {
-        const adicionarLinha = (origem, tempos, status) => {
-            const pausas = JSON.parse(v.pausas_status || '[]').filter(p => p.unidade === origem.toLowerCase());
-            const pausaMin = pausas.reduce((acc, p) => {
-                if (!p.fim) return acc;
-                return acc + Math.max(0, Math.floor((new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 60000));
-            }, 0);
-            linhas.push({
-                motorista: v.motorista || 'A DEFINIR',
-                cardId: v.id,
-                data: v.data_prevista || '',
-                origem,
-                tipoOp: classificarOperacao(v.operacao),
-                operacao: v.operacao || '—',
-                status: status || 'AGUARDANDO',
-                t_inicio_separacao: tempos?.t_inicio_separacao || null,
-                fim_carregamento: tempos?.fim_carregamento || null,
-                em_andamento: !!(tempos?.t_inicio_separacao && !tempos?.fim_carregamento),
-                pausaMin,
-            });
-        };
-
-        const operaRecife = ehOperacaoRecife(v.operacao);
-        const operaMoreno = ehOperacaoMoreno(v.operacao);
-
-        if (operaRecife) {
-            const tempos = v.tempos_recife && Object.keys(v.tempos_recife).length > 0 ? v.tempos_recife : null;
-            adicionarLinha('Recife', tempos, v.status_recife);
-        }
-        if (operaMoreno) {
-            const tempos = v.tempos_moreno && Object.keys(v.tempos_moreno).length > 0 ? v.tempos_moreno : null;
-            adicionarLinha('Moreno', tempos, v.status_moreno);
-        }
-        // Operação não classificada — adiciona uma linha genérica
-        if (!operaRecife && !operaMoreno) {
-            adicionarLinha('—', null, v.status_recife || v.status_moreno);
-        }
-    }
-    return linhas;
-}
-
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = {
@@ -108,18 +34,32 @@ const s = {
     card: {
         background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '16px 20px',
     },
-    th: {
-        padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.07)',
-        color: '#64748b', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase',
-        letterSpacing: '0.5px', background: 'rgba(0,0,0,0.3)', whiteSpace: 'nowrap',
-    },
-    td: {
-        padding: '9px 12px', borderBottom: '1px solid rgba(255,255,255,0.04)',
-        color: '#e2e8f0', fontSize: '13px', verticalAlign: 'middle',
-    },
 };
 
-// ── Tooltip do gráfico ────────────────────────────────────────────────────────
+// ── Constantes de KPIs ────────────────────────────────────────────────────────
+
+const COR = '#06b6d4';
+
+const KPIS = [
+    { id: 'plasticoRec', label: 'Plástico Recife' },
+    { id: 'plasticoMor', label: 'Plástico Moreno' },
+    { id: 'plasticoRxM', label: 'Plástico R×M' },
+    { id: 'porcelana',   label: 'Porcelana' },
+    { id: 'eletrik',     label: 'Eletrik' },
+    { id: 'consolidado', label: 'Consolidado' },
+];
+
+// Cor por operação no gráfico horizontal
+const COR_OP = {
+    plasticoRec: '#3b82f6',
+    plasticoMor: '#f59e0b',
+    plasticoRxM: '#8b5cf6',
+    porcelana:   '#ec4899',
+    eletrik:     '#10b981',
+    consolidado: '#06b6d4',
+};
+
+// ── Tooltips ──────────────────────────────────────────────────────────────────
 
 const TooltipDia = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -132,18 +72,17 @@ const TooltipDia = ({ active, payload, label }) => {
     );
 };
 
-// ── Constantes de KPIs ────────────────────────────────────────────────────────
-
-const COR = '#06b6d4'; // ciano único para todos os KPIs e gráfico
-
-const KPIS = [
-    { id: 'plasticoRec', label: 'Plástico Recife' },
-    { id: 'plasticoMor', label: 'Plástico Moreno' },
-    { id: 'plasticoRxM', label: 'Plástico R×M' },
-    { id: 'porcelana',   label: 'Porcelana' },
-    { id: 'eletrik',     label: 'Eletrik' },
-    { id: 'consolidado', label: 'Consolidado' },
-];
+const TooltipOp = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const v = payload[0]?.value || 0;
+    const nome = payload[0]?.payload?.label || '';
+    return (
+        <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', color: '#f1f5f9' }}>
+            <div style={{ fontWeight: '700', color: '#94a3b8', marginBottom: '2px' }}>{nome}</div>
+            <div style={{ color: COR }}>{v} embarque{v !== 1 ? 's' : ''}</div>
+        </div>
+    );
+};
 
 // ── Componente principal ──────────────────────────────────────────────────────
 
@@ -155,12 +94,6 @@ export default function RelatorioOperacional() {
     const [filtroTipo, setFiltroTipo] = useState('Todas');
     const [veiculosBanco, setVeiculosBanco] = useState([]);
     const [carregando, setCarregando] = useState(false);
-    const [tick, setTick] = useState(0);
-
-    useEffect(() => {
-        const id = setInterval(() => setTick(t => t + 1), 60000);
-        return () => clearInterval(id);
-    }, []);
 
     const buscarDados = useCallback(async (de, ate) => {
         setCarregando(true);
@@ -185,7 +118,7 @@ export default function RelatorioOperacional() {
         });
     }, [veiculosBanco, filtroUnidade]);
 
-    // ── Veículos filtrados por unidade + tipo (tabela e gráfico) ─────────────
+    // ── Veículos filtrados por unidade + tipo (gráficos) ─────────────────────
     const veiculosFiltrados = useMemo(() => {
         if (filtroTipo === 'Todas') return veiculosPorUnidade;
         return veiculosPorUnidade.filter(v => classificarOperacao(v.operacao) === filtroTipo);
@@ -199,9 +132,9 @@ export default function RelatorioOperacional() {
             if (cat && cnt[cat] !== undefined) cnt[cat]++;
         });
         return { ...cnt, total: veiculosPorUnidade.length };
-    }, [veiculosFiltrados]);
+    }, [veiculosPorUnidade]);
 
-    // ── Gráfico: embarques por dia ────────────────────────────────────────────
+    // ── Gráfico 1: embarques por dia ──────────────────────────────────────────
     const dadosDia = useMemo(() => {
         const mapa = {};
         veiculosFiltrados.forEach(v => {
@@ -218,10 +151,21 @@ export default function RelatorioOperacional() {
             }));
     }, [veiculosFiltrados]);
 
-    // ── Tabela: linhas planas ─────────────────────────────────────────────────
-    const linhas = useMemo(() => {
-        return construirLinhas(veiculosFiltrados)
-            .sort((a, b) => b.data.localeCompare(a.data) || a.motorista.localeCompare(b.motorista));
+    // ── Gráfico 2: embarques por operação (barras horizontais) ───────────────
+    const dadosOp = useMemo(() => {
+        const mapa = {};
+        veiculosFiltrados.forEach(v => {
+            const op = v.operacao || '—';
+            mapa[op] = (mapa[op] || 0) + 1;
+        });
+        return Object.entries(mapa)
+            .sort(([, a], [, b]) => b - a)
+            .map(([op, total]) => ({
+                op,
+                label: op,
+                total,
+                cor: COR_OP[classificarOperacao(op)] || COR,
+            }));
     }, [veiculosFiltrados]);
 
     // ── Impressão ─────────────────────────────────────────────────────────────
@@ -236,21 +180,13 @@ export default function RelatorioOperacional() {
             return `<div class="kpi-card"><div class="kpi-valor">${valor}</div><div class="kpi-pct">${pct}%</div><div class="kpi-label">${k.label}</div></div>`;
         }).join('');
 
-        const tabelaRows = linhas.map(l => {
-            const bruto = calcularBruto(l);
-            const efetivo = bruto !== null ? Math.max(0, bruto - (l.pausaMin || 0)) : null;
-            const temPausa = (l.pausaMin || 0) > 0;
-            const dataFmt = l.data ? l.data.split('-').reverse().join('/') : '—';
-            const unidadeBadge = `<span class="badge badge-${l.origem.toLowerCase()}">${l.origem}</span>`;
-            const pausaBadge = temPausa ? `<span class="badge badge-pausa">${formatMin(l.pausaMin)}</span>` : '—';
+        const opRows = dadosOp.map(d => {
+            const pct = contadores.total > 0 ? ((d.total / contadores.total) * 100).toFixed(1) : '0.0';
             return `<tr>
-                <td>${l.motorista}</td>
-                <td>${l.operacao}</td>
-                <td>${unidadeBadge}</td>
-                <td>${dataFmt}</td>
-                <td class="${bruto !== null ? 'col-tempo' : 'col-vazio'}">${formatMin(bruto)}</td>
-                <td class="${efetivo !== null && temPausa ? 'col-efetivo' : 'col-vazio'}">${temPausa ? formatMin(efetivo) : '—'}</td>
-                <td>${pausaBadge}</td>
+                <td>${d.label}</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${d.cor}"></div></div></td>
+                <td class="num">${d.total}</td>
+                <td class="pct">${pct}%</td>
             </tr>`;
         }).join('');
 
@@ -278,22 +214,14 @@ export default function RelatorioOperacional() {
   .kpi-pct { font-size: 11px; font-weight: 700; color: #22d3ee; margin-top: 2px; }
   .kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  thead tr { background: #f1f5f9; }
-  th { padding: 8px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-  td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
-  tr:nth-child(even) td { background: #fafafa; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
-  .badge-recife { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
-  .badge-moreno { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
-  .badge-pausa { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
-  .col-tempo { font-weight: 700; color: #16a34a; }
-  .col-efetivo { font-weight: 700; color: #d97706; }
-  .col-vazio { color: #cbd5e1; }
+  th { padding: 8px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+  td.num { font-weight: 700; color: #0891b2; text-align: right; width: 40px; }
+  td.pct { color: #64748b; text-align: right; width: 50px; }
+  .bar-wrap { background: #f1f5f9; border-radius: 4px; height: 12px; width: 100%; }
+  .bar-fill { height: 12px; border-radius: 4px; min-width: 2px; }
   .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
-  @media print {
-    body { padding: 20px 24px; }
-    @page { margin: 12mm 10mm; size: A4 landscape; }
-  }
+  @media print { body { padding: 20px 24px; } @page { margin: 12mm 10mm; size: A4 landscape; } }
 </style>
 </head>
 <body>
@@ -302,12 +230,8 @@ export default function RelatorioOperacional() {
       <h1>Relatório Operacional</h1>
       <p>Período: ${periodoStr} &nbsp;·&nbsp; Unidade: ${unidadeStr} &nbsp;·&nbsp; ${contadores.total} embarque${contadores.total !== 1 ? 's' : ''}</p>
     </div>
-    <div class="header-right">
-      Transnet Logística<br/>
-      Gerado em ${geradoEm}
-    </div>
+    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}</div>
   </div>
-
   <div class="section-title">Resumo por Tipo de Operação</div>
   <div class="kpi-grid">
     <div class="kpi-total">
@@ -320,18 +244,11 @@ export default function RelatorioOperacional() {
     </div>
     ${kpiRows}
   </div>
-
-  <div class="section-title" style="margin-bottom:10px;">Embarques — ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}</div>
+  <div class="section-title" style="margin-bottom:10px;">Embarques por Operação</div>
   <table>
-    <thead>
-      <tr>
-        <th>Motorista</th><th>Operação</th><th>Unidade</th><th>Data</th>
-        <th>Tempo</th><th>Efetivo</th><th>Pausa</th>
-      </tr>
-    </thead>
-    <tbody>${tabelaRows}</tbody>
+    <thead><tr><th>Operação</th><th></th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
+    <tbody>${opRows}</tbody>
   </table>
-
   <div class="footer">
     <span>Transnet Logística — Relatório Operacional</span>
     <span>${periodoStr} · ${unidadeStr}</span>
@@ -339,7 +256,6 @@ export default function RelatorioOperacional() {
 </body>
 </html>`;
 
-        // window.open é bloqueado no Electron — usa iframe oculto para impressão
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
         document.body.appendChild(iframe);
@@ -411,7 +327,6 @@ export default function RelatorioOperacional() {
 
             {/* ── KPIs ── */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-                {/* Total */}
                 <div style={{ ...s.card, borderLeft: `4px solid ${COR}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Total de Embarques</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
@@ -422,7 +337,6 @@ export default function RelatorioOperacional() {
                         </div>
                     </div>
                 </div>
-                {/* KPIs por tipo */}
                 {KPIS.map(kpi => {
                     const valor = contadores[kpi.id] || 0;
                     const pct = contadores.total > 0 ? ((valor / contadores.total) * 100).toFixed(1) : '0.0';
@@ -431,18 +345,18 @@ export default function RelatorioOperacional() {
                         <div
                             key={kpi.id}
                             onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
-                            style={{ ...s.card, borderTop: `3px solid ${COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR}` : 'none', transition: 'outline 0.1s' }}
+                            style={{ ...s.card, borderTop: `3px solid ${COR_OP[kpi.id] || COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR_OP[kpi.id] || COR}` : 'none', transition: 'outline 0.1s' }}
                             title={`Filtrar por ${kpi.label}`}
                         >
-                            <div style={{ fontSize: '32px', fontWeight: '900', color: COR, lineHeight: 1 }}>{valor}</div>
-                            <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? COR : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
+                            <div style={{ fontSize: '32px', fontWeight: '900', color: COR_OP[kpi.id] || COR, lineHeight: 1 }}>{valor}</div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? (COR_OP[kpi.id] || COR) : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
                             <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
                         </div>
                     );
                 })}
             </div>
 
-            {/* ── Gráfico de barras por dia ── */}
+            {/* ── Gráfico barras verticais por dia ── */}
             {dadosDia.length > 0 && (
                 <div style={{ ...s.card, marginBottom: '20px' }}>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>Embarques por Dia</div>
@@ -460,68 +374,38 @@ export default function RelatorioOperacional() {
                 </div>
             )}
 
-            {/* ── Tabela ── */}
-            {linhas.length === 0 ? (
+            {/* ── Gráfico barras horizontais por operação ── */}
+            {dadosOp.length > 0 && (
+                <div style={{ ...s.card }}>
+                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>Embarques por Operação</div>
+                    <ResponsiveContainer width="100%" height={Math.max(dadosOp.length * 44, 120)}>
+                        <BarChart
+                            data={dadosOp}
+                            layout="vertical"
+                            margin={{ top: 0, right: 48, left: 8, bottom: 0 }}
+                        >
+                            <CartesianGrid horizontal={false} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+                            <XAxis type="number" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                            <YAxis type="category" dataKey="label" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={180} />
+                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} content={<TooltipOp />} />
+                            <Bar dataKey="total" radius={[0, 6, 6, 0]} maxBarSize={28}>
+                                {dadosOp.map((entry, index) => (
+                                    <Cell key={index} fill={entry.cor} />
+                                ))}
+                                <LabelList dataKey="total" position="right" style={{ fill: '#94a3b8', fontSize: 12, fontWeight: '700' }} />
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            )}
+
+            {contadores.total === 0 && !carregando && (
                 <div style={{ textAlign: 'center', padding: '48px', color: '#475569', fontSize: '14px' }}>
                     Nenhum embarque para os filtros selecionados.
                 </div>
-            ) : (
-                <div style={{ overflowX: 'auto', ...s.card, padding: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                        <thead>
-                            <tr>
-                                <th style={s.th}>Motorista</th>
-                                <th style={s.th}>Operação</th>
-                                <th style={s.th}>Unidade</th>
-                                <th style={s.th}>Data</th>
-                                <th style={{ ...s.th, color: '#4ade80' }}>Tempo</th>
-                                <th style={{ ...s.th, color: '#fbbf24' }}>Efetivo</th>
-                                <th style={{ ...s.th, color: '#fb923c' }}>Pausa</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {linhas.map((l, i) => {
-                                void tick;
-                                const bruto = calcularBruto(l);
-                                const efetivo = bruto !== null ? Math.max(0, bruto - (l.pausaMin || 0)) : null;
-                                const temPausa = (l.pausaMin || 0) > 0;
-                                const dataFmt = l.data ? l.data.split('-').reverse().join('/') : '—';
-                                return (
-                                    <tr key={`${l.cardId}-${l.origem}-${i}`}
-                                        style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
-                                        <td style={{ ...s.td, fontWeight: '600', color: '#f1f5f9' }}>{l.motorista}</td>
-                                        <td style={{ ...s.td, color: '#94a3b8', fontSize: '12px' }}>{l.operacao}</td>
-                                        <td style={s.td}>
-                                            <span style={{
-                                                fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '4px',
-                                                background: l.origem === 'Recife' ? 'rgba(59,130,246,0.12)' : 'rgba(245,158,11,0.12)',
-                                                color: l.origem === 'Recife' ? '#60a5fa' : '#fbbf24',
-                                                border: `1px solid ${l.origem === 'Recife' ? 'rgba(59,130,246,0.25)' : 'rgba(245,158,11,0.25)'}`,
-                                            }}>{l.origem}</span>
-                                        </td>
-                                        <td style={{ ...s.td, color: '#64748b', fontSize: '12px' }}>{dataFmt}</td>
-                                        <td style={{ ...s.td, fontWeight: '700', color: bruto !== null ? '#4ade80' : '#334155' }}>
-                                            {formatMin(bruto)}
-                                        </td>
-                                        <td style={{ ...s.td, fontWeight: '700', color: efetivo !== null ? (temPausa ? '#fbbf24' : '#4ade80') : '#334155' }}>
-                                            {temPausa ? formatMin(efetivo) : '—'}
-                                        </td>
-                                        <td style={s.td}>
-                                            {temPausa ? (
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px', background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.25)' }}>
-                                                    <PauseCircle size={10} /> {formatMin(l.pausaMin)}
-                                                </span>
-                                            ) : (
-                                                <span style={{ color: '#334155' }}>—</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
             )}
+
+            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
     );
 }
