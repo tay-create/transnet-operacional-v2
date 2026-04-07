@@ -1468,17 +1468,21 @@ export default function PainelOperacional({
                                                     {/* Botão Liberado p/ CTE */}
                                                     {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
                                                         <button
-                                                            onClick={() => setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
+                                                            onClick={() => item.motorista?.trim() && setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
                                                             style={{
                                                                 padding: '6px 14px', borderRadius: '8px',
-                                                                background: 'linear-gradient(135deg, #a855f7, #7c3aed)',
-                                                                border: 'none', color: 'white',
+                                                                background: item.motorista?.trim()
+                                                                    ? 'linear-gradient(135deg, #a855f7, #7c3aed)'
+                                                                    : 'rgba(100,116,139,0.3)',
+                                                                border: item.motorista?.trim() ? 'none' : '1px solid rgba(100,116,139,0.4)',
+                                                                color: item.motorista?.trim() ? 'white' : '#64748b',
                                                                 fontSize: '11px', fontWeight: '700',
-                                                                cursor: 'pointer', letterSpacing: '0.5px',
-                                                                boxShadow: '0 2px 10px rgba(168,85,247,0.4)',
+                                                                cursor: item.motorista?.trim() ? 'pointer' : 'not-allowed',
+                                                                letterSpacing: '0.5px',
+                                                                boxShadow: item.motorista?.trim() ? '0 2px 10px rgba(168,85,247,0.4)' : 'none',
                                                                 display: 'flex', alignItems: 'center', gap: '5px'
                                                             }}
-                                                            title="Liberar para emissão do CT-e"
+                                                            title={item.motorista?.trim() ? 'Liberar para emissão do CT-e' : 'Adicione o motorista antes de liberar o CT-e'}
                                                         >
                                                             <CheckCircle size={13} /> LIBERADO P/ CT-e
                                                         </button>
