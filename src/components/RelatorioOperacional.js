@@ -12,6 +12,8 @@ const classificarOperacao = (op) => {
     if (op === 'DELTA(RECIFE)' || op === 'PLÁSTICO(RECIFE)') return 'plasticoRec';
     if (op === 'DELTA(MORENO)' || op === 'PLÁSTICO(MORENO)') return 'plasticoMor';
     if (op === 'DELTA(RECIFE X MORENO)' || op === 'PLÁSTICO(RECIFE X MORENO)') return 'plasticoRxM';
+    if (op === 'PORCELANA') return 'porcelana';
+    if (op === 'ELETRIK') return 'eletrik';
     return null;
 };
 
@@ -116,10 +118,12 @@ const TooltipDia = ({ active, payload, label }) => {
 // ── Constantes de KPIs ────────────────────────────────────────────────────────
 
 const KPIS = [
-    { id: 'plasticoRec', label: 'Plástico Recife', cor: '#3b82f6', sub: null },
-    { id: 'plasticoMor', label: 'Plástico Moreno', cor: '#f59e0b', sub: null },
-    { id: 'plasticoRxM', label: 'Plástico R×M', cor: '#8b5cf6', sub: null },
-    { id: 'consolidado', label: 'Consolidado', cor: '#10b981', sub: null },
+    { id: 'plasticoRec', label: 'Plástico Recife', cor: '#3b82f6' },
+    { id: 'plasticoMor', label: 'Plástico Moreno', cor: '#f59e0b' },
+    { id: 'plasticoRxM', label: 'Plástico R×M', cor: '#8b5cf6' },
+    { id: 'porcelana',   label: 'Porcelana',       cor: '#ec4899' },
+    { id: 'eletrik',     label: 'Eletrik',          cor: '#06b6d4' },
+    { id: 'consolidado', label: 'Consolidado',      cor: '#10b981' },
 ];
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -147,24 +151,29 @@ export default function RelatorioOperacional() {
 
     useEffect(() => { buscarDados(dataInicio, dataFim); }, [dataInicio, dataFim, buscarDados]);
 
-    // ── Veículos filtrados por unidade/tipo ───────────────────────────────────
-    const veiculosFiltrados = useMemo(() => {
+    // ── Veículos filtrados só por unidade (KPIs sempre mostram totais reais) ──
+    const veiculosPorUnidade = useMemo(() => {
         return veiculosBanco.filter(v => {
             if (filtroUnidade === 'Recife' && !ehOperacaoRecife(v.operacao)) return false;
             if (filtroUnidade === 'Moreno' && !ehOperacaoMoreno(v.operacao)) return false;
-            if (filtroTipo !== 'Todas' && classificarOperacao(v.operacao) !== filtroTipo) return false;
             return true;
         });
-    }, [veiculosBanco, filtroUnidade, filtroTipo]);
+    }, [veiculosBanco, filtroUnidade]);
 
-    // ── Contadores KPI ────────────────────────────────────────────────────────
+    // ── Veículos filtrados por unidade + tipo (tabela e gráfico) ─────────────
+    const veiculosFiltrados = useMemo(() => {
+        if (filtroTipo === 'Todas') return veiculosPorUnidade;
+        return veiculosPorUnidade.filter(v => classificarOperacao(v.operacao) === filtroTipo);
+    }, [veiculosPorUnidade, filtroTipo]);
+
+    // ── Contadores KPI (ignoram filtroTipo) ───────────────────────────────────
     const contadores = useMemo(() => {
-        const cnt = { plasticoRec: 0, plasticoMor: 0, plasticoRxM: 0, consolidado: 0 };
-        veiculosFiltrados.forEach(v => {
+        const cnt = { plasticoRec: 0, plasticoMor: 0, plasticoRxM: 0, porcelana: 0, eletrik: 0, consolidado: 0 };
+        veiculosPorUnidade.forEach(v => {
             const cat = classificarOperacao(v.operacao);
             if (cat && cnt[cat] !== undefined) cnt[cat]++;
         });
-        return { ...cnt, total: veiculosFiltrados.length };
+        return { ...cnt, total: veiculosPorUnidade.length };
     }, [veiculosFiltrados]);
 
     // ── Gráfico: embarques por dia ────────────────────────────────────────────
@@ -245,8 +254,8 @@ export default function RelatorioOperacional() {
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
                         <span style={{ fontSize: '52px', fontWeight: '900', color: '#38bdf8', lineHeight: 1 }}>{contadores.total}</span>
                         <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            <div><span style={{ color: '#3b82f6', fontWeight: '700' }}>{veiculosBanco.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
-                            <div><span style={{ color: '#f59e0b', fontWeight: '700' }}>{veiculosBanco.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
+                            <div><span style={{ color: '#3b82f6', fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
+                            <div><span style={{ color: '#f59e0b', fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
                         </div>
                     </div>
                 </div>
