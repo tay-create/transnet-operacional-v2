@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Star, Truck, TrendingUp, ChevronLeft, ChevronRight, Award, RefreshCw, Wifi } from 'lucide-react';
+import { Users, Star, Truck, TrendingUp, ChevronLeft, ChevronRight, Award, RefreshCw, Wifi, X } from 'lucide-react';
 import api from '../services/apiService';
 
 // Posições percentuais (left%, top%) dos estados no PNG isométrico 448x403
@@ -26,7 +26,7 @@ const PINOS_MAPA = {
     RS: [58, 86],
 };
 
-function BrasilMapa({ porUF }) {
+function BrasilMapa({ porUF, onClickUF }) {
     const [hover, setHover] = useState(null);
     const mapa = Object.fromEntries(porUF.map(r => [r.uf, r.total]));
     const maxVal = Math.max(1, ...porUF.map(r => r.total));
@@ -49,6 +49,7 @@ function BrasilMapa({ porUF }) {
                         key={uf}
                         onMouseEnter={() => setHover(uf)}
                         onMouseLeave={() => setHover(null)}
+                        onClick={() => onClickUF && onClickUF(uf)}
                         style={{
                             position: 'absolute',
                             left: `${left}%`,
@@ -124,6 +125,15 @@ export default function DashboardMarcacoes() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [mes, setMes] = useState(obterMesAtual());
+    const [modalUF, setModalUF] = useState(null); // { uf, motoristas, loadingModal }
+
+    const abrirModalUF = useCallback(async (uf) => {
+        setModalUF({ uf, motoristas: [], loadingModal: true });
+        try {
+            const r = await api.get(`/api/marcacoes/por-uf/${uf}`);
+            if (r.data.success) setModalUF({ uf, motoristas: r.data.motoristas, loadingModal: false });
+        } catch (e) { setModalUF(m => m ? { ...m, loadingModal: false } : null); }
+    }, []);
 
     const carregar = useCallback(async () => {
         setLoading(true);
@@ -243,7 +253,7 @@ export default function DashboardMarcacoes() {
                         </div>
                         <div style={s.secao}>
                             <div style={s.titulo}>Destinos por UF</div>
-                            <BrasilMapa porUF={stats.por_uf} />
+                            <BrasilMapa porUF={stats.por_uf} onClickUF={abrirModalUF} />
                         </div>
                     </div>
 
@@ -313,6 +323,47 @@ export default function DashboardMarcacoes() {
                 </>
             ) : (
                 <div style={{ textAlign: 'center', color: '#f87171', padding: '60px' }}>Erro ao carregar dados.</div>
+            )}
+
+            {modalUF && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => setModalUF(null)}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '14px', padding: '24px', minWidth: '360px', maxWidth: '520px', width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9' }}>
+                                Motoristas com destino para <span style={{ color: '#60a5fa' }}>{modalUF.uf}</span>
+                                {!modalUF.loadingModal && <span style={{ color: '#64748b', fontWeight: '400', marginLeft: '8px' }}>({modalUF.motoristas.length})</span>}
+                            </span>
+                            <button onClick={() => setModalUF(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+                        {modalUF.loadingModal ? (
+                            <div style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>Carregando...</div>
+                        ) : modalUF.motoristas.length === 0 ? (
+                            <div style={{ textAlign: 'center', color: '#64748b', padding: '30px' }}>Nenhum motorista disponível para este estado.</div>
+                        ) : (
+                            <div style={{ overflowY: 'auto', flex: 1 }}>
+                                {modalUF.motoristas.map((m, i) => {
+                                    const statusOp = m.status_operacional || 'DISPONIVEL';
+                                    const isContratado = ['CONTRATADO', 'EM VIAGEM', 'EM ROTA'].includes(statusOp);
+                                    const badgeCor = statusOp === 'DISPONIVEL' ? { color: '#4ade80', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.25)' } : statusOp === 'EM OPERACAO' ? { color: '#60a5fa', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.25)' } : { color: '#fb923c', bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.25)' };
+                                    const badgeLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : isContratado ? 'Contratado' : statusOp;
+                                    return (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: i < modalUF.motoristas.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#f1f5f9', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome_motorista}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{m.placa1} · {m.tipo_veiculo || '—'}</div>
+                                            </div>
+                                            <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px', background: badgeCor.bg, color: badgeCor.color, border: `1px solid ${badgeCor.border}`, whiteSpace: 'nowrap' }}>{badgeLabel}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );

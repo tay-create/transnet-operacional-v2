@@ -126,6 +126,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [filtroTempo, setFiltroTempo] = useState('');
     const [paginaMarcacoes, setPaginaMarcacoes] = useState(1);
     const [totalMarcacoes, setTotalMarcacoes] = useState(0);
+    const [contadoresMarcacoes, setContadoresMarcacoes] = useState(null);
     const ITENS_POR_PAGINA = 50;
     // Tick para atualizar cronômetros a cada minuto
     const [tick, setTick] = useState(0);
@@ -169,6 +170,7 @@ export default function GestaoMarcacoes({ socket }) {
                 setMarcacoes(r.data.marcacoes);
                 setTotalMarcacoes(r.data.total || 0);
                 setPaginaMarcacoes(pagina);
+                if (r.data.contadores) setContadoresMarcacoes(r.data.contadores);
             }
         } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
         finally { setLoading(false); }
@@ -704,6 +706,34 @@ export default function GestaoMarcacoes({ socket }) {
                             <RefreshCw size={14} /> Atualizar
                         </button>
                     </div>
+
+                    {contadoresMarcacoes && (
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                            {[
+                                { label: 'Total', valor: contadoresMarcacoes.total, filtro: '', cor: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
+                                { label: 'Disponível', valor: contadoresMarcacoes.disponiveis, filtro: 'disponivel', cor: '#4ade80', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' },
+                                { label: 'Contratado', valor: contadoresMarcacoes.contratados + contadoresMarcacoes.em_operacao, filtro: 'contratado', cor: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.2)' },
+                                { label: 'Indisponível', valor: contadoresMarcacoes.indisponiveis, filtro: 'indisponivel', cor: '#f87171', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
+                            ].map(({ label, valor, filtro, cor, bg, border }) => (
+                                <button
+                                    key={label}
+                                    onClick={() => setFiltroStatusOp(filtroStatusOp === filtro ? '' : filtro)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                        padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
+                                        background: filtroStatusOp === filtro ? bg : 'rgba(0,0,0,0.2)',
+                                        border: `1px solid ${filtroStatusOp === filtro ? border : 'rgba(255,255,255,0.07)'}`,
+                                        color: filtroStatusOp === filtro ? cor : '#64748b',
+                                        fontWeight: '600', fontSize: '12px',
+                                        transition: 'all 0.15s',
+                                    }}
+                                >
+                                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</span>
+                                    <span style={{ fontWeight: '800', fontSize: '14px', color: filtroStatusOp === filtro ? cor : '#94a3b8' }}>{valor}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {loading ? (
                         <div style={s.empty}>Carregando...</div>

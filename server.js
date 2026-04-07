@@ -679,7 +679,7 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         const dataParams = [...params, limite, offset];
         const countParams = [...params];
 
-        const [rows, totalRow] = await Promise.all([
+        const [rows, totalRow, contRow] = await Promise.all([
             dbAll(
                 `SELECT id, token_id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                         altura, largura, comprimento, estados_destino, ja_carregou,
@@ -693,7 +693,14 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
                  LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
                 dataParams
             ),
-            dbAll(`SELECT COUNT(*) AS total FROM marcacoes_placas ${whereClause}`, countParams)
+            dbAll(`SELECT COUNT(*) AS total FROM marcacoes_placas ${whereClause}`, countParams),
+            dbAll(`SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE (status_operacional IS NULL OR status_operacional = 'DISPONIVEL') AND disponibilidade != 'Indisponível') AS disponiveis,
+                COUNT(*) FILTER (WHERE status_operacional = 'EM OPERACAO') AS em_operacao,
+                COUNT(*) FILTER (WHERE status_operacional IN ('CONTRATADO','EM VIAGEM','EM ROTA')) AS contratados,
+                COUNT(*) FILTER (WHERE disponibilidade = 'Indisponível') AS indisponiveis
+             FROM marcacoes_placas ${whereClause}`, countParams)
         ]);
 
         const marcacoes = rows.map(r => ({
@@ -701,7 +708,36 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
             estados_destino: JSON.parse(r.estados_destino || '[]')
         }));
         const total = parseInt(totalRow[0]?.total ?? 0);
-        res.json({ success: true, marcacoes, total, pagina, limite });
+        const c = contRow[0] || {};
+        res.json({
+            success: true, marcacoes, total, pagina, limite,
+            contadores: {
+                total: parseInt(c.total || 0),
+                disponiveis: parseInt(c.disponiveis || 0),
+                em_operacao: parseInt(c.em_operacao || 0),
+                contratados: parseInt(c.contratados || 0),
+                indisponiveis: parseInt(c.indisponiveis || 0),
+            }
+        });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Motoristas por UF de destino
+app.get('/api/marcacoes/por-uf/:uf', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
+    try {
+        const uf = req.params.uf.toUpperCase();
+        const rows = await dbAll(`
+            SELECT nome_motorista, placa1, tipo_veiculo, status_operacional, disponibilidade
+            FROM marcacoes_placas
+            WHERE (is_frota IS NULL OR is_frota = 0)
+              AND status_operacional IS DISTINCT FROM 'INATIVO'
+              AND disponibilidade != 'Indisponível'
+              AND estados_destino::text ILIKE $1
+            ORDER BY
+                CASE WHEN status_operacional IS NULL OR status_operacional = 'DISPONIVEL' THEN 0 ELSE 1 END,
+                nome_motorista
+        `, [`%"${uf}"%`]);
+        res.json({ success: true, uf, motoristas: rows });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
