@@ -669,10 +669,10 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
             const minVal = parseInt(tempo_min);
             const maxVal = parseInt(tempo_max);
             if (!isNaN(minVal) && !isNaN(maxVal)) {
-                // Tempo desde data_marcacao (ou data_contratacao se contratado) em minutos
+                // Tempo desde data_marcacao — igual ao cálculo exibido na coluna TEMPO do frontend
                 conditions.push(
-                    `EXTRACT(EPOCH FROM (NOW() - COALESCE(data_contratacao, data_marcacao))) / 60 >= ${minVal}` +
-                    ` AND EXTRACT(EPOCH FROM (NOW() - COALESCE(data_contratacao, data_marcacao))) / 60 < ${maxVal}`
+                    `EXTRACT(EPOCH FROM (NOW() - data_marcacao)) / 60 >= ${minVal}` +
+                    ` AND EXTRACT(EPOCH FROM (NOW() - data_marcacao)) / 60 < ${maxVal}`
                 );
             }
         }
