@@ -64,15 +64,21 @@ function construirLinhas(listaVeiculos) {
             });
         };
 
-        if (v.tempos_recife && Object.keys(v.tempos_recife).length > 0)
-            adicionarLinha('Recife', v.tempos_recife, v.status_recife);
-        else if (ehOperacaoRecife(v.operacao))
-            adicionarLinha('Recife', null, v.status_recife);
+        const operaRecife = ehOperacaoRecife(v.operacao);
+        const operaMoreno = ehOperacaoMoreno(v.operacao);
 
-        if (v.tempos_moreno && Object.keys(v.tempos_moreno).length > 0)
-            adicionarLinha('Moreno', v.tempos_moreno, v.status_moreno);
-        else if (ehOperacaoMoreno(v.operacao) && !ehOperacaoRecife(v.operacao))
-            adicionarLinha('Moreno', null, v.status_moreno);
+        if (operaRecife) {
+            const tempos = v.tempos_recife && Object.keys(v.tempos_recife).length > 0 ? v.tempos_recife : null;
+            adicionarLinha('Recife', tempos, v.status_recife);
+        }
+        if (operaMoreno) {
+            const tempos = v.tempos_moreno && Object.keys(v.tempos_moreno).length > 0 ? v.tempos_moreno : null;
+            adicionarLinha('Moreno', tempos, v.status_moreno);
+        }
+        // Operação não classificada — adiciona uma linha genérica
+        if (!operaRecife && !operaMoreno) {
+            adicionarLinha('—', null, v.status_recife || v.status_moreno);
+        }
     }
     return linhas;
 }
