@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
-import { Filter, Calendar, MapPin, BarChart3, RefreshCw, PauseCircle } from 'lucide-react';
+import { Filter, Calendar, MapPin, BarChart3, RefreshCw, PauseCircle, Printer } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 
@@ -201,6 +201,128 @@ export default function RelatorioOperacional() {
             .sort((a, b) => b.data.localeCompare(a.data) || a.motorista.localeCompare(b.motorista));
     }, [veiculosFiltrados]);
 
+    // ── Impressão ─────────────────────────────────────────────────────────────
+    const imprimir = () => {
+        const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const periodoStr = dataInicio === dataFim ? dataInicio.split('-').reverse().join('/') : `${dataInicio.split('-').reverse().join('/')} → ${dataFim.split('-').reverse().join('/')}`;
+        const unidadeStr = filtroUnidade === 'Todas' ? 'Todas as unidades' : filtroUnidade;
+
+        const kpiRows = KPIS.map(k => {
+            const valor = contadores[k.id] || 0;
+            const pct = contadores.total > 0 ? ((valor / contadores.total) * 100).toFixed(1) : '0.0';
+            return `<div class="kpi-card"><div class="kpi-valor">${valor}</div><div class="kpi-pct">${pct}%</div><div class="kpi-label">${k.label}</div></div>`;
+        }).join('');
+
+        const tabelaRows = linhas.map(l => {
+            const bruto = diffMin(l.t_inicio_separacao, l.fim_carregamento);
+            const efetivo = bruto !== null ? Math.max(0, bruto - (l.pausaMin || 0)) : null;
+            const temPausa = (l.pausaMin || 0) > 0;
+            const dataFmt = l.data ? l.data.split('-').reverse().join('/') : '—';
+            const unidadeBadge = `<span class="badge badge-${l.origem.toLowerCase()}">${l.origem}</span>`;
+            const pausaBadge = temPausa ? `<span class="badge badge-pausa">${formatMin(l.pausaMin)}</span>` : '—';
+            return `<tr>
+                <td>${l.motorista}</td>
+                <td>${l.operacao}</td>
+                <td>${unidadeBadge}</td>
+                <td>${dataFmt}</td>
+                <td class="${bruto !== null ? 'col-tempo' : 'col-vazio'}">${formatMin(bruto)}</td>
+                <td class="${efetivo !== null && temPausa ? 'col-efetivo' : 'col-vazio'}">${temPausa ? formatMin(efetivo) : '—'}</td>
+                <td>${pausaBadge}</td>
+            </tr>`;
+        }).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Relatório Operacional</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 12px; padding: 32px 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #06b6d4; padding-bottom: 14px; margin-bottom: 22px; }
+  .header-left h1 { font-size: 22px; font-weight: 900; color: #0891b2; letter-spacing: -0.5px; }
+  .header-left p { font-size: 11px; color: #64748b; margin-top: 3px; }
+  .header-right { text-align: right; font-size: 10px; color: #94a3b8; line-height: 1.6; }
+  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: 1.6fr repeat(6, 1fr); gap: 10px; margin-bottom: 24px; }
+  .kpi-total { background: #f0fdfe; border: 1px solid #a5f3fc; border-left: 4px solid #06b6d4; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; }
+  .kpi-total .total-num { font-size: 42px; font-weight: 900; color: #0891b2; line-height: 1; }
+  .kpi-total .total-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .kpi-total .total-sub { font-size: 11px; color: #64748b; margin-top: 6px; }
+  .kpi-total .total-sub span { font-weight: 700; color: #0891b2; }
+  .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid #06b6d4; border-radius: 8px; padding: 10px 8px; text-align: center; }
+  .kpi-valor { font-size: 28px; font-weight: 900; color: #0891b2; line-height: 1; }
+  .kpi-pct { font-size: 11px; font-weight: 700; color: #22d3ee; margin-top: 2px; }
+  .kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  thead tr { background: #f1f5f9; }
+  th { padding: 8px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+  .badge-recife { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+  .badge-moreno { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .badge-pausa { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+  .col-tempo { font-weight: 700; color: #16a34a; }
+  .col-efetivo { font-weight: 700; color: #d97706; }
+  .col-vazio { color: #cbd5e1; }
+  .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
+  @media print {
+    body { padding: 20px 24px; }
+    @page { margin: 12mm 10mm; size: A4 landscape; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>Relatório Operacional</h1>
+      <p>Período: ${periodoStr} &nbsp;·&nbsp; Unidade: ${unidadeStr} &nbsp;·&nbsp; ${contadores.total} embarque${contadores.total !== 1 ? 's' : ''}</p>
+    </div>
+    <div class="header-right">
+      Transnet Logística<br/>
+      Gerado em ${geradoEm}
+    </div>
+  </div>
+
+  <div class="section-title">Resumo por Tipo de Operação</div>
+  <div class="kpi-grid">
+    <div class="kpi-total">
+      <div class="total-label">Total de Embarques</div>
+      <div class="total-num">${contadores.total}</div>
+      <div class="total-sub">
+        <span>${veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife &nbsp;·&nbsp;
+        <span>${veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno
+      </div>
+    </div>
+    ${kpiRows}
+  </div>
+
+  <div class="section-title" style="margin-bottom:10px;">Embarques — ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Motorista</th><th>Operação</th><th>Unidade</th><th>Data</th>
+        <th>Tempo</th><th>Efetivo</th><th>Pausa</th>
+      </tr>
+    </thead>
+    <tbody>${tabelaRows}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>Transnet Logística — Relatório Operacional</span>
+    <span>${periodoStr} · ${unidadeStr}</span>
+  </div>
+</body>
+</html>`;
+
+        const janela = window.open('', '_blank', 'width=1100,height=800');
+        janela.document.write(html);
+        janela.document.close();
+        janela.focus();
+        setTimeout(() => janela.print(), 400);
+    };
+
     return (
         <div style={{ padding: '10px 0' }}>
 
@@ -209,12 +331,21 @@ export default function RelatorioOperacional() {
                 <BarChart3 size={22} color="#38bdf8" />
                 <span style={{ fontSize: '20px', fontWeight: '700', color: '#f1f5f9' }}>Relatório Operacional</span>
                 {carregando && <RefreshCw size={15} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />}
-                <button
-                    onClick={() => buscarDados(dataInicio, dataFim)}
-                    style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
-                >
-                    <RefreshCw size={13} /> Atualizar
-                </button>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    <button
+                        onClick={() => buscarDados(dataInicio, dataFim)}
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '7px 12px', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
+                    >
+                        <RefreshCw size={13} /> Atualizar
+                    </button>
+                    <button
+                        onClick={imprimir}
+                        disabled={contadores.total === 0}
+                        style={{ background: contadores.total === 0 ? 'rgba(255,255,255,0.03)' : 'rgba(6,182,212,0.1)', border: `1px solid ${contadores.total === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(6,182,212,0.3)'}`, borderRadius: '8px', padding: '7px 14px', cursor: contadores.total === 0 ? 'not-allowed' : 'pointer', color: contadores.total === 0 ? '#475569' : '#06b6d4', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600' }}
+                    >
+                        <Printer size={13} /> Imprimir
+                    </button>
+                </div>
             </div>
 
             {/* ── Filtros ── */}
