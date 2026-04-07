@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from 'recharts';
 import { Filter, Calendar, MapPin, BarChart3, RefreshCw, PauseCircle } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
@@ -117,13 +117,15 @@ const TooltipDia = ({ active, payload, label }) => {
 
 // ── Constantes de KPIs ────────────────────────────────────────────────────────
 
+const COR = '#06b6d4'; // ciano único para todos os KPIs e gráfico
+
 const KPIS = [
-    { id: 'plasticoRec', label: 'Plástico Recife', cor: '#3b82f6' },
-    { id: 'plasticoMor', label: 'Plástico Moreno', cor: '#f59e0b' },
-    { id: 'plasticoRxM', label: 'Plástico R×M', cor: '#8b5cf6' },
-    { id: 'porcelana',   label: 'Porcelana',       cor: '#ec4899' },
-    { id: 'eletrik',     label: 'Eletrik',          cor: '#06b6d4' },
-    { id: 'consolidado', label: 'Consolidado',      cor: '#10b981' },
+    { id: 'plasticoRec', label: 'Plástico Recife' },
+    { id: 'plasticoMor', label: 'Plástico Moreno' },
+    { id: 'plasticoRxM', label: 'Plástico R×M' },
+    { id: 'porcelana',   label: 'Porcelana' },
+    { id: 'eletrik',     label: 'Eletrik' },
+    { id: 'consolidado', label: 'Consolidado' },
 ];
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -247,43 +249,51 @@ export default function RelatorioOperacional() {
             </div>
 
             {/* ── KPIs ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                 {/* Total */}
-                <div style={{ ...s.card, borderLeft: '4px solid #38bdf8', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ ...s.card, borderLeft: `4px solid ${COR}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Total de Embarques</div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
-                        <span style={{ fontSize: '52px', fontWeight: '900', color: '#38bdf8', lineHeight: 1 }}>{contadores.total}</span>
+                        <span style={{ fontSize: '52px', fontWeight: '900', color: COR, lineHeight: 1 }}>{contadores.total}</span>
                         <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            <div><span style={{ color: '#3b82f6', fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
-                            <div><span style={{ color: '#f59e0b', fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
+                            <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
+                            <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
                         </div>
                     </div>
                 </div>
                 {/* KPIs por tipo */}
-                {KPIS.map(kpi => (
-                    <div
-                        key={kpi.id}
-                        onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
-                        style={{ ...s.card, borderTop: `3px solid ${kpi.cor}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: filtroTipo === kpi.id ? `2px solid ${kpi.cor}` : 'none', transition: 'outline 0.1s' }}
-                        title={`Filtrar por ${kpi.label}`}
-                    >
-                        <div style={{ fontSize: '36px', fontWeight: '900', color: kpi.cor, lineHeight: 1 }}>{contadores[kpi.id] || 0}</div>
-                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
-                    </div>
-                ))}
+                {KPIS.map(kpi => {
+                    const valor = contadores[kpi.id] || 0;
+                    const pct = contadores.total > 0 ? ((valor / contadores.total) * 100).toFixed(1) : '0.0';
+                    const ativo = filtroTipo === kpi.id;
+                    return (
+                        <div
+                            key={kpi.id}
+                            onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
+                            style={{ ...s.card, borderTop: `3px solid ${COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR}` : 'none', transition: 'outline 0.1s' }}
+                            title={`Filtrar por ${kpi.label}`}
+                        >
+                            <div style={{ fontSize: '32px', fontWeight: '900', color: COR, lineHeight: 1 }}>{valor}</div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? COR : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
+                            <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
+                        </div>
+                    );
+                })}
             </div>
 
             {/* ── Gráfico de barras por dia ── */}
             {dadosDia.length > 0 && (
                 <div style={{ ...s.card, marginBottom: '20px' }}>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>Embarques por Dia</div>
-                    <ResponsiveContainer width="100%" height={180}>
-                        <BarChart data={dadosDia} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
+                    <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={dadosDia} margin={{ top: 20, right: 8, left: -20, bottom: 4 }}>
                             <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                             <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
                             <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                             <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }} content={<TooltipDia />} />
-                            <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="total" fill={COR} radius={[4, 4, 0, 0]}>
+                                <LabelList dataKey="total" position="top" style={{ fill: '#94a3b8', fontSize: 11, fontWeight: '700' }} />
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
