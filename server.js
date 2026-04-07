@@ -3044,7 +3044,7 @@ app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planeja
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Endpoints para containers bloqueando docas (por data)
-app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Dashboard Viewer']), async (req, res) => {
     try {
         const data = req.query.data || new Date().toISOString().slice(0, 10);
         const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [data]);
