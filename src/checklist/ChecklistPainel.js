@@ -191,8 +191,10 @@ export default function ChecklistPainel({ socket, addToast }) {
                                             <img
                                                 src={o.foto_base64}
                                                 alt="ocorrência"
-                                                onClick={() => setFotoAmpliada(o.foto_base64)}
-                                                style={{ width: '50px', height: '40px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}
+                                                onClick={(e) => { e.stopPropagation(); setFotoAmpliada(o.foto_base64); }}
+                                                style={{ width: '72px', height: '56px', objectFit: 'cover', borderRadius: '8px', cursor: 'zoom-in', border: '1px solid rgba(245,158,11,0.4)', flexShrink: 0, transition: 'transform 0.15s' }}
+                                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.06)'}
+                                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                             />
                                         )}
                                     </div>
