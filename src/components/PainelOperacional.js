@@ -38,13 +38,13 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     if (!precisaRecife) {
         itemAtualizado.coletaRecife = '';
         itemAtualizado.rotaRecife = '';
-        itemAtualizado.status_recife = 'AGUARDANDO';
+        itemAtualizado.status_recife = 'AGUARDANDO P/ SEPARAÇÃO';
         itemAtualizado.doca_recife = 'SELECIONE';
     }
     if (!precisaMoreno) {
         itemAtualizado.coletaMoreno = '';
         itemAtualizado.rotaMoreno = '';
-        itemAtualizado.status_moreno = 'AGUARDANDO';
+        itemAtualizado.status_moreno = 'AGUARDANDO P/ SEPARAÇÃO';
         itemAtualizado.doca_moreno = 'SELECIONE';
     }
 

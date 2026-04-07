@@ -493,13 +493,13 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             if (!precisaRecife) {
                 v.coletaRecife = '';
                 v.rotaRecife = '';
-                v.status_recife = 'AGUARDANDO';
+                v.status_recife = 'AGUARDANDO P/ SEPARAÇÃO';
                 v.doca_recife = 'SELECIONE';
             }
             if (!precisaMoreno) {
                 v.coletaMoreno = '';
                 v.rotaMoreno = '';
-                v.status_moreno = 'AGUARDANDO';
+                v.status_moreno = 'AGUARDANDO P/ SEPARAÇÃO';
                 v.doca_moreno = 'SELECIONE';
             }
 
