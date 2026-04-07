@@ -339,11 +339,18 @@ export default function RelatorioOperacional() {
 </body>
 </html>`;
 
-        const janela = window.open('', '_blank', 'width=1100,height=800');
-        janela.document.write(html);
-        janela.document.close();
-        janela.focus();
-        setTimeout(() => janela.print(), 400);
+        // window.open é bloqueado no Electron — usa iframe oculto para impressão
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+        document.body.appendChild(iframe);
+        iframe.contentDocument.open();
+        iframe.contentDocument.write(html);
+        iframe.contentDocument.close();
+        iframe.contentWindow.focus();
+        setTimeout(() => {
+            iframe.contentWindow.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
+        }, 400);
     };
 
     return (
