@@ -350,11 +350,29 @@ export default function DashboardMarcacoes() {
                                     const isContratado = ['CONTRATADO', 'EM VIAGEM', 'EM ROTA'].includes(statusOp);
                                     const badgeCor = statusOp === 'DISPONIVEL' ? { color: '#4ade80', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.25)' } : statusOp === 'EM OPERACAO' ? { color: '#60a5fa', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.25)' } : { color: '#fb923c', bg: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.25)' };
                                     const badgeLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : isContratado ? 'Contratado' : statusOp;
+                                    const tel = (m.telefone || '').replace(/\D/g, '');
+                                    const whatsapp = tel ? `https://wa.me/55${tel}` : null;
+                                    const refDate = m.data_contratacao || m.data_marcacao;
+                                    const tempoMin = refDate ? Math.floor((Date.now() - new Date(refDate + (refDate.includes('Z') || refDate.includes('+') ? '' : '-03:00')).getTime()) / 60000) : null;
+                                    const tempoStr = tempoMin === null ? null : tempoMin < 60 ? `${tempoMin}min` : tempoMin < 1440 ? `${Math.floor(tempoMin / 60)}h${tempoMin % 60 > 0 ? String(tempoMin % 60).padStart(2, '0') + 'min' : ''}` : `${Math.floor(tempoMin / 1440)}d ${Math.floor((tempoMin % 1440) / 60)}h`;
                                     return (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: i < modalUF.motoristas.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: i < modalUF.motoristas.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                                             <div style={{ flex: 1, overflow: 'hidden' }}>
                                                 <div style={{ fontSize: '12px', fontWeight: '700', color: '#f1f5f9', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.nome_motorista}</div>
-                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '1px' }}>{m.placa1} · {m.tipo_veiculo || '—'}</div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{m.placa1} · {m.tipo_veiculo || '—'}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                                    {m.disponibilidade && m.disponibilidade !== 'Indisponível' && (
+                                                        <span style={{ fontSize: '10px', color: '#94a3b8' }}>{m.disponibilidade}</span>
+                                                    )}
+                                                    {tempoStr && (
+                                                        <span style={{ fontSize: '10px', color: '#475569' }}>· {tempoStr}</span>
+                                                    )}
+                                                    {whatsapp && (
+                                                        <a href={whatsapp} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#4ade80', textDecoration: 'none', fontWeight: '600' }}>
+                                                            {tel.replace(/(\d{2})(\d{2})(\d{4,5})(\d{4})/, '($1) $2 $3-$4')}
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </div>
                                             <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px', background: badgeCor.bg, color: badgeCor.color, border: `1px solid ${badgeCor.border}`, whiteSpace: 'nowrap' }}>{badgeLabel}</span>
                                         </div>

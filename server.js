@@ -727,7 +727,7 @@ app.get('/api/marcacoes/por-uf/:uf', authMiddleware, authorize(['Coordenador', '
     try {
         const uf = req.params.uf.toUpperCase();
         const rows = await dbAll(`
-            SELECT nome_motorista, placa1, tipo_veiculo, status_operacional, disponibilidade
+            SELECT nome_motorista, placa1, tipo_veiculo, status_operacional, disponibilidade, telefone, data_marcacao, data_contratacao
             FROM marcacoes_placas
             WHERE (is_frota IS NULL OR is_frota = 0)
               AND status_operacional IS DISTINCT FROM 'INATIVO'
