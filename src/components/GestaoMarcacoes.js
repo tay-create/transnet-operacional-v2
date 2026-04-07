@@ -712,7 +712,8 @@ export default function GestaoMarcacoes({ socket }) {
                             {[
                                 { label: 'Total', valor: contadoresMarcacoes.total, filtro: '', cor: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
                                 { label: 'Disponível', valor: contadoresMarcacoes.disponiveis, filtro: 'disponivel', cor: '#4ade80', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' },
-                                { label: 'Contratado', valor: contadoresMarcacoes.contratados + contadoresMarcacoes.em_operacao, filtro: 'contratado', cor: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.2)' },
+                                { label: 'Em Operação', valor: contadoresMarcacoes.em_operacao, filtro: 'contratado', cor: '#60a5fa', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
+                                { label: 'Contratado', valor: contadoresMarcacoes.contratados, filtro: 'contratado', cor: '#fb923c', bg: 'rgba(251,146,60,0.1)', border: 'rgba(251,146,60,0.2)' },
                                 { label: 'Indisponível', valor: contadoresMarcacoes.indisponiveis, filtro: 'indisponivel', cor: '#f87171', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
                             ].map(({ label, valor, filtro, cor, bg, border }) => (
                                 <button
