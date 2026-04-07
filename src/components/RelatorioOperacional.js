@@ -22,6 +22,16 @@ const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PO
 
 // ── Utilitários de tempo ──────────────────────────────────────────────────────
 
+function horaAtualBrasilia() {
+    return new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Recife', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function calcularBruto(l) {
+    if (!l.t_inicio_separacao) return null;
+    const fim = l.fim_carregamento || (l.em_andamento ? horaAtualBrasilia() : null);
+    return diffMin(l.t_inicio_separacao, fim);
+}
+
 function calcularMinutos(hhmm) {
     if (!hhmm || typeof hhmm !== 'string') return null;
     const p = hhmm.split(':');
@@ -60,6 +70,7 @@ function construirLinhas(listaVeiculos) {
                 status: status || 'AGUARDANDO',
                 t_inicio_separacao: tempos?.t_inicio_separacao || null,
                 fim_carregamento: tempos?.fim_carregamento || null,
+                em_andamento: !!(tempos?.t_inicio_separacao && !tempos?.fim_carregamento),
                 pausaMin,
             });
         };
@@ -144,6 +155,12 @@ export default function RelatorioOperacional() {
     const [filtroTipo, setFiltroTipo] = useState('Todas');
     const [veiculosBanco, setVeiculosBanco] = useState([]);
     const [carregando, setCarregando] = useState(false);
+    const [tick, setTick] = useState(0);
+
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 60000);
+        return () => clearInterval(id);
+    }, []);
 
     const buscarDados = useCallback(async (de, ate) => {
         setCarregando(true);
@@ -220,7 +237,7 @@ export default function RelatorioOperacional() {
         }).join('');
 
         const tabelaRows = linhas.map(l => {
-            const bruto = diffMin(l.t_inicio_separacao, l.fim_carregamento);
+            const bruto = calcularBruto(l);
             const efetivo = bruto !== null ? Math.max(0, bruto - (l.pausaMin || 0)) : null;
             const temPausa = (l.pausaMin || 0) > 0;
             const dataFmt = l.data ? l.data.split('-').reverse().join('/') : '—';
@@ -457,7 +474,8 @@ export default function RelatorioOperacional() {
                         </thead>
                         <tbody>
                             {linhas.map((l, i) => {
-                                const bruto = diffMin(l.t_inicio_separacao, l.fim_carregamento);
+                                void tick;
+                                const bruto = calcularBruto(l);
                                 const efetivo = bruto !== null ? Math.max(0, bruto - (l.pausaMin || 0)) : null;
                                 const temPausa = (l.pausaMin || 0) > 0;
                                 const dataFmt = l.data ? l.data.split('-').reverse().join('/') : '—';
