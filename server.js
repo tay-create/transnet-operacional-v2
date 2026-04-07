@@ -542,10 +542,13 @@ app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Plane
             dbAll(`SELECT tipo_veiculo AS tipo, COUNT(*) AS total
              FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
              GROUP BY tipo_veiculo ORDER BY total DESC`),
-            // Por UF (explodir o array estados_destino)
+            // Por UF — apenas disponíveis (excluindo contratados, em operação e indisponíveis)
             dbAll(`SELECT uf, COUNT(*) AS total FROM (
                 SELECT jsonb_array_elements_text(estados_destino::jsonb) AS uf
-                FROM marcacoes_placas WHERE is_frota = 0 OR is_frota IS NULL
+                FROM marcacoes_placas
+                WHERE (is_frota = 0 OR is_frota IS NULL)
+                  AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+                  AND disponibilidade != 'Indisponível'
             ) t GROUP BY uf ORDER BY total DESC`),
             // Por rastreador
             dbAll(`SELECT
