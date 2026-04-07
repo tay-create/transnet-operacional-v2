@@ -67,6 +67,8 @@ jobs:
           cd /opt/transnet/prod
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker compose -f docker-compose.prod.yml --env-file .env.prod pull app
+          docker compose -f docker-compose.prod.yml --env-file .env.prod stop app 2>/dev/null || true
+          docker compose -f docker-compose.prod.yml --env-file .env.prod rm -f app 2>/dev/null || true
           docker compose -f docker-compose.prod.yml --env-file .env.prod up -d db
           docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps app
           docker image prune -f
