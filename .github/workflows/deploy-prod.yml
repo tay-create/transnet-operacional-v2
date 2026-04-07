@@ -62,8 +62,9 @@ jobs:
 
       - name: Deploy via Docker Compose
         run: |
-          # Para o PM2 se ainda estiver rodando (migração para Docker)
-          pm2 stop transnet 2>/dev/null || true
+          # Remove o PM2 definitivamente (migração para Docker)
+          pm2 delete transnet 2>/dev/null || true
+          pm2 save --force 2>/dev/null || true
           # Remove container prod anterior pelo nome exato
           docker rm -f transnet-prod 2>/dev/null || true
           # Mata qualquer processo ainda na porta 3001
