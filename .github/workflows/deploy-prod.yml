@@ -64,10 +64,10 @@ jobs:
         run: |
           # Para o PM2 se ainda estiver rodando (migração para Docker)
           pm2 stop transnet 2>/dev/null || true
-          # Mata qualquer processo na porta 3001
-          fuser -k 3001/tcp 2>/dev/null || true
           # Remove container prod anterior pelo nome exato
           docker rm -f transnet-prod 2>/dev/null || true
+          # Mata qualquer processo ainda na porta 3001
+          pid=$(ss -tlnp | grep ':3001' | grep -oP 'pid=\K[0-9]+' | head -1); [ -n "$pid" ] && kill -9 $pid || true
           cd /opt/transnet/prod
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker compose -f docker-compose.prod.yml --env-file .env.prod pull app
