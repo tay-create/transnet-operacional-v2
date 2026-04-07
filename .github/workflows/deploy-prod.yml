@@ -62,6 +62,9 @@ jobs:
 
       - name: Deploy via Docker Compose
         run: |
+          # Para serviço systemd se existir
+          sudo systemctl stop transnet-operacional 2>/dev/null || true
+          sudo systemctl disable transnet-operacional 2>/dev/null || true
           # Remove o PM2 definitivamente (migração para Docker)
           pm2 delete transnet 2>/dev/null || true
           pm2 save --force 2>/dev/null || true
