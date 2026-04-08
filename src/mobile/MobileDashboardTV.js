@@ -138,7 +138,7 @@ export default function MobileDashboardTV({ socket }) {
             setCarregando(true);
             try {
                 const [v, c, d] = await Promise.allSettled([
-                    api.get('/veiculos?limit=500'),
+                    api.get(`/veiculos?dataInicio=${dataSel}&dataFim=${dataSel}&limit=500`),
                     api.get(`/ctes?dataInicio=${dataSel}&dataFim=${dataSel}`),
                     api.get(`/api/docas-interditadas?data=${dataSel}`),
                 ]);
@@ -164,7 +164,7 @@ export default function MobileDashboardTV({ socket }) {
             });
         };
         const handleAtualizacao = (data) => {
-            api.get('/veiculos?limit=500').then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
+            api.get(`/veiculos?dataInicio=${dataSel}&dataFim=${dataSel}&limit=500`).then(r => { if (r.data.success) setVeiculos(r.data.veiculos || []); });
             if (data?.tipo === 'novo_cte' || data?.tipo === 'atualiza_cte' || data?.tipo === 'remove_cte') {
                 handleCtes();
             }
