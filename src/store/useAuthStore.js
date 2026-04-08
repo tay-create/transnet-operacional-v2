@@ -135,7 +135,7 @@ const useAuthStore = create(
                     return false;
                 }
 
-                if (user.cargo === 'Planejamento') return true;
+                if (user.cargo === 'Planejamento' || user.cargo === 'Conhecimento') return true;
 
                 return user.cidade === cidadeAlvo;
             },
