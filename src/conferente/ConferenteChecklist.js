@@ -613,10 +613,10 @@ export default function ConferenteChecklist({ socket }) {
             const res = await api.get('/api/conferente/veiculos', { params: { data: dataSelecionada } });
             if (res.data.success) {
                 // Adiciona _key único e estável por posição no array original
-                const comKeys = res.data.veiculos.map((v, i) => ({
+                const comKeys = res.data.veiculos.map((v) => ({
                     ...v,
                     status: normalizarStatusDisplay(v.status),
-                    _key: `${v.id}-${v.unidade || 'R'}-${i}`
+                    _key: `${v.id}-${v.unidade || 'R'}`
                 }));
                 console.log('[Conferente] veículos carregados:', comKeys.map(v => ({ _key: v._key, id: v.id, unidade: v.unidade, coleta: v.coleta, status: v.status })));
                 setVeiculos(comKeys);
