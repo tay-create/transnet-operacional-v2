@@ -2487,7 +2487,7 @@ async function gerarProgramacaoDiaria(turno) {
         const hojeStr = new Date().toLocaleString("en-CA", { timeZone: "America/Sao_Paulo" }).split(',')[0];
 
         const totais = {
-            Delta:        { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
+            Plástico:     { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
             Porcelana:    { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
             Eletrik:      { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
             Consolidados: { recife: 0, moreno: 0, reprogramado_recife: 0, reprogramado_moreno: 0 },
@@ -2499,7 +2499,7 @@ async function gerarProgramacaoDiaria(turno) {
         const resolverCliente = (operacao) => {
             const op = (operacao || '').toUpperCase();
             if (op.includes('/')) return 'Consolidados';
-            if (op.includes('DELTA')) return 'Delta';
+            if (op.includes('PLÁSTICO') || op.includes('PLASTICO') || op.includes('DELTA')) return 'Plástico';
             if (op.includes('PORCELANA')) return 'Porcelana';
             if (op.includes('ELETRIK')) return 'Eletrik';
             return 'Consolidados';

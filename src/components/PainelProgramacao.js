@@ -5,10 +5,10 @@ import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown, Filt
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { obterDataBrasilia } from '../utils/helpers';
 
-const OPERACOES = ['Delta', 'Porcelana', 'Eletrik', 'Consolidados'];
+const OPERACOES = ['Plástico', 'Porcelana', 'Eletrik', 'Consolidados'];
 
 const CORES_OPERACAO = {
-    Delta: '#38bdf8',
+    'Plástico': '#38bdf8',
     Consolidados: '#818cf8',
     Eletrik: '#fbbf24',
     Porcelana: '#a78bfa',
