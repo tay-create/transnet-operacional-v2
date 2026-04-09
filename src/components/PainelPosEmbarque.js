@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image, FileText, ChevronDown } from 'lucide-react';
+import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image, FileText, ChevronDown, ExternalLink } from 'lucide-react';
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
@@ -181,9 +181,14 @@ export default function PainelPosEmbarque() {
         }
     };
 
-    const arquivar = async (id) => {
+    const arquivarResolvidas = async () => {
+        const resolvidas = ocorrencias.filter(o => o.situacao === 'RESOLVIDO');
+        if (resolvidas.length === 0) return;
+        if (!window.confirm(`Arquivar ${resolvidas.length} ocorrência(s) resolvida(s)?`)) return;
         try {
-            await api.post(`/api/posembarque/ocorrencias/${id}/arquivar`);
+            for (const oc of resolvidas) {
+                await api.post(`/api/posembarque/ocorrencias/${oc.id}/arquivar`);
+            }
             carregarOcorrencias();
         } catch (e) {
             console.error('Erro ao arquivar:', e);
@@ -267,11 +272,11 @@ export default function PainelPosEmbarque() {
             {aba === 'dashboard' && (
                 <div>
                     {/* Filtros */}
-                    <div style={{ ...s.card, display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <div style={{ ...s.card, display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <input
                             type="text"
                             placeholder="Buscar..."
-                            style={s.input}
+                            style={{ ...s.input, flex: 1, minWidth: '150px' }}
                             value={busca}
                             onChange={e => setBusca(e.target.value)}
                         />
@@ -283,6 +288,14 @@ export default function PainelPosEmbarque() {
                         <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => setModalNovaAberto(true)}>
                             <Plus size={16} /> Nova
                         </button>
+                        {ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length > 0 && (
+                            <button
+                                style={{ ...s.btn, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                                onClick={arquivarResolvidas}
+                            >
+                                <Archive size={16} /> Arquivar Resolvidas ({ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length})
+                            </button>
+                        )}
                     </div>
 
                     {/* KPIs */}
@@ -352,9 +365,11 @@ export default function PainelPosEmbarque() {
                                                 <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => { setOcorrenciaAtualId(oc.id); setModalFotosAberto(true); }} title="Fotos">
                                                     <Image size={14} /> {oc.fotos_json ? JSON.parse(oc.fotos_json).length : 0}
                                                 </button>
-                                                <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => arquivar(oc.id)} title="Arquivar">
-                                                    <Archive size={14} />
-                                                </button>
+                                                {oc.link_email && (
+                                                    <a href={oc.link_email} target="_blank" rel="noopener noreferrer" style={{ ...s.btn, ...s.btnPrimary, textDecoration: 'none' }} title="Abrir Email">
+                                                        <ExternalLink size={14} />
+                                                    </a>
+                                                )}
                                                 <button style={{ ...s.btn, ...s.btnDanger }} onClick={() => deletar(oc.id)} title="Deletar">
                                                     <Trash2 size={14} />
                                                 </button>
