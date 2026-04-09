@@ -604,8 +604,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             // Preservar coleta se o frontend enviou vazio mas o banco tem valor (evita apagar coleta por race-condition)
-            if (!v.coletaRecife && veiculoAntigo?.coletarecife) v.coletaRecife = veiculoAntigo.coletarecife;
-            if (!v.coletaMoreno && veiculoAntigo?.coletamoreno) v.coletaMoreno = veiculoAntigo.coletamoreno;
+            // Respeitar a lógica de visibilidade: se a operação não precisa da unidade, não restaurar o campo
+            if (!v.coletaRecife && veiculoAntigo?.coletarecife && precisaRecife) v.coletaRecife = veiculoAntigo.coletarecife;
+            if (!v.coletaMoreno && veiculoAntigo?.coletamoreno && precisaMoreno) v.coletaMoreno = veiculoAntigo.coletamoreno;
 
             // Manter campo genérico 'coleta' sincronizado (sempre sobrescrever com valor atual)
             v.coleta = v.coletaRecife || v.coletaMoreno || v.coleta || '';

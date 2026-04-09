@@ -174,6 +174,10 @@ module.exports = function createChecklistsRouter(io) {
             const data = req.query.data || hoje;
             let rows = [];
 
+            // Filtro por operação: determina se o veículo pertence a Recife ou Moreno pela string de operação
+            const FILTRO_RECIFE = `(operacao LIKE '%RECIFE%')`;
+            const FILTRO_MORENO = `(operacao LIKE '%MORENO%' OR operacao LIKE '%PORCELANA%' OR operacao LIKE '%ELETRIK%')`;
+
             if (cidade === 'Ambas') {
                 // Retorna cards de Recife E de Moreno, cada um como entrada separada
                 const recife = await dbAll(
@@ -186,7 +190,8 @@ module.exports = function createChecklistsRouter(io) {
                        AND (
                          (status_recife != 'CARREGADO' AND data_prevista = ?)
                          OR (status_recife = 'CARREGADO' AND COALESCE(data_carregado_recife, data_prevista) = ?)
-                       ) ORDER BY id DESC`,
+                       )
+                       AND ${FILTRO_RECIFE} ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, data, data]
                 );
                 const moreno = await dbAll(
@@ -199,7 +204,8 @@ module.exports = function createChecklistsRouter(io) {
                        AND (
                          (status_moreno != 'CARREGADO' AND data_prevista = ?)
                          OR (status_moreno = 'CARREGADO' AND COALESCE(data_carregado_moreno, data_prevista) = ?)
-                       ) ORDER BY id DESC`,
+                       )
+                       AND ${FILTRO_MORENO} ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, data, data]
                 );
                 rows = [...recife, ...moreno];
@@ -208,9 +214,7 @@ module.exports = function createChecklistsRouter(io) {
                 const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
                 const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
                 const campoCarregado = cidade === 'Moreno' ? 'data_carregado_moreno' : 'data_carregado_recife';
-                const cidadeFiltro = cidade === 'Moreno'
-                    ? `(inicio_rota = 'Moreno' OR (coletamoreno IS NOT NULL AND coletamoreno != ''))`
-                    : `(coletarecife IS NOT NULL AND coletarecife != '')`;
+                const cidadeFiltro = cidade === 'Moreno' ? FILTRO_MORENO : FILTRO_RECIFE;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
