@@ -741,18 +741,27 @@ function App({ socket }) {
         };
 
         // Persistir no banco de dados
+        let cteCriado = false;
         try {
             const origemCte = origem || (user.cidade === 'Moreno' ? 'Moreno' : 'Recife');
             const response = await api.post('/ctes', { origem: origemCte, dados: dadosCte });
             if (response.data.success) {
                 dadosCte.id = response.data.id;
+                cteCriado = true;
             }
         } catch (error) {
             console.error("Erro ao persistir CT-e:", error);
+            const msg = error?.response?.data?.message || error.message || 'Erro desconhecido';
+            mostrarNotificacao(`❌ Falha ao criar CT-e: ${msg}`);
+            aceitandoCteIds.current.delete(idInterno);
+            return; // Não remove a notificação se falhou
         }
 
         const origemLabel = user.cidade === 'Moreno' ? 'MORENO' : 'RECIFE';
-        mostrarNotificacao(`✅ CT-e Aceito! Enviado para ${origemLabel}.`);
+        mostrarNotificacao(cteCriado
+            ? `✅ CT-e Aceito! Enviado para ${origemLabel}.`
+            : `⚠️ CT-e já existia — duplicata ignorada.`
+        );
 
         // Remover notificação globalmente (CT-e aceito = remove para todos)
         try {
