@@ -162,6 +162,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             if (ehMoreno && !temColetaMoreno) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
+            // Garantir que coleta não vaze para unidade errada — ex: PLÁSTICO(MORENO) não pode ter coletaRecife
+            if (!ehRecife) v.coletaRecife = '';
+            if (!ehMoreno) v.coletaMoreno = '';
 
             // Herdar dados de checklist/liberação do cadastro do motorista do frontend como fallback, 
             // mas tentar buscar o mais atualizado pelo telefone, se existir
