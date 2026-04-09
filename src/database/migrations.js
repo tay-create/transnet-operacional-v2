@@ -472,6 +472,39 @@ const inicializarBanco = async () => {
         // Remover contas de teste legadas caso ainda existam
         await dbRun(`DELETE FROM usuarios WHERE email IN ('teste@tnetlog.com.br', 'testeconferencia@tnetlog.com.br')`);
 
+        // ── Tabelas para Área Pós-Embarque ───────────────────────────────────────
+        await dbRun(`CREATE TABLE IF NOT EXISTS posemb_ocorrencias (
+            id SERIAL PRIMARY KEY,
+            data_ocorrencia TEXT,
+            hora_ocorrencia TEXT,
+            motorista TEXT,
+            modalidade TEXT,
+            cte TEXT,
+            operacao TEXT,
+            nfs TEXT,
+            cliente TEXT,
+            cidade TEXT,
+            motivo TEXT,
+            situacao TEXT DEFAULT 'Em Andamento',
+            data_conclusao TEXT,
+            hora_conclusao TEXT,
+            responsavel TEXT,
+            arquivado INTEGER DEFAULT 0,
+            fotos_json TEXT DEFAULT '[]',
+            status_edicao TEXT DEFAULT 'BLOQUEADO',
+            link_email TEXT,
+            motivo_edicao TEXT,
+            data_criacao TEXT
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS posemb_motoristas (
+            nome TEXT PRIMARY KEY
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS posemb_clientes (
+            nome TEXT PRIMARY KEY
+        )`);
+
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");
         if (!perm) {

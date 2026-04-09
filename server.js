@@ -200,6 +200,9 @@ app.use('/', checklistsRouter);
 const ocorrenciasRouter = require('./src/routes/ocorrencias')(registrarLog, io);
 app.use('/', ocorrenciasRouter);
 
+const posembarqueRouter = require('./src/routes/posembarque')(registrarLog);
+app.use('/', posembarqueRouter);
+
 // Reset de senha por Coordenador (gera senha padrão "123" e força troca)
 app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
     try {

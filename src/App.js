@@ -38,6 +38,7 @@ const DashboardFrota       = React.lazy(() => import('./components/DashboardFrot
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
 const RelatorioLiberacoes  = React.lazy(() => import('./components/RelatorioLiberacoes'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
+const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 
 // Modals lazy — só carregam quando abertos
 const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
@@ -1422,6 +1423,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (
                     <PainelOcorrencias />
+                )}
+
+                {abaAtiva === 'pos_embarque' && (
+                    <PainelPosEmbarque />
                 )}
 
                 {abaAtiva.startsWith('cte_') && temAcesso('cte') && (

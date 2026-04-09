@@ -267,6 +267,15 @@ export default function Sidebar({
                                 onClick={() => setAbaAtiva('ocorrencias')}
                             />
                         )}
+                        {(ehCoordenador || cargo === 'POS EMBARQUE' || cargo === 'PLANEJAMENTO') && (
+                            <MenuItem
+                                icon={<Package size={20} />}
+                                label="Área Pós-Embarque"
+                                subItem
+                                aberto={aberto}
+                                onClick={() => setAbaAtiva('pos_embarque')}
+                            />
+                        )}
                     </>
                 )}
             </div>
