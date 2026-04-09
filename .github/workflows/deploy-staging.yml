@@ -62,7 +62,7 @@ jobs:
         run: |
           cd /opt/transnet/staging
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker compose -f docker-compose.staging.yml --env-file .env.staging pull app
-          docker compose -f docker-compose.staging.yml --env-file .env.staging up -d db
-          docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps app
+          docker compose -p staging -f docker-compose.staging.yml --env-file .env.staging pull app
+          docker compose -p staging -f docker-compose.staging.yml --env-file .env.staging up -d db
+          docker compose -p staging -f docker-compose.staging.yml --env-file .env.staging up -d --no-deps app
           docker image prune -f
