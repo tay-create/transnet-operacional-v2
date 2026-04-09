@@ -541,9 +541,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 const agora = new Date().toISOString();
                 const setIfNull = (obj, campo, valor) => { if (!obj[campo]) obj[campo] = valor; };
 
-                const ts = v.timestamps_status && typeof v.timestamps_status === 'object'
-                    ? { ...v.timestamps_status }
-                    : (() => { try { return JSON.parse(veiculoAntigo?.timestamps_status || '{}'); } catch { return {}; } })();
+                // AUTORITATIVO: sempre partir do banco, nunca do frontend
+                const ts = (() => { try { return JSON.parse(veiculoAntigo?.timestamps_status || '{}'); } catch { return {}; } })();
 
                 const srAntigo = veiculoAntigo ? veiculoAntigo.status_recife : null;
                 const smAntigo = veiculoAntigo ? veiculoAntigo.status_moreno : null;
@@ -1300,7 +1299,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // ── Relatório: Performance de Embarque ────────────────────────────────
     router.get('/api/relatorio/performance', authMiddleware, async (req, res) => {
         try {
-            const { de, ate, unidade } = req.query;
+            const { de, ate, unidade, operacao } = req.query;
             if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
             const rows = await dbAll(`
@@ -1311,51 +1310,90 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 ORDER BY v.data_prevista ASC, v.id ASC
             `, [de, ate]);
 
-            function calcMin(hhmm) {
-                if (!hhmm || typeof hhmm !== 'string') return null;
-                const p = hhmm.split(':');
-                const h = parseInt(p[0], 10), m = parseInt(p[1], 10);
-                return isNaN(h) || isNaN(m) ? null : h * 60 + m;
+            // Calcula overlap de pausas (ms) dentro de [inicioMs, fimMs]
+            function calcPausaMs(pausas, unidadeLower, inicioMs, fimMs) {
+                let total = 0;
+                for (const p of pausas) {
+                    if (p.unidade !== unidadeLower || !p.fim) continue;
+                    const pI = new Date(p.inicio).getTime();
+                    const pF = new Date(p.fim).getTime();
+                    const oI = Math.max(pI, inicioMs);
+                    const oF = Math.min(pF, fimMs);
+                    if (oF > oI) total += (oF - oI);
+                }
+                return total;
             }
-            function diffMin(ini, fim) {
-                const i = calcMin(ini), f = calcMin(fim);
-                if (i === null || f === null) return null;
-                return f >= i ? f - i : null;
+
+            // Diferença em minutos entre dois ISO timestamps
+            function diffIsoMin(isoA, isoB) {
+                if (!isoA || !isoB) return null;
+                const ms = new Date(isoB).getTime() - new Date(isoA).getTime();
+                return ms >= 0 ? Math.round(ms / 60000) : null;
             }
 
             const linhas = [];
             for (const row of rows) {
                 let dados_json = {};
                 try { dados_json = JSON.parse(row.dados_json || '{}'); } catch {}
+                let ts = {};
+                try { ts = JSON.parse(row.timestamps_status || '{}'); } catch {}
                 const pausas = (() => { try { return JSON.parse(row.pausas_status || '[]'); } catch { return []; } })();
+                const op = dados_json.operacao || row.operacao || '';
 
-                const processarUnidade = (unidadeNome, temposStr, status) => {
-                    if (!status || status === 'AGUARDANDO') return;
-                    const tempos = (() => { try { return JSON.parse(temposStr || '{}'); } catch { return {}; } })();
-                    if (!tempos.t_inicio_separacao && !tempos.t_inicio_carregamento) return;
+                const processarUnidade = (unidadeNome, status) => {
+                    if (!status || status === 'AGUARDANDO' || status === 'AGUARDANDO P/ SEPARAÇÃO') return;
+                    const u = unidadeNome.toLowerCase();
 
-                    const unidadeLower = unidadeNome.toLowerCase();
-                    const pausas_min = pausas
-                        .filter(p => p.unidade === unidadeLower && p.fim !== null)
-                        .reduce((acc, p) => {
-                            const diff = Math.floor((new Date(p.fim) - new Date(p.inicio)) / 60000);
-                            return acc + Math.max(0, diff);
-                        }, 0);
+                    // Filtro por operação
+                    if (operacao && operacao !== 'todas') {
+                        if (!op.toUpperCase().includes(operacao.toUpperCase())) return;
+                    }
 
-                    const duracao_min = diffMin(tempos.t_inicio_separacao, tempos.fim_carregamento);
+                    const sep_at = ts[`separacao_${u}_at`] || null;
+                    const doca_at = ts[`lib_doca_${u}_at`] || null;
+                    const carr_at = ts[`carregamento_${u}_at`] || null;
+                    const done_at = ts[`carregado_${u}_at`] || null;
+                    const cte_at = ts[`cte_${u}_at`] || null;
+
+                    // Se não tem nem separação, não entra
+                    if (!sep_at) return;
+
+                    // Tempos por etapa (minutos)
+                    const sep_min = diffIsoMin(sep_at, doca_at || carr_at || done_at);
+                    const doca_min = doca_at ? diffIsoMin(doca_at, carr_at || done_at) : null;
+                    const carr_min = carr_at ? diffIsoMin(carr_at, done_at) : null;
+
+                    // Total pátio: data_inicio_patio → done_at (ou cte_at)
+                    const patioInicio = row.data_inicio_patio || row.data_criacao;
+                    const patioFim = done_at || cte_at;
+                    const total_patio_min = patioInicio && patioFim ? diffIsoMin(
+                        new Date(patioInicio).toISOString(),
+                        patioFim
+                    ) : null;
+
+                    // Pausas totais em minutos (overlap com sep_at → done_at/agora)
+                    const inicioMs = new Date(sep_at).getTime();
+                    const fimMs = done_at ? new Date(done_at).getTime() : Date.now();
+                    const pausas_ms = calcPausaMs(pausas, u, inicioMs, fimMs);
+                    const pausas_min = Math.round(pausas_ms / 60000);
+
+                    // Duração total operação (sep → done)
+                    const duracao_min = diffIsoMin(sep_at, done_at);
                     const efetivo_min = duracao_min !== null ? Math.max(0, duracao_min - pausas_min) : null;
 
                     linhas.push({
                         id: row.id,
-                        motorista: row.motorista,
+                        motorista: row.motorista || 'A DEFINIR',
                         data: row.data_prevista,
                         unidade: unidadeNome,
-                        operacao: row.operacao || '',
+                        operacao: op,
                         status,
-                        t_inicio_separacao: tempos.t_inicio_separacao || null,
-                        fim_separacao: tempos.fim_separacao || null,
-                        t_inicio_carregamento: tempos.t_inicio_carregamento || null,
-                        fim_carregamento: tempos.fim_carregamento || null,
+                        // Timestamps ISO brutos
+                        sep_at, doca_at, carr_at, done_at, cte_at,
+                        // Tempos por etapa em minutos
+                        sep_min, doca_min, carr_min,
+                        total_patio_min,
+                        // Totais
                         duracao_min,
                         pausas_min,
                         efetivo_min,
@@ -1365,10 +1403,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 };
 
                 if (!unidade || unidade === 'todas' || unidade === 'Recife') {
-                    processarUnidade('Recife', row.tempos_recife, row.status_recife);
+                    processarUnidade('Recife', row.status_recife);
                 }
                 if (!unidade || unidade === 'todas' || unidade === 'Moreno') {
-                    processarUnidade('Moreno', row.tempos_moreno, row.status_moreno);
+                    processarUnidade('Moreno', row.status_moreno);
                 }
             }
 

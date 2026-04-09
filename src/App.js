@@ -798,51 +798,10 @@ function App({ socket }) {
             itemAtual[campo] = valor;
         }
 
-        // Capturar timestamps de mudanças de status para temporizadores automáticos
+        // timestamps_status agora é AUTORITATIVO DO BACKEND — frontend não grava mais.
+        // O backend (veiculos.js PUT) grava os timestamps ISO com base na mudança de status.
+        // Apenas tempos HH:MM são mantidos localmente para exibição rápida no painel.
         if (campo.includes('status')) {
-            const agora = new Date().toISOString();
-            const unidade = campo === 'status_recife' ? 'recife' : 'moreno';
-
-            const ts = itemAtual.timestamps_status;
-            const setIfNull = (campo, val) => { if (!ts[campo]) ts[campo] = val; };
-
-            // Gravar ISO para cada status (por unidade) — inícios com setIfNull, fins sempre sobrescrevem
-            if (valor === 'EM SEPARAÇÃO') setIfNull(`separacao_${unidade}_at`, agora);
-            if (valor === 'LIBERADO P/ DOCA') {
-                setIfNull(`lib_doca_${unidade}_at`, agora);
-                // Fim da separação = quando entra na doca
-                setIfNull(`fim_separacao_${unidade}_at`, agora);
-            }
-            if (valor === 'EM CARREGAMENTO') {
-                setIfNull(`carregamento_${unidade}_at`, agora);
-                // Também registra fim da separação se ainda não tiver
-                setIfNull(`fim_separacao_${unidade}_at`, agora);
-            }
-            if (valor === 'CARREGADO') {
-                ts[`carregado_${unidade}_at`] = agora;
-                // Fim do carregamento = quando marca CARREGADO
-                ts[`fim_carregamento_${unidade}_at`] = agora;
-            }
-            if (valor === 'LIBERADO P/ CT-e') ts[`cte_${unidade}_at`] = agora;
-
-            // Calcular tempo carregado→CT-e
-            // Para card misto, usa o carregado_at mais recente entre as duas unidades
-            if (valor === 'LIBERADO P/ CT-e') {
-                const carregadoEm = ts[`carregado_${unidade}_at`];
-                const outraUnidade = unidade === 'recife' ? 'moreno' : 'recife';
-                const carregadoOutraEm = ts[`carregado_${outraUnidade}_at`];
-                // Referência: o último carregamento concluído (ambas as unidades)
-                const referencia = carregadoOutraEm && carregadoOutraEm > (carregadoEm || '')
-                    ? carregadoOutraEm
-                    : carregadoEm;
-                if (referencia) {
-                    const tempoDecorrido = Math.floor((new Date() - new Date(referencia)) / 1000 / 60);
-                    ts.tempo_carregado_ate_cte = tempoDecorrido;
-                    mostrarNotificacao(`⏱️ Tempo de carregamento: ${tempoDecorrido} min`);
-                }
-            }
-
-            // ── Auto-preencher tempos HH:MM (mantido para Performance CT-e / Relatório) ──
             const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const temposKey = campo === 'status_recife' ? 'tempos_recife' : 'tempos_moreno';
             if (valor === 'EM SEPARAÇÃO' && !itemAtual[temposKey].t_inicio_separacao) {

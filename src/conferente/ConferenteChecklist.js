@@ -654,23 +654,13 @@ export default function ConferenteChecklist({ socket }) {
                 if (v.id !== id) return v;
                 const novoV = { ...v, status: novoStatus };
                 if (novaDoca && novaDoca !== 'SELECIONE') novoV.doca = novaDoca;
-
-                // Preencher timestamp localmente para o timer aparecer imediatamente
-                const ts = { ...(v.timestamps_status || {}) };
-                const unidade = (v.unidade || cidade).toLowerCase() === 'moreno' ? 'moreno' : 'recife';
-                const agora = new Date().toISOString();
-                if (novoStatus === 'EM SEPARAÇÃO' && !ts[`separacao_${unidade}_at`]) ts[`separacao_${unidade}_at`] = agora;
-                if (novoStatus === 'LIBERADO P/ DOCA' && !ts[`lib_doca_${unidade}_at`]) ts[`lib_doca_${unidade}_at`] = agora;
-                if (novoStatus === 'EM CARREGAMENTO' && !ts[`carregamento_${unidade}_at`]) ts[`carregamento_${unidade}_at`] = agora;
-                if (novoStatus === 'CARREGADO' && !ts[`carregado_${unidade}_at`]) ts[`carregado_${unidade}_at`] = agora;
-                novoV.timestamps_status = ts;
-
+                // timestamps_status é AUTORITATIVO DO BACKEND — não gravar localmente.
+                // O socket receber_atualizacao vai recarregar com dados frescos do banco.
                 return novoV;
             });
-            // Remover cards que saíram do escopo do conferente (status além de CARREGADO)
             return atualizado.filter(v => STATUS_CONFERENTE.includes(v.status));
         });
-    }, [cidade]);
+    }, []);
 
     // Agrupar por status para exibição ordenada
     const porStatus = STATUS_CONFERENTE.map(s => ({
