@@ -93,6 +93,18 @@ function BarraEtapa({ min, maxMin, cor, label }) {
     );
 }
 
+function formatDataBR(dataISO) {
+    if (!dataISO) return '';
+    const [ano, mes, dia] = dataISO.split('-');
+    return `${dia}/${mes}`;
+}
+
+function formatDataBRFull(dataISO) {
+    if (!dataISO) return '';
+    const [ano, mes, dia] = dataISO.split('-');
+    return `${dia}/${mes}/${ano}`;
+}
+
 function TooltipGrafico({ active, payload, label }) {
     if (!active || !payload?.length) return null;
     return (
@@ -106,7 +118,7 @@ function TooltipGrafico({ active, payload, label }) {
                 <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                     <div style={{ width: 8, height: 8, borderRadius: 2, background: p.fill }} />
                     <span style={{ color: '#94a3b8' }}>{p.name}:</span>
-                    <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{p.value}min</span>
+                    <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{formatMin(p.value)}</span>
                 </div>
             ))}
         </div>
@@ -177,7 +189,7 @@ export default function RelatorioPerformance() {
         const avg = arr => arr.length ? Math.round(arr.reduce((a, v) => a + v, 0) / arr.length) : 0;
         return Object.entries(porDia)
             .map(([data, v]) => ({
-                data: data.substring(5).replace('-', '/'),
+                data: formatDataBR(data),
                 dataFull: data,
                 Separação: avg(v.sep),
                 'Lib. Doca': avg(v.doca),
@@ -215,7 +227,7 @@ export default function RelatorioPerformance() {
     function exportarXLSX() {
         const dados = linhas.map(l => ({
             Motorista: l.motorista,
-            Data: l.data,
+            Data: formatDataBRFull(l.data),
             Unidade: l.unidade,
             Operação: l.operacao,
             Status: l.status,
@@ -462,7 +474,7 @@ export default function RelatorioPerformance() {
                                 <BarChart data={dadosGrafico} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                                     <XAxis dataKey="data" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => formatMin(v)} />
                                     <Tooltip content={<TooltipGrafico />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                                     <Legend
                                         wrapperStyle={{ fontSize: '11px', color: '#94a3b8' }}
@@ -530,7 +542,7 @@ export default function RelatorioPerformance() {
                                                     </span>
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
-                                                    {l.data?.substring(5).replace('-', '/')}
+                                                    {formatDataBR(l.data)}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'center', color: corTempo(l.sep_min), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                                                     {formatMin(l.sep_min)}
