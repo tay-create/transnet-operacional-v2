@@ -156,10 +156,15 @@ export default function SLATimeline({ item, unidade, pausas }) {
             {etapasComAt.map((etapa, i) => {
                 if (!etapa.at) return null;
                 const ehEtapaCte = etapa.label === 'CT-e';
+                const ehEtapaCarregado = etapa.label === 'CARREGADO';
+                // Para CT-e: para quando emitido
+                // Para CARREGADO: para quando existe cte_at (próxima etapa) ou quando não há próxima (não fica ao vivo)
+                // Para demais: para quando a próxima etapa começa
                 const proxAt = ehEtapaCte
                     ? (cteEmitido ? (item?.datetime_cte || etapa.at) : null)
                     : (etapasComAt[i + 1]?.at || null);
-                const aoVivo = (i === ultimaIdx) && !proxAt;
+                // CARREGADO e CT-e não ficam ao vivo — são etapas de conclusão
+                const aoVivo = (i === ultimaIdx) && !proxAt && !ehEtapaCarregado && !ehEtapaCte;
 
                 // Calcular tempo pausado para esta etapa
                 const inicioMs = new Date(etapa.at).getTime();
