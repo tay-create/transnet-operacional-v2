@@ -554,35 +554,53 @@ function ModalFotos({ id, onClose, ocorrencias, removerFoto, s }) {
     const oc = ocorrencias.find(o => o.id === id);
     const fotos = oc && oc.fotos_json ? JSON.parse(oc.fotos_json) : [];
     const [upload, setUpload] = useState(null);
+    const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
     const adicionarFoto = async () => {
         if (!upload) return;
         try {
             await api.post(`/api/posembarque/ocorrencias/${id}/fotos`, { base64: upload, nome: `foto_${Date.now()}.jpg` });
             setUpload(null);
-            window.location.reload(); // Recarregar para atualizar
+            window.location.reload();
         } catch (e) {
             console.error('Erro:', e);
         }
     };
 
+    const getMime = (nome) => (nome || '').toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+    // Modal de foto ampliada (overlay sobre o modal de fotos)
+    if (fotoAmpliada) {
+        return (
+            <div style={{ ...s.modal, zIndex: 1100 }} onClick={() => setFotoAmpliada(null)}>
+                <img
+                    src={`data:${getMime(fotoAmpliada.nome)};base64,${fotoAmpliada.base64}`}
+                    alt="Foto ampliada"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '8px', objectFit: 'contain' }}
+                    onClick={e => e.stopPropagation()}
+                />
+            </div>
+        );
+    }
+
     return (
         <div style={s.modal} onClick={onClose}>
-            <div style={s.modalContent} onClick={e => e.stopPropagation()}>
-                <h3>Fotos ({fotos.length}/5)</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-                    {fotos.map((f, i) => {
-                        const ext = (f.nome || '').toLowerCase();
-                        const mime = ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
-                        return (
-                            <div key={i} style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '8px' }}>
-                                <img src={`data:${mime};base64,${f.base64}`} style={{ width: '100%', height: '120px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }} alt={`Foto ${i + 1}`} onClick={() => window.open(`data:${mime};base64,${f.base64}`, '_blank')} />
-                                <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px', padding: '4px 8px' }} onClick={() => removerFoto(id, i)}>
-                                    ✕
-                                </button>
-                            </div>
-                        );
-                    })}
+            <div style={{ ...s.modalContent, maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ marginBottom: '12px' }}>Fotos ({fotos.length}/5)</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
+                    {fotos.map((f, i) => (
+                        <div key={i} style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '8px' }}>
+                            <img
+                                src={`data:${getMime(f.nome)};base64,${f.base64}`}
+                                style={{ width: '100%', height: '150px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }}
+                                alt={`Foto ${i + 1}`}
+                                onClick={() => setFotoAmpliada(f)}
+                            />
+                            <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px', padding: '4px 8px' }} onClick={() => removerFoto(id, i)}>
+                                ✕
+                            </button>
+                        </div>
+                    ))}
                 </div>
                 {fotos.length < 5 && (
                     <div style={{ marginTop: '12px' }}>
