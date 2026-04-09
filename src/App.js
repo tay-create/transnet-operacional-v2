@@ -1431,7 +1431,7 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'pos_embarque_dashboard' && (
-                    <DashboardPosEmbarque />
+                    <DashboardPosEmbarque socket={socket} />
                 )}
 
                 {abaAtiva.startsWith('cte_') && temAcesso('cte') && (

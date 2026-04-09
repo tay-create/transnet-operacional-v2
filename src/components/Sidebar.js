@@ -277,7 +277,7 @@ export default function Sidebar({
                     <Divider label="Área Pós-Embarque" aberto={aberto} />
                     <MenuItem
                         icon={<AlertTriangle size={20} />}
-                        label="Ocorrências"
+                        label="Painel de Ocorrências"
                         subItem
                         aberto={aberto}
                         onClick={() => setAbaAtiva('pos_embarque')}

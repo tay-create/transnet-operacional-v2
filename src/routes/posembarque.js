@@ -2,7 +2,7 @@ const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 
-module.exports = function createPosEmbarqueRouter(registrarLog) {
+module.exports = function createPosEmbarqueRouter(registrarLog, io) {
     const router = express.Router();
 
     // Helper: calcular SLA (24h em ms)
@@ -57,6 +57,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog) {
             );
 
             await registrarLog('POSEMB_OCORRENCIA_CRIADA', responsavel, result.lastID, 'posemb_ocorrencias', null, null, `${motorista} - ${motivo}`);
+            if (io) io.emit('posembarque_atualizada', { tipo: 'criada' });
 
             res.json({ success: true, id: result.lastID });
         } catch (e) {
@@ -107,6 +108,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog) {
             );
 
             await registrarLog('POSEMB_OCORRENCIA_ATUALIZADA', req.user?.nome || '?', id, 'posemb_ocorrencias', null, null, `${motorista} - ${motivo}`);
+            if (io) io.emit('posembarque_atualizada', { tipo: 'atualizada' });
 
             res.json({ success: true });
         } catch (e) {
@@ -121,6 +123,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog) {
             const id = req.params.id;
             await dbRun('DELETE FROM posemb_ocorrencias WHERE id = ?', [id]);
             await registrarLog('POSEMB_OCORRENCIA_DELETADA', req.user?.nome || '?', id, 'posemb_ocorrencias', null, null, '');
+            if (io) io.emit('posembarque_atualizada', { tipo: 'deletada' });
             res.json({ success: true });
         } catch (e) {
             console.error('Erro ao deletar ocorrência:', e);
@@ -142,6 +145,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog) {
             );
 
             await registrarLog('POSEMB_OCORRENCIA_RESOLVIDA', req.user?.nome || '?', id, 'posemb_ocorrencias', 'Em Andamento', 'RESOLVIDO', '');
+            if (io) io.emit('posembarque_atualizada', { tipo: 'resolvida' });
 
             res.json({ success: true });
         } catch (e) {
