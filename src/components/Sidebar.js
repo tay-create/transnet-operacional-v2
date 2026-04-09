@@ -267,18 +267,30 @@ export default function Sidebar({
                                 onClick={() => setAbaAtiva('ocorrencias')}
                             />
                         )}
-                        {(ehCoordenador || cargo === 'POS EMBARQUE' || cargo === 'PLANEJAMENTO') && (
-                            <MenuItem
-                                icon={<Package size={20} />}
-                                label="Área Pós-Embarque"
-                                subItem
-                                aberto={aberto}
-                                onClick={() => setAbaAtiva('pos_embarque')}
-                            />
-                        )}
                     </>
                 )}
             </div>
+
+            {/* ÁREA PÓS-EMBARQUE */}
+            {(ehCoordenador || cargo === 'POS EMBARQUE' || cargo === 'PLANEJAMENTO') && (
+                <>
+                    <Divider label="Área Pós-Embarque" aberto={aberto} />
+                    <MenuItem
+                        icon={<AlertTriangle size={20} />}
+                        label="Ocorrências"
+                        subItem
+                        aberto={aberto}
+                        onClick={() => setAbaAtiva('pos_embarque')}
+                    />
+                    <MenuItem
+                        icon={<LayoutDashboard size={20} />}
+                        label="Dashboard Ocorrências"
+                        subItem
+                        aberto={aberto}
+                        onClick={() => setAbaAtiva('pos_embarque_dashboard')}
+                    />
+                </>
+            )}
 
             {/* Rodapé (Sair) */}
             <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
