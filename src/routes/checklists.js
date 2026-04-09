@@ -635,7 +635,7 @@ module.exports = function createChecklistsRouter(io) {
             const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
             const { dataInicio, dataFim } = req.query;
 
-            let where = '1=1';
+            let where = `${statusField} IS NOT NULL`;
             const params = [];
             if (dataInicio) { where += ` AND data_prevista >= ?`; params.push(dataInicio); }
             if (dataFim) { where += ` AND data_prevista <= ?`; params.push(dataFim); }
