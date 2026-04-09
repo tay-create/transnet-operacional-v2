@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image, FileText, ChevronDown, ExternalLink } from 'lucide-react';
+import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink } from 'lucide-react';
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
@@ -363,7 +363,7 @@ export default function PainelPosEmbarque() {
                                                     </>
                                                 )}
                                                 <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => { setOcorrenciaAtualId(oc.id); setModalFotosAberto(true); }} title="Fotos">
-                                                    <Image size={14} /> {oc.fotos_json ? JSON.parse(oc.fotos_json).length : 0}
+                                                    <ImageIcon size={14} /> {oc.fotos_json ? JSON.parse(oc.fotos_json).length : 0}
                                                 </button>
                                                 {oc.link_email && (
                                                     <a href={oc.link_email} target="_blank" rel="noopener noreferrer" style={{ ...s.btn, ...s.btnPrimary, textDecoration: 'none' }} title="Abrir Email">
@@ -571,14 +571,18 @@ function ModalFotos({ id, onClose, ocorrencias, removerFoto, s }) {
             <div style={s.modalContent} onClick={e => e.stopPropagation()}>
                 <h3>Fotos ({fotos.length}/5)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '12px', maxHeight: '300px', overflowY: 'auto' }}>
-                    {fotos.map((f, i) => (
-                        <div key={i} style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '8px' }}>
-                            <img src={`data:image/jpeg;base64,${f.base64.substring(0, 50)}...`} style={{ width: '100%', height: '80px', borderRadius: '4px', objectFit: 'cover' }} alt={`Foto ${i}`} />
-                            <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px' }} onClick={() => removerFoto(id, i)}>
-                                ✕
-                            </button>
-                        </div>
-                    ))}
+                    {fotos.map((f, i) => {
+                        const ext = (f.nome || '').toLowerCase();
+                        const mime = ext.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                        return (
+                            <div key={i} style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                <img src={`data:${mime};base64,${f.base64}`} style={{ width: '100%', height: '120px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }} alt={`Foto ${i + 1}`} onClick={() => window.open(`data:${mime};base64,${f.base64}`, '_blank')} />
+                                <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px', padding: '4px 8px' }} onClick={() => removerFoto(id, i)}>
+                                    ✕
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
                 {fotos.length < 5 && (
                     <div style={{ marginTop: '12px' }}>
