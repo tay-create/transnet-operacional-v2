@@ -154,8 +154,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Validar coleta obrigatória conforme unidade da operação
             const temColetaRecife = (v.coletaRecife || '').trim().length > 0;
             const temColetaMoreno = (v.coletaMoreno || '').trim().length > 0;
-            const ehRecife = v.operacao && /RECIFE/i.test(v.operacao);
-            const ehMoreno = v.operacao && /MORENO/i.test(v.operacao);
+            const opVal = (v.operacao || '').toUpperCase();
+            const ehRecife = opVal.includes('RECIFE');
+            const ehMoreno = opVal.includes('MORENO') || opVal.includes('PORCELANA') || opVal.includes('ELETRIK');
             if (ehRecife && !temColetaRecife) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
             }
