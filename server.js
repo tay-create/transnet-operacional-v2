@@ -624,10 +624,11 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
         const offset = (pagina - 1) * limite;
 
-        const { disponibilidade, busca, estado, tipo_veiculo, tag, tempo_min, tempo_max } = req.query;
+        const { disponibilidade, local, busca, estado, tipo_veiculo, tag, tempo_min, tempo_max } = req.query;
         const conditions = [];
         const params = [];
 
+        // Filtro de status operacional (disponivel, indisponivel, contratado)
         if (disponibilidade === 'disponivel') {
             conditions.push(`disponibilidade NOT IN ('Indisponível', 'Contratado')`);
             conditions.push(`COALESCE(status_operacional,'') NOT IN ('EM OPERACAO','EM VIAGEM','EM ROTA')`);
@@ -637,6 +638,12 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
             conditions.push(`(disponibilidade = 'Contratado' OR status_operacional IN ('EM OPERACAO','EM VIAGEM','EM ROTA'))`);
         } else if (['EM CASA','NO PÁTIO','NO POSTO'].includes(disponibilidade)) {
             params.push(disponibilidade);
+            conditions.push(`disponibilidade = $${params.length}`);
+        }
+
+        // Filtro de local (NO PÁTIO, NO POSTO, EM CASA) — independente do status
+        if (local && ['EM CASA','NO PÁTIO','NO POSTO'].includes(local)) {
+            params.push(local);
             conditions.push(`disponibilidade = $${params.length}`);
         }
 
