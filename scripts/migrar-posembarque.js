@@ -93,7 +93,7 @@ async function main() {
 
                     for (const fotoNome of fotosArray) {
                         // Procurar o arquivo na pasta extraída
-                        const fotoPath = path.join(extractDir, 'uploads', 'posembarque', fotoNome);
+                        const fotoPath = path.join(extractDir, 'static', 'uploads', fotoNome);
                         if (fs.existsSync(fotoPath)) {
                             const buffer = fs.readFileSync(fotoPath);
                             const base64 = buffer.toString('base64');
