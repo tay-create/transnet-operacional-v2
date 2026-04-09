@@ -280,13 +280,13 @@ module.exports = function createPosEmbarqueRouter(registrarLog) {
         try {
             const motoristas = await dbAll('SELECT DISTINCT nome FROM posemb_motoristas ORDER BY nome ASC');
             const clientes = await dbAll('SELECT DISTINCT nome FROM posemb_clientes ORDER BY nome ASC');
-            const motivos = await dbAll('SELECT DISTINCT motivo FROM posemb_ocorrencias WHERE motivo IS NOT NULL AND motivo != "" ORDER BY motivo ASC');
+            const motivos = await dbAll('SELECT DISTINCT nome FROM posemb_motivos ORDER BY nome ASC');
 
             res.json({
                 success: true,
                 motoristas: motoristas.map(m => m.nome),
                 clientes: clientes.map(c => c.nome),
-                motivos: motivos.map(m => m.motivo)
+                motivos: motivos.map(m => m.nome)
             });
         } catch (e) {
             console.error('Erro ao buscar listas:', e);

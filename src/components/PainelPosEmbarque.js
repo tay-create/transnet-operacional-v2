@@ -5,14 +5,58 @@ import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
-const formatDataHora = (d, h) => d && h ? `${new Date(d).toLocaleDateString('pt-BR')} ${h}` : '—';
 
-function verificarAtraso(oc) {
+function calcularHorasAtraso(oc) {
     const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia}:00`);
     const fim = oc.situacao === 'RESOLVIDO'
         ? new Date(`${oc.data_conclusao}T${oc.hora_conclusao}:00`)
         : new Date();
-    return (fim - inicio) > 24 * 60 * 60 * 1000;
+    const diffMs = fim - inicio;
+    return diffMs / (60 * 60 * 1000); // retorna horas
+}
+
+function verificarAtraso(oc) {
+    return calcularHorasAtraso(oc) > 24;
+}
+
+function getLabelAtraso(oc) {
+    const horas = calcularHorasAtraso(oc);
+    if (horas <= 24) return null;
+    const dias = Math.floor(horas / 24);
+    const horasRestantes = Math.floor(horas % 24);
+    if (dias >= 1) {
+        return `${dias}d ${horasRestantes}h atrasado`;
+    }
+    return `${Math.floor(horas)}h atrasado`;
+}
+
+function getCorAtraso(oc) {
+    const horas = calcularHorasAtraso(oc);
+    if (horas > 72) return '#dc2626';  // vermelho forte
+    if (horas > 48) return '#ef4444';  // vermelho
+    if (horas > 24) return '#f59e0b';  // amarelo/laranja
+    return null;
+}
+
+function ordenarOcorrencias(lista) {
+    return [...lista].sort((a, b) => {
+        // 1. Em Andamento atrasados primeiro (mais atrasado no topo)
+        const aEmAndamento = a.situacao === 'Em Andamento';
+        const bEmAndamento = b.situacao === 'Em Andamento';
+        const aAtrasado = aEmAndamento && verificarAtraso(a);
+        const bAtrasado = bEmAndamento && verificarAtraso(b);
+
+        if (aAtrasado && !bAtrasado) return -1;
+        if (!aAtrasado && bAtrasado) return 1;
+        if (aAtrasado && bAtrasado) return calcularHorasAtraso(b) - calcularHorasAtraso(a);
+
+        // 2. Em Andamento (sem atraso) depois
+        if (aEmAndamento && !bEmAndamento) return -1;
+        if (!aEmAndamento && bEmAndamento) return 1;
+
+        // 3. Resolvidos por último
+        return 0;
+    });
 }
 
 // ──────────── Estilos ────────────────────────────────────
@@ -261,13 +305,35 @@ export default function PainelPosEmbarque() {
                         {ocorrencias.length === 0 ? (
                             <div style={{ ...s.card, textAlign: 'center', color: '#64748b' }}>Nenhuma ocorrência</div>
                         ) : (
-                            ocorrencias.map(oc => {
+                            ordenarOcorrencias(ocorrencias).map(oc => {
                                 const atraso = verificarAtraso(oc);
+                                const labelAtraso = getLabelAtraso(oc);
+                                const corAtraso = getCorAtraso(oc);
+                                const corBorda = oc.situacao === 'RESOLVIDO' ? '#10b981' : atraso ? (corAtraso || '#ef4444') : '#06b6d4';
                                 return (
-                                    <div key={oc.id} style={{ ...s.card, borderLeft: `4px solid ${atraso ? '#ef4444' : '#06b6d4'}` }}>
+                                    <div key={oc.id} style={{ ...s.card, borderLeft: `4px solid ${corBorda}` }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                                            <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px' }}>{oc.motorista}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '14px' }}>{oc.motorista}</span>
+                                                    {atraso && labelAtraso && (
+                                                        <span style={{
+                                                            background: `${corAtraso}20`,
+                                                            color: corAtraso,
+                                                            border: `1px solid ${corAtraso}60`,
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '700',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}>
+                                                            <AlertTriangle size={12} />
+                                                            {labelAtraso}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
                                                     {oc.cliente} • {oc.operacao}
                                                 </div>
@@ -297,9 +363,13 @@ export default function PainelPosEmbarque() {
                                         <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                                             <div>CTE: {oc.cte} • Motivo: {oc.motivo} • Cidade: {oc.cidade}</div>
                                             <div style={{ marginTop: '6px' }}>
-                                                <span style={{ color: '#06b6d4', fontWeight: '600' }}>{oc.situacao}</span>
-                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)}</span>}
-                                                {atraso && <span style={{ color: '#ef4444', marginLeft: '8px' }}>⚠️ Atrasado</span>}
+                                                <span style={{
+                                                    color: oc.situacao === 'RESOLVIDO' ? '#10b981' : atraso ? corAtraso : '#06b6d4',
+                                                    fontWeight: '600'
+                                                }}>
+                                                    {oc.situacao === 'RESOLVIDO' ? 'Resolvido' : atraso ? 'Em Andamento (Atrasado)' : 'Em Andamento'}
+                                                </span>
+                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
                                             </div>
                                         </div>
                                     </div>
