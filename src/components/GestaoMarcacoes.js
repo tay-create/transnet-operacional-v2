@@ -155,8 +155,9 @@ export default function GestaoMarcacoes({ socket }) {
         setLoading(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
+            // Filtro de local (NO PÁTIO, NO POSTO, EM CASA) e status (disponivel, indisponivel, contratado) são independentes
+            if (filtroDisponibilidade) qp.set('local', filtroDisponibilidade);
             if (filtroStatusOp) qp.set('disponibilidade', filtroStatusOp);
-            else if (filtroDisponibilidade) qp.set('disponibilidade', filtroDisponibilidade);
             if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
             if (filtroEstado) qp.set('estado', filtroEstado);
             if (filtroTipoVeiculo) qp.set('tipo_veiculo', filtroTipoVeiculo);
@@ -176,18 +177,19 @@ export default function GestaoMarcacoes({ socket }) {
         finally { setLoading(false); }
     }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Carregar ao mudar de aba
     useEffect(() => {
         if (aba === 'links') carregarTokens();
         else if (aba === 'placas') carregarMarcacoes(1);
-    }, [aba, carregarTokens, carregarMarcacoes]);
+    }, [aba, carregarTokens]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Recarrega ao mudar filtros (reset para página 1)
+    // Recarrega ao mudar filtros de dropdown (reset para página 1) — busca excluída (tem debounce próprio)
     useEffect(() => {
         if (aba !== 'placas') return;
         carregarMarcacoes(1);
     }, [filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Busca com debounce
+    // Busca por texto com debounce (evita disparo a cada tecla)
     useEffect(() => {
         if (aba !== 'placas') return;
         const t = setTimeout(() => carregarMarcacoes(1), 400);

@@ -1,18 +1,62 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image, FileText, ChevronDown } from 'lucide-react';
+import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink } from 'lucide-react';
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
-const formatDataHora = (d, h) => d && h ? `${new Date(d).toLocaleDateString('pt-BR')} ${h}` : '—';
 
-function verificarAtraso(oc) {
+function calcularHorasAtraso(oc) {
     const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia}:00`);
     const fim = oc.situacao === 'RESOLVIDO'
         ? new Date(`${oc.data_conclusao}T${oc.hora_conclusao}:00`)
         : new Date();
-    return (fim - inicio) > 24 * 60 * 60 * 1000;
+    const diffMs = fim - inicio;
+    return diffMs / (60 * 60 * 1000); // retorna horas
+}
+
+function verificarAtraso(oc) {
+    return calcularHorasAtraso(oc) > 24;
+}
+
+function getLabelAtraso(oc) {
+    const horas = calcularHorasAtraso(oc);
+    if (horas <= 24) return null;
+    const dias = Math.floor(horas / 24);
+    const horasRestantes = Math.floor(horas % 24);
+    if (dias >= 1) {
+        return `${dias}d ${horasRestantes}h atrasado`;
+    }
+    return `${Math.floor(horas)}h atrasado`;
+}
+
+function getCorAtraso(oc) {
+    const horas = calcularHorasAtraso(oc);
+    if (horas > 72) return '#dc2626';  // vermelho forte
+    if (horas > 48) return '#ef4444';  // vermelho
+    if (horas > 24) return '#f59e0b';  // amarelo/laranja
+    return null;
+}
+
+function ordenarOcorrencias(lista) {
+    return [...lista].sort((a, b) => {
+        // 1. Em Andamento atrasados primeiro (mais atrasado no topo)
+        const aEmAndamento = a.situacao === 'Em Andamento';
+        const bEmAndamento = b.situacao === 'Em Andamento';
+        const aAtrasado = aEmAndamento && verificarAtraso(a);
+        const bAtrasado = bEmAndamento && verificarAtraso(b);
+
+        if (aAtrasado && !bAtrasado) return -1;
+        if (!aAtrasado && bAtrasado) return 1;
+        if (aAtrasado && bAtrasado) return calcularHorasAtraso(b) - calcularHorasAtraso(a);
+
+        // 2. Em Andamento (sem atraso) depois
+        if (aEmAndamento && !bEmAndamento) return -1;
+        if (!aEmAndamento && bEmAndamento) return 1;
+
+        // 3. Resolvidos por último
+        return 0;
+    });
 }
 
 // ──────────── Estilos ────────────────────────────────────
@@ -137,9 +181,14 @@ export default function PainelPosEmbarque() {
         }
     };
 
-    const arquivar = async (id) => {
+    const arquivarResolvidas = async () => {
+        const resolvidas = ocorrencias.filter(o => o.situacao === 'RESOLVIDO');
+        if (resolvidas.length === 0) return;
+        if (!window.confirm(`Arquivar ${resolvidas.length} ocorrência(s) resolvida(s)?`)) return;
         try {
-            await api.post(`/api/posembarque/ocorrencias/${id}/arquivar`);
+            for (const oc of resolvidas) {
+                await api.post(`/api/posembarque/ocorrencias/${oc.id}/arquivar`);
+            }
             carregarOcorrencias();
         } catch (e) {
             console.error('Erro ao arquivar:', e);
@@ -223,11 +272,11 @@ export default function PainelPosEmbarque() {
             {aba === 'dashboard' && (
                 <div>
                     {/* Filtros */}
-                    <div style={{ ...s.card, display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                    <div style={{ ...s.card, display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <input
                             type="text"
                             placeholder="Buscar..."
-                            style={s.input}
+                            style={{ ...s.input, flex: 1, minWidth: '150px' }}
                             value={busca}
                             onChange={e => setBusca(e.target.value)}
                         />
@@ -239,6 +288,14 @@ export default function PainelPosEmbarque() {
                         <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => setModalNovaAberto(true)}>
                             <Plus size={16} /> Nova
                         </button>
+                        {ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length > 0 && (
+                            <button
+                                style={{ ...s.btn, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                                onClick={arquivarResolvidas}
+                            >
+                                <Archive size={16} /> Arquivar Resolvidas ({ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length})
+                            </button>
+                        )}
                     </div>
 
                     {/* KPIs */}
@@ -261,13 +318,35 @@ export default function PainelPosEmbarque() {
                         {ocorrencias.length === 0 ? (
                             <div style={{ ...s.card, textAlign: 'center', color: '#64748b' }}>Nenhuma ocorrência</div>
                         ) : (
-                            ocorrencias.map(oc => {
+                            ordenarOcorrencias(ocorrencias).map(oc => {
                                 const atraso = verificarAtraso(oc);
+                                const labelAtraso = getLabelAtraso(oc);
+                                const corAtraso = getCorAtraso(oc);
+                                const corBorda = oc.situacao === 'RESOLVIDO' ? '#10b981' : atraso ? (corAtraso || '#ef4444') : '#06b6d4';
                                 return (
-                                    <div key={oc.id} style={{ ...s.card, borderLeft: `4px solid ${atraso ? '#ef4444' : '#06b6d4'}` }}>
+                                    <div key={oc.id} style={{ ...s.card, borderLeft: `4px solid ${corBorda}` }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                                            <div>
-                                                <div style={{ fontWeight: '700', fontSize: '14px' }}>{oc.motorista}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontWeight: '700', fontSize: '14px' }}>{oc.motorista}</span>
+                                                    {atraso && labelAtraso && (
+                                                        <span style={{
+                                                            background: `${corAtraso}20`,
+                                                            color: corAtraso,
+                                                            border: `1px solid ${corAtraso}60`,
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '11px',
+                                                            fontWeight: '700',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px'
+                                                        }}>
+                                                            <AlertTriangle size={12} />
+                                                            {labelAtraso}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
                                                     {oc.cliente} • {oc.operacao}
                                                 </div>
@@ -284,11 +363,13 @@ export default function PainelPosEmbarque() {
                                                     </>
                                                 )}
                                                 <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => { setOcorrenciaAtualId(oc.id); setModalFotosAberto(true); }} title="Fotos">
-                                                    <Image size={14} /> {oc.fotos_json ? JSON.parse(oc.fotos_json).length : 0}
+                                                    <ImageIcon size={14} /> {oc.fotos_json ? JSON.parse(oc.fotos_json).length : 0}
                                                 </button>
-                                                <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => arquivar(oc.id)} title="Arquivar">
-                                                    <Archive size={14} />
-                                                </button>
+                                                {oc.link_email && (
+                                                    <a href={oc.link_email} target="_blank" rel="noopener noreferrer" style={{ ...s.btn, ...s.btnPrimary, textDecoration: 'none' }} title="Abrir Email">
+                                                        <ExternalLink size={14} />
+                                                    </a>
+                                                )}
                                                 <button style={{ ...s.btn, ...s.btnDanger }} onClick={() => deletar(oc.id)} title="Deletar">
                                                     <Trash2 size={14} />
                                                 </button>
@@ -297,9 +378,13 @@ export default function PainelPosEmbarque() {
                                         <div style={{ fontSize: '12px', color: '#94a3b8' }}>
                                             <div>CTE: {oc.cte} • Motivo: {oc.motivo} • Cidade: {oc.cidade}</div>
                                             <div style={{ marginTop: '6px' }}>
-                                                <span style={{ color: '#06b6d4', fontWeight: '600' }}>{oc.situacao}</span>
-                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)}</span>}
-                                                {atraso && <span style={{ color: '#ef4444', marginLeft: '8px' }}>⚠️ Atrasado</span>}
+                                                <span style={{
+                                                    color: oc.situacao === 'RESOLVIDO' ? '#10b981' : atraso ? corAtraso : '#06b6d4',
+                                                    fontWeight: '600'
+                                                }}>
+                                                    {oc.situacao === 'RESOLVIDO' ? 'Resolvido' : atraso ? 'Em Andamento (Atrasado)' : 'Em Andamento'}
+                                                </span>
+                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -469,27 +554,49 @@ function ModalFotos({ id, onClose, ocorrencias, removerFoto, s }) {
     const oc = ocorrencias.find(o => o.id === id);
     const fotos = oc && oc.fotos_json ? JSON.parse(oc.fotos_json) : [];
     const [upload, setUpload] = useState(null);
+    const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
     const adicionarFoto = async () => {
         if (!upload) return;
         try {
             await api.post(`/api/posembarque/ocorrencias/${id}/fotos`, { base64: upload, nome: `foto_${Date.now()}.jpg` });
             setUpload(null);
-            window.location.reload(); // Recarregar para atualizar
+            window.location.reload();
         } catch (e) {
             console.error('Erro:', e);
         }
     };
 
+    const getMime = (nome) => (nome || '').toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+    // Modal de foto ampliada (overlay sobre o modal de fotos)
+    if (fotoAmpliada) {
+        return (
+            <div style={{ ...s.modal, zIndex: 1100 }} onClick={() => setFotoAmpliada(null)}>
+                <img
+                    src={`data:${getMime(fotoAmpliada.nome)};base64,${fotoAmpliada.base64}`}
+                    alt="Foto ampliada"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '8px', objectFit: 'contain' }}
+                    onClick={e => e.stopPropagation()}
+                />
+            </div>
+        );
+    }
+
     return (
         <div style={s.modal} onClick={onClose}>
-            <div style={s.modalContent} onClick={e => e.stopPropagation()}>
-                <h3>Fotos ({fotos.length}/5)</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginTop: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+            <div style={{ ...s.modalContent, maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+                <h3 style={{ marginBottom: '12px' }}>Fotos ({fotos.length}/5)</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '400px', overflowY: 'auto' }}>
                     {fotos.map((f, i) => (
                         <div key={i} style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', borderRadius: '6px', padding: '8px' }}>
-                            <img src={`data:image/jpeg;base64,${f.base64.substring(0, 50)}...`} style={{ width: '100%', height: '80px', borderRadius: '4px', objectFit: 'cover' }} alt={`Foto ${i}`} />
-                            <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px' }} onClick={() => removerFoto(id, i)}>
+                            <img
+                                src={`data:${getMime(f.nome)};base64,${f.base64}`}
+                                style={{ width: '100%', height: '150px', borderRadius: '4px', objectFit: 'cover', cursor: 'pointer' }}
+                                alt={`Foto ${i + 1}`}
+                                onClick={() => setFotoAmpliada(f)}
+                            />
+                            <button style={{ ...s.btn, ...s.btnDanger, position: 'absolute', top: '4px', right: '4px', padding: '4px 8px' }} onClick={() => removerFoto(id, i)}>
                                 ✕
                             </button>
                         </div>

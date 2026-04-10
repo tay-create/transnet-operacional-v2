@@ -505,6 +505,10 @@ const inicializarBanco = async () => {
             nome TEXT PRIMARY KEY
         )`);
 
+        await dbRun(`CREATE TABLE IF NOT EXISTS posemb_motivos (
+            nome TEXT PRIMARY KEY
+        )`);
+
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");
         if (!perm) {
