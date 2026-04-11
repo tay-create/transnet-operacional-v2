@@ -78,15 +78,15 @@ const ModalAdmin = ({ isOpen, onClose }) => {
     return (
         <div className="modal-overlay">
             {confirmar && <ModalConfirm titulo={confirmar.titulo} mensagem={confirmar.mensagem} variante={confirmar.variante || 'perigo'} textConfirm={confirmar.textConfirm} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} />}
-            <div className="modal-neon-panel" style={{ width: '850px', maxHeight: '90vh', overflowY: 'auto' }}>
-                <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px', marginBottom: '15px' }}>
-                        <h3 style={{ color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Users size={20} color="#38bdf8" /> GESTÃO DE USUÁRIOS
-                        </h3>
-                        <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
-                    </div>
+            <div className="modal-neon-panel" style={{ width: '850px', maxWidth: '95%', maxHeight: '90vh', padding: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '20px 24px', flexShrink: 0 }}>
+                    <h3 style={{ color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Users size={20} color="#38bdf8" /> GESTÃO DE USUÁRIOS
+                    </h3>
+                    <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
+                </div>
 
+                <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', minHeight: 0 }}>
                         {/* Solicitações */}
                         {pendencias.length > 0 && (
                             <div style={{ marginBottom: '25px' }}>
@@ -150,7 +150,7 @@ const ModalAdmin = ({ isOpen, onClose }) => {
                                 </tbody>
                             </table>
                         </div>
-                    </>
+                </div>
             </div>
         </div>
     );
