@@ -457,7 +457,41 @@ export default function PainelPosEmbarque() {
                         </div>
                         <input type="text" placeholder="CTE" style={s.input} value={form.cte} onChange={e => setForm({ ...form, cte: e.target.value })} />
 
-                        <input type="text" placeholder="Operação" style={s.input} value={form.operacao} onChange={e => setForm({ ...form, operacao: e.target.value })} />
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {['Plastico', 'Porcelana', 'Eletrik', 'Consolidado'].map(opt => {
+                                const selecionado = form.operacao === opt;
+                                return (
+                                    <label
+                                        key={opt}
+                                        style={{
+                                            flex: 1,
+                                            minWidth: '90px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            cursor: 'pointer',
+                                            padding: '8px 10px',
+                                            border: `1px solid ${selecionado ? '#06b6d4' : 'rgba(255,255,255,0.1)'}`,
+                                            borderRadius: '6px',
+                                            background: selecionado ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.06)',
+                                            color: selecionado ? '#06b6d4' : '#f1f5f9',
+                                            fontSize: '12px',
+                                            fontWeight: selecionado ? '700' : '500',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selecionado}
+                                            onChange={() => setForm({ ...form, operacao: selecionado ? '' : opt })}
+                                            style={{ accentColor: '#06b6d4', cursor: 'pointer' }}
+                                        />
+                                        {opt}
+                                    </label>
+                                );
+                            })}
+                        </div>
                         <input type="text" placeholder="NFs" style={s.input} value={form.nfs} onChange={e => setForm({ ...form, nfs: e.target.value })} />
 
                         <input list="clientes" placeholder="Cliente" style={s.input} value={form.cliente} onChange={e => setForm({ ...form, cliente: e.target.value })} />
