@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink } from 'lucide-react';
+import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink, X } from 'lucide-react';
+import ModalConfirm from './ModalConfirm';
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
@@ -90,6 +91,8 @@ export default function PainelPosEmbarque() {
     const [modalFotosAberto, setModalFotosAberto] = useState(false);
     const [ocorrenciaAtualId, setOcorrenciaAtualId] = useState(null);
     const [fotoUploadBase64, setFotoUploadBase64] = useState(null);
+    const [modalConfirm, setModalConfirm] = useState(null);
+    const [modalSolicitar, setModalSolicitar] = useState(null); // { id, motivo }
 
     // Form - Nova Ocorrência
     const [form, setForm] = useState({
@@ -148,13 +151,21 @@ export default function PainelPosEmbarque() {
     const criarOcorrencia = async () => {
         // Validação mínima — garantir que campos essenciais estão preenchidos
         if (!form.motorista || !form.cliente || !form.motivo) {
-            alert('Preencha ao menos Motorista, Cliente e Motivo.');
+            setModalConfirm({
+                titulo: 'Campos obrigatórios',
+                mensagem: 'Preencha ao menos Motorista, Cliente e Motivo.',
+                variante: 'aviso'
+            });
             return;
         }
         try {
             const res = await api.post('/api/posembarque/ocorrencias', form);
             if (!res.data?.success) {
-                alert(res.data?.message || 'Erro ao criar ocorrência');
+                setModalConfirm({
+                    titulo: 'Erro ao criar',
+                    mensagem: res.data?.message || 'Erro ao criar ocorrência',
+                    variante: 'perigo'
+                });
                 return;
             }
             setForm({
@@ -170,7 +181,11 @@ export default function PainelPosEmbarque() {
             carregarOcorrencias();
         } catch (e) {
             console.error('Erro ao criar ocorrência:', e);
-            alert(e?.response?.data?.message || 'Erro ao criar ocorrência');
+            setModalConfirm({
+                titulo: 'Erro ao criar',
+                mensagem: e?.response?.data?.message || 'Erro ao criar ocorrência',
+                variante: 'perigo'
+            });
         }
     };
 
@@ -183,39 +198,82 @@ export default function PainelPosEmbarque() {
         }
     };
 
-    const solicitar = async (id) => {
-        const motivo = prompt('Motivo da solicitação:');
-        if (!motivo) return;
+    const solicitar = (id) => {
+        setModalSolicitar({ id, motivo: '' });
+    };
+
+    const confirmarSolicitar = async () => {
+        if (!modalSolicitar || !modalSolicitar.motivo.trim()) {
+            setModalConfirm({
+                titulo: 'Motivo obrigatório',
+                mensagem: 'Informe o motivo da solicitação de edição.',
+                variante: 'aviso'
+            });
+            return;
+        }
+        const { id, motivo } = modalSolicitar;
+        setModalSolicitar(null);
         try {
             await api.post(`/api/posembarque/ocorrencias/${id}/solicitar-edicao`, { motivo_edicao: motivo });
             carregarOcorrencias();
         } catch (e) {
             console.error('Erro ao solicitar:', e);
+            setModalConfirm({
+                titulo: 'Erro',
+                mensagem: 'Erro ao solicitar edição.',
+                variante: 'perigo'
+            });
         }
     };
 
-    const arquivarResolvidas = async () => {
+    const arquivarResolvidas = () => {
         const resolvidas = ocorrencias.filter(o => o.situacao === 'RESOLVIDO');
         if (resolvidas.length === 0) return;
-        if (!window.confirm(`Arquivar ${resolvidas.length} ocorrência(s) resolvida(s)?`)) return;
-        try {
-            for (const oc of resolvidas) {
-                await api.post(`/api/posembarque/ocorrencias/${oc.id}/arquivar`);
+        setModalConfirm({
+            titulo: 'Arquivar resolvidas',
+            mensagem: `Deseja arquivar ${resolvidas.length} ocorrência(s) resolvida(s)?`,
+            variante: 'aviso',
+            textConfirm: 'Arquivar',
+            onConfirm: async () => {
+                setModalConfirm(null);
+                try {
+                    for (const oc of resolvidas) {
+                        await api.post(`/api/posembarque/ocorrencias/${oc.id}/arquivar`);
+                    }
+                    carregarOcorrencias();
+                } catch (e) {
+                    console.error('Erro ao arquivar:', e);
+                    setModalConfirm({
+                        titulo: 'Erro',
+                        mensagem: 'Erro ao arquivar ocorrências.',
+                        variante: 'perigo'
+                    });
+                }
             }
-            carregarOcorrencias();
-        } catch (e) {
-            console.error('Erro ao arquivar:', e);
-        }
+        });
     };
 
-    const deletar = async (id) => {
-        if (!window.confirm('Confirmar exclusão?')) return;
-        try {
-            await api.delete(`/api/posembarque/ocorrencias/${id}`);
-            carregarOcorrencias();
-        } catch (e) {
-            console.error('Erro ao deletar:', e);
-        }
+    const deletar = (id) => {
+        setModalConfirm({
+            titulo: 'Excluir ocorrência',
+            mensagem: 'Esta ação não pode ser desfeita. Deseja realmente excluir?',
+            variante: 'perigo',
+            textConfirm: 'Excluir',
+            onConfirm: async () => {
+                setModalConfirm(null);
+                try {
+                    await api.delete(`/api/posembarque/ocorrencias/${id}`);
+                    carregarOcorrencias();
+                } catch (e) {
+                    console.error('Erro ao deletar:', e);
+                    setModalConfirm({
+                        titulo: 'Erro',
+                        mensagem: 'Erro ao excluir ocorrência.',
+                        variante: 'perigo'
+                    });
+                }
+            }
+        });
     };
 
     const adicionarFoto = async () => {
@@ -539,6 +597,100 @@ export default function PainelPosEmbarque() {
             {/* MODAL - FOTOS */}
             {modalFotosAberto && ocorrenciaAtualId && (
                 <ModalFotos id={ocorrenciaAtualId} onClose={() => setModalFotosAberto(false)} ocorrencias={ocorrencias} removerFoto={removerFoto} s={s} />
+            )}
+
+            {/* MODAL - CONFIRMAÇÃO / ALERTA */}
+            {modalConfirm && (
+                <ModalConfirm
+                    titulo={modalConfirm.titulo}
+                    mensagem={modalConfirm.mensagem}
+                    variante={modalConfirm.variante || 'perigo'}
+                    textConfirm={modalConfirm.textConfirm}
+                    onConfirm={modalConfirm.onConfirm}
+                    onCancel={() => setModalConfirm(null)}
+                />
+            )}
+
+            {/* MODAL - SOLICITAR EDIÇÃO (com input) */}
+            {modalSolicitar && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 99999,
+                    background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+                }}>
+                    <div style={{
+                        background: '#0f172a',
+                        border: '1px solid rgba(56,189,248,0.3)',
+                        borderRadius: '14px',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
+                        width: '100%', maxWidth: '460px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '10px',
+                            padding: '16px 20px',
+                            background: 'rgba(56,189,248,0.12)',
+                            borderBottom: '1px solid rgba(56,189,248,0.3)'
+                        }}>
+                            <Edit2 size={20} color="#38bdf8" />
+                            <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '15px', flex: 1 }}>
+                                Solicitar edição
+                            </span>
+                            <button onClick={() => setModalSolicitar(null)} style={{
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: '#64748b', padding: '2px'
+                            }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', marginBottom: '8px' }}>
+                                Informe o motivo da solicitação:
+                            </label>
+                            <textarea
+                                autoFocus
+                                rows={4}
+                                value={modalSolicitar.motivo}
+                                onChange={e => setModalSolicitar({ ...modalSolicitar, motivo: e.target.value })}
+                                placeholder="Descreva o motivo..."
+                                style={{
+                                    width: '100%',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    borderRadius: '6px',
+                                    padding: '10px 12px',
+                                    color: '#f1f5f9',
+                                    fontSize: '13px',
+                                    resize: 'vertical',
+                                    fontFamily: 'inherit'
+                                }}
+                            />
+                        </div>
+                        <div style={{
+                            display: 'flex', justifyContent: 'flex-end', gap: '10px',
+                            padding: '12px 20px',
+                            borderTop: '1px solid rgba(255,255,255,0.07)'
+                        }}>
+                            <button onClick={() => setModalSolicitar(null)} style={{
+                                padding: '8px 18px', borderRadius: '8px', fontSize: '13px',
+                                fontWeight: 500, cursor: 'pointer',
+                                background: 'rgba(255,255,255,0.07)',
+                                border: '1px solid rgba(255,255,255,0.12)',
+                                color: '#94a3b8'
+                            }}>
+                                Cancelar
+                            </button>
+                            <button onClick={confirmarSolicitar} style={{
+                                padding: '8px 18px', borderRadius: '8px', fontSize: '13px',
+                                fontWeight: 600, cursor: 'pointer',
+                                background: '#0ea5e9',
+                                border: 'none', color: '#fff'
+                            }}>
+                                Enviar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
