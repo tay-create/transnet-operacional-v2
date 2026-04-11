@@ -50,18 +50,36 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             const { data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email } = req.body;
             const responsavel = req.user?.nome || 'desconhecido';
 
+            console.log('[POSEMB] Criando ocorrência:', { motorista, cliente, motivo, responsavel });
+
             const result = await dbRun(
-                `INSERT INTO posemb_ocorrencias (data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email, responsavel, data_criacao)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO posemb_ocorrencias (data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email, responsavel, data_criacao, situacao, arquivado)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Em Andamento', 0)`,
                 [data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email, responsavel, new Date().toISOString()]
             );
 
-            await registrarLog('POSEMB_OCORRENCIA_CRIADA', responsavel, result.lastID, 'posemb_ocorrencias', null, null, `${motorista} - ${motivo}`);
+            console.log(`[POSEMB] Ocorrência criada com ID ${result.lastID}`);
+
+            // Popular listas automaticamente quando valor novo (sem quebrar se der erro)
+            try {
+                if (motorista) await dbRun(`INSERT INTO posemb_motoristas (nome) VALUES (?) ON CONFLICT (nome) DO NOTHING`, [motorista]);
+                if (cliente) await dbRun(`INSERT INTO posemb_clientes (nome) VALUES (?) ON CONFLICT (nome) DO NOTHING`, [cliente]);
+                if (motivo) await dbRun(`INSERT INTO posemb_motivos (nome) VALUES (?) ON CONFLICT (nome) DO NOTHING`, [motivo]);
+            } catch (errListas) {
+                console.warn('[POSEMB] Falha ao popular listas auxiliares:', errListas.message);
+            }
+
+            try {
+                await registrarLog('POSEMB_OCORRENCIA_CRIADA', responsavel, result.lastID, 'posemb_ocorrencias', null, null, `${motorista} - ${motivo}`);
+            } catch (errLog) {
+                console.warn('[POSEMB] Falha ao registrar log (ocorrência ja foi criada):', errLog.message);
+            }
+
             if (io) io.emit('posembarque_atualizada', { tipo: 'criada' });
 
             res.json({ success: true, id: result.lastID });
         } catch (e) {
-            console.error('Erro ao criar ocorrência posembarque:', e);
+            console.error('[POSEMB] Erro ao criar ocorrência:', e);
             res.status(500).json({ success: false, message: 'Erro ao criar ocorrência.' });
         }
     });

@@ -146,18 +146,31 @@ export default function PainelPosEmbarque() {
 
     // ── Ações ────────────────────────────────────
     const criarOcorrencia = async () => {
+        // Validação mínima — garantir que campos essenciais estão preenchidos
+        if (!form.motorista || !form.cliente || !form.motivo) {
+            alert('Preencha ao menos Motorista, Cliente e Motivo.');
+            return;
+        }
         try {
-            await api.post('/api/posembarque/ocorrencias', form);
+            const res = await api.post('/api/posembarque/ocorrencias', form);
+            if (!res.data?.success) {
+                alert(res.data?.message || 'Erro ao criar ocorrência');
+                return;
+            }
             setForm({
                 data_ocorrencia: new Date().toISOString().split('T')[0],
                 hora_ocorrencia: new Date().toTimeString().substring(0, 5),
                 motorista: '', modalidade: '', cte: '', operacao: '', nfs: '', cliente: '', cidade: '', motivo: '', link_email: ''
             });
+            // Limpar filtros para garantir que a nova ocorrência seja visível
+            setBusca('');
+            setFiltroSituacao('');
             setModalNovaAberto(false);
+            setAba('dashboard');
             carregarOcorrencias();
         } catch (e) {
             console.error('Erro ao criar ocorrência:', e);
-            alert('Erro ao criar ocorrência');
+            alert(e?.response?.data?.message || 'Erro ao criar ocorrência');
         }
     };
 
