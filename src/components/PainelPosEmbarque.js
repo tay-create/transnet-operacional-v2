@@ -421,7 +421,40 @@ export default function PainelPosEmbarque() {
                             {listas.motoristas.map(m => <option key={m} value={m} />)}
                         </datalist>
 
-                        <input type="text" placeholder="Modalidade" style={s.input} value={form.modalidade} onChange={e => setForm({ ...form, modalidade: e.target.value })} />
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {['Terceiro', 'Frota'].map(opt => {
+                                const selecionado = form.modalidade === opt;
+                                return (
+                                    <label
+                                        key={opt}
+                                        style={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            cursor: 'pointer',
+                                            padding: '8px 12px',
+                                            border: `1px solid ${selecionado ? '#06b6d4' : 'rgba(255,255,255,0.1)'}`,
+                                            borderRadius: '6px',
+                                            background: selecionado ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.06)',
+                                            color: selecionado ? '#06b6d4' : '#f1f5f9',
+                                            fontSize: '13px',
+                                            fontWeight: selecionado ? '700' : '500',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selecionado}
+                                            onChange={() => setForm({ ...form, modalidade: selecionado ? '' : opt })}
+                                            style={{ accentColor: '#06b6d4', cursor: 'pointer' }}
+                                        />
+                                        {opt}
+                                    </label>
+                                );
+                            })}
+                        </div>
                         <input type="text" placeholder="CTE" style={s.input} value={form.cte} onChange={e => setForm({ ...form, cte: e.target.value })} />
 
                         <input type="text" placeholder="Operação" style={s.input} value={form.operacao} onChange={e => setForm({ ...form, operacao: e.target.value })} />
