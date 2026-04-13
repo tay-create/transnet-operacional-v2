@@ -2136,8 +2136,8 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
         // Heatmap: dia da semana × hora (fuso Recife = UTC-3)
         const heatmapRows = await dbAll(`
             SELECT
-                EXTRACT(DOW FROM datetime_cte AT TIME ZONE 'America/Recife')::int AS dia_semana,
-                EXTRACT(HOUR FROM datetime_cte AT TIME ZONE 'America/Recife')::int AS hora,
+                EXTRACT(DOW FROM datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS dia_semana,
+                EXTRACT(HOUR FROM datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS hora,
                 COUNT(*)::int AS qtd
             FROM historico_liberacoes
             WHERE datetime_cte::timestamptz >= $1::date AND datetime_cte::timestamptz < ($2::date + interval '1 day')
