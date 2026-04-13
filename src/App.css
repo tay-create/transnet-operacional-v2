@@ -609,8 +609,8 @@ body,
 }
 
 .input-date-neon::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.6;
+  filter: invert(72%) sepia(60%) saturate(500%) hue-rotate(155deg) brightness(95%);
+  opacity: 0.85;
   cursor: pointer;
 }
 
@@ -1261,4 +1261,13 @@ input[type="file"]::file-selector-button {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+/* Ícone do calendário — ciano em toda a aplicação */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(72%) sepia(60%) saturate(500%) hue-rotate(155deg) brightness(95%);
+  opacity: 0.85;
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
