@@ -184,22 +184,22 @@ export default function GestaoMarcacoes({ socket }) {
     // Atualiza o ref sempre que carregarMarcacoes muda (nova busca, novo filtro, etc.)
     useEffect(() => { carregarMarcacoesRef.current = carregarMarcacoes; }, [carregarMarcacoes]);
 
-    // Carregar ao mudar de aba
+    // Carregar ao mudar de aba — usa ref para sempre ter buscaMarcacoes atual
     useEffect(() => {
         if (aba === 'links') carregarTokens();
-        else if (aba === 'placas') carregarMarcacoes(1);
+        else if (aba === 'placas') carregarMarcacoesRef.current?.(1);
     }, [aba, carregarTokens]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Recarrega ao mudar filtros de dropdown (reset para página 1) — busca excluída (tem debounce próprio)
+    // Recarrega ao mudar filtros de dropdown — usa ref para combinar com busca por texto atual
     useEffect(() => {
         if (aba !== 'placas') return;
-        carregarMarcacoes(1);
+        carregarMarcacoesRef.current?.(1);
     }, [filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Busca por texto com debounce (evita disparo a cada tecla)
+    // Busca por texto com debounce — usa ref para combinar com filtros dropdown atuais
     useEffect(() => {
         if (aba !== 'placas') return;
-        const t = setTimeout(() => carregarMarcacoes(1), 400);
+        const t = setTimeout(() => carregarMarcacoesRef.current?.(1), 400);
         return () => clearTimeout(t);
     }, [buscaMarcacoes]); // eslint-disable-line react-hooks/exhaustive-deps
 
