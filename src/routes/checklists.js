@@ -646,7 +646,10 @@ module.exports = function createChecklistsRouter(io) {
 
             const veiculos = await dbAll(
                 `SELECT id, motorista, placa, dados_json, ${statusField} as status,
-                    ${docaField} as doca, coleta, coletarecife, coletamoreno, data_prevista
+                    ${docaField} as doca, coleta, coletarecife, coletamoreno, data_prevista,
+                    timestamps_status, pausas_status, unidade, operacao, inicio_rota,
+                    situacao_cadastro, numero_liberacao, data_liberacao, status_cte,
+                    chk_cnh, chk_antt, chk_tacografo, chk_crlv
              FROM veiculos WHERE ${where} ORDER BY id DESC LIMIT 200`,
                 params
             );
@@ -654,6 +657,7 @@ module.exports = function createChecklistsRouter(io) {
             const formatted = veiculos.map(v => {
                 let dados = {};
                 try { dados = typeof v.dados_json === 'string' ? JSON.parse(v.dados_json) : (v.dados_json || {}); } catch { }
+                const isMista = (v.operacao || '').includes('X') || (v.operacao || '').includes('/');
                 return {
                     id: v.id,
                     motorista: v.motorista || 'A DEFINIR',
@@ -662,7 +666,19 @@ module.exports = function createChecklistsRouter(io) {
                     coleta: cidade === 'Moreno' ? (v.coletamoreno || '') : (v.coletarecife || ''),
                     status: v.status,
                     doca: v.doca,
-                    data: v.data_prevista
+                    data: v.data_prevista,
+                    unidade: v.unidade || 'Recife',
+                    operacao: v.operacao || '',
+                    inicio_rota: v.inicio_rota || '',
+                    isMista,
+                    situacao_cadastro: v.situacao_cadastro || dados.situacao_cadastro || '',
+                    numero_liberacao: v.numero_liberacao || dados.numero_liberacao || '',
+                    data_liberacao: v.data_liberacao || dados.data_liberacao || null,
+                    status_cte: v.status_cte || '',
+                    isFrotaMotorista: String(dados.isFrotaMotorista) === 'true' || String(dados.isFrotaMotorista) === '1',
+                    chk_cnh: v.chk_cnh, chk_antt: v.chk_antt, chk_tacografo: v.chk_tacografo, chk_crlv: v.chk_crlv,
+                    timestamps_status: (() => { try { return JSON.parse(v.timestamps_status || '{}'); } catch { return {}; } })(),
+                    pausas_status: v.pausas_status || '[]',
                 };
             });
 
