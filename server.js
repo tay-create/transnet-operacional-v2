@@ -631,11 +631,11 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
         // Filtro de status operacional (disponivel, indisponivel, contratado)
         if (disponibilidade === 'disponivel') {
             conditions.push(`disponibilidade NOT IN ('Indisponível', 'Contratado')`);
-            conditions.push(`COALESCE(status_operacional,'') NOT IN ('EM OPERACAO','EM VIAGEM','EM ROTA')`);
+            conditions.push(`COALESCE(status_operacional,'') NOT IN ('EM OPERACAO','EM VIAGEM','EM ROTA','CONTRATADO')`);
         } else if (disponibilidade === 'indisponivel') {
             conditions.push(`disponibilidade = 'Indisponível'`);
         } else if (disponibilidade === 'contratado') {
-            conditions.push(`(disponibilidade = 'Contratado' OR status_operacional IN ('EM OPERACAO','EM VIAGEM','EM ROTA'))`);
+            conditions.push(`(disponibilidade = 'Contratado' OR status_operacional IN ('EM OPERACAO','EM VIAGEM','EM ROTA','CONTRATADO'))`);
         } else if (['EM CASA','NO PÁTIO','NO POSTO'].includes(disponibilidade)) {
             params.push(disponibilidade);
             conditions.push(`disponibilidade = $${params.length}`);
