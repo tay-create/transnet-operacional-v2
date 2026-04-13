@@ -244,40 +244,166 @@ export default function RelatorioPerformance() {
                 ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
             </div>`).join('');
 
-        // Gráfico de barras empilhadas usando SVG com viewBox — ocupa 100% da largura
-        const HMAX = 160;
-        const LABEL_H = 16;
-        const maxGrafico = Math.max(...dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0)), 1);
+        // Gráfico de barras agrupadas (side-by-side) — SVG com viewBox responsivo
         const nBars = dadosGrafico.length;
-        // viewBox com largura virtual — browser escala para 100%
-        const VW = Math.max(nBars * 22, 300); // largura virtual mínima 300
-        const barW = Math.min(18, Math.floor((VW / nBars) * 0.6));
-        const slotW = VW / nBars;
-        const svgH = HMAX + LABEL_H;
+        const VW = Math.max(nBars * 44, 400);
+        const marginL = 36, marginR = 12, marginT = 24, marginB = 28;
+        const HMAX = 220;
+        const svgH = HMAX + marginT + marginB;
+        const plotW = VW - marginL - marginR;
+        const plotH = HMAX;
+        const x0 = marginL;
+        const y0 = marginT;
+
+        // Valor máximo entre TODAS as barras individuais (não soma) — para barras agrupadas
+        const maxGrafico = Math.max(
+            ...dadosGrafico.flatMap(d => [d['Separação'] || 0, d['Lib. Doca'] || 0, d.Carregamento || 0]),
+            1
+        );
+        // Arredonda o máximo para múltiplo superior de 30min para ticks mais limpos
+        const yMax = Math.ceil(maxGrafico / 30) * 30;
+
+        // Médias por categoria para a legenda
+        const avgCol = key => {
+            const vals = dadosGrafico.map(d => d[key] || 0).filter(v => v > 0);
+            return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+        };
+        const mediaSep = avgCol('Separação');
+        const mediaDoc = avgCol('Lib. Doca');
+        const mediaCar = avgCol('Carregamento');
+
+        // Média geral do total diário (para linha de referência)
+        const totaisDiarios = dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0));
+        const mediaTotal = totaisDiarios.length ? Math.round(totaisDiarios.reduce((a, b) => a + b, 0) / totaisDiarios.length) : 0;
+
+        // Grid horizontal (5 ticks)
+        const NTICKS = 5;
+        const gridLines = [];
+        const yTicks = [];
+        for (let i = 0; i <= NTICKS; i++) {
+            const valor = Math.round((yMax * i) / NTICKS);
+            const yPx = y0 + plotH - (valor / yMax) * plotH;
+            gridLines.push(`<line x1="${x0}" y1="${yPx}" x2="${x0 + plotW}" y2="${yPx}" stroke="#e2e8f0" stroke-width="0.6"${i === 0 ? '' : ' stroke-dasharray="2 3"'}/>`);
+            yTicks.push(`<text x="${x0 - 4}" y="${yPx + 3}" text-anchor="end" font-size="8" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif">${valor}min</text>`);
+        }
+
+        // Barras agrupadas + rótulos
+        const slotW = plotW / Math.max(nBars, 1);
+        const groupPad = slotW * 0.22;                 // padding interno do slot
+        const groupW = slotW - groupPad * 2;
+        const barW = Math.min(14, groupW / 3 - 2);     // 3 barras por dia
+        const gap = (groupW - barW * 3) / 2;
+
+        // Pontos da linha de tendência (total diário)
+        const trendPoints = [];
+
         const svgBars = dadosGrafico.map((d, i) => {
             const sep = d['Separação'] || 0;
             const doca = d['Lib. Doca'] || 0;
             const carr = d.Carregamento || 0;
             const total = sep + doca + carr;
-            const hTot = Math.round((total / maxGrafico) * HMAX);
-            const hCar = total ? Math.round((carr / total) * hTot) : 0;
-            const hDoc = total ? Math.round((doca / total) * hTot) : 0;
-            const hSep = hTot - hCar - hDoc;
-            const cx = i * slotW + slotW / 2;
-            const x = cx - barW / 2;
-            const yCar = HMAX - hCar;
-            const yDoc = HMAX - hCar - hDoc;
-            const ySep = HMAX - hCar - hDoc - hSep;
-            return `
-                ${hSep > 0 ? `<rect x="${x}" y="${ySep}" width="${barW}" height="${hSep}" fill="#8b5cf6"/>` : ''}
-                ${hDoc > 0 ? `<rect x="${x}" y="${yDoc}" width="${barW}" height="${hDoc}" fill="#3b82f6"/>` : ''}
-                ${hCar > 0 ? `<rect x="${x}" y="${yCar}" width="${barW}" height="${hCar}" fill="#f59e0b"/>` : ''}
-                <text x="${cx}" y="${HMAX + 11}" text-anchor="middle" font-size="7" fill="#94a3b8">${d.data}</text>`;
+
+            const cx = x0 + i * slotW + slotW / 2;
+            const groupLeft = cx - groupW / 2;
+
+            const bars = [
+                { val: sep, cor: '#8b5cf6' },
+                { val: doca, cor: '#3b82f6' },
+                { val: carr, cor: '#f59e0b' },
+            ];
+
+            const barsHtml = bars.map((b, bi) => {
+                if (b.val <= 0) return '';
+                const h = (b.val / yMax) * plotH;
+                const x = groupLeft + bi * (barW + gap);
+                const y = y0 + plotH - h;
+                return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}" fill="${b.cor}" rx="1.5"/>`;
+            }).join('');
+
+            // Rótulo do total diário acima do grupo
+            const maxValor = Math.max(sep, doca, carr);
+            const hMax = (maxValor / yMax) * plotH;
+            const yTotalLabel = y0 + plotH - hMax - 4;
+            const totalLabel = total > 0
+                ? `<text x="${cx.toFixed(2)}" y="${yTotalLabel.toFixed(2)}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#475569" font-family="Segoe UI, Arial, sans-serif">${formatMin(total)}</text>`
+                : '';
+
+            // Rótulo do eixo X (data)
+            const xLabel = `<text x="${cx.toFixed(2)}" y="${(y0 + plotH + 14).toFixed(2)}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Segoe UI, Arial, sans-serif">${d.data}</text>`;
+
+            // Acumular ponto de tendência
+            if (total > 0) {
+                trendPoints.push({ x: cx, y: y0 + plotH - (total / yMax) * plotH });
+            }
+
+            return barsHtml + totalLabel + xLabel;
         }).join('');
+
+        // Linha de tendência (path suave conectando totais)
+        let trendPath = '';
+        if (trendPoints.length >= 2) {
+            const pts = trendPoints;
+            let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
+            for (let i = 1; i < pts.length; i++) {
+                const prev = pts[i - 1];
+                const cur = pts[i];
+                const cx1 = (prev.x + cur.x) / 2;
+                d += ` C ${cx1.toFixed(2)} ${prev.y.toFixed(2)}, ${cx1.toFixed(2)} ${cur.y.toFixed(2)}, ${cur.x.toFixed(2)} ${cur.y.toFixed(2)}`;
+            }
+            trendPath = `
+                <path d="${d}" fill="none" stroke="#0f766e" stroke-width="1.5" stroke-opacity="0.75"/>
+                ${pts.map(p => `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="2.2" fill="#0f766e"/>`).join('')}
+            `;
+        }
+
+        // Linha de média geral (dashed)
+        let mediaLine = '';
+        if (mediaTotal > 0 && mediaTotal <= yMax) {
+            const yMed = y0 + plotH - (mediaTotal / yMax) * plotH;
+            mediaLine = `
+                <line x1="${x0}" y1="${yMed}" x2="${x0 + plotW}" y2="${yMed}" stroke="#ef4444" stroke-width="1" stroke-dasharray="5 3" opacity="0.7"/>
+                <rect x="${(x0 + plotW - 78).toFixed(2)}" y="${(yMed - 10).toFixed(2)}" width="76" height="13" fill="#fee2e2" stroke="#ef4444" stroke-width="0.5" rx="2"/>
+                <text x="${(x0 + plotW - 4).toFixed(2)}" y="${(yMed - 1).toFixed(2)}" text-anchor="end" font-size="7.5" font-weight="700" fill="#b91c1c" font-family="Segoe UI, Arial, sans-serif">Média ${formatMin(mediaTotal)} (total/dia)</text>
+            `;
+        }
+
         const graficoSVG = `<svg viewBox="0 0 ${VW} ${svgH}" width="100%" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
-            <line x1="0" y1="${HMAX}" x2="${VW}" y2="${HMAX}" stroke="#e2e8f0" stroke-width="1"/>
+            ${gridLines.join('')}
+            ${yTicks.join('')}
             ${svgBars}
+            ${mediaLine}
+            ${trendPath}
         </svg>`;
+
+        // Legenda topo com valores médios
+        const legendaTopo = `
+            <div class="legenda-topo">
+                <div class="leg-card" style="border-left-color:#8b5cf6">
+                    <span class="leg-dot" style="background:#8b5cf6"></span>
+                    <span class="leg-nome">Separação</span>
+                    <span class="leg-media">${formatMin(mediaSep)}</span>
+                </div>
+                <div class="leg-card" style="border-left-color:#3b82f6">
+                    <span class="leg-dot" style="background:#3b82f6"></span>
+                    <span class="leg-nome">Lib. Doca</span>
+                    <span class="leg-media">${formatMin(mediaDoc)}</span>
+                </div>
+                <div class="leg-card" style="border-left-color:#f59e0b">
+                    <span class="leg-dot" style="background:#f59e0b"></span>
+                    <span class="leg-nome">Carregamento</span>
+                    <span class="leg-media">${formatMin(mediaCar)}</span>
+                </div>
+                <div class="leg-card" style="border-left-color:#0f766e">
+                    <span class="leg-linha"></span>
+                    <span class="leg-nome">Tendência total/dia</span>
+                </div>
+                <div class="leg-card" style="border-left-color:#ef4444">
+                    <span class="leg-traco"></span>
+                    <span class="leg-nome">Média geral</span>
+                    <span class="leg-media">${formatMin(mediaTotal)}</span>
+                </div>
+            </div>
+        `;
 
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -296,11 +422,15 @@ export default function RelatorioPerformance() {
   .kpi-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; }
   .kpi-valor { font-size: 26px; font-weight: 900; line-height: 1; }
   .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 4px; }
-  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
   .grafico-wrap { margin-bottom: 6px; overflow-x: auto; }
-  .legenda { display: flex; gap: 16px; justify-content: center; margin-top: 6px; }
-  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #64748b; }
-  .leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legenda-topo { display: flex; gap: 8px; justify-content: flex-start; flex-wrap: wrap; margin-bottom: 10px; }
+  .leg-card { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e2e8f0; border-left-width: 3px; border-radius: 5px; background: #f8fafc; font-size: 9px; color: #475569; }
+  .leg-card .leg-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .leg-card .leg-linha { width: 14px; height: 2px; background: #0f766e; flex-shrink: 0; }
+  .leg-card .leg-traco { width: 14px; height: 0; border-top: 2px dashed #ef4444; flex-shrink: 0; }
+  .leg-card .leg-nome { font-weight: 600; }
+  .leg-card .leg-media { color: #0f172a; font-weight: 800; margin-left: 2px; }
   .footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
   @media print { body { padding: 12mm 14mm; } @page { margin: 0; size: A4 landscape; } }
 </style>
@@ -316,13 +446,9 @@ export default function RelatorioPerformance() {
 
   <div class="kpi-grid">${kpiCards}</div>
 
-  <div class="section-title">&#9641; Tempo médio por dia (min) — barras empilhadas</div>
+  <div class="section-title">&#9641; Tempo médio por dia (min) — barras agrupadas</div>
+  ${legendaTopo}
   <div class="grafico-wrap">${graficoSVG}</div>
-  <div class="legenda">
-    <div class="leg-item"><div class="leg-dot" style="background:#f59e0b"></div>Carregamento</div>
-    <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Lib. Doca</div>
-    <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div>Separação</div>
-  </div>
 
   <div class="footer">
     <span>Transnet Logística — Performance de Embarque</span>
