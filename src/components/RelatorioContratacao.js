@@ -358,6 +358,7 @@ export default function RelatorioContratacao() {
                                     <XAxis dataKey="regiao" tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
                                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
                                     <Tooltip
+                                        cursor={false}
                                         contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }}
                                         labelFormatter={l => {
                                             const d = dadosOpRegiao.find(x => x.regiao === l);
@@ -383,6 +384,7 @@ export default function RelatorioContratacao() {
                                     <XAxis dataKey="regiao" tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
                                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
                                     <Tooltip
+                                        cursor={false}
                                         contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }}
                                         formatter={v => [formatHoras(v), 'Tempo médio']}
                                         labelFormatter={l => {
