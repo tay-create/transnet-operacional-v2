@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
-import * as XLSX from 'xlsx';
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 
@@ -222,27 +221,149 @@ export default function RelatorioPerformance() {
         );
     };
 
-    // ── Exportar XLSX ────────────────────────────────────────────────────────
+    // ── Exportar PDF ─────────────────────────────────────────────────────────
 
-    function exportarXLSX() {
-        const dados = linhas.map(l => ({
-            Motorista: l.motorista,
-            Data: formatDataBRFull(l.data),
-            Unidade: l.unidade,
-            Operação: l.operacao,
-            Status: l.status,
-            'Separação (min)': l.sep_min ?? '',
-            'Lib. Doca (min)': l.doca_min ?? '',
-            'Carregamento (min)': l.carr_min ?? '',
-            'Total Pátio (min)': l.total_patio_min ?? '',
-            'Duração (min)': l.duracao_min ?? '',
-            'Pausas (min)': l.pausas_min,
-            'Efetivo (min)': l.efetivo_min ?? '',
-        }));
-        const ws = XLSX.utils.json_to_sheet(dados);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Performance');
-        XLSX.writeFile(wb, `performance_embarque_${dataInicio}_${dataFim}.xlsx`);
+    function exportarPDF() {
+        const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const periodoStr = dataInicio === dataFim
+            ? dataInicio.split('-').reverse().join('/')
+            : `${dataInicio.split('-').reverse().join('/')} → ${dataFim.split('-').reverse().join('/')}`;
+        const unidadeStr = unidade === 'todas' ? 'Todas as unidades' : unidade;
+
+        // KPI cards HTML
+        const kpiCards = [
+            { label: 'EMBARQUES', valor: kpis.total, sub: `${kpis.totalPausas} com pausa`, cor: '#3b82f6' },
+            { label: 'T.M SEPARAÇÃO', valor: formatMin(kpis.mediaSep), sub: '', cor: '#8b5cf6' },
+            { label: 'T.M CARREGAMENTO', valor: formatMin(kpis.mediaCarr), sub: '', cor: '#f59e0b' },
+            { label: 'T.M TOTAL PÁTIO', valor: formatMin(kpis.mediaPatio), sub: '', cor: '#06b6d4' },
+            { label: 'T.M EFETIVO', valor: formatMin(kpis.mediaEfetivo), sub: 'descontando pausas', cor: '#4ade80' },
+        ].map(k => `
+            <div class="kpi-card" style="border-top:3px solid ${k.cor}">
+                <div class="kpi-label">${k.label}</div>
+                <div class="kpi-valor" style="color:${k.cor}">${k.valor}</div>
+                ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
+            </div>`).join('');
+
+        // Gráfico de barras empilhadas (CSS puro)
+        const maxGrafico = Math.max(...dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0)), 1);
+        const graficoBars = dadosGrafico.map(d => {
+            const sep = d['Separação'] || 0;
+            const doca = d['Lib. Doca'] || 0;
+            const carr = d.Carregamento || 0;
+            const total = sep + doca + carr;
+            const hMax = 120; // px altura máxima da barra
+            const hTot = Math.round((total / maxGrafico) * hMax);
+            const hSep = total ? Math.round((sep / total) * hTot) : 0;
+            const hDoc = total ? Math.round((doca / total) * hTot) : 0;
+            const hCar = hTot - hSep - hDoc;
+            return `<div class="bar-col">
+                <div class="bar-stack" style="height:${hMax}px">
+                    <div class="bar-seg" style="height:${hSep}px;background:#8b5cf6"></div>
+                    <div class="bar-seg" style="height:${hDoc}px;background:#3b82f6"></div>
+                    <div class="bar-seg" style="height:${hCar}px;background:#f59e0b"></div>
+                </div>
+                <div class="bar-lbl">${d.data}</div>
+            </div>`;
+        }).join('');
+
+        // Linhas da tabela
+        const tabelaRows = linhasOrdenadas.map(l => `
+            <tr>
+                <td>${l.motorista || '—'}</td>
+                <td>${l.operacao || '—'}</td>
+                <td class="center">${l.unidade === 'Recife' ? 'REC' : 'MOR'}</td>
+                <td class="center">${formatDataBR(l.data)}</td>
+                <td class="center num">${formatMin(l.sep_min)}</td>
+                <td class="center num">${formatMin(l.doca_min)}</td>
+                <td class="center num">${formatMin(l.carr_min)}</td>
+                <td class="center num">${formatMin(l.total_patio_min)}</td>
+                <td class="center">${l.pausas_min > 0 ? formatMin(l.pausas_min) : '—'}</td>
+            </tr>`).join('');
+
+        const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>Performance de Embarque</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; padding: 20px 24px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 16px; }
+  .header h1 { font-size: 18px; font-weight: 900; color: #1e40af; }
+  .header p { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 9px; color: #94a3b8; line-height: 1.6; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+  .kpi-card { border-radius: 8px; border: 1px solid #e2e8f0; padding: 10px 8px; text-align: center; }
+  .kpi-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 4px; }
+  .kpi-valor { font-size: 22px; font-weight: 900; line-height: 1; }
+  .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 3px; }
+  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 8px; }
+  .grafico-wrap { display: flex; align-items: flex-end; gap: 4px; height: 140px; border-bottom: 1px solid #e2e8f0; margin-bottom: 4px; overflow: hidden; }
+  .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .bar-stack { display: flex; flex-direction: column-reverse; width: 100%; max-width: 20px; }
+  .bar-seg { width: 100%; }
+  .bar-lbl { font-size: 7px; color: #94a3b8; margin-top: 3px; text-align: center; }
+  .legenda { display: flex; gap: 12px; margin-bottom: 14px; margin-top: 4px; }
+  .leg-item { display: flex; align-items: center; gap: 4px; font-size: 9px; color: #64748b; }
+  .leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  th { padding: 6px 8px; text-align: left; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  td.center { text-align: center; }
+  td.num { font-weight: 700; color: #0891b2; }
+  tr:nth-child(even) { background: #f8fafc; }
+  .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
+  @media print { body { padding: 12mm 10mm; } @page { margin: 0; size: A4 landscape; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Performance de Embarque</h1>
+      <p>Período: ${periodoStr} &nbsp;·&nbsp; Unidade: ${unidadeStr} &nbsp;·&nbsp; ${kpis.total} embarque${kpis.total !== 1 ? 's' : ''}</p>
+    </div>
+    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}</div>
+  </div>
+
+  <div class="kpi-grid">${kpiCards}</div>
+
+  <div class="section-title">Tempo médio por dia (min) — barras empilhadas</div>
+  <div class="grafico-wrap">${graficoBars}</div>
+  <div class="legenda">
+    <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div>Separação</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Lib. Doca</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#f59e0b"></div>Carregamento</div>
+  </div>
+
+  <div class="section-title">Detalhe por embarque</div>
+  <table>
+    <thead><tr>
+      <th>Motorista</th><th>Operação</th><th style="text-align:center">Un.</th>
+      <th style="text-align:center">Data</th><th style="text-align:center">SEP</th>
+      <th style="text-align:center">DOCA</th><th style="text-align:center">CARR</th>
+      <th style="text-align:center">PÁTIO</th><th style="text-align:center">PAUSA</th>
+    </tr></thead>
+    <tbody>${tabelaRows}</tbody>
+  </table>
+
+  <div class="footer">
+    <span>Transnet Logística — Performance de Embarque</span>
+    <span>${periodoStr} · ${unidadeStr}</span>
+  </div>
+</body>
+</html>`;
+
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+        document.body.appendChild(iframe);
+        iframe.contentDocument.open();
+        iframe.contentDocument.write(html);
+        iframe.contentDocument.close();
+        iframe.contentWindow.focus();
+        setTimeout(() => {
+            iframe.contentWindow.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
+        }, 400);
     }
 
     // ── Estilos ──────────────────────────────────────────────────────────────
@@ -379,13 +500,13 @@ export default function RelatorioPerformance() {
                 </button>
                 {linhas.length > 0 && (
                     <button
-                        onClick={exportarXLSX}
+                        onClick={exportarPDF}
                         style={{
-                            background: 'rgba(34,197,94,0.12)',
-                            border: '1px solid rgba(34,197,94,0.3)',
+                            background: 'rgba(239,68,68,0.12)',
+                            border: '1px solid rgba(239,68,68,0.3)',
                             borderRadius: '10px',
                             padding: '10px 16px',
-                            color: '#4ade80',
+                            color: '#f87171',
                             fontSize: '13px',
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -395,7 +516,7 @@ export default function RelatorioPerformance() {
                             marginLeft: 'auto',
                         }}
                     >
-                        <FileDown size={14} /> XLSX
+                        <FileDown size={14} /> PDF
                     </button>
                 )}
             </div>
