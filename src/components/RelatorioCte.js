@@ -1,16 +1,23 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-    Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
     CartesianGrid, Cell, Legend
 } from 'recharts';
-import { Filter, Calendar, FileText, Clock, FileDown, RefreshCw, MapPin, TrendingUp, Activity, AlertTriangle } from 'lucide-react';
+import {
+    Filter, Calendar, FileText, Clock, FileDown, RefreshCw, MapPin,
+    TrendingUp, Activity, AlertTriangle
+} from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 import * as XLSX from 'xlsx';
 
+// ── Constantes ───────────────────────────────────────────────────────────────
+
 const CORES_TURNO = { 'Manhã': '#f59e0b', 'Tarde': '#3b82f6', 'Noite': '#8b5cf6' };
 const TURNOS = ['Manhã', 'Tarde', 'Noite'];
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// ── Utilitários ──────────────────────────────────────────────────────────────
 
 function formatHoras(h) {
     if (h === null || h === undefined) return '—';
@@ -24,6 +31,96 @@ function formatDateTime(dt) {
     return new Date(dt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+// ── Estilos reutilizáveis ────────────────────────────────────────────────────
+
+const inputStyle = {
+    background: 'rgba(0,0,0,0.3)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: '10px',
+    padding: '10px 14px',
+    color: '#e2e8f0',
+    fontSize: '13px',
+    outline: 'none',
+};
+
+const glassCard = {
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '14px',
+    backdropFilter: 'blur(12px)',
+};
+
+// ── Subcomponentes ───────────────────────────────────────────────────────────
+
+function KpiCard({ icon, label, valor, cor }) {
+    return (
+        <div style={{
+            ...glassCard,
+            padding: '18px 16px',
+            display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                    width: '32px', height: '32px', borderRadius: '10px',
+                    background: `${cor}18`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: cor, flexShrink: 0,
+                }}>{icon}</div>
+                <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                    {label}
+                </span>
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: cor, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+                {valor}
+            </div>
+        </div>
+    );
+}
+
+function OciosidadeCard({ unidade, dados }) {
+    const maxH = dados?.max_gap_horas;
+    const gaps = dados?.gaps_acima_2h || 0;
+    const cor = maxH > 4 ? '#f87171' : maxH > 2 ? '#facc15' : '#4ade80';
+    const corUnidade = unidade === 'Recife' ? '#60a5fa' : '#a78bfa';
+
+    return (
+        <div style={{
+            ...glassCard,
+            padding: '16px 20px',
+            borderLeft: `3px solid ${corUnidade}`,
+            display: 'flex', gap: '16px', alignItems: 'center',
+        }}>
+            <div style={{
+                width: '48px', height: '48px', borderRadius: '12px',
+                background: `${cor}18`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: cor, flexShrink: 0,
+            }}>
+                <Activity size={24} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: corUnidade, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {unidade}
+                    </span>
+                    <span style={{ fontSize: '9px', color: '#64748b' }}>· {dados?.total || 0} CT-es</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 800, color: cor, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatHoras(maxH)}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>maior gap</span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    {gaps} gap{gaps !== 1 ? 's' : ''} acima de 2h
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Componente principal ─────────────────────────────────────────────────────
+
 export default function RelatorioCte() {
     const hoje = obterDataBrasilia().substring(0, 10);
     const [dataInicio, setDataInicio] = useState(() => {
@@ -36,7 +133,7 @@ export default function RelatorioCte() {
     const [heatmap, setHeatmap] = useState([]);
     const [ociosidade, setOciosidade] = useState({});
     const [carregando, setCarregando] = useState(false);
-    const [aba, setAba] = useState('graficos'); // 'graficos' | 'heatmap' | 'tabela'
+    const [aba, setAba] = useState('graficos');
 
     const buscar = useCallback(async () => {
         setCarregando(true);
@@ -62,7 +159,6 @@ export default function RelatorioCte() {
         return { total: registros.length, media, recife, moreno };
     }, [registros]);
 
-    // CT-es por dia separados por unidade
     const dadosPorDia = useMemo(() => {
         const mapa = {};
         for (const r of registros) {
@@ -77,7 +173,6 @@ export default function RelatorioCte() {
             .map(([data, v]) => ({ data: data.substring(5).replace('-', '/'), ...v }));
     }, [registros]);
 
-    // Média por turno
     const dadosPorTurno = useMemo(() => {
         const mapa = { 'Manhã': [], 'Tarde': [], 'Noite': [] };
         for (const r of registros) {
@@ -94,7 +189,6 @@ export default function RelatorioCte() {
         }));
     }, [registros]);
 
-    // Heatmap: matriz [dia_semana][hora] = qtd
     const heatmapMatrix = useMemo(() => {
         const matrix = Array.from({ length: 7 }, () => Array(24).fill(0));
         for (const cell of heatmap) {
@@ -107,8 +201,6 @@ export default function RelatorioCte() {
     }, [heatmap]);
 
     const heatmapMax = useMemo(() => Math.max(1, ...heatmapMatrix.flat()), [heatmapMatrix]);
-
-    // Horas relevantes (6-22)
     const horasVisiveis = Array.from({ length: 17 }, (_, i) => i + 6);
 
     function exportarXLSX() {
@@ -133,113 +225,134 @@ export default function RelatorioCte() {
 
     const temDados = registros.length > 0;
 
+    const tabStyle = (ativo) => ({
+        padding: '10px 18px',
+        background: 'transparent',
+        border: 'none',
+        borderBottom: ativo ? '2px solid #facc15' : '2px solid transparent',
+        color: ativo ? '#f1f5f9' : '#64748b',
+        fontSize: '12px', fontWeight: 600,
+        display: 'flex', alignItems: 'center', gap: '6px',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+    });
+
     return (
-        <div className="p-4 space-y-4">
+        <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
             {/* Header */}
-            <div className="flex items-center gap-2 mb-2">
-                <FileText size={20} className="text-yellow-400" />
-                <h2 className="text-lg font-semibold text-white">Relatório CT-e</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <div style={{
+                    width: '40px', height: '40px', borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <FileText size={20} color="#fff" />
+                </div>
+                <div>
+                    <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
+                        Relatório CT-e
+                    </h2>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                        Tempo de emissão · Recife × Moreno · Horários de pico · Ociosidade
+                    </p>
+                </div>
             </div>
 
             {/* Filtros */}
-            <div className="bg-gray-800 rounded-lg p-4 flex flex-wrap gap-4 items-end">
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-400 flex items-center gap-1"><Calendar size={12} /> De</label>
-                    <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
-                        className="bg-gray-700 text-white text-sm rounded px-2 py-1.5 border border-gray-600" />
+            <div style={{
+                ...glassCard,
+                padding: '16px 20px',
+                display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end',
+                marginBottom: '20px',
+            }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <Calendar size={10} /> De
+                    </label>
+                    <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} style={inputStyle} />
                 </div>
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs text-gray-400 flex items-center gap-1"><Calendar size={12} /> Até</label>
-                    <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
-                        className="bg-gray-700 text-white text-sm rounded px-2 py-1.5 border border-gray-600" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <Calendar size={10} /> Até
+                    </label>
+                    <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} style={inputStyle} />
                 </div>
-                <button onClick={buscar} disabled={carregando}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded transition">
+                <button
+                    onClick={buscar}
+                    disabled={carregando}
+                    style={{
+                        padding: '10px 18px', borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                        border: 'none', color: '#fff', fontSize: '13px', fontWeight: 600,
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        cursor: carregando ? 'wait' : 'pointer',
+                        opacity: carregando ? 0.7 : 1,
+                    }}>
                     {carregando ? <RefreshCw size={14} className="animate-spin" /> : <Filter size={14} />}
                     Buscar
                 </button>
                 {temDados && (
-                    <button onClick={exportarXLSX}
-                        className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white text-sm px-4 py-1.5 rounded transition ml-auto">
+                    <button
+                        onClick={exportarXLSX}
+                        style={{
+                            padding: '10px 18px', borderRadius: '10px',
+                            background: 'rgba(34,197,94,0.15)',
+                            border: '1px solid rgba(34,197,94,0.3)',
+                            color: '#4ade80', fontSize: '13px', fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            cursor: 'pointer', marginLeft: 'auto',
+                        }}>
                         <FileDown size={14} /> Exportar XLSX
                     </button>
                 )}
             </div>
 
+            {/* Estado vazio */}
             {!temDados && !carregando && (
-                <div className="text-center text-gray-500 py-12">Selecione um período e clique em Buscar.</div>
+                <div style={{
+                    ...glassCard,
+                    padding: '60px 20px', textAlign: 'center',
+                    color: '#64748b', fontSize: '14px',
+                }}>
+                    Selecione um período e clique em Buscar para visualizar os dados.
+                </div>
             )}
 
             {temDados && (
                 <>
                     {/* KPI Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                            { label: 'Total emitidos', valor: resumo.total, icon: <FileText size={16} />, cor: '#fbbf24', bg: '#78350f44' },
-                            { label: 'Tempo médio emissão', valor: formatHoras(resumo.media), icon: <Clock size={16} />, cor: '#60a5fa', bg: '#1e3a5f44' },
-                            { label: 'Recife', valor: resumo.recife, icon: <MapPin size={16} />, cor: '#60a5fa', bg: '#1e3a5f44' },
-                            { label: 'Moreno', valor: resumo.moreno, icon: <MapPin size={16} />, cor: '#a78bfa', bg: '#2e106544' },
-                        ].map(c => (
-                            <div key={c.label} className="rounded-xl p-4 flex items-center gap-3 border border-gray-700"
-                                style={{ background: c.bg }}>
-                                <div style={{ color: c.cor }}>{c.icon}</div>
-                                <div>
-                                    <div className="text-xs text-gray-400">{c.label}</div>
-                                    <div className="text-lg font-bold" style={{ color: c.cor }}>{c.valor}</div>
-                                </div>
-                            </div>
-                        ))}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                        <KpiCard icon={<FileText size={16} />} label="Total emitidos" valor={resumo.total} cor="#facc15" />
+                        <KpiCard icon={<Clock size={16} />} label="Tempo médio" valor={formatHoras(resumo.media)} cor="#60a5fa" />
+                        <KpiCard icon={<MapPin size={16} />} label="Recife" valor={resumo.recife} cor="#60a5fa" />
+                        <KpiCard icon={<MapPin size={16} />} label="Moreno" valor={resumo.moreno} cor="#a78bfa" />
                     </div>
 
-                    {/* Ociosidade / Gargalo */}
+                    {/* Ociosidade */}
                     {(ociosidade.Recife || ociosidade.Moreno) && (
-                        <div>
-                            <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
-                                <AlertTriangle size={12} /> Ociosidade entre CT-es (gargalos)
+                        <div style={{ marginBottom: '20px' }}>
+                            <div style={{
+                                fontSize: '10px', color: '#64748b', fontWeight: 700,
+                                textTransform: 'uppercase', letterSpacing: '0.8px',
+                                marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+                            }}>
+                                <AlertTriangle size={12} /> Ociosidade / Gargalos
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {['Recife', 'Moreno'].map(u => {
-                                    const o = ociosidade[u] || {};
-                                    const maxH = o.max_gap_horas;
-                                    const gaps = o.gaps_acima_2h || 0;
-                                    const corGap = maxH > 4 ? '#f87171' : maxH > 2 ? '#fbbf24' : '#4ade80';
-                                    const bgGap = maxH > 4 ? '#7f1d1d44' : maxH > 2 ? '#78350f44' : '#065f4644';
-                                    return (
-                                        <div key={u} className="rounded-xl p-4 border border-gray-700 flex items-start gap-4"
-                                            style={{ background: bgGap }}>
-                                            <div className="flex flex-col items-center justify-center w-16 shrink-0">
-                                                <Activity size={20} style={{ color: corGap }} />
-                                                <span className="text-xs text-gray-400 mt-1">{u}</span>
-                                            </div>
-                                            <div className="flex flex-col gap-1.5 flex-1">
-                                                <div className="flex items-baseline gap-2">
-                                                    <span className="text-2xl font-bold" style={{ color: corGap }}>
-                                                        {formatHoras(maxH)}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">maior gap entre CT-es</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-xs">
-                                                    <span className="text-gray-400">{gaps} gap{gaps !== 1 ? 's' : ''} acima de 2h</span>
-                                                    <span className="text-gray-600">·</span>
-                                                    <span className="text-gray-400">{o.total || 0} CT-es no período</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                                <OciosidadeCard unidade="Recife" dados={ociosidade.Recife} />
+                                <OciosidadeCard unidade="Moreno" dados={ociosidade.Moreno} />
                             </div>
                         </div>
                     )}
 
                     {/* Tabs */}
-                    <div className="flex gap-2 border-b border-gray-700">
+                    <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '16px' }}>
                         {[
                             { id: 'graficos', label: 'Gráficos', icon: <TrendingUp size={12} /> },
                             { id: 'heatmap', label: 'Heatmap', icon: <Activity size={12} /> },
                             { id: 'tabela', label: 'Tabela', icon: <FileText size={12} /> },
                         ].map(t => (
-                            <button key={t.id} onClick={() => setAba(t.id)}
-                                className={`flex items-center gap-1.5 px-4 py-2 text-sm transition ${aba === t.id ? 'text-white border-b-2 border-yellow-400' : 'text-gray-400 hover:text-gray-200'}`}>
+                            <button key={t.id} onClick={() => setAba(t.id)} style={tabStyle(aba === t.id)}>
                                 {t.icon} {t.label}
                             </button>
                         ))}
@@ -247,55 +360,53 @@ export default function RelatorioCte() {
 
                     {/* Aba Gráficos */}
                     {aba === 'graficos' && (
-                        <div className="space-y-4">
-                            {/* Comparativo Recife vs Moreno por dia */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             {dadosPorDia.length > 0 && (
-                                <div className="bg-gray-800 rounded-xl p-4">
-                                    <div className="text-xs text-gray-400 mb-3 flex items-center gap-1">
-                                        <TrendingUp size={12} /> CT-es por dia — Recife vs Moreno
+                                <div style={{ ...glassCard, padding: '16px 20px' }}>
+                                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <TrendingUp size={12} /> CT-es por dia — Recife × Moreno
                                     </div>
-                                    <ResponsiveContainer width="100%" height={200}>
-                                        <BarChart data={dadosPorDia} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                            <XAxis dataKey="data" tick={{ fill: '#9ca3af', fontSize: 10 }} />
-                                            <YAxis tick={{ fill: '#9ca3af', fontSize: 11 }} allowDecimals={false} />
-                                            <Tooltip contentStyle={{ background: '#1f2937', border: 'none', color: '#fff', fontSize: 12 }}
-                                                formatter={(v, name) => [v, name]} />
-                                            <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-                                            <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]} stackId="a" />
-                                            <Bar dataKey="Moreno" fill="#8b5cf6" radius={[3, 3, 0, 0]} stackId="a" />
+                                    <ResponsiveContainer width="100%" height={240}>
+                                        <BarChart data={dadosPorDia} margin={{ top: 10, right: 8, left: -16, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                                            <XAxis dataKey="data" tick={{ fill: '#94a3b8', fontSize: 10 }} stroke="rgba(255,255,255,0.1)" />
+                                            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
+                                            <Tooltip contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }} />
+                                            <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8', paddingTop: '8px' }} />
+                                            <Bar dataKey="Recife" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                                            <Bar dataKey="Moreno" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
                             )}
 
-                            {/* Turnos */}
-                            <div className="bg-gray-800 rounded-xl p-4">
-                                <div className="text-xs text-gray-400 mb-3 flex items-center gap-1">
-                                    <Clock size={12} /> CT-es por turno (quantidade e tempo médio)
+                            <div style={{ ...glassCard, padding: '16px 20px' }}>
+                                <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <Clock size={12} /> CT-es por turno (quantidade + tempo médio)
                                 </div>
-                                <ResponsiveContainer width="100%" height={180}>
-                                    <BarChart data={dadosPorTurno} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                                        <XAxis dataKey="turno" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                                        <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 11 }} allowDecimals={false} />
-                                        <YAxis yAxisId="right" orientation="right" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                                        <Tooltip contentStyle={{ background: '#1f2937', border: 'none', color: '#fff', fontSize: 12 }}
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <BarChart data={dadosPorTurno} margin={{ top: 10, right: 8, left: -16, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                                        <XAxis dataKey="turno" tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
+                                        <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
+                                        <Tooltip
+                                            contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }}
                                             formatter={(v, name) => [name === 'quantidade' ? `${v} CT-es` : `${v}h`, name === 'quantidade' ? 'Quantidade' : 'Tempo médio']} />
-                                        <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-                                        <Bar yAxisId="left" dataKey="quantidade" name="quantidade" radius={[3, 3, 0, 0]}>
+                                        <Bar dataKey="quantidade" radius={[4, 4, 0, 0]}>
                                             {dadosPorTurno.map((entry, i) => <Cell key={i} fill={CORES_TURNO[entry.turno]} />)}
                                         </Bar>
-                                        <Line yAxisId="right" type="monotone" dataKey="media_horas" name="media_horas"
-                                            stroke="#e5e7eb" strokeWidth={2} dot={{ r: 4 }} />
                                     </BarChart>
                                 </ResponsiveContainer>
-                                <div className="mt-3 grid grid-cols-3 gap-2">
+                                <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                                     {dadosPorTurno.map(t => (
-                                        <div key={t.turno} className="text-center bg-gray-700 rounded-lg py-2">
-                                            <div className="text-xs font-medium" style={{ color: CORES_TURNO[t.turno] }}>{t.turno}</div>
-                                            <div className="text-white text-sm font-bold">{t.quantidade}</div>
-                                            <div className="text-gray-400 text-xs">{formatHoras(t.media_horas || null)}</div>
+                                        <div key={t.turno} style={{
+                                            background: CORES_TURNO[t.turno] + '11',
+                                            border: `1px solid ${CORES_TURNO[t.turno]}33`,
+                                            borderRadius: '10px', padding: '10px', textAlign: 'center',
+                                        }}>
+                                            <div style={{ fontSize: '10px', fontWeight: 700, color: CORES_TURNO[t.turno], textTransform: 'uppercase' }}>{t.turno}</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>{t.quantidade}</div>
+                                            <div style={{ fontSize: '10px', color: '#64748b' }}>~{formatHoras(t.media_horas || null)}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -305,54 +416,58 @@ export default function RelatorioCte() {
 
                     {/* Aba Heatmap */}
                     {aba === 'heatmap' && (
-                        <div className="bg-gray-800 rounded-xl p-4">
-                            <div className="text-xs text-gray-400 mb-4 flex items-center gap-1">
-                                <Activity size={12} /> Horários de pico — CT-es por dia da semana × hora
+                        <div style={{ ...glassCard, padding: '20px' }}>
+                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Activity size={12} /> Horários de pico — dia da semana × hora
                             </div>
 
-                            {/* Legenda de intensidade */}
-                            <div className="flex items-center gap-2 mb-4">
-                                <span className="text-xs text-gray-500">Menos</span>
-                                <div className="flex gap-0.5">
+                            {/* Legenda intensidade */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>Menos</span>
+                                <div style={{ display: 'flex', gap: '2px' }}>
                                     {[0.1, 0.25, 0.45, 0.65, 0.85, 1].map(op => (
-                                        <div key={op} className="w-5 h-3 rounded-sm"
-                                            style={{ background: `rgba(251,191,36,${op})` }} />
+                                        <div key={op} style={{ width: '22px', height: '10px', borderRadius: '2px', background: `rgba(251,191,36,${op})` }} />
                                     ))}
                                 </div>
-                                <span className="text-xs text-gray-500">Mais</span>
+                                <span style={{ fontSize: '10px', color: '#64748b' }}>Mais</span>
                             </div>
 
                             {/* Grade heatmap */}
-                            <div className="overflow-x-auto">
-                                <div style={{ minWidth: 540 }}>
-                                    {/* Cabeçalho de horas */}
-                                    <div className="flex mb-1" style={{ paddingLeft: 36 }}>
+                            <div style={{ overflowX: 'auto' }}>
+                                <div style={{ minWidth: '560px' }}>
+                                    {/* Header de horas */}
+                                    <div style={{ display: 'flex', marginBottom: '4px', paddingLeft: '42px' }}>
                                         {horasVisiveis.map(h => (
-                                            <div key={h} className="text-xs text-gray-500 text-center"
-                                                style={{ width: 28, flexShrink: 0 }}>
+                                            <div key={h} style={{ width: '28px', fontSize: '10px', color: '#64748b', textAlign: 'center', flexShrink: 0 }}>
                                                 {h}h
                                             </div>
                                         ))}
                                     </div>
 
-                                    {/* Linhas por dia da semana */}
+                                    {/* Linhas por dia */}
                                     {DIAS_SEMANA.map((dia, d) => (
-                                        <div key={d} className="flex items-center mb-1">
-                                            <div className="text-xs text-gray-400 w-9 shrink-0 text-right pr-2">{dia}</div>
+                                        <div key={d} style={{ display: 'flex', alignItems: 'center', marginBottom: '3px' }}>
+                                            <div style={{ width: '40px', fontSize: '10px', color: '#94a3b8', textAlign: 'right', paddingRight: '8px', flexShrink: 0, fontWeight: 600 }}>
+                                                {dia}
+                                            </div>
                                             {horasVisiveis.map(h => {
                                                 const qtd = heatmapMatrix[d][h];
-                                                const opacity = qtd === 0 ? 0.05 : 0.15 + (qtd / heatmapMax) * 0.85;
+                                                const opacity = qtd === 0 ? 0.04 : 0.15 + (qtd / heatmapMax) * 0.85;
                                                 return (
                                                     <div key={h}
-                                                        className="rounded-sm flex items-center justify-center cursor-default"
+                                                        title={`${dia} ${h}h: ${qtd} CT-e${qtd !== 1 ? 's' : ''}`}
                                                         style={{
-                                                            width: 26, height: 22, marginRight: 2,
+                                                            width: '26px', height: '24px', marginRight: '2px',
+                                                            borderRadius: '3px',
                                                             background: `rgba(251,191,36,${opacity.toFixed(2)})`,
-                                                        }}
-                                                        title={`${dia} ${h}h: ${qtd} CT-e${qtd !== 1 ? 's' : ''}`}>
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            flexShrink: 0,
+                                                        }}>
                                                         {qtd > 0 && (
-                                                            <span className="text-xs font-bold"
-                                                                style={{ color: opacity > 0.5 ? '#1f2937' : '#fbbf24', fontSize: 9 }}>
+                                                            <span style={{
+                                                                fontSize: '9px', fontWeight: 700,
+                                                                color: opacity > 0.5 ? '#0f172a' : '#fbbf24',
+                                                            }}>
                                                                 {qtd}
                                                             </span>
                                                         )}
@@ -368,10 +483,15 @@ export default function RelatorioCte() {
                             {heatmap.length > 0 && (() => {
                                 const pico = heatmap.reduce((m, c) => parseInt(c.qtd, 10) > parseInt(m.qtd, 10) ? c : m, heatmap[0]);
                                 return (
-                                    <div className="mt-4 p-3 rounded-lg border border-yellow-500 border-opacity-30 bg-yellow-500 bg-opacity-10">
-                                        <span className="text-xs text-yellow-300">
-                                            Pico: <strong>{DIAS_SEMANA[parseInt(pico.dia_semana, 10)]}</strong> às <strong>{pico.hora}h</strong> com <strong>{pico.qtd}</strong> CT-e{parseInt(pico.qtd, 10) !== 1 ? 's' : ''}
-                                        </span>
+                                    <div style={{
+                                        marginTop: '16px', padding: '12px 16px',
+                                        background: 'rgba(251,191,36,0.1)',
+                                        border: '1px solid rgba(251,191,36,0.3)',
+                                        borderRadius: '10px',
+                                        fontSize: '12px', color: '#fbbf24',
+                                    }}>
+                                        <strong>Pico:</strong> {DIAS_SEMANA[parseInt(pico.dia_semana, 10)]} às {pico.hora}h
+                                        com <strong>{pico.qtd}</strong> CT-e{parseInt(pico.qtd, 10) !== 1 ? 's' : ''}
                                     </div>
                                 );
                             })()}
@@ -380,52 +500,64 @@ export default function RelatorioCte() {
 
                     {/* Aba Tabela */}
                     {aba === 'tabela' && (
-                        <div className="bg-gray-800 rounded-xl overflow-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="bg-gray-700 text-gray-300 text-xs">
-                                        <th className="text-left px-3 py-2">Motorista</th>
-                                        <th className="text-center px-3 py-2">Coleta</th>
-                                        <th className="text-center px-3 py-2">Nº Lib.</th>
-                                        <th className="text-center px-3 py-2">Lançamento</th>
-                                        <th className="text-center px-3 py-2">CT-e emitido</th>
-                                        <th className="text-center px-3 py-2">Tempo</th>
-                                        <th className="text-center px-3 py-2">Turno</th>
-                                        <th className="text-center px-3 py-2">Origem</th>
-                                        <th className="text-left px-3 py-2">Destino</th>
-                                        <th className="text-left px-3 py-2">Operação</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {[...registros].reverse().map(r => (
-                                        <tr key={r.id} className="border-t border-gray-700 hover:bg-gray-700 transition text-xs">
-                                            <td className="px-3 py-2 text-white">{r.motorista}</td>
-                                            <td className="px-3 py-2 text-center text-gray-400">{r.num_coleta || '—'}</td>
-                                            <td className="px-3 py-2 text-center text-gray-400">{r.num_liberacao || '—'}</td>
-                                            <td className="px-3 py-2 text-center text-gray-500">{formatDateTime(r.data_lancamento)}</td>
-                                            <td className="px-3 py-2 text-center text-gray-300">{formatDateTime(r.datetime_cte)}</td>
-                                            <td className="px-3 py-2 text-center">
-                                                <span className={`font-medium ${r.horas_lancamento_cte > 8 ? 'text-red-400' : r.horas_lancamento_cte > 4 ? 'text-yellow-400' : 'text-green-400'}`}>
-                                                    {formatHoras(r.horas_lancamento_cte)}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 text-center">
-                                                <span className="px-1.5 py-0.5 rounded text-xs"
-                                                    style={{ background: CORES_TURNO[r.turno] + '33', color: CORES_TURNO[r.turno] }}>
-                                                    {r.turno}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 text-center">
-                                                <span className={`px-1.5 py-0.5 rounded text-xs ${r.origem === 'Recife' ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'}`}>
-                                                    {r.origem}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 text-gray-400">{r.destino_cidade ? `${r.destino_cidade}/${r.destino_uf}` : r.destino_uf || '—'}</td>
-                                            <td className="px-3 py-2 text-gray-400">{r.operacao || '—'}</td>
+                        <div style={{ ...glassCard, overflow: 'hidden' }}>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                    <thead>
+                                        <tr>
+                                            {['Motorista', 'Coleta', 'Nº Lib.', 'Lançamento', 'CT-e', 'Tempo', 'Turno', 'Origem', 'Destino', 'Operação'].map((h, i) => (
+                                                <th key={i} style={{
+                                                    padding: '12px 10px',
+                                                    textAlign: i === 0 || i >= 8 ? 'left' : 'center',
+                                                    fontSize: '10px', fontWeight: 700, color: '#64748b',
+                                                    textTransform: 'uppercase', letterSpacing: '0.5px',
+                                                    borderBottom: '1px solid rgba(255,255,255,0.06)',
+                                                    whiteSpace: 'nowrap',
+                                                }}>{h}</th>
+                                            ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {[...registros].reverse().map(r => (
+                                            <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                                <td style={{ padding: '10px', color: '#f1f5f9', fontWeight: 500 }}>{r.motorista}</td>
+                                                <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8' }}>{r.num_coleta || '—'}</td>
+                                                <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8' }}>{r.num_liberacao || '—'}</td>
+                                                <td style={{ padding: '10px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>{formatDateTime(r.data_lancamento)}</td>
+                                                <td style={{ padding: '10px', textAlign: 'center', color: '#cbd5e1', fontSize: '11px' }}>{formatDateTime(r.datetime_cte)}</td>
+                                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                    <span style={{
+                                                        fontWeight: 600,
+                                                        color: r.horas_lancamento_cte > 8 ? '#f87171' : r.horas_lancamento_cte > 4 ? '#facc15' : '#4ade80',
+                                                    }}>
+                                                        {formatHoras(r.horas_lancamento_cte)}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                    <span style={{
+                                                        padding: '2px 8px', borderRadius: '6px',
+                                                        background: (CORES_TURNO[r.turno] || '#6b7280') + '22',
+                                                        color: CORES_TURNO[r.turno] || '#9ca3af',
+                                                        fontSize: '10px', fontWeight: 600,
+                                                    }}>{r.turno}</span>
+                                                </td>
+                                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                    <span style={{
+                                                        padding: '2px 8px', borderRadius: '6px',
+                                                        background: r.origem === 'Recife' ? 'rgba(59,130,246,0.2)' : 'rgba(139,92,246,0.2)',
+                                                        color: r.origem === 'Recife' ? '#60a5fa' : '#a78bfa',
+                                                        fontSize: '10px', fontWeight: 600,
+                                                    }}>{r.origem}</span>
+                                                </td>
+                                                <td style={{ padding: '10px', color: '#94a3b8' }}>
+                                                    {r.destino_cidade ? `${r.destino_cidade}/${r.destino_uf}` : r.destino_uf || '—'}
+                                                </td>
+                                                <td style={{ padding: '10px', color: '#94a3b8' }}>{r.operacao || '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </>
