@@ -244,14 +244,16 @@ export default function RelatorioPerformance() {
                 ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
             </div>`).join('');
 
-        // Gráfico de barras empilhadas usando SVG — funciona em qualquer contexto de impressão
+        // Gráfico de barras empilhadas usando SVG com viewBox — ocupa 100% da largura
         const HMAX = 160;
-        const BARRA_W = 18;
-        const GAP = 4;
+        const LABEL_H = 16;
         const maxGrafico = Math.max(...dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0)), 1);
         const nBars = dadosGrafico.length;
-        const svgW = nBars * (BARRA_W + GAP);
-        const svgH = HMAX + 20; // +20 para labels
+        // viewBox com largura virtual — browser escala para 100%
+        const VW = Math.max(nBars * 22, 300); // largura virtual mínima 300
+        const barW = Math.min(18, Math.floor((VW / nBars) * 0.6));
+        const slotW = VW / nBars;
+        const svgH = HMAX + LABEL_H;
         const svgBars = dadosGrafico.map((d, i) => {
             const sep = d['Separação'] || 0;
             const doca = d['Lib. Doca'] || 0;
@@ -261,18 +263,19 @@ export default function RelatorioPerformance() {
             const hCar = total ? Math.round((carr / total) * hTot) : 0;
             const hDoc = total ? Math.round((doca / total) * hTot) : 0;
             const hSep = hTot - hCar - hDoc;
-            const x = i * (BARRA_W + GAP);
+            const cx = i * slotW + slotW / 2;
+            const x = cx - barW / 2;
             const yCar = HMAX - hCar;
             const yDoc = HMAX - hCar - hDoc;
             const ySep = HMAX - hCar - hDoc - hSep;
             return `
-                ${hSep > 0 ? `<rect x="${x}" y="${ySep}" width="${BARRA_W}" height="${hSep}" fill="#8b5cf6"/>` : ''}
-                ${hDoc > 0 ? `<rect x="${x}" y="${yDoc}" width="${BARRA_W}" height="${hDoc}" fill="#3b82f6"/>` : ''}
-                ${hCar > 0 ? `<rect x="${x}" y="${yCar}" width="${BARRA_W}" height="${hCar}" fill="#f59e0b"/>` : ''}
-                <text x="${x + BARRA_W / 2}" y="${HMAX + 12}" text-anchor="middle" font-size="7" fill="#94a3b8">${d.data}</text>`;
+                ${hSep > 0 ? `<rect x="${x}" y="${ySep}" width="${barW}" height="${hSep}" fill="#8b5cf6"/>` : ''}
+                ${hDoc > 0 ? `<rect x="${x}" y="${yDoc}" width="${barW}" height="${hDoc}" fill="#3b82f6"/>` : ''}
+                ${hCar > 0 ? `<rect x="${x}" y="${yCar}" width="${barW}" height="${hCar}" fill="#f59e0b"/>` : ''}
+                <text x="${cx}" y="${HMAX + 11}" text-anchor="middle" font-size="7" fill="#94a3b8">${d.data}</text>`;
         }).join('');
-        const graficoSVG = `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
-            <line x1="0" y1="${HMAX}" x2="${svgW}" y2="${HMAX}" stroke="#e2e8f0" stroke-width="1"/>
+        const graficoSVG = `<svg viewBox="0 0 ${VW} ${svgH}" width="100%" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+            <line x1="0" y1="${HMAX}" x2="${VW}" y2="${HMAX}" stroke="#e2e8f0" stroke-width="1"/>
             ${svgBars}
         </svg>`;
 
