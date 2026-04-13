@@ -1492,9 +1492,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return null;
             }
 
-            function resolverOperacao(tipoVeiculo) {
-                if (!tipoVeiculo) return 'Outros';
-                const t = tipoVeiculo.toUpperCase();
+            function resolverOperacao(operacao) {
+                if (!operacao) return 'Outros';
+                const t = operacao.toUpperCase();
                 if (t.includes('PLASTICO') || t.includes('PLÁSTICO') || t.includes('DELTA')) return 'Plástico';
                 if (t.includes('PORCELANA')) return 'Porcelana';
                 if (t.includes('ELETRIK') || t.includes('ELÉTRIK')) return 'Eletrik';
@@ -1505,14 +1505,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Buscar marcações com data_contratacao preenchida
             const rows = await dbAll(`
                 SELECT
-                    id, nome_motorista, data_marcacao, data_contratacao,
-                    estados_destino, status_operacional, tipo_veiculo, is_frota,
-                    EXTRACT(EPOCH FROM (data_contratacao::timestamptz - data_marcacao::timestamptz)) / 3600.0 AS horas_contratacao
-                FROM marcacoes_placas
-                WHERE data_marcacao >= $1 AND data_marcacao < $2::date + INTERVAL '1 day'
-                  AND data_contratacao IS NOT NULL
-                  AND EXTRACT(EPOCH FROM (data_contratacao::timestamptz - data_marcacao::timestamptz)) > 0
-                ORDER BY data_marcacao ASC
+                    mp.id, mp.nome_motorista, mp.data_marcacao, mp.data_contratacao,
+                    mp.estados_destino, mp.status_operacional, mp.tipo_veiculo, mp.is_frota,
+                    EXTRACT(EPOCH FROM (mp.data_contratacao::timestamptz - mp.data_marcacao::timestamptz)) / 3600.0 AS horas_contratacao,
+                    v.operacao
+                FROM marcacoes_placas mp
+                LEFT JOIN LATERAL (
+                    SELECT operacao FROM veiculos
+                    WHERE LOWER(TRIM(motorista)) = LOWER(TRIM(mp.nome_motorista))
+                    ORDER BY id DESC LIMIT 1
+                ) v ON true
+                WHERE mp.data_marcacao >= $1 AND mp.data_marcacao < $2::date + INTERVAL '1 day'
+                  AND mp.data_contratacao IS NOT NULL
+                  AND EXTRACT(EPOCH FROM (mp.data_contratacao::timestamptz - mp.data_marcacao::timestamptz)) > 0
+                ORDER BY mp.data_marcacao ASC
             `, [de, ate]);
 
             // Buscar CT-es por UF de destino no período
@@ -1545,7 +1551,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
                 const regioesTocadas = [...new Set(ufs.map(ufParaRegiao).filter(Boolean))];
                 const horas = parseFloat(row.horas_contratacao);
-                const op = resolverOperacao(row.tipo_veiculo);
+                const op = resolverOperacao(row.operacao);
 
                 for (const regiao of regioesTocadas) {
                     if (!regiaoData[regiao]) continue;
