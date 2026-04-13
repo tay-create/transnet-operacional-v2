@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X, AlertTriangle } from 'lucide-react';
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
@@ -151,6 +151,10 @@ export default function GestaoMarcacoes({ socket }) {
         finally { setLoading(false); }
     }, []);
 
+    // Ref sempre aponta para a versão mais recente de carregarMarcacoes
+    // Evita re-registro do socket listener a cada tecla digitada (race condition)
+    const carregarMarcacoesRef = useRef(null);
+
     const carregarMarcacoes = useCallback(async (pagina = 1) => {
         setLoading(true);
         try {
@@ -177,6 +181,9 @@ export default function GestaoMarcacoes({ socket }) {
         finally { setLoading(false); }
     }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Atualiza o ref sempre que carregarMarcacoes muda (nova busca, novo filtro, etc.)
+    useEffect(() => { carregarMarcacoesRef.current = carregarMarcacoes; }, [carregarMarcacoes]);
+
     // Carregar ao mudar de aba
     useEffect(() => {
         if (aba === 'links') carregarTokens();
@@ -196,6 +203,9 @@ export default function GestaoMarcacoes({ socket }) {
         return () => clearTimeout(t);
     }, [buscaMarcacoes]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const paginaMarcacoesRef = useRef(paginaMarcacoes);
+    useEffect(() => { paginaMarcacoesRef.current = paginaMarcacoes; }, [paginaMarcacoes]);
+
     useEffect(() => {
         if (!socket) return;
         const atualizar = (payload) => {
@@ -211,17 +221,17 @@ export default function GestaoMarcacoes({ socket }) {
             }
             // Eventos de token não afetam a lista de marcações
             if (payload?.tipo?.startsWith('token_')) return;
-            // Para nova_marcacao, vai para página 1 para garantir que o novo registro apareça
+            // Usa o ref para garantir que sempre chama a versão mais recente
+            // (com buscaMarcacoes atual, evitando race condition com a busca)
             if (payload?.tipo === 'nova_marcacao') {
-                carregarMarcacoes(1);
+                carregarMarcacoesRef.current?.(1);
                 return;
             }
-            // Para outros eventos, recarrega a página atual
-            carregarMarcacoes(paginaMarcacoes);
+            carregarMarcacoesRef.current?.(paginaMarcacoesRef.current);
         };
         socket.on('marcacao_atualizada', atualizar);
         return () => { socket.off('marcacao_atualizada', atualizar); };
-    }, [socket, aba, carregarMarcacoes, paginaMarcacoes]);
+    }, [socket, aba]); // carregarMarcacoes removido — usa ref para sempre ter a versão atual
 
     async function gerarLink() {
         if (!tel.trim()) { mostrarToast('Informe o telefone.'); return; }
