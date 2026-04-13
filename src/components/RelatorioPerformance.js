@@ -244,29 +244,37 @@ export default function RelatorioPerformance() {
                 ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
             </div>`).join('');
 
-        // Gráfico de barras empilhadas (CSS puro)
-        const HMAX = 160; // px altura total da área do gráfico
+        // Gráfico de barras empilhadas usando SVG — funciona em qualquer contexto de impressão
+        const HMAX = 160;
+        const BARRA_W = 18;
+        const GAP = 4;
         const maxGrafico = Math.max(...dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0)), 1);
-        const graficoBars = dadosGrafico.map(d => {
+        const nBars = dadosGrafico.length;
+        const svgW = nBars * (BARRA_W + GAP);
+        const svgH = HMAX + 20; // +20 para labels
+        const svgBars = dadosGrafico.map((d, i) => {
             const sep = d['Separação'] || 0;
             const doca = d['Lib. Doca'] || 0;
             const carr = d.Carregamento || 0;
             const total = sep + doca + carr;
-            // alturas proporcionais ao máximo global
             const hTot = Math.round((total / maxGrafico) * HMAX);
             const hCar = total ? Math.round((carr / total) * hTot) : 0;
             const hDoc = total ? Math.round((doca / total) * hTot) : 0;
             const hSep = hTot - hCar - hDoc;
-            // barras empilhadas de baixo pra cima: carr (baixo) → doca → sep (topo)
-            return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
-                <div style="height:${HMAX}px;display:flex;flex-direction:column;justify-content:flex-end;width:100%;max-width:22px;">
-                    <div style="width:100%;height:${hSep}px;background:#8b5cf6;"></div>
-                    <div style="width:100%;height:${hDoc}px;background:#3b82f6;"></div>
-                    <div style="width:100%;height:${hCar}px;background:#f59e0b;"></div>
-                </div>
-                <div style="font-size:7px;color:#94a3b8;margin-top:4px;text-align:center;white-space:nowrap;">${d.data}</div>
-            </div>`;
+            const x = i * (BARRA_W + GAP);
+            const yCar = HMAX - hCar;
+            const yDoc = HMAX - hCar - hDoc;
+            const ySep = HMAX - hCar - hDoc - hSep;
+            return `
+                ${hSep > 0 ? `<rect x="${x}" y="${ySep}" width="${BARRA_W}" height="${hSep}" fill="#8b5cf6"/>` : ''}
+                ${hDoc > 0 ? `<rect x="${x}" y="${yDoc}" width="${BARRA_W}" height="${hDoc}" fill="#3b82f6"/>` : ''}
+                ${hCar > 0 ? `<rect x="${x}" y="${yCar}" width="${BARRA_W}" height="${hCar}" fill="#f59e0b"/>` : ''}
+                <text x="${x + BARRA_W / 2}" y="${HMAX + 12}" text-anchor="middle" font-size="7" fill="#94a3b8">${d.data}</text>`;
         }).join('');
+        const graficoSVG = `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+            <line x1="0" y1="${HMAX}" x2="${svgW}" y2="${HMAX}" stroke="#e2e8f0" stroke-width="1"/>
+            ${svgBars}
+        </svg>`;
 
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -286,7 +294,7 @@ export default function RelatorioPerformance() {
   .kpi-valor { font-size: 26px; font-weight: 900; line-height: 1; }
   .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 4px; }
   .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
-  .grafico-wrap { display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid #e2e8f0; margin-bottom: 6px; padding-bottom: 0; }
+  .grafico-wrap { margin-bottom: 6px; overflow-x: auto; }
   .legenda { display: flex; gap: 16px; justify-content: center; margin-top: 6px; }
   .leg-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #64748b; }
   .leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
@@ -306,7 +314,7 @@ export default function RelatorioPerformance() {
   <div class="kpi-grid">${kpiCards}</div>
 
   <div class="section-title">&#9641; Tempo médio por dia (min) — barras empilhadas</div>
-  <div class="grafico-wrap">${graficoBars}</div>
+  <div class="grafico-wrap">${graficoSVG}</div>
   <div class="legenda">
     <div class="leg-item"><div class="leg-dot" style="background:#f59e0b"></div>Carregamento</div>
     <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Lib. Doca</div>
