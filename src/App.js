@@ -36,7 +36,7 @@ const PainelSaldoPaletes   = React.lazy(() => import('./components/PainelSaldoPa
 const ProvisionamentoFrota = React.lazy(() => import('./components/ProvisionamentoFrota'));
 const DashboardFrota       = React.lazy(() => import('./components/DashboardFrota'));
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
-const RelatorioLiberacoes  = React.lazy(() => import('./components/RelatorioLiberacoes'));
+const RelatorioContratacao = React.lazy(() => import('./components/RelatorioContratacao'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
@@ -1391,7 +1391,7 @@ function App({ socket }) {
                 )}
 
                 {abaAtiva === 'relatorio_liberacoes' && temAcesso('relatorios') && (
-                    <RelatorioLiberacoes />
+                    <RelatorioContratacao />
                 )}
 
                 {abaAtiva === 'relatorio_cte' && temAcesso('relatorios') && (
