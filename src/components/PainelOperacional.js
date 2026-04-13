@@ -449,8 +449,7 @@ export default function PainelOperacional({
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
         const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
-        // data_prevista tem prioridade — o card pertence ao dia planejado, não ao dia em que o status mudou
-        const itemData = item.data_prevista || dataCarregadoUnidade || obterDataBrasilia();
+        const itemData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
         // Verificar se a operação do card envolve esta unidade
