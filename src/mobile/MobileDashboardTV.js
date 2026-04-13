@@ -212,11 +212,10 @@ export default function MobileDashboardTV({ socket }) {
     const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
     // STATUS_ORDEM usa o valor do banco ('LIBERADO P/ DOCA') para buscar contagens; label exibido é traduzido.
 
+    // Operações R×M e consolidados contam nas duas unidades (mesma regra do DashboardTV desktop)
     const vRecife = veiculosHoje.filter(v => (v.operacao || '').includes('RECIFE'));
     const vMoreno = veiculosHoje.filter(v => {
         const op = v.operacao || '';
-        // Excluir consolidados que têm RECIFE na operação (ex: PLÁSTICO(RECIFE)/PORCELANA)
-        if (op.includes('RECIFE')) return false;
         return op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
     });
 
