@@ -2114,7 +2114,7 @@ app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamen
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Relatório CT-e — histórico_liberacoes com métricas de tempo e turno
+// Relatório CT-e — histórico_liberacoes com métricas de tempo, turno, heatmap e ociosidade
 app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), async (req, res) => {
     try {
         const { de, ate } = req.query;
@@ -2130,7 +2130,19 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             FROM historico_liberacoes hl
             LEFT JOIN veiculos v ON v.id = hl.veiculo_id
             WHERE hl.datetime_cte >= $1 AND hl.datetime_cte < ($2::date + interval '1 day')
-            ORDER BY hl.datetime_cte DESC
+            ORDER BY hl.datetime_cte ASC
+        `, [de, ate]);
+
+        // Heatmap: dia da semana × hora (fuso Recife = UTC-3)
+        const heatmapRows = await dbAll(`
+            SELECT
+                EXTRACT(DOW FROM datetime_cte AT TIME ZONE 'America/Recife')::int AS dia_semana,
+                EXTRACT(HOUR FROM datetime_cte AT TIME ZONE 'America/Recife')::int AS hora,
+                COUNT(*)::int AS qtd
+            FROM historico_liberacoes
+            WHERE datetime_cte >= $1 AND datetime_cte < ($2::date + interval '1 day')
+            GROUP BY dia_semana, hora
+            ORDER BY dia_semana, hora
         `, [de, ate]);
 
         function turno(dtStr) {
@@ -2156,7 +2168,34 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             turno: turno(row.datetime_cte),
         }));
 
-        res.json({ success: true, registros });
+        // Ociosidade/gargalo por unidade — gaps entre CT-es consecutivos
+        const ociosidade = {};
+        for (const unidade of ['Recife', 'Moreno']) {
+            const ctesDaUnidade = rows
+                .filter(r => r.origem === unidade && r.datetime_cte)
+                .map(r => new Date(r.datetime_cte).getTime())
+                .sort((a, b) => a - b);
+
+            let maxGap = 0;
+            let gapsAcima2h = 0;
+            for (let i = 1; i < ctesDaUnidade.length; i++) {
+                const gapH = (ctesDaUnidade[i] - ctesDaUnidade[i - 1]) / 3600000;
+                if (gapH > maxGap) maxGap = gapH;
+                if (gapH > 2) gapsAcima2h++;
+            }
+            ociosidade[unidade] = {
+                max_gap_horas: ctesDaUnidade.length > 1 ? parseFloat(maxGap.toFixed(2)) : null,
+                gaps_acima_2h: gapsAcima2h,
+                total: ctesDaUnidade.length,
+            };
+        }
+
+        res.json({
+            success: true,
+            registros,
+            heatmap: heatmapRows,
+            ociosidade,
+        });
     } catch (e) {
         console.error('Erro ao buscar relatório CT-e:', e);
         res.status(500).json({ success: false, message: 'Erro interno.' });

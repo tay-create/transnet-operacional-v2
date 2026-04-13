@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Bell,
-    FileText, PieChart, Calculator, PlusCircle, Monitor,
+    FileText, Calculator, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
     Clock, CheckCircle
 } from 'lucide-react';
@@ -189,11 +189,8 @@ export default function Sidebar({
                         <Divider label="Relatórios" aberto={aberto} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Relatório Operacional" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_op'); }} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Performance de Embarque" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_performance'); }} />
-                        <MenuItem icon={<Clock size={20} />} label="Tempo de Liberação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
-                        <MenuItem icon={<FileText size={20} />} label="CT-e & Liberações" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />
-                        {temAcesso('performance_cte') && (
-                            <MenuItem icon={<PieChart size={20} />} label="Performance CT-e" subItem aberto={aberto} onClick={() => { buscarRelatorioCte(); }} />
-                        )}
+                        <MenuItem icon={<Clock size={20} />} label="Tempo Médio de Contratação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
+                        <MenuItem icon={<FileText size={20} />} label="Relatório CT-e" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />
                         <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}

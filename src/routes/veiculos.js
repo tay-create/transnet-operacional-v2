@@ -1471,6 +1471,120 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         }
     });
 
+    // ── Relatório: Tempo Médio de Contratação ──────────────────────────────
+    router.get('/api/relatorio/contratacao', authMiddleware, async (req, res) => {
+        try {
+            const { de, ate } = req.query;
+            if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+
+            const REGIOES = {
+                Norte: ['AM', 'RR', 'AP', 'PA', 'TO', 'RO', 'AC'],
+                Nordeste: ['MA', 'PI', 'CE', 'RN', 'PB', 'PE', 'AL', 'SE', 'BA'],
+                'Centro-Oeste': ['MT', 'MS', 'GO', 'DF'],
+                Sudeste: ['SP', 'RJ', 'MG', 'ES'],
+                Sul: ['PR', 'SC', 'RS'],
+            };
+
+            function ufParaRegiao(uf) {
+                for (const [regiao, ufs] of Object.entries(REGIOES)) {
+                    if (ufs.includes(uf)) return regiao;
+                }
+                return null;
+            }
+
+            function resolverOperacao(tipoVeiculo) {
+                if (!tipoVeiculo) return 'Outros';
+                const t = tipoVeiculo.toUpperCase();
+                if (t.includes('PLASTICO') || t.includes('PLÁSTICO') || t.includes('DELTA')) return 'Plástico';
+                if (t.includes('PORCELANA')) return 'Porcelana';
+                if (t.includes('ELETRIK') || t.includes('ELÉTRIK')) return 'Eletrik';
+                if (t.includes('/')) return 'Consolidados';
+                return 'Outros';
+            }
+
+            // Buscar marcações com data_contratacao preenchida
+            const rows = await dbAll(`
+                SELECT
+                    id, nome_motorista, data_marcacao, data_contratacao,
+                    estados_destino, status_operacional, tipo_veiculo, is_frota,
+                    EXTRACT(EPOCH FROM (data_contratacao::timestamptz - data_marcacao::timestamptz)) / 3600.0 AS horas_contratacao
+                FROM marcacoes_placas
+                WHERE data_marcacao >= $1 AND data_marcacao < $2::date + INTERVAL '1 day'
+                  AND data_contratacao IS NOT NULL
+                  AND EXTRACT(EPOCH FROM (data_contratacao::timestamptz - data_marcacao::timestamptz)) > 0
+                ORDER BY data_marcacao ASC
+            `, [de, ate]);
+
+            // Buscar CT-es por UF de destino no período
+            const cteRows = await dbAll(`
+                SELECT destino_uf, COUNT(*) AS qtd
+                FROM historico_liberacoes
+                WHERE data_lancamento >= $1 AND data_lancamento < $2::date + INTERVAL '1 day'
+                  AND datetime_cte IS NOT NULL
+                  AND destino_uf IS NOT NULL AND destino_uf <> ''
+                GROUP BY destino_uf
+            `, [de, ate]);
+
+            // Montar mapa de CT-es por região
+            const ctesPorRegiao = { Norte: 0, Nordeste: 0, 'Centro-Oeste': 0, Sudeste: 0, Sul: 0 };
+            for (const r of cteRows) {
+                const regiao = ufParaRegiao(r.destino_uf);
+                if (regiao) ctesPorRegiao[regiao] += parseInt(r.qtd, 10);
+            }
+
+            // Calcular por região
+            const regiaoData = {};
+            for (const regiao of Object.keys(REGIOES)) {
+                regiaoData[regiao] = { horas: [], operacoes: {} };
+            }
+
+            for (const row of rows) {
+                let ufs = [];
+                try { ufs = JSON.parse(row.estados_destino || '[]'); } catch {}
+                if (!Array.isArray(ufs)) ufs = [];
+
+                const regioesTocadas = [...new Set(ufs.map(ufParaRegiao).filter(Boolean))];
+                const horas = parseFloat(row.horas_contratacao);
+                const op = resolverOperacao(row.tipo_veiculo);
+
+                for (const regiao of regioesTocadas) {
+                    if (!regiaoData[regiao]) continue;
+                    regiaoData[regiao].horas.push(horas);
+                    regiaoData[regiao].operacoes[op] = (regiaoData[regiao].operacoes[op] || 0) + 1;
+                }
+            }
+
+            const todasHoras = rows.map(r => parseFloat(r.horas_contratacao)).filter(h => !isNaN(h) && h > 0);
+            const media_geral = todasHoras.length
+                ? parseFloat((todasHoras.reduce((a, b) => a + b, 0) / todasHoras.length).toFixed(2))
+                : null;
+
+            const por_regiao = {};
+            for (const [regiao, d] of Object.entries(regiaoData)) {
+                const valid = d.horas.filter(h => !isNaN(h) && h > 0);
+                por_regiao[regiao] = {
+                    media_horas: valid.length ? parseFloat((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2)) : null,
+                    qtd: valid.length,
+                    ctes: ctesPorRegiao[regiao] || 0,
+                    operacoes: d.operacoes,
+                };
+            }
+
+            const frota = rows.filter(r => r.is_frota === 1).length;
+
+            res.json({
+                success: true,
+                media_geral,
+                total: rows.length,
+                frota,
+                por_regiao,
+            });
+        } catch (e) {
+            console.error('Erro ao buscar relatório de contratação:', e);
+            res.status(500).json({ success: false, message: 'Erro interno.' });
+        }
+    });
+
     // ── Finalizar Operação (manual) ────────────────────────────────────────
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
     router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
