@@ -266,20 +266,6 @@ export default function RelatorioPerformance() {
             </div>`;
         }).join('');
 
-        // Linhas da tabela
-        const tabelaRows = linhasOrdenadas.map(l => `
-            <tr>
-                <td>${l.motorista || '—'}</td>
-                <td>${l.operacao || '—'}</td>
-                <td class="center">${l.unidade === 'Recife' ? 'REC' : 'MOR'}</td>
-                <td class="center">${formatDataBR(l.data)}</td>
-                <td class="center num">${formatMin(l.sep_min)}</td>
-                <td class="center num">${formatMin(l.doca_min)}</td>
-                <td class="center num">${formatMin(l.carr_min)}</td>
-                <td class="center num">${formatMin(l.total_patio_min)}</td>
-                <td class="center">${l.pausas_min > 0 ? formatMin(l.pausas_min) : '—'}</td>
-            </tr>`).join('');
-
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -287,33 +273,27 @@ export default function RelatorioPerformance() {
 <title>Performance de Embarque</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; padding: 20px 24px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 16px; }
-  .header h1 { font-size: 18px; font-weight: 900; color: #1e40af; }
-  .header p { font-size: 10px; color: #64748b; margin-top: 2px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; padding: 20px 28px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; margin-bottom: 18px; }
+  .header h1 { font-size: 20px; font-weight: 900; color: #1e40af; }
+  .header p { font-size: 10px; color: #64748b; margin-top: 3px; }
   .header-right { text-align: right; font-size: 9px; color: #94a3b8; line-height: 1.6; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
-  .kpi-card { border-radius: 8px; border: 1px solid #e2e8f0; padding: 10px 8px; text-align: center; }
-  .kpi-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 4px; }
-  .kpi-valor { font-size: 22px; font-weight: 900; line-height: 1; }
-  .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 3px; }
-  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 8px; }
-  .grafico-wrap { display: flex; align-items: flex-end; gap: 4px; height: 140px; border-bottom: 1px solid #e2e8f0; margin-bottom: 4px; overflow: hidden; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+  .kpi-card { border-radius: 10px; border: 1px solid #e2e8f0; padding: 14px 10px; text-align: center; }
+  .kpi-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 6px; }
+  .kpi-valor { font-size: 26px; font-weight: 900; line-height: 1; }
+  .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 4px; }
+  .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+  .grafico-wrap { display: flex; align-items: flex-end; gap: 3px; height: 180px; border-bottom: 1px solid #e2e8f0; margin-bottom: 6px; padding-bottom: 0; }
   .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
-  .bar-stack { display: flex; flex-direction: column-reverse; width: 100%; max-width: 20px; }
+  .bar-stack { display: flex; flex-direction: column-reverse; width: 100%; }
   .bar-seg { width: 100%; }
-  .bar-lbl { font-size: 7px; color: #94a3b8; margin-top: 3px; text-align: center; }
-  .legenda { display: flex; gap: 12px; margin-bottom: 14px; margin-top: 4px; }
-  .leg-item { display: flex; align-items: center; gap: 4px; font-size: 9px; color: #64748b; }
-  .leg-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 10px; }
-  th { padding: 6px 8px; text-align: left; font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-  td { padding: 5px 8px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-  td.center { text-align: center; }
-  td.num { font-weight: 700; color: #0891b2; }
-  tr:nth-child(even) { background: #f8fafc; }
-  .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
-  @media print { body { padding: 12mm 10mm; } @page { margin: 0; size: A4 landscape; } }
+  .bar-lbl { font-size: 7px; color: #94a3b8; margin-top: 4px; text-align: center; white-space: nowrap; }
+  .legenda { display: flex; gap: 16px; justify-content: center; margin-top: 6px; }
+  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #64748b; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
+  @media print { body { padding: 12mm 14mm; } @page { margin: 0; size: A4 landscape; } }
 </style>
 </head>
 <body>
@@ -327,24 +307,13 @@ export default function RelatorioPerformance() {
 
   <div class="kpi-grid">${kpiCards}</div>
 
-  <div class="section-title">Tempo médio por dia (min) — barras empilhadas</div>
+  <div class="section-title">&#9641; Tempo médio por dia (min) — barras empilhadas</div>
   <div class="grafico-wrap">${graficoBars}</div>
   <div class="legenda">
-    <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div>Separação</div>
-    <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Lib. Doca</div>
     <div class="leg-item"><div class="leg-dot" style="background:#f59e0b"></div>Carregamento</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#3b82f6"></div>Lib. Doca</div>
+    <div class="leg-item"><div class="leg-dot" style="background:#8b5cf6"></div>Separação</div>
   </div>
-
-  <div class="section-title">Detalhe por embarque</div>
-  <table>
-    <thead><tr>
-      <th>Motorista</th><th>Operação</th><th style="text-align:center">Un.</th>
-      <th style="text-align:center">Data</th><th style="text-align:center">SEP</th>
-      <th style="text-align:center">DOCA</th><th style="text-align:center">CARR</th>
-      <th style="text-align:center">PÁTIO</th><th style="text-align:center">PAUSA</th>
-    </tr></thead>
-    <tbody>${tabelaRows}</tbody>
-  </table>
 
   <div class="footer">
     <span>Transnet Logística — Performance de Embarque</span>
