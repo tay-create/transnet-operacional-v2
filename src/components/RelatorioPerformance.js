@@ -245,24 +245,26 @@ export default function RelatorioPerformance() {
             </div>`).join('');
 
         // Gráfico de barras empilhadas (CSS puro)
+        const HMAX = 160; // px altura total da área do gráfico
         const maxGrafico = Math.max(...dadosGrafico.map(d => (d['Separação'] || 0) + (d['Lib. Doca'] || 0) + (d.Carregamento || 0)), 1);
         const graficoBars = dadosGrafico.map(d => {
             const sep = d['Separação'] || 0;
             const doca = d['Lib. Doca'] || 0;
             const carr = d.Carregamento || 0;
             const total = sep + doca + carr;
-            const hMax = 120; // px altura máxima da barra
-            const hTot = Math.round((total / maxGrafico) * hMax);
-            const hSep = total ? Math.round((sep / total) * hTot) : 0;
+            // alturas proporcionais ao máximo global
+            const hTot = Math.round((total / maxGrafico) * HMAX);
+            const hCar = total ? Math.round((carr / total) * hTot) : 0;
             const hDoc = total ? Math.round((doca / total) * hTot) : 0;
-            const hCar = hTot - hSep - hDoc;
-            return `<div class="bar-col">
-                <div class="bar-stack" style="height:${hMax}px">
-                    <div class="bar-seg" style="height:${hSep}px;background:#8b5cf6"></div>
-                    <div class="bar-seg" style="height:${hDoc}px;background:#3b82f6"></div>
-                    <div class="bar-seg" style="height:${hCar}px;background:#f59e0b"></div>
+            const hSep = hTot - hCar - hDoc;
+            // barras empilhadas de baixo pra cima: carr (baixo) → doca → sep (topo)
+            return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+                <div style="height:${HMAX}px;display:flex;flex-direction:column;justify-content:flex-end;width:100%;max-width:22px;">
+                    <div style="width:100%;height:${hSep}px;background:#8b5cf6;"></div>
+                    <div style="width:100%;height:${hDoc}px;background:#3b82f6;"></div>
+                    <div style="width:100%;height:${hCar}px;background:#f59e0b;"></div>
                 </div>
-                <div class="bar-lbl">${d.data}</div>
+                <div style="font-size:7px;color:#94a3b8;margin-top:4px;text-align:center;white-space:nowrap;">${d.data}</div>
             </div>`;
         }).join('');
 
@@ -284,11 +286,7 @@ export default function RelatorioPerformance() {
   .kpi-valor { font-size: 26px; font-weight: 900; line-height: 1; }
   .kpi-sub { font-size: 8px; color: #94a3b8; margin-top: 4px; }
   .section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
-  .grafico-wrap { display: flex; align-items: flex-end; gap: 3px; height: 180px; border-bottom: 1px solid #e2e8f0; margin-bottom: 6px; padding-bottom: 0; }
-  .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
-  .bar-stack { display: flex; flex-direction: column-reverse; width: 100%; }
-  .bar-seg { width: 100%; }
-  .bar-lbl { font-size: 7px; color: #94a3b8; margin-top: 4px; text-align: center; white-space: nowrap; }
+  .grafico-wrap { display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid #e2e8f0; margin-bottom: 6px; padding-bottom: 0; }
   .legenda { display: flex; gap: 16px; justify-content: center; margin-top: 6px; }
   .leg-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #64748b; }
   .leg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
