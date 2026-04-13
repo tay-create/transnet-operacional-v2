@@ -151,9 +151,6 @@ export default function GestaoMarcacoes({ socket }) {
         finally { setLoading(false); }
     }, []);
 
-    // Ref sempre aponta para a versão mais recente de carregarMarcacoes
-    // Evita re-registro do socket listener a cada tecla digitada (race condition)
-    const carregarMarcacoesRef = useRef(null);
     // AbortController da última request — cancela requests obsoletas (evita race condition HTTP)
     const abortMarcacoesRef = useRef(null);
 
@@ -166,7 +163,6 @@ export default function GestaoMarcacoes({ socket }) {
         setLoading(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
-            // Filtro de local (NO PÁTIO, NO POSTO, EM CASA) e status (disponivel, indisponivel, contratado) são independentes
             if (filtroDisponibilidade) qp.set('local', filtroDisponibilidade);
             if (filtroStatusOp) qp.set('disponibilidade', filtroStatusOp);
             if (buscaMarcacoes.trim()) qp.set('busca', buscaMarcacoes.trim());
@@ -189,9 +185,10 @@ export default function GestaoMarcacoes({ socket }) {
             console.error(e); mostrarToast('Erro ao carregar marcações.');
         }
         finally { setLoading(false); }
-    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]);
 
-    // Atualiza o ref sempre que carregarMarcacoes muda (nova busca, novo filtro, etc.)
+    // Ref para socket handler — evita re-registro a cada render
+    const carregarMarcacoesRef = useRef(carregarMarcacoes);
     useEffect(() => { carregarMarcacoesRef.current = carregarMarcacoes; }, [carregarMarcacoes]);
 
     // Carregar tokens ao mudar para aba links
@@ -199,14 +196,14 @@ export default function GestaoMarcacoes({ socket }) {
         if (aba === 'links') carregarTokens();
     }, [aba, carregarTokens]);
 
-    // Recarrega com debounce sempre que qualquer filtro ou texto muda
-    // Debounce único cobre texto (evita request por tecla) e dropdowns (reage imediatamente pois buscaMarcacoes não muda)
+    // Recarrega sempre que qualquer filtro, texto ou aba muda
+    // Texto usa debounce de 400ms; dropdowns disparam imediatamente (delay=0)
     useEffect(() => {
         if (aba !== 'placas') return;
         const delay = buscaMarcacoes ? 400 : 0;
-        const t = setTimeout(() => carregarMarcacoesRef.current?.(1), delay);
+        const t = setTimeout(() => carregarMarcacoes(1), delay);
         return () => clearTimeout(t);
-    }, [aba, buscaMarcacoes, filtroDisponibilidade, filtroStatusOp, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [aba, carregarMarcacoes]); // carregarMarcacoes já inclui todos os filtros nas suas deps
 
     const paginaMarcacoesRef = useRef(paginaMarcacoes);
     useEffect(() => { paginaMarcacoesRef.current = paginaMarcacoes; }, [paginaMarcacoes]);
