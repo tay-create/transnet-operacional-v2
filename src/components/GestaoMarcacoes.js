@@ -154,8 +154,15 @@ export default function GestaoMarcacoes({ socket }) {
     // Ref sempre aponta para a versão mais recente de carregarMarcacoes
     // Evita re-registro do socket listener a cada tecla digitada (race condition)
     const carregarMarcacoesRef = useRef(null);
+    // AbortController da última request — cancela requests obsoletas (evita race condition HTTP)
+    const abortMarcacoesRef = useRef(null);
 
     const carregarMarcacoes = useCallback(async (pagina = 1) => {
+        // Cancela request anterior se ainda estiver em voo
+        if (abortMarcacoesRef.current) abortMarcacoesRef.current.abort();
+        const controller = new AbortController();
+        abortMarcacoesRef.current = controller;
+
         setLoading(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
@@ -170,14 +177,17 @@ export default function GestaoMarcacoes({ socket }) {
                 const faixa = FAIXAS_TEMPO.find(f => f.label === filtroTempo);
                 if (faixa) { qp.set('tempo_min', faixa.minutos[0]); qp.set('tempo_max', faixa.minutos[1]); }
             }
-            const r = await api.get(`/api/marcacoes?${qp}`);
+            const r = await api.get(`/api/marcacoes?${qp}`, { signal: controller.signal });
             if (r.data.success) {
                 setMarcacoes(r.data.marcacoes);
                 setTotalMarcacoes(r.data.total || 0);
                 setPaginaMarcacoes(pagina);
                 if (r.data.contadores) setContadoresMarcacoes(r.data.contadores);
             }
-        } catch (e) { console.error(e); mostrarToast('Erro ao carregar marcações.'); }
+        } catch (e) {
+            if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
+            console.error(e); mostrarToast('Erro ao carregar marcações.');
+        }
         finally { setLoading(false); }
     }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]); // eslint-disable-line react-hooks/exhaustive-deps
 
