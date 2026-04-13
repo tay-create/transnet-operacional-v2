@@ -2129,7 +2129,7 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
                 EXTRACT(EPOCH FROM (hl.datetime_cte::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_lancamento_cte
             FROM historico_liberacoes hl
             LEFT JOIN veiculos v ON v.id = hl.veiculo_id
-            WHERE hl.datetime_cte >= $1 AND hl.datetime_cte < ($2::date + interval '1 day')
+            WHERE hl.datetime_cte::timestamptz >= $1::date AND hl.datetime_cte::timestamptz < ($2::date + interval '1 day')
             ORDER BY hl.datetime_cte ASC
         `, [de, ate]);
 
@@ -2140,7 +2140,7 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
                 EXTRACT(HOUR FROM datetime_cte AT TIME ZONE 'America/Recife')::int AS hora,
                 COUNT(*)::int AS qtd
             FROM historico_liberacoes
-            WHERE datetime_cte >= $1 AND datetime_cte < ($2::date + interval '1 day')
+            WHERE datetime_cte::timestamptz >= $1::date AND datetime_cte::timestamptz < ($2::date + interval '1 day')
             GROUP BY dia_semana, hora
             ORDER BY dia_semana, hora
         `, [de, ate]);

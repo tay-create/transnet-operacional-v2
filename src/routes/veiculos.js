@@ -1519,7 +1519,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const cteRows = await dbAll(`
                 SELECT destino_uf, COUNT(*) AS qtd
                 FROM historico_liberacoes
-                WHERE data_lancamento >= $1 AND data_lancamento < $2::date + INTERVAL '1 day'
+                WHERE data_criacao >= $1 AND data_criacao < $2::date + INTERVAL '1 day'
                   AND datetime_cte IS NOT NULL
                   AND destino_uf IS NOT NULL AND destino_uf <> ''
                 GROUP BY destino_uf
