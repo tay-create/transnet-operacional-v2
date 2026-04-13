@@ -23,7 +23,10 @@ function verificarAtraso(oc) {
 function getStatusDisplay(oc) {
     if (oc.situacao === 'RESOLVIDO') return { label: 'RESOLVIDO', color: '#22c55e', bg: 'rgba(34,197,94,0.15)', glow: '0 0 12px rgba(34,197,94,0.4)' };
     const h = calcularHorasAtraso(oc);
-    if (h > 48) return { label: 'ATRASADO +48H', color: '#ff1744', bg: 'rgba(255,23,68,0.2)', glow: '0 0 16px rgba(255,23,68,0.5)' };
+    if (h > 48) {
+        const dias = Math.floor(h / 24);
+        return { label: `ATRASADO +${dias}D`, color: '#ff1744', bg: 'rgba(255,23,68,0.2)', glow: '0 0 16px rgba(255,23,68,0.5)' };
+    }
     if (h > 24) return { label: 'ATRASADO +24H', color: '#ff5252', bg: 'rgba(255,82,82,0.15)', glow: '0 0 12px rgba(255,82,82,0.4)' };
     return { label: 'EM ANDAMENTO', color: '#ff9100', bg: 'rgba(255,145,0,0.15)', glow: '0 0 10px rgba(255,145,0,0.3)' };
 }
