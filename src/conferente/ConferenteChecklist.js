@@ -278,7 +278,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             <Edit2 size={11} />
                         </button>
                     </div>
-                    {timerAtKey && ts[timerAtKey] && <MiniTimer inicioAt={ts[timerAtKey]} pausas={pausas} unidade={unidade} />}
+                    {timerAtKey && ts[timerAtKey] && v.status_cte !== 'Emitido' && <MiniTimer inicioAt={ts[timerAtKey]} pausas={pausas} unidade={unidade} />}
                     {temPausaAtiva && (
                         <span style={{ fontSize: '10px', fontWeight: '700', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                             ⏸ PAUSADO
@@ -452,9 +452,15 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
 
                     {/* Último status atingido */}
                     {!proximoStatus && (
-                        <div style={{ textAlign: 'center', padding: '10px', color: '#4ade80', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                            <CheckCircle size={16} /> Operação finalizada — aguardando CTE
-                        </div>
+                        v.status_cte === 'Emitido' ? (
+                            <div style={{ textAlign: 'center', padding: '10px', color: '#4ade80', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <CheckCircle size={16} /> CT-e emitido
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: '10px', color: '#94a3b8', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                <CheckCircle size={16} /> Operação finalizada — aguardando CT-e
+                            </div>
+                        )
                     )}
                 </div>
             )}
@@ -638,12 +644,14 @@ export default function ConferenteChecklist({ socket }) {
         const handler = () => carregarVeiculos();
         socket.on('receber_atualizacao', handler);
         socket.on('conferente_novo_veiculo', handler);
-        // Quando o Cadastro libera/atualiza situação do motorista, recarregar para refletir o novo status
         socket.on('cadastro_situacao_atualizada', handler);
+        // CT-e emitido no painel CTE → atualiza status_cte no card
+        socket.on('cadastro_cte_emitido', handler);
         return () => {
             socket.off('receber_atualizacao', handler);
             socket.off('conferente_novo_veiculo', handler);
             socket.off('cadastro_situacao_atualizada', handler);
+            socket.off('cadastro_cte_emitido', handler);
         };
     }, [socket, carregarVeiculos]);
 
