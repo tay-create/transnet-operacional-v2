@@ -185,7 +185,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Recife' as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, 'Recife' as _cidade
                      FROM veiculos WHERE status_recife IN (${placeholders})
                        AND (
                          (status_recife != 'CARREGADO' AND data_prevista = ?)
@@ -199,7 +199,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, 'Moreno' as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, 'Moreno' as _cidade
                      FROM veiculos WHERE status_moreno IN (${placeholders})
                        AND (
                          (status_moreno != 'CARREGADO' AND data_prevista = ?)
@@ -220,7 +220,7 @@ module.exports = function createChecklistsRouter(io) {
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
-                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, ? as _cidade
+                        numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, ? as _cidade
                      FROM veiculos WHERE ${statusField} IN (${placeholders})
                        AND (
                          (${statusField} != 'CARREGADO' AND data_prevista = ?)
@@ -274,7 +274,8 @@ module.exports = function createChecklistsRouter(io) {
                     coletaRecife,
                     coletaMoreno,
                     isMista,
-                    checklistAprovado
+                    checklistAprovado,
+                    status_cte: v.status_cte || ''
                 };
             }));
 
