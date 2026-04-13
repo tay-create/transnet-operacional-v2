@@ -1514,7 +1514,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     SELECT operacao FROM veiculos
                     WHERE LOWER(TRIM(motorista)) = LOWER(TRIM(mp.nome_motorista))
                       AND operacao IS NOT NULL AND operacao <> ''
-                    ORDER BY ABS(COALESCE(data_prevista, CURRENT_DATE)::date - mp.data_contratacao::timestamptz::date) ASC, id DESC
+                    ORDER BY ABS(COALESCE(data_prevista::date, CURRENT_DATE) - mp.data_contratacao::timestamptz::date) ASC, id DESC
                     LIMIT 1
                 ) v ON true
                 WHERE mp.data_marcacao >= $1 AND mp.data_marcacao < $2::date + INTERVAL '1 day'
