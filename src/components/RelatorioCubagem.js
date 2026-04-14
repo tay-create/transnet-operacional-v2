@@ -5,10 +5,191 @@ import {
 } from 'recharts';
 import {
     Warehouse, Filter, Calendar, DollarSign, Box, Package,
-    Weight, TrendingUp, RefreshCw, ChevronDown, ChevronUp
+    Weight, TrendingUp, RefreshCw, ChevronDown, ChevronUp, FileDown
 } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
+
+// ── PDF do Relatório ──────────────────────────────────────────────────────────
+
+function gerarPdfRelatorio(dados, kpis, dadosBarras, de, ate) {
+    if (!dados || !kpis) return;
+
+    const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const fmtData = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const HORAS = Array.from({ length: 17 }, (_, i) => i + 6);
+
+    // ── Heatmap grid ──────────────────────────────────────────────────────────
+    const hmGrid = {};
+    let hmMax = 1;
+    (dados.heatmap || []).forEach(({ dia_semana, hora, qtd }) => {
+        if (!hmGrid[dia_semana]) hmGrid[dia_semana] = {};
+        hmGrid[dia_semana][hora] = qtd;
+        if (qtd > hmMax) hmMax = qtd;
+    });
+
+    // ── SVG barras por região ─────────────────────────────────────────────────
+    const SVG_W = 760, BAR_W = 22, PAIR_GAP = 6, GRP_GAP = 28, SVG_H = 260, BOTTOM = 50, MAX_H = 180;
+    const maxM3 = Math.max(...dadosBarras.map(d => d.m3), 1);
+    const maxVal = Math.max(...dadosBarras.map(d => d.valor), 1);
+    let svgBars = '';
+    let svgLabels = '';
+    let svgVals = '';
+    let x = 30;
+    dadosBarras.forEach(d => {
+        const h1 = Math.max(2, (d.m3 / maxM3) * MAX_H);
+        const h2 = Math.max(2, (d.valor / maxVal) * MAX_H);
+        const y1 = SVG_H - BOTTOM - h1;
+        const y2 = SVG_H - BOTTOM - h2;
+        svgBars += `<rect x="${x}" y="${y1}" width="${BAR_W}" height="${h1}" fill="#3b82f6" rx="3"/>`;
+        svgBars += `<rect x="${x + BAR_W + PAIR_GAP}" y="${y2}" width="${BAR_W}" height="${h2}" fill="#f59e0b" rx="3"/>`;
+        const cx = x + BAR_W + PAIR_GAP / 2;
+        svgLabels += `<text x="${cx}" y="${SVG_H - 6}" text-anchor="middle" font-size="10" fill="#64748b">${d.regiao.substring(0, 8)}</text>`;
+        svgVals += `<text x="${x + BAR_W / 2}" y="${y1 - 4}" text-anchor="middle" font-size="9" fill="#3b82f6">${d.m3.toFixed(1)}</text>`;
+        svgVals += `<text x="${x + BAR_W + PAIR_GAP + BAR_W / 2}" y="${y2 - 4}" text-anchor="middle" font-size="9" fill="#f59e0b">${fmtBRL(d.valor).replace('R$\u00a0', 'R$')}</text>`;
+        x += BAR_W * 2 + PAIR_GAP + GRP_GAP;
+    });
+    const svgWidth = x;
+
+    // ── Heatmap HTML ──────────────────────────────────────────────────────────
+    const hmHeaderCells = HORAS.map(h => `<th style="min-width:28px;font-size:9px;font-weight:normal;color:#94a3b8;padding:2px 0;text-align:center">${h}h</th>`).join('');
+    const hmRows = DIAS.map((dia, di) => {
+        const cells = HORAS.map(h => {
+            const qtd = (hmGrid[di] || {})[h] || 0;
+            const op = qtd > 0 ? (0.15 + (qtd / hmMax) * 0.85).toFixed(2) : '0';
+            return `<td style="background:rgba(217,119,6,${op});width:28px;height:22px;border-radius:3px;text-align:center;font-size:9px;color:${qtd > 0 ? '#fff' : 'transparent'}">${qtd || ''}</td>`;
+        }).join('');
+        return `<tr><td style="font-size:10px;color:#64748b;padding-right:8px;font-weight:600">${dia}</td>${cells}</tr>`;
+    }).join('');
+
+    // ── Tabela cubagens ───────────────────────────────────────────────────────
+    const cubagens = dados.cubagens || [];
+    const linhasCub = cubagens.map((c, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+        const redesp = c.redespacho ? `<span style="background:#ea580c;color:#fff;font-size:9px;padding:2px 6px;border-radius:3px;margin-left:4px">Redesp.</span>` : '';
+        return `<tr style="background:${bg}">
+            <td>${fmtData(c.data_criacao)}</td>
+            <td>${c.numero_coleta || '—'}</td>
+            <td>${c.cliente || '—'}${redesp}</td>
+            <td>${c.destino || '—'}</td>
+            <td style="text-align:right">${Number(c.metragem_total || 0).toFixed(3)}</td>
+            <td style="text-align:right">${fmtBRL(c.valor_total)}</td>
+            <td style="text-align:right">${Number(c.valor_mix_total || 0).toFixed(2)}</td>
+            <td style="text-align:right">${Number(c.valor_kit_total || 0).toFixed(2)}</td>
+        </tr>`;
+    }).join('');
+    const totalRow = `<tr style="background:#d97706;color:#fff;font-weight:700">
+        <td colspan="4">TOTAL (${cubagens.length} cubagens)</td>
+        <td style="text-align:right">${kpis.m3.toFixed(3)}</td>
+        <td style="text-align:right">${fmtBRL(kpis.valor)}</td>
+        <td style="text-align:right">${kpis.mix.toFixed(2)}</td>
+        <td style="text-align:right">${kpis.kit.toFixed(2)}</td>
+    </tr>`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Relatório Cubagem Porcelana ${de} a ${ate}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 0; background: #f8fafc; }
+        .header { background: linear-gradient(135deg, #d97706, #92400e); color: #fff; padding: 24px 32px; }
+        .header h1 { margin: 0 0 4px; font-size: 20px; }
+        .header p { margin: 0; font-size: 12px; opacity: 0.8; }
+        .body { padding: 24px 32px; }
+        .section-title { font-size: 12px; font-weight: 700; color: #78716c; text-transform: uppercase;
+            letter-spacing: 0.8px; margin: 24px 0 12px; border-bottom: 2px solid #fef3c7; padding-bottom: 6px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 10px; margin-bottom: 24px; }
+        .kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 10px; text-align: center; }
+        .kpi-label { font-size: 9px; font-weight: 700; color: #94a3b8; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
+        .kpi-val { font-size: 18px; font-weight: 800; }
+        .regiao-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+        .regiao-card { background: #fff; border-left: 4px solid #d97706; border-radius: 6px; padding: 10px 14px; min-width: 140px; }
+        .regiao-nome { font-size: 11px; font-weight: 700; color: #92400e; margin-bottom: 6px; }
+        .regiao-row { font-size: 10px; color: #64748b; line-height: 1.8; }
+        .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        .chart-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+        .chart-box h3 { font-size: 11px; font-weight: 700; color: #78716c; text-transform: uppercase; margin: 0 0 12px; letter-spacing: 0.6px; }
+        table { border-collapse: collapse; width: 100%; font-size: 11px; }
+        th { background: #d97706; color: #fff; padding: 8px 10px; text-align: left; font-size: 10px; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        .legend { display: flex; gap: 16px; align-items: center; font-size: 10px; color: #64748b; margin-top: 8px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
+        .hm-table { border-collapse: separate; border-spacing: 2px; }
+        .hm-table td, .hm-table th { border: none; }
+    </style></head><body>
+    <div class="header">
+        <h1>TRANSNET — Relatório de Cubagem Porcelana</h1>
+        <p>Período: ${de} a ${ate} &nbsp;|&nbsp; Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+    </div>
+    <div class="body">
+
+        <div class="section-title">Indicadores do Período</div>
+        <div class="kpi-grid">
+            <div class="kpi"><div class="kpi-label">Cubagens</div><div class="kpi-val" style="color:#f59e0b">${kpis.qtd}</div></div>
+            <div class="kpi"><div class="kpi-label">M³ Total</div><div class="kpi-val" style="color:#3b82f6">${kpis.m3.toFixed(3)}</div></div>
+            <div class="kpi"><div class="kpi-label">Valor Total</div><div class="kpi-val" style="color:#4ade80;font-size:14px">${fmtBRL(kpis.valor)}</div></div>
+            <div class="kpi"><div class="kpi-label">Peso Total</div><div class="kpi-val" style="color:#60a5fa;font-size:14px">${kpis.peso.toLocaleString('pt-BR')} kg</div></div>
+            <div class="kpi"><div class="kpi-label">Mix</div><div class="kpi-val" style="color:#a78bfa">${kpis.mix.toFixed(2)}</div></div>
+            <div class="kpi"><div class="kpi-label">Kit</div><div class="kpi-val" style="color:#818cf8">${kpis.kit.toFixed(2)}</div></div>
+            <div class="kpi"><div class="kpi-label">Redespacho</div><div class="kpi-val" style="color:#fb923c">${kpis.redespacho} (${kpis.qtd > 0 ? Math.round(kpis.redespacho / kpis.qtd * 100) : 0}%)</div></div>
+        </div>
+
+        <div class="section-title">Distribuição por Região</div>
+        <div class="regiao-grid">
+            ${(dados.por_regiao || []).map(r => `
+            <div class="regiao-card">
+                <div class="regiao-nome">${r.regiao || 'Outros'}</div>
+                <div class="regiao-row">M³: <strong>${Number(r.m3_total || 0).toFixed(3)}</strong></div>
+                <div class="regiao-row">Valor: <strong>${fmtBRL(r.valor_total)}</strong></div>
+                <div class="regiao-row">Peso: <strong>${Number(r.peso_total || 0).toLocaleString('pt-BR')} kg</strong></div>
+                <div class="regiao-row">Volumes: <strong>${Number(r.volumes_total || 0)}</strong></div>
+            </div>`).join('')}
+        </div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3>M³ e Valor por Região</h3>
+                <svg width="${svgWidth}" height="${SVG_H}" style="overflow:visible">
+                    ${svgBars}${svgVals}${svgLabels}
+                </svg>
+                <div class="legend">
+                    <span><span class="legend-dot" style="background:#3b82f6"></span>M³</span>
+                    <span><span class="legend-dot" style="background:#f59e0b"></span>Valor R$</span>
+                </div>
+            </div>
+            <div class="chart-box">
+                <h3>Horário de Emissão (Heatmap)</h3>
+                <table class="hm-table">
+                    <thead><tr><th></th>${hmHeaderCells}</tr></thead>
+                    <tbody>${hmRows}</tbody>
+                </table>
+                <div class="legend" style="margin-top:6px">
+                    ${[0.15, 0.35, 0.55, 0.75, 1.0].map(o => `<span><span class="legend-dot" style="background:rgba(217,119,6,${o})"></span></span>`).join('')}
+                    <span style="font-size:9px">menos → mais</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Cubagens no Período</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th><th>Coleta</th><th>Cliente</th><th>Destino</th>
+                    <th style="text-align:right">M³</th><th style="text-align:right">Valor</th>
+                    <th style="text-align:right">Mix</th><th style="text-align:right">Kit</th>
+                </tr>
+            </thead>
+            <tbody>${linhasCub}</tbody>
+            <tfoot>${totalRow}</tfoot>
+        </table>
+    </div>
+    </body></html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) win.focus();
+}
 
 // ── Estilos ──────────────────────────────────────────────────────────────────
 
@@ -180,6 +361,22 @@ export default function RelatorioCubagem() {
                         <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
                         {loading ? 'Buscando...' : 'Buscar'}
                     </button>
+                    <button
+                        onClick={() => gerarPdfRelatorio(dados, kpis, dadosBarras, de, ate)}
+                        disabled={!dados}
+                        style={{
+                            background: dados ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            borderRadius: '8px', color: dados ? '#fff' : 'rgba(255,255,255,0.3)',
+                            cursor: dados ? 'pointer' : 'not-allowed',
+                            padding: '8px 18px', fontSize: '13px', fontWeight: '600',
+                            display: 'flex', alignItems: 'center', gap: '6px'
+                        }}
+                        title={dados ? 'Exportar relatório como PDF' : 'Busque os dados primeiro'}
+                    >
+                        <FileDown size={14} />
+                        Exportar PDF
+                    </button>
                 </div>
             </div>
 
@@ -207,8 +404,8 @@ export default function RelatorioCubagem() {
                             { label: 'M³ TOTAL', valor: kpis.m3, cor: '#3b82f6', icon: <Box size={16} />, fmt: v => v.toFixed(3) },
                             { label: 'VALOR TOTAL', valor: kpis.valor, cor: '#4ade80', icon: <DollarSign size={16} />, fmt: fmtBRL },
                             { label: 'PESO TOTAL', valor: kpis.peso, cor: '#60a5fa', icon: <Weight size={16} />, fmt: v => `${v.toLocaleString('pt-BR')} kg` },
-                            { label: 'MIX', valor: kpis.mix, cor: '#a78bfa', icon: <TrendingUp size={16} />, fmt: v => Number(v).toFixed(4) },
-                            { label: 'KIT', valor: kpis.kit, cor: '#818cf8', icon: <Package size={16} />, fmt: v => Number(v).toFixed(4) },
+                            { label: 'MIX', valor: kpis.mix, cor: '#a78bfa', icon: <TrendingUp size={16} />, fmt: v => Number(v).toFixed(2) },
+                            { label: 'KIT', valor: kpis.kit, cor: '#818cf8', icon: <Package size={16} />, fmt: v => Number(v).toFixed(2) },
                             { label: 'REDESPACHO', valor: kpis.redespacho, cor: '#fb923c', icon: <TrendingUp size={16} />, fmt: v => `${v} (${kpis.qtd > 0 ? Math.round((v / kpis.qtd) * 100) : 0}%)` },
                         ].map(({ label, valor, cor, icon, fmt }) => (
                             <div key={label} style={{ ...glassCard, padding: '16px', border: `1px solid ${cor}25` }}>

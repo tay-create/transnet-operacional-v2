@@ -3,8 +3,9 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX
+    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX, Download
 } from 'lucide-react';
+import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalConfirm from './ModalConfirm';
 import ModalImagem from './ModalImagem';
@@ -207,6 +208,7 @@ export default function PainelOperacional({
     const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
     const [frotaOrigem, setFrotaOrigem] = useState('');
     const [frotaDestino, setFrotaDestino] = useState('');
+    const [loadingPdf, setLoadingPdf] = useState({});
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -1493,6 +1495,38 @@ export default function PainelOperacional({
 
                                                 {/* Botões de Ação */}
                                                 <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', alignItems: 'center' }}>
+                                                    {/* Botão PDF Cubagem — só para PORCELANA */}
+                                                    {item.operacao?.includes('PORCELANA') && item.coletaMoreno && (
+                                                        <button
+                                                            disabled={!!loadingPdf[item.id]}
+                                                            onClick={async () => {
+                                                                const coleta = item.coletaMoreno.split(',')[0].trim();
+                                                                if (!coleta) return;
+                                                                setLoadingPdf(p => ({ ...p, [item.id]: true }));
+                                                                try {
+                                                                    const res = await api.get(`/cubagens/coleta/${coleta}`);
+                                                                    if (res.data?.success && res.data.cubagem) {
+                                                                        gerarPdfCubagem(res.data.cubagem);
+                                                                    }
+                                                                } finally {
+                                                                    setLoadingPdf(p => ({ ...p, [item.id]: false }));
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: '4px',
+                                                                padding: '5px 10px', borderRadius: '6px',
+                                                                background: 'rgba(168,85,247,0.15)',
+                                                                border: '1px solid rgba(168,85,247,0.4)',
+                                                                color: '#c084fc', fontSize: '11px', fontWeight: '600',
+                                                                cursor: loadingPdf[item.id] ? 'not-allowed' : 'pointer',
+                                                                opacity: loadingPdf[item.id] ? 0.6 : 1,
+                                                            }}
+                                                            title="Baixar PDF da cubagem"
+                                                        >
+                                                            <Download size={13} />
+                                                            {loadingPdf[item.id] ? '...' : 'PDF'}
+                                                        </button>
+                                                    )}
                                                     {isMista && souPrimeira && user.cidade === origem && (
                                                         <button onClick={() => socket.emit('enviar_alerta', { tipo: 'aviso', origem: origem, mensagem: `Veículo ${item.motorista} saindo!` })} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', border: 'none', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Avisar Saída">
                                                             <Truck size={16} />
