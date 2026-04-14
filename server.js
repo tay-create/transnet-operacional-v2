@@ -3302,7 +3302,7 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
     try {
         const saJson  = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
         const sheetId = process.env.SHEETS_PORCELANA_ID;
-        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques!A1:AJ500';
+        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques - ABRIL 2026!A1:AJ500';
 
         if (!saJson || !sheetId) {
             return res.json({ success: true, configurado: false, linhas: [] });
