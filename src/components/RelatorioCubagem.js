@@ -16,7 +16,7 @@ function gerarPdfRelatorio(dados, kpis, dadosBarras, de, ate) {
     if (!dados || !kpis) return;
 
     const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const fmtData = s => s ? new Date(s + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const fmtData = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR'); };
     const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const HORAS = Array.from({ length: 17 }, (_, i) => i + 6);
 
