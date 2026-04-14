@@ -1406,7 +1406,7 @@ export default function PainelOperacional({
                                                 )}
 
                                                 {/* Preview das Imagens */}
-                                                {item.imagens && item.imagens.length > 0 && (
+                                                {Array.isArray(item.imagens) && item.imagens.length > 0 && (
                                                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                                                         {item.imagens.map((img, idx) => (
                                                             <div key={idx} style={{ position: 'relative', width: '60px', height: '60px' }}>

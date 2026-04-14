@@ -331,7 +331,11 @@ function App({ socket }) {
         else if (data.tipo === 'atualiza_veiculo') {
             const temDados = data.status_recife !== undefined || data.status_moreno !== undefined || data.status_cte !== undefined || data.dados_json !== undefined || data.motorista !== undefined;
             if (temDados) {
-                setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+                const dataNormalizado = { ...data };
+                if (dataNormalizado.imagens && !Array.isArray(dataNormalizado.imagens)) {
+                    try { dataNormalizado.imagens = JSON.parse(dataNormalizado.imagens); } catch { dataNormalizado.imagens = []; }
+                }
+                setListaVeiculos(prev => prev.map(c => c.id === data.id ? { ...c, ...dataNormalizado } : c));
             } else {
                 // Só veio o id — busca dado completo do banco para não perder campos
                 api.get(`/veiculos/${data.id}`).then(r => {
