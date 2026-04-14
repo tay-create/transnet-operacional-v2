@@ -31,6 +31,18 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     // Backup para reverter em caso de erro
     const itemOriginal = { ...lista[realIndex] };
 
+    // Bloquear troca de operação quando a nova unidade exigida está sem coleta
+    const coletaRecifeAtual = (lista[realIndex].coletaRecife || '').trim();
+    const coletaMorenoAtual = (lista[realIndex].coletaMoreno || '').trim();
+    if (precisaRecife && !coletaRecifeAtual) {
+        mostrarNotificacao('⚠️ Defina a coleta de Recife antes de trocar para esta operação.');
+        return;
+    }
+    if (precisaMoreno && !coletaMorenoAtual) {
+        mostrarNotificacao('⚠️ Defina a coleta de Moreno antes de trocar para esta operação.');
+        return;
+    }
+
     // Construir objeto com todas as mudancas de uma vez
     const novaLista = [...lista];
     const itemAtualizado = { ...novaLista[realIndex], operacao: novaOperacao };

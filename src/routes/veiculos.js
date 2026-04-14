@@ -494,6 +494,16 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const precisaRecife = op.includes('RECIFE');
             const precisaMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
 
+            // Trava: coleta obrigatória para a unidade exigida pela operação (backstop do POST)
+            const temColetaRecifePut = (v.coletaRecife || '').trim().length > 0;
+            const temColetaMorenoPut = (v.coletaMoreno || '').trim().length > 0;
+            if (precisaRecife && !temColetaRecifePut) {
+                return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
+            }
+            if (precisaMoreno && !temColetaMorenoPut) {
+                return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
+            }
+
             if (!precisaRecife) {
                 v.coletaRecife = '';
                 v.rotaRecife = '';
