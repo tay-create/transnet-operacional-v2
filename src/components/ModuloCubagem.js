@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Warehouse, RefreshCw, Filter, CheckSquare, Square, Save,
-    AlertCircle, Clock, Package, Truck, Box, ChevronUp, ChevronDown
+    AlertCircle, Clock, Package, Truck, Box, ChevronUp, ChevronDown,
+    DollarSign, X
 } from 'lucide-react';
 import api from '../services/apiService';
 
@@ -65,6 +66,9 @@ export default function ModuloCubagem() {
     const [salvando, setSalvando] = useState(false);
     const [aviso, setAviso] = useState(null);
     const [ordenacao, setOrdenacao] = useState({ col: null, dir: 'asc' });
+    const [modalRedespacho, setModalRedespacho] = useState(false);
+    const [nomeRedespacho, setNomeRedespacho] = useState('');
+    const [redespacho, setRedespacho] = useState(null); // null=nao decidido, false=nao, true=sim
     const countdownRef = useRef(POLL_INTERVAL);
     const timerRef = useRef(null);
 
@@ -117,14 +121,16 @@ export default function ModuloCubagem() {
         const sel = linhasFiltradas.filter(r => selecionados.has(r._idx));
         const totalM3 = sel.reduce((s, r) => s + r.m3, 0);
         const base = totalM3 * 1.10;
-        const mix = Math.round(base / 2.5 / 1.3);
-        const kit = Math.round(base / 2.5 / 1.9);
+        const mix = sel.reduce((s, r) => s + (r.valor_mix || 0), 0);
+        const kit = sel.reduce((s, r) => s + (r.valor_kit || 0), 0);
+        const valorTotal = sel.reduce((s, r) => s + (r.valor || 0), 0);
         return {
             qtd: sel.length,
             m3: totalM3,
             base,
             mix,
             kit,
+            valorTotal,
             volumes: sel.reduce((s, r) => s + r.volumes, 0),
             peso: sel.reduce((s, r) => s + r.peso_kg, 0),
         };
@@ -152,10 +158,16 @@ export default function ModuloCubagem() {
         );
     };
 
-    const salvar = async () => {
+    const abrirModalRedespacho = () => {
         if (!coleta.trim()) { setAviso('Informe o número da coleta.'); return; }
         if (totais.qtd === 0) { setAviso('Selecione ao menos uma linha.'); return; }
+        setRedespacho(null);
+        setNomeRedespacho('');
+        setModalRedespacho(true);
+    };
 
+    const salvar = async (isRedespacho, nomeRed) => {
+        setModalRedespacho(false);
         const sel = linhasFiltradas.filter(r => selecionados.has(r._idx));
         const clientesPrincipais = [...new Set(sel.map(r => r.cliente).filter(Boolean))].slice(0, 3).join(', ');
         const destinos = [...new Set(sel.map(r => r.uf).filter(Boolean))].join('/');
@@ -165,17 +177,27 @@ export default function ModuloCubagem() {
             numero_coleta: coleta.trim(),
             motorista: sel[0]?.motorista || '',
             cliente: clientesPrincipais || 'Porcelana',
-            redespacho: false,
-            nome_redespacho: '',
+            redespacho: isRedespacho,
+            nome_redespacho: nomeRed || '',
             destino: destinos || 'Múltiplos',
             volume: String(totais.volumes),
             data: hoje,
             faturado: false,
             tipo: 'Porcelana',
             metragem_total: parseFloat(totais.m3.toFixed(3)),
-            valor_mix_total: totais.mix,
-            valor_kit_total: totais.kit,
-            itens: sel.map(r => ({ numero_nf: r.nf, metragem: r.m3 })),
+            valor_mix_total: parseFloat(totais.mix.toFixed(2)),
+            valor_kit_total: parseFloat(totais.kit.toFixed(2)),
+            valor_total: parseFloat(totais.valorTotal.toFixed(2)),
+            peso_total: parseFloat(totais.peso.toFixed(1)),
+            itens: sel.map(r => ({
+                numero_nf: r.nf,
+                metragem: r.m3,
+                uf: r.uf || '',
+                regiao: r.regiao || '',
+                valor: r.valor || 0,
+                volumes: r.volumes || 0,
+                peso_kg: r.peso_kg || 0,
+            })),
         };
 
         setSalvando(true);
@@ -199,6 +221,8 @@ export default function ModuloCubagem() {
         if (ordenacao.col !== col) return null;
         return ordenacao.dir === 'asc' ? <ChevronUp size={10} /> : <ChevronDown size={10} />;
     };
+
+    const fmtBRL = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     // ── Tela não configurado ──────────────────────────────────────────────────
     if (!configurado) {
@@ -227,6 +251,117 @@ export default function ModuloCubagem() {
 
     return (
         <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto' }}>
+
+            {/* MODAL REDESPACHO */}
+            {modalRedespacho && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 1000
+                }}>
+                    <div style={{
+                        ...glassCard,
+                        border: '1px solid rgba(251,191,36,0.35)',
+                        padding: '28px 32px',
+                        maxWidth: '420px', width: '90%',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <div style={{ color: '#fbbf24', fontSize: '16px', fontWeight: '700' }}>
+                                Cubagem com Redespacho?
+                            </div>
+                            <button onClick={() => setModalRedespacho(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {redespacho === null && (
+                            <>
+                                <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '24px', lineHeight: '1.6' }}>
+                                    Esta cubagem é um <strong style={{ color: '#fbbf24' }}>Redespacho</strong>?
+                                </p>
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button
+                                        onClick={() => salvar(false, '')}
+                                        style={{
+                                            flex: 1, padding: '10px', borderRadius: '8px',
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid rgba(255,255,255,0.12)',
+                                            color: '#e2e8f0', cursor: 'pointer', fontSize: '14px', fontWeight: '600'
+                                        }}
+                                    >
+                                        Não
+                                    </button>
+                                    <button
+                                        onClick={() => setRedespacho(true)}
+                                        style={{
+                                            flex: 1, padding: '10px', borderRadius: '8px',
+                                            background: 'linear-gradient(135deg, #d97706, #92400e)',
+                                            border: 'none',
+                                            color: '#fff', cursor: 'pointer', fontSize: '14px', fontWeight: '700'
+                                        }}
+                                    >
+                                        Sim
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
+                        {redespacho === true && (
+                            <>
+                                <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>
+                                    Nome do redespacho:
+                                </p>
+                                <input
+                                    autoFocus
+                                    value={nomeRedespacho}
+                                    onChange={e => setNomeRedespacho(e.target.value)}
+                                    placeholder="Ex: Transportadora XYZ"
+                                    style={{
+                                        width: '100%', boxSizing: 'border-box',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(251,191,36,0.3)',
+                                        borderRadius: '8px', color: '#e2e8f0',
+                                        padding: '10px 14px', fontSize: '14px', marginBottom: '20px'
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter' && nomeRedespacho.trim()) salvar(true, nomeRedespacho.trim());
+                                    }}
+                                />
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <button
+                                        onClick={() => setRedespacho(null)}
+                                        style={{
+                                            flex: 1, padding: '10px', borderRadius: '8px',
+                                            background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid rgba(255,255,255,0.12)',
+                                            color: '#94a3b8', cursor: 'pointer', fontSize: '13px'
+                                        }}
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        onClick={() => { if (nomeRedespacho.trim()) salvar(true, nomeRedespacho.trim()); }}
+                                        disabled={!nomeRedespacho.trim()}
+                                        style={{
+                                            flex: 2, padding: '10px', borderRadius: '8px',
+                                            background: nomeRedespacho.trim()
+                                                ? 'linear-gradient(135deg, #d97706, #92400e)'
+                                                : 'rgba(255,255,255,0.03)',
+                                            border: 'none',
+                                            color: nomeRedespacho.trim() ? '#fff' : '#475569',
+                                            cursor: nomeRedespacho.trim() ? 'pointer' : 'not-allowed',
+                                            fontSize: '14px', fontWeight: '700'
+                                        }}
+                                    >
+                                        Confirmar Redespacho
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* AVISO */}
             {aviso && (
@@ -303,21 +438,22 @@ export default function ModuloCubagem() {
 
             {/* CARDS DE TOTAIS */}
             {totais.qtd > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '12px', marginBottom: '16px' }}>
                     {[
                         { label: 'SELECIONADOS', valor: totais.qtd, cor: '#f59e0b', icon: <CheckSquare size={16} /> },
                         { label: 'M³ TOTAL', valor: totais.m3.toFixed(3), cor: '#3b82f6', icon: <Box size={16} /> },
                         { label: 'BASE (+10%)', valor: totais.base.toFixed(3), cor: '#60a5fa', icon: <Box size={16} /> },
-                        { label: 'MIX', valor: `${totais.mix} car.`, cor: '#a78bfa', icon: <Truck size={16} /> },
-                        { label: 'KIT', valor: `${totais.kit} car.`, cor: '#818cf8', icon: <Truck size={16} /> },
+                        { label: 'MIX', valor: fmtBRL(totais.mix), cor: '#a78bfa', icon: <Truck size={16} /> },
+                        { label: 'KIT', valor: fmtBRL(totais.kit), cor: '#818cf8', icon: <Truck size={16} /> },
                         { label: 'VOLUMES', valor: totais.volumes, cor: '#34d399', icon: <Package size={16} /> },
+                        { label: 'VALOR TOTAL', valor: fmtBRL(totais.valorTotal), cor: '#f59e0b', icon: <DollarSign size={16} /> },
                     ].map(({ label, valor, cor, icon }) => (
                         <div key={label} style={{ ...glassCard, padding: '14px 16px', border: `1px solid ${cor}30` }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '10px', fontWeight: '700', letterSpacing: '0.8px', marginBottom: '6px' }}>
                                 <span style={{ color: cor }}>{icon}</span>
                                 {label}
                             </div>
-                            <div style={{ color: cor, fontSize: '22px', fontWeight: '800' }}>{valor}</div>
+                            <div style={{ color: cor, fontSize: label === 'VALOR TOTAL' || label === 'MIX' || label === 'KIT' ? '16px' : '22px', fontWeight: '800' }}>{valor}</div>
                         </div>
                     ))}
                 </div>
@@ -328,7 +464,7 @@ export default function ModuloCubagem() {
                 {/* Cabeçalho da tabela */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '36px 2fr 1.2fr 60px 60px 70px 80px 80px 80px 120px',
+                    gridTemplateColumns: '36px 2fr 1.2fr 60px 60px 70px 80px 80px 100px 80px 120px',
                     gap: '8px',
                     padding: '10px 16px',
                     background: 'rgba(217,119,6,0.12)',
@@ -353,6 +489,7 @@ export default function ModuloCubagem() {
                         ['volumes', 'Vol'],
                         ['peso_kg', 'Peso kg'],
                         ['m3', 'M³'],
+                        ['valor', 'Valor R$'],
                         ['nf', 'NF'],
                         ['status', 'Status'],
                     ].map(([col, label]) => (
@@ -381,7 +518,7 @@ export default function ModuloCubagem() {
                                 onClick={() => toggleSel(r._idx)}
                                 style={{
                                     display: 'grid',
-                                    gridTemplateColumns: '36px 2fr 1.2fr 60px 60px 70px 80px 80px 80px 120px',
+                                    gridTemplateColumns: '36px 2fr 1.2fr 60px 60px 70px 80px 80px 100px 80px 120px',
                                     gap: '8px',
                                     padding: '9px 16px',
                                     alignItems: 'center',
@@ -412,6 +549,9 @@ export default function ModuloCubagem() {
                                 <div style={{ color: '#94a3b8', textAlign: 'right' }}>{r.peso_kg > 0 ? r.peso_kg.toLocaleString('pt-BR') : '—'}</div>
                                 <div style={{ color: sel ? '#fbbf24' : '#60a5fa', fontWeight: '600', textAlign: 'right' }}>
                                     {r.m3 > 0 ? r.m3.toFixed(3) : '—'}
+                                </div>
+                                <div style={{ color: '#4ade80', textAlign: 'right', fontSize: '11px' }}>
+                                    {r.valor > 0 ? r.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
                                 </div>
                                 <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {r.nf || '—'}
@@ -445,11 +585,11 @@ export default function ModuloCubagem() {
                 />
                 <div style={{ color: '#64748b', fontSize: '12px' }}>
                     {totais.qtd > 0
-                        ? `${totais.qtd} NF(s) · ${totais.m3.toFixed(3)} m³ · Mix ${totais.mix} · Kit ${totais.kit}`
+                        ? `${totais.qtd} NF(s) · ${totais.m3.toFixed(3)} m³ · ${fmtBRL(totais.valorTotal)}`
                         : 'Nenhuma NF selecionada'}
                 </div>
                 <button
-                    onClick={salvar}
+                    onClick={abrirModalRedespacho}
                     disabled={salvando || totais.qtd === 0 || !coleta.trim()}
                     style={{
                         marginLeft: 'auto',

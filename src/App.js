@@ -38,6 +38,7 @@ const DashboardFrota       = React.lazy(() => import('./components/DashboardFrot
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
 const RelatorioContratacao = React.lazy(() => import('./components/RelatorioContratacao'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
+const RelatorioCubagem     = React.lazy(() => import('./components/RelatorioCubagem'));
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
 
@@ -1396,6 +1397,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'relatorio_cte' && temAcesso('relatorios') && (
                     <RelatorioCte />
+                )}
+
+                {abaAtiva === 'relatorio_cubagem' && temAcesso('relatorios') && (
+                    <RelatorioCubagem />
                 )}
 
                 {abaAtiva === 'cadastro' && temAcesso('cadastro') && (
