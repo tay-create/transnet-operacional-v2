@@ -202,6 +202,15 @@ const inicializarBanco = async () => {
             { tabela: 'prov_programacao', coluna: 'destinos_json', tipo: 'TEXT' },
             // Foto do motorista na marcação de placas (frota própria)
             { tabela: 'marcacoes_placas', coluna: 'foto', tipo: 'TEXT' },
+            // Cubagem v2 — valor total das NFs e peso total
+            { tabela: 'cubagens', coluna: 'valor_total', tipo: 'REAL DEFAULT 0' },
+            { tabela: 'cubagens', coluna: 'peso_total', tipo: 'REAL DEFAULT 0' },
+            // Cubagem v2 — dados por NF para agregação por região no relatório
+            { tabela: 'cubagem_itens', coluna: 'uf', tipo: 'TEXT DEFAULT \'\'' },
+            { tabela: 'cubagem_itens', coluna: 'regiao', tipo: 'TEXT DEFAULT \'\'' },
+            { tabela: 'cubagem_itens', coluna: 'valor', tipo: 'REAL DEFAULT 0' },
+            { tabela: 'cubagem_itens', coluna: 'volumes', tipo: 'INTEGER DEFAULT 0' },
+            { tabela: 'cubagem_itens', coluna: 'peso_kg', tipo: 'REAL DEFAULT 0' },
         ];
 
         // Criação de Índices Otimizados
