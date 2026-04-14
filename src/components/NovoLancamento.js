@@ -316,11 +316,11 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '4px' }}>
                                                     <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '4px', textAlign: 'center' }}>
                                                         <div style={{ fontSize: '7px', color: '#94a3b8' }}>MIX</div>
-                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_mix_total != null ? parseFloat(cubagemFormulario.valor_mix_total).toFixed(4) : '0.0000'}</div>
+                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_mix_total != null ? parseFloat(cubagemFormulario.valor_mix_total).toFixed(2) : '0.00'}</div>
                                                     </div>
                                                     <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '4px', textAlign: 'center' }}>
                                                         <div style={{ fontSize: '7px', color: '#94a3b8' }}>KIT</div>
-                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_kit_total != null ? parseFloat(cubagemFormulario.valor_kit_total).toFixed(4) : '0.0000'}</div>
+                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_kit_total != null ? parseFloat(cubagemFormulario.valor_kit_total).toFixed(2) : '0.00'}</div>
                                                     </div>
                                                 </div>
                                                 {cubagemFormulario.itens && cubagemFormulario.itens.length > 0 && (

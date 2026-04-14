@@ -185,8 +185,8 @@ export default function ModuloCubagem() {
             faturado: false,
             tipo: 'Porcelana',
             metragem_total: parseFloat(totais.m3.toFixed(3)),
-            valor_mix_total: parseFloat(totais.mix.toFixed(4)),
-            valor_kit_total: parseFloat(totais.kit.toFixed(4)),
+            valor_mix_total: parseFloat(totais.mix.toFixed(2)),
+            valor_kit_total: parseFloat(totais.kit.toFixed(2)),
             valor_total: parseFloat(totais.valorTotal.toFixed(2)),
             peso_total: parseFloat(totais.peso.toFixed(1)),
             itens: sel.map(r => ({
