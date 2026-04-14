@@ -121,8 +121,8 @@ export default function ModuloCubagem() {
         const sel = linhasFiltradas.filter(r => selecionados.has(r._idx));
         const totalM3 = sel.reduce((s, r) => s + r.m3, 0);
         const base = totalM3 * 1.10;
-        const mix = sel.reduce((s, r) => s + (r.valor_mix || 0), 0);
-        const kit = sel.reduce((s, r) => s + (r.valor_kit || 0), 0);
+        const mix = base / 2.5 / 1.3;
+        const kit = base / 2.5 / 1.9;
         const valorTotal = sel.reduce((s, r) => s + (r.valor || 0), 0);
         return {
             qtd: sel.length,
@@ -185,8 +185,8 @@ export default function ModuloCubagem() {
             faturado: false,
             tipo: 'Porcelana',
             metragem_total: parseFloat(totais.m3.toFixed(3)),
-            valor_mix_total: parseFloat(totais.mix.toFixed(2)),
-            valor_kit_total: parseFloat(totais.kit.toFixed(2)),
+            valor_mix_total: parseFloat(totais.mix.toFixed(4)),
+            valor_kit_total: parseFloat(totais.kit.toFixed(4)),
             valor_total: parseFloat(totais.valorTotal.toFixed(2)),
             peso_total: parseFloat(totais.peso.toFixed(1)),
             itens: sel.map(r => ({
@@ -443,8 +443,8 @@ export default function ModuloCubagem() {
                         { label: 'SELECIONADOS', valor: totais.qtd, cor: '#f59e0b', icon: <CheckSquare size={16} /> },
                         { label: 'M³ TOTAL', valor: totais.m3.toFixed(3), cor: '#3b82f6', icon: <Box size={16} /> },
                         { label: 'BASE (+10%)', valor: totais.base.toFixed(3), cor: '#60a5fa', icon: <Box size={16} /> },
-                        { label: 'MIX', valor: fmtBRL(totais.mix), cor: '#a78bfa', icon: <Truck size={16} /> },
-                        { label: 'KIT', valor: fmtBRL(totais.kit), cor: '#818cf8', icon: <Truck size={16} /> },
+                        { label: 'MIX', valor: totais.mix.toFixed(2), cor: '#a78bfa', icon: <Truck size={16} /> },
+                        { label: 'KIT', valor: totais.kit.toFixed(2), cor: '#818cf8', icon: <Truck size={16} /> },
                         { label: 'VOLUMES', valor: totais.volumes, cor: '#34d399', icon: <Package size={16} /> },
                         { label: 'VALOR TOTAL', valor: fmtBRL(totais.valorTotal), cor: '#f59e0b', icon: <DollarSign size={16} /> },
                     ].map(({ label, valor, cor, icon }) => (
@@ -453,7 +453,7 @@ export default function ModuloCubagem() {
                                 <span style={{ color: cor }}>{icon}</span>
                                 {label}
                             </div>
-                            <div style={{ color: cor, fontSize: label === 'VALOR TOTAL' || label === 'MIX' || label === 'KIT' ? '16px' : '22px', fontWeight: '800' }}>{valor}</div>
+                            <div style={{ color: cor, fontSize: label === 'VALOR TOTAL' ? '15px' : '22px', fontWeight: '800' }}>{valor}</div>
                         </div>
                     ))}
                 </div>
@@ -585,7 +585,7 @@ export default function ModuloCubagem() {
                 />
                 <div style={{ color: '#64748b', fontSize: '12px' }}>
                     {totais.qtd > 0
-                        ? `${totais.qtd} NF(s) · ${totais.m3.toFixed(3)} m³ · ${fmtBRL(totais.valorTotal)}`
+                        ? `${totais.qtd} NF(s) · ${totais.m3.toFixed(3)} m³ · Mix ${totais.mix.toFixed(2)} · Kit ${totais.kit.toFixed(2)} · ${fmtBRL(totais.valorTotal)}`
                         : 'Nenhuma NF selecionada'}
                 </div>
                 <button

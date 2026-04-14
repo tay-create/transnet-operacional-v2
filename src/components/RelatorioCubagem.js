@@ -207,8 +207,8 @@ export default function RelatorioCubagem() {
                             { label: 'M³ TOTAL', valor: kpis.m3, cor: '#3b82f6', icon: <Box size={16} />, fmt: v => v.toFixed(3) },
                             { label: 'VALOR TOTAL', valor: kpis.valor, cor: '#4ade80', icon: <DollarSign size={16} />, fmt: fmtBRL },
                             { label: 'PESO TOTAL', valor: kpis.peso, cor: '#60a5fa', icon: <Weight size={16} />, fmt: v => `${v.toLocaleString('pt-BR')} kg` },
-                            { label: 'MIX', valor: kpis.mix, cor: '#a78bfa', icon: <TrendingUp size={16} />, fmt: fmtBRL },
-                            { label: 'KIT', valor: kpis.kit, cor: '#818cf8', icon: <Package size={16} />, fmt: fmtBRL },
+                            { label: 'MIX', valor: kpis.mix, cor: '#a78bfa', icon: <TrendingUp size={16} />, fmt: v => Number(v).toFixed(4) },
+                            { label: 'KIT', valor: kpis.kit, cor: '#818cf8', icon: <Package size={16} />, fmt: v => Number(v).toFixed(4) },
                             { label: 'REDESPACHO', valor: kpis.redespacho, cor: '#fb923c', icon: <TrendingUp size={16} />, fmt: v => `${v} (${kpis.qtd > 0 ? Math.round((v / kpis.qtd) * 100) : 0}%)` },
                         ].map(({ label, valor, cor, icon, fmt }) => (
                             <div key={label} style={{ ...glassCard, padding: '16px', border: `1px solid ${cor}25` }}>
@@ -216,7 +216,7 @@ export default function RelatorioCubagem() {
                                     <span style={{ color: cor }}>{icon}</span>
                                     {label}
                                 </div>
-                                <div style={{ color: cor, fontSize: label === 'VALOR TOTAL' || label === 'MIX' || label === 'KIT' ? '14px' : '22px', fontWeight: '800', lineHeight: '1.2' }}>
+                                <div style={{ color: cor, fontSize: label === 'VALOR TOTAL' ? '14px' : '22px', fontWeight: '800', lineHeight: '1.2' }}>
                                     {fmt(valor)}
                                 </div>
                             </div>
@@ -412,10 +412,10 @@ export default function RelatorioCubagem() {
                                                 {fmtBRL(c.valor_total)}
                                             </div>
                                             <div style={{ color: '#a78bfa', textAlign: 'right', fontSize: '11px' }}>
-                                                {fmtBRL(c.valor_mix_total)}
+                                                {Number(c.valor_mix_total || 0).toFixed(4)}
                                             </div>
                                             <div style={{ color: '#818cf8', textAlign: 'right', fontSize: '11px' }}>
-                                                {fmtBRL(c.valor_kit_total)}
+                                                {Number(c.valor_kit_total || 0).toFixed(4)}
                                             </div>
                                             <div style={{ textAlign: 'center' }}>
                                                 {c.redespacho ? (

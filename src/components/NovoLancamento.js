@@ -69,8 +69,8 @@ function gerarPdfCubagem(cubagem) {
     </table>
     <div class="totais">
         <div class="tot-card"><div class="tot-label">M³ Total</div><div class="tot-val">${Number(cubagem.metragem_total || 0).toFixed(3)}</div></div>
-        <div class="tot-card"><div class="tot-label">Mix</div><div class="tot-val">${fmtBRL(cubagem.valor_mix_total || 0)}</div></div>
-        <div class="tot-card"><div class="tot-label">Kit</div><div class="tot-val">${fmtBRL(cubagem.valor_kit_total || 0)}</div></div>
+        <div class="tot-card"><div class="tot-label">Mix</div><div class="tot-val">${Number(cubagem.valor_mix_total || 0).toFixed(4)}</div></div>
+        <div class="tot-card"><div class="tot-label">Kit</div><div class="tot-val">${Number(cubagem.valor_kit_total || 0).toFixed(4)}</div></div>
         <div class="tot-card"><div class="tot-label">Valor Total</div><div class="tot-val">${fmtBRL(cubagem.valor_total || 0)}</div></div>
         <div class="tot-card"><div class="tot-label">Cliente</div><div class="tot-val" style="font-size:13px">${cubagem.cliente || '—'}</div></div>
         <div class="tot-card"><div class="tot-label">Destino</div><div class="tot-val" style="font-size:13px">${cubagem.destino || '—'}</div></div>
