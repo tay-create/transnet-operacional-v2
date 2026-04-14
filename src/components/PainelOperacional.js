@@ -23,17 +23,50 @@ const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PO
 
 
 // Ao mudar a operacao, limpar campos de unidades removidas e aplicar regras de parada
-const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista, realIndex, api) => {
-    const { updateList, mostrarNotificacao } = funcoes;
+const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista, realIndex, api, coletaOverride = null) => {
+    const { updateList, mostrarNotificacao, pedirCopiaColeta } = funcoes;
     const precisaRecife = ehOperacaoRecife(novaOperacao);
     const precisaMoreno = ehOperacaoMoreno(novaOperacao);
 
     // Backup para reverter em caso de erro
     const itemOriginal = { ...lista[realIndex] };
 
+    // Quando a nova unidade exigida está sem coleta, oferecer copiar da outra unidade via modal
+    const coletaRecifeAtual = (lista[realIndex].coletaRecife || '').trim();
+    const coletaMorenoAtual = (lista[realIndex].coletaMoreno || '').trim();
+    if (!coletaOverride && precisaRecife && !coletaRecifeAtual) {
+        if (coletaMorenoAtual && pedirCopiaColeta) {
+            pedirCopiaColeta({
+                unidadeDestino: 'Recife',
+                coletaOrigem: coletaMorenoAtual,
+                unidadeOrigem: 'Moreno',
+                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaRecife', valor: coletaMorenoAtual })
+            });
+            return;
+        }
+        mostrarNotificacao('⚠️ Defina a coleta de Recife antes de trocar para esta operação.');
+        return;
+    }
+    if (!coletaOverride && precisaMoreno && !coletaMorenoAtual) {
+        if (coletaRecifeAtual && pedirCopiaColeta) {
+            pedirCopiaColeta({
+                unidadeDestino: 'Moreno',
+                coletaOrigem: coletaRecifeAtual,
+                unidadeOrigem: 'Recife',
+                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaMoreno', valor: coletaRecifeAtual })
+            });
+            return;
+        }
+        mostrarNotificacao('⚠️ Defina a coleta de Moreno antes de trocar para esta operação.');
+        return;
+    }
+
     // Construir objeto com todas as mudancas de uma vez
     const novaLista = [...lista];
     const itemAtualizado = { ...novaLista[realIndex], operacao: novaOperacao };
+    if (coletaOverride && coletaOverride.campo) {
+        itemAtualizado[coletaOverride.campo] = coletaOverride.valor;
+    }
 
     if (!precisaRecife) {
         itemAtualizado.coletaRecife = '';
@@ -167,6 +200,7 @@ export default function PainelOperacional({
     const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
+    const [confirmarCopiaColeta, setConfirmarCopiaColeta] = useState(null); // { unidadeDestino, coletaOrigem, unidadeOrigem, onConfirm }
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const [modalEntregasCard, setModalEntregasCard] = useState(null); // { veiculo, item }
     const [finalizando, setFinalizando] = useState(false);
@@ -772,7 +806,7 @@ export default function PainelOperacional({
                                         {/* Header do Card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between' }}>
                                             <div style={{ flex: 1 }}>
-                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, funcoes, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
+                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, { ...funcoes, pedirCopiaColeta: setConfirmarCopiaColeta }, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
                                                     {OPCOES_OPERACAO.map(op => <option key={op} style={{ color: 'black' }}>{op}</option>)}
                                                 </select>
                                                 {/* Exibicao sutil da 1a e 2a parada */}
@@ -1696,6 +1730,23 @@ export default function PainelOperacional({
                         }
                     }}
                     onCancel={() => { if (!finalizando) { setConfirmarFinalizar(false); setProximaDataFinalizar(null); } }}
+                />
+            )}
+
+            {/* Modal copiar coleta para nova unidade */}
+            {confirmarCopiaColeta && (
+                <ModalConfirm
+                    titulo={`Coleta de ${confirmarCopiaColeta.unidadeDestino}`}
+                    mensagem={`A nova operação exige coleta de ${confirmarCopiaColeta.unidadeDestino}, que está vazia. Deseja usar a mesma coleta de ${confirmarCopiaColeta.unidadeOrigem} (${confirmarCopiaColeta.coletaOrigem}) também em ${confirmarCopiaColeta.unidadeDestino}?`}
+                    variante="aviso"
+                    textConfirm="Usar a mesma coleta"
+                    textCancel="Cancelar"
+                    onConfirm={() => {
+                        const fn = confirmarCopiaColeta.onConfirm;
+                        setConfirmarCopiaColeta(null);
+                        fn && fn();
+                    }}
+                    onCancel={() => setConfirmarCopiaColeta(null)}
                 />
             )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList, Cell } from 'recharts';
-import { Filter, Calendar, MapPin, BarChart3, RefreshCw, Printer } from 'lucide-react';
+import { Filter, Calendar, MapPin, BarChart3, RefreshCw, Printer, PauseCircle } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 

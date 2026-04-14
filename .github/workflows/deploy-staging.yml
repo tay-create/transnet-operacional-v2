@@ -47,13 +47,15 @@ jobs:
       - name: Escrever .env.staging
         run: |
           mkdir -p /opt/transnet/staging
-          printf 'JWT_SECRET=%s\nPORT=3001\nMAX_FILE_SIZE=200mb\nNODE_ENV=production\nGENERATE_SOURCEMAP=false\nDB_USER=%s\nDB_HOST=db\nDB_NAME=transnet_staging\nDB_PASSWORD=%s\nDB_PORT=5432\nFRONTEND_URL=https://homolog.tnethub.com.br\nGMAIL_USER=%s\nGMAIL_APP_PASSWORD=%s\nADMIN_MASTER_PASSWORD=%s\n' \
+          printf 'JWT_SECRET=%s\nPORT=3001\nMAX_FILE_SIZE=200mb\nNODE_ENV=production\nGENERATE_SOURCEMAP=false\nDB_USER=%s\nDB_HOST=db\nDB_NAME=transnet_staging\nDB_PASSWORD=%s\nDB_PORT=5432\nFRONTEND_URL=https://homolog.tnethub.com.br\nGMAIL_USER=%s\nGMAIL_APP_PASSWORD=%s\nADMIN_MASTER_PASSWORD=%s\nGOOGLE_SERVICE_ACCOUNT_JSON=%s\nSHEETS_PORCELANA_ID=%s\nSHEETS_PORCELANA_RANGE=Embarques!A1:AJ500\n' \
             '${{ secrets.STAGING_JWT_SECRET }}' \
             '${{ secrets.STAGING_DB_USER }}' \
             '${{ secrets.STAGING_DB_PASSWORD }}' \
             '${{ secrets.GMAIL_USER }}' \
             '${{ secrets.GMAIL_APP_PASSWORD }}' \
             '${{ secrets.STAGING_ADMIN_PASSWORD }}' \
+            '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}' \
+            '${{ secrets.SHEETS_PORCELANA_ID }}' \
             > /opt/transnet/staging/.env.staging
 
       - name: Copiar docker-compose.staging.yml

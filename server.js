@@ -1480,7 +1480,10 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
                 if (alvo && !alvo.includes(meuCargo)) return false;
             }
             // Filtrar por unidade: se tem origem, só mostra para a mesma cidade (Coordenador vê tudo)
-            if (n.origem && !['Coordenador', 'Direção'].includes(meuCargo) && minhaCidade && n.origem !== minhaCidade) return false;
+            // Exceções: tipos que atravessam unidades (doca, aceite_cte_pendente, admin_*) e quando é destinatário explícito
+            const TIPOS_SEM_FILTRO_CIDADE = ['doca', 'aceite_cte_pendente', 'admin_senha', 'admin_cadastro'];
+            const souDestinatarioExplicito = n.destinatario_id && n.destinatario_id === userId;
+            if (n.origem && !['Coordenador', 'Direção'].includes(meuCargo) && minhaCidade && n.origem !== minhaCidade && !TIPOS_SEM_FILTRO_CIDADE.includes(n.tipo) && !souDestinatarioExplicito) return false;
             // notificacao_direcionada: filtrar por cargos_alvo E unidade
             if (n.cargos_alvo) {
                 if (!n.cargos_alvo.includes(meuCargo)) return false;
@@ -3292,6 +3295,53 @@ app.use((err, req, res, next) => {
         success: false,
         message: 'Erro interno no servidor.'
     });
+});
+
+// ── Google Sheets — Planilha Porcelana ───────────────────────────────────────
+app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), async (req, res) => {
+    try {
+        const saJson  = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+        const sheetId = process.env.SHEETS_PORCELANA_ID;
+        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques!A1:AJ500';
+
+        if (!saJson || !sheetId) {
+            return res.json({ success: true, configurado: false, linhas: [] });
+        }
+
+        const { google } = require('googleapis');
+        const auth = new google.auth.GoogleAuth({
+            credentials: JSON.parse(saJson),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+        const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
+        const rows = resp.data.values || [];
+
+        // 3 linhas de cabeçalho → dados a partir do índice 3
+        const linhas = rows.slice(3).map((row, i) => ({
+            _idx: i,
+            cliente:        row[1]  || '',
+            cidade:         row[2]  || '',
+            uf:             row[3]  || '',
+            regiao:         row[4]  || '',
+            volumes:        parseFloat((row[6]  || '0').replace(',', '.')) || 0,
+            peso_kg:        parseFloat((row[7]  || '0').replace(',', '.')) || 0,
+            m3:             parseFloat((row[8]  || '0').replace(',', '.')) || 0,
+            nf:             row[10] || '',
+            status:         row[15] || '',
+            doca:           row[16] || '',
+            rota:           row[17] || '',
+            motorista:      row[23] || '',
+            placa:          row[24] || '',
+            transportadora: row[27] || '',
+            data_coleta:    row[31] || '',
+        })).filter(r => r.cliente || r.nf);
+
+        res.json({ success: true, configurado: true, atualizado_em: new Date().toISOString(), total: linhas.length, linhas });
+    } catch (err) {
+        console.error('Sheets error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 // ── Task Dashboard (antes do catch-all do React) ─────────────────────────────
