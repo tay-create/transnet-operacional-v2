@@ -1480,7 +1480,10 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
                 if (alvo && !alvo.includes(meuCargo)) return false;
             }
             // Filtrar por unidade: se tem origem, só mostra para a mesma cidade (Coordenador vê tudo)
-            if (n.origem && !['Coordenador', 'Direção'].includes(meuCargo) && minhaCidade && n.origem !== minhaCidade) return false;
+            // Exceções: tipos que atravessam unidades (doca, aceite_cte_pendente, admin_*) e quando é destinatário explícito
+            const TIPOS_SEM_FILTRO_CIDADE = ['doca', 'aceite_cte_pendente', 'admin_senha', 'admin_cadastro'];
+            const souDestinatarioExplicito = n.destinatario_id && n.destinatario_id === userId;
+            if (n.origem && !['Coordenador', 'Direção'].includes(meuCargo) && minhaCidade && n.origem !== minhaCidade && !TIPOS_SEM_FILTRO_CIDADE.includes(n.tipo) && !souDestinatarioExplicito) return false;
             // notificacao_direcionada: filtrar por cargos_alvo E unidade
             if (n.cargos_alvo) {
                 if (!n.cargos_alvo.includes(meuCargo)) return false;
