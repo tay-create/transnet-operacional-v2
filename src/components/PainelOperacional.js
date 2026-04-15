@@ -1524,7 +1524,9 @@ export default function PainelOperacional({
                                                                 try {
                                                                     const res = await api.get(`/cubagens/coleta/${coleta}`);
                                                                     if (res.data?.success && res.data.cubagem) {
-                                                                        gerarPdfCubagem(res.data.cubagem);
+                                                                        const cub = res.data.cubagem;
+                                                                        if (!cub.motorista || !String(cub.motorista).trim()) cub.motorista = item.motorista || '';
+                                                                        gerarPdfCubagem(cub);
                                                                     }
                                                                 } finally {
                                                                     setLoadingPdf(p => ({ ...p, [item.id]: false }));

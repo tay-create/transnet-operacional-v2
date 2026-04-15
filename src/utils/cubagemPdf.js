@@ -3,12 +3,18 @@ export function gerarPdfCubagem(cubagem) {
     const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const itens = cubagem.itens || [];
 
+    // Fallback: cubagem antiga (antes do fluxo multi-redespacho) — grava no nível do item
+    const temRedespachoPorItem = itens.some(it => it.redespacho_nome && String(it.redespacho_nome).trim());
+    const fallbackNome = (!temRedespachoPorItem && cubagem.redespacho && cubagem.nome_redespacho)
+        ? String(cubagem.nome_redespacho).trim()
+        : null;
+
     // Agrupa itens por redespacho (ou "direto ao cliente" se sem redespacho)
     const grupos = new Map();
     itens.forEach(it => {
-        const chave = (it.redespacho_nome && it.redespacho_nome.trim())
-            ? `REDESPACHO::${it.redespacho_nome.trim()}::${it.redespacho_uf || ''}`
-            : 'DIRETO';
+        const nome = (it.redespacho_nome && String(it.redespacho_nome).trim()) || fallbackNome;
+        const uf = it.redespacho_uf || '';
+        const chave = nome ? `REDESPACHO::${nome}::${uf}` : 'DIRETO';
         if (!grupos.has(chave)) grupos.set(chave, []);
         grupos.get(chave).push(it);
     });

@@ -1812,10 +1812,23 @@ app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
                 const valores = itensFiltrados.map(item => {
                     const metro = parseFloat(item.metragem) || 0;
                     const base = metro + (metro * 0.10);
-                    return [id, item.numero_nf || '', metro, (base / 2.5) / 1.3, (base / 2.5) / 1.9];
+                    return [
+                        id,
+                        item.numero_nf || '',
+                        metro,
+                        (base / 2.5) / 1.3,
+                        (base / 2.5) / 1.9,
+                        item.uf || '',
+                        item.regiao || '',
+                        parseFloat(item.valor) || 0,
+                        parseInt(item.volumes) || 0,
+                        parseFloat(item.peso_kg) || 0,
+                        item.redespacho_nome || null,
+                        item.redespacho_uf || null,
+                    ];
                 });
-                const placeholders = valores.map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`).join(', ');
-                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES ${placeholders}`, valores.flat());
+                const placeholders = valores.map((_, i) => `($${i*12+1}, $${i*12+2}, $${i*12+3}, $${i*12+4}, $${i*12+5}, $${i*12+6}, $${i*12+7}, $${i*12+8}, $${i*12+9}, $${i*12+10}, $${i*12+11}, $${i*12+12})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit, uf, regiao, valor, volumes, peso_kg, redespacho_nome, redespacho_uf) VALUES ${placeholders}`, valores.flat());
             }
         });
 
