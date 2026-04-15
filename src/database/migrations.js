@@ -211,6 +211,9 @@ const inicializarBanco = async () => {
             { tabela: 'cubagem_itens', coluna: 'valor', tipo: 'REAL DEFAULT 0' },
             { tabela: 'cubagem_itens', coluna: 'volumes', tipo: 'INTEGER DEFAULT 0' },
             { tabela: 'cubagem_itens', coluna: 'peso_kg', tipo: 'REAL DEFAULT 0' },
+            // Cubagem v3 — múltiplos redespachos por cubagem (por NF)
+            { tabela: 'cubagem_itens', coluna: 'redespacho_nome', tipo: 'TEXT' },
+            { tabela: 'cubagem_itens', coluna: 'redespacho_uf', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados

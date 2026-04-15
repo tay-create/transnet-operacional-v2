@@ -244,6 +244,7 @@ export default function RelatorioCubagem() {
     const [loading, setLoading] = useState(false);
     const [erro, setErro] = useState(null);
     const [tabelaAberta, setTabelaAberta] = useState(true);
+    const [linhaAberta, setLinhaAberta] = useState(null);
 
     const buscar = useCallback(async () => {
         if (!de || !ate) return;
@@ -583,8 +584,9 @@ export default function RelatorioCubagem() {
                                 </div>
                                 <div style={{ maxHeight: '480px', overflowY: 'auto' }}>
                                     {(dados.cubagens || []).map((c, i) => (
+                                        <React.Fragment key={c.id}>
                                         <div
-                                            key={c.id}
+                                            onClick={() => setLinhaAberta(a => a === c.id ? null : c.id)}
                                             style={{
                                                 display: 'grid',
                                                 gridTemplateColumns: '110px 1fr 1fr 80px 80px 90px 90px 80px',
@@ -592,6 +594,7 @@ export default function RelatorioCubagem() {
                                                 alignItems: 'center',
                                                 background: i % 2 === 0 ? 'rgba(0,0,0,0.1)' : 'transparent',
                                                 fontSize: '12px',
+                                                cursor: 'pointer',
                                                 borderLeft: c.redespacho ? '3px solid #fb923c' : '3px solid transparent',
                                             }}
                                         >
@@ -629,6 +632,75 @@ export default function RelatorioCubagem() {
                                                 )}
                                             </div>
                                         </div>
+                                        {linhaAberta === c.id && (() => {
+                                            const itens = c.itens || [];
+                                            const grupos = new Map();
+                                            itens.forEach(it => {
+                                                const chave = (it.redespacho_nome && String(it.redespacho_nome).trim())
+                                                    ? `R::${String(it.redespacho_nome).trim()}::${it.redespacho_uf || ''}`
+                                                    : 'DIRETO';
+                                                if (!grupos.has(chave)) grupos.set(chave, []);
+                                                grupos.get(chave).push(it);
+                                            });
+                                            const entradas = [...grupos.entries()].sort((a, b) =>
+                                                a[0] === 'DIRETO' ? 1 : b[0] === 'DIRETO' ? -1 : a[0].localeCompare(b[0])
+                                            );
+                                            return (
+                                                <div style={{ padding: '12px 20px 16px', background: 'rgba(0,0,0,0.25)', borderLeft: '3px solid #d97706' }}>
+                                                    {entradas.length === 0 && (
+                                                        <div style={{ color: '#64748b', fontSize: '11px', padding: '8px 0' }}>Sem itens.</div>
+                                                    )}
+                                                    {entradas.map(([chave, lista]) => {
+                                                        const ehDireto = chave === 'DIRETO';
+                                                        const [, nome, uf] = ehDireto ? [null, null, null] : chave.split('::');
+                                                        const subM3 = lista.reduce((s, it) => s + Number(it.metragem || 0), 0);
+                                                        const subVol = lista.reduce((s, it) => s + Number(it.volumes || 0), 0);
+                                                        const subPeso = lista.reduce((s, it) => s + Number(it.peso_kg || 0), 0);
+                                                        const subValor = lista.reduce((s, it) => s + Number(it.valor || 0), 0);
+                                                        return (
+                                                            <div key={chave} style={{ marginBottom: '10px' }}>
+                                                                <div style={{
+                                                                    background: ehDireto ? '#1e40af' : '#92400e',
+                                                                    color: '#fff', padding: '6px 12px', borderRadius: '5px 5px 0 0',
+                                                                    display: 'flex', gap: '10px', alignItems: 'center', fontSize: '11px', fontWeight: '700'
+                                                                }}>
+                                                                    <span>{ehDireto ? 'ENTREGA DIRETA AO CLIENTE' : `REDESPACHO: ${nome}`}</span>
+                                                                    {!ehDireto && uf && <span style={{ opacity: 0.8, fontWeight: '500' }}>UF: {uf}</span>}
+                                                                    <span style={{ marginLeft: 'auto', background: 'rgba(0,0,0,0.25)', padding: '2px 8px', borderRadius: '3px', fontSize: '10px' }}>{lista.length} NF(s)</span>
+                                                                </div>
+                                                                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '0 0 5px 5px', padding: '6px 10px' }}>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '90px 50px 70px 70px 80px 90px', gap: '6px', fontSize: '10px', color: '#64748b', fontWeight: '700', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                        <div>NF</div><div>UF</div>
+                                                                        <div style={{ textAlign: 'right' }}>M³</div>
+                                                                        <div style={{ textAlign: 'right' }}>Vol</div>
+                                                                        <div style={{ textAlign: 'right' }}>Peso</div>
+                                                                        <div style={{ textAlign: 'right' }}>Valor</div>
+                                                                    </div>
+                                                                    {lista.map((it, idx) => (
+                                                                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 50px 70px 70px 80px 90px', gap: '6px', fontSize: '11px', padding: '4px 0', color: '#cbd5e1' }}>
+                                                                            <div>{it.numero_nf || '—'}</div>
+                                                                            <div>{it.uf || '—'}</div>
+                                                                            <div style={{ textAlign: 'right', color: '#60a5fa' }}>{Number(it.metragem || 0).toFixed(3)}</div>
+                                                                            <div style={{ textAlign: 'right' }}>{Number(it.volumes || 0)}</div>
+                                                                            <div style={{ textAlign: 'right' }}>{Number(it.peso_kg || 0).toLocaleString('pt-BR')}</div>
+                                                                            <div style={{ textAlign: 'right', color: '#4ade80' }}>{it.valor > 0 ? fmtBRL(it.valor) : '—'}</div>
+                                                                        </div>
+                                                                    ))}
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: '140px 70px 70px 80px 90px', gap: '6px', fontSize: '11px', fontWeight: '700', padding: '6px 0 2px', color: '#f59e0b', borderTop: '1px solid rgba(245,158,11,0.3)' }}>
+                                                                        <div>SUBTOTAL</div>
+                                                                        <div style={{ textAlign: 'right' }}>{subM3.toFixed(3)}</div>
+                                                                        <div style={{ textAlign: 'right' }}>{subVol}</div>
+                                                                        <div style={{ textAlign: 'right' }}>{subPeso.toLocaleString('pt-BR')} kg</div>
+                                                                        <div style={{ textAlign: 'right' }}>{fmtBRL(subValor)}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
+                                        </React.Fragment>
                                     ))}
                                     {(dados.cubagens || []).length === 0 && (
                                         <div style={{ padding: '40px', textAlign: 'center', color: '#475569', fontSize: '13px' }}>

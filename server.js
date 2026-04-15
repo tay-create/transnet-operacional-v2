@@ -1775,10 +1775,12 @@ app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 
                         parseFloat(item.valor) || 0,
                         parseInt(item.volumes) || 0,
                         parseFloat(item.peso_kg) || 0,
+                        item.redespacho_nome || null,
+                        item.redespacho_uf || null,
                     ];
                 });
-                const placeholders = valores.map((_, i) => `($${i*10+1}, $${i*10+2}, $${i*10+3}, $${i*10+4}, $${i*10+5}, $${i*10+6}, $${i*10+7}, $${i*10+8}, $${i*10+9}, $${i*10+10})`).join(', ');
-                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit, uf, regiao, valor, volumes, peso_kg) VALUES ${placeholders}`, valores.flat());
+                const placeholders = valores.map((_, i) => `($${i*12+1}, $${i*12+2}, $${i*12+3}, $${i*12+4}, $${i*12+5}, $${i*12+6}, $${i*12+7}, $${i*12+8}, $${i*12+9}, $${i*12+10}, $${i*12+11}, $${i*12+12})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit, uf, regiao, valor, volumes, peso_kg, redespacho_nome, redespacho_uf) VALUES ${placeholders}`, valores.flat());
             }
 
             return id;
@@ -3370,7 +3372,8 @@ app.get('/api/relatorio/cubagem', authMiddleware, authorize(['Direção', 'Coord
                    COALESCE(json_agg(json_build_object(
                        'numero_nf', ci.numero_nf, 'metragem', ci.metragem,
                        'uf', ci.uf, 'regiao', ci.regiao, 'valor', ci.valor,
-                       'volumes', ci.volumes, 'peso_kg', ci.peso_kg
+                       'volumes', ci.volumes, 'peso_kg', ci.peso_kg,
+                       'redespacho_nome', ci.redespacho_nome, 'redespacho_uf', ci.redespacho_uf
                    ) ORDER BY ci.id) FILTER (WHERE ci.id IS NOT NULL), '[]') AS itens
             FROM cubagens c
             LEFT JOIN cubagem_itens ci ON ci.cubagem_id = c.id

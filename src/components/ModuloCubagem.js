@@ -5,6 +5,7 @@ import {
     DollarSign, X
 } from 'lucide-react';
 import api from '../services/apiService';
+import { UFS_BRASIL, STATUS_CUBAGEM } from '../constants';
 
 const POLL_INTERVAL = 300; // segundos
 
@@ -69,6 +70,10 @@ export default function ModuloCubagem() {
     const [modalRedespacho, setModalRedespacho] = useState(false);
     const [nomeRedespacho, setNomeRedespacho] = useState('');
     const [redespacho, setRedespacho] = useState(null); // null=nao decidido, false=nao, true=sim
+    const [filtroUF, setFiltroUF] = useState('');
+    const [filtroStatus, setFiltroStatus] = useState('');
+    const [modalMultiRedespacho, setModalMultiRedespacho] = useState(false);
+    const [redespachos, setRedespachos] = useState([]); // [{id, nome, uf, nfs: Set<_idx>}]
     const countdownRef = useRef(POLL_INTERVAL);
     const timerRef = useRef(null);
 
@@ -107,6 +112,8 @@ export default function ModuloCubagem() {
         let base = filtroAtivo
             ? linhas.filter(r => !STATUS_OCULTOS.has((r.status || '').trim().toUpperCase()))
             : linhas;
+        if (filtroUF) base = base.filter(r => (r.uf || '').toUpperCase() === filtroUF);
+        if (filtroStatus) base = base.filter(r => (r.status || '').trim().toUpperCase() === filtroStatus);
         if (!ordenacao.col) return base;
         return [...base].sort((a, b) => {
             let va = a[ordenacao.col], vb = b[ordenacao.col];
@@ -115,7 +122,17 @@ export default function ModuloCubagem() {
                 ? String(va).localeCompare(String(vb))
                 : String(vb).localeCompare(String(va));
         });
-    }, [linhas, filtroAtivo, STATUS_OCULTOS, ordenacao]);
+    }, [linhas, filtroAtivo, STATUS_OCULTOS, ordenacao, filtroUF, filtroStatus]);
+
+    const opcoesUF = useMemo(() => {
+        const extras = [...new Set(linhas.map(l => (l.uf || '').toUpperCase()).filter(Boolean))];
+        return [...new Set([...UFS_BRASIL, ...extras])].sort();
+    }, [linhas]);
+
+    const opcoesStatus = useMemo(() => {
+        const extras = [...new Set(linhas.map(l => (l.status || '').trim().toUpperCase()).filter(Boolean))];
+        return [...new Set([...STATUS_CUBAGEM, ...extras])].sort();
+    }, [linhas]);
 
     const totais = useMemo(() => {
         const sel = linhasFiltradas.filter(r => selecionados.has(r._idx));
@@ -166,8 +183,9 @@ export default function ModuloCubagem() {
         setModalRedespacho(true);
     };
 
-    const salvar = async (isRedespacho, nomeRed) => {
+    const salvar = async (isRedespacho, nomeRed, mapaRedespacho = null) => {
         setModalRedespacho(false);
+        setModalMultiRedespacho(false);
         const sel = linhasFiltradas.filter(r => selecionados.has(r._idx));
         const clientesPrincipais = [...new Set(sel.map(r => r.cliente).filter(Boolean))].slice(0, 3).join(', ');
         const destinos = [...new Set(sel.map(r => r.uf).filter(Boolean))].join('/');
@@ -197,6 +215,8 @@ export default function ModuloCubagem() {
                 valor: r.valor || 0,
                 volumes: r.volumes || 0,
                 peso_kg: r.peso_kg || 0,
+                redespacho_nome: mapaRedespacho?.[r._idx]?.nome || null,
+                redespacho_uf: mapaRedespacho?.[r._idx]?.uf || null,
             })),
         };
 
@@ -293,7 +313,11 @@ export default function ModuloCubagem() {
                                         Não
                                     </button>
                                     <button
-                                        onClick={() => setRedespacho(true)}
+                                        onClick={() => {
+                                            setModalRedespacho(false);
+                                            setRedespachos([{ id: Date.now(), nome: '', uf: '', nfs: new Set() }]);
+                                            setModalMultiRedespacho(true);
+                                        }}
                                         style={{
                                             flex: 1, padding: '10px', borderRadius: '8px',
                                             background: 'linear-gradient(135deg, #d97706, #92400e)',
@@ -307,61 +331,219 @@ export default function ModuloCubagem() {
                             </>
                         )}
 
-                        {redespacho === true && (
-                            <>
-                                <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>
-                                    Nome do redespacho:
-                                </p>
-                                <input
-                                    autoFocus
-                                    value={nomeRedespacho}
-                                    onChange={e => setNomeRedespacho(e.target.value)}
-                                    placeholder="Ex: Transportadora XYZ"
-                                    style={{
-                                        width: '100%', boxSizing: 'border-box',
-                                        background: 'rgba(255,255,255,0.05)',
-                                        border: '1px solid rgba(251,191,36,0.3)',
-                                        borderRadius: '8px', color: '#e2e8f0',
-                                        padding: '10px 14px', fontSize: '14px', marginBottom: '20px'
-                                    }}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter' && nomeRedespacho.trim()) salvar(true, nomeRedespacho.trim());
-                                    }}
-                                />
-                                <div style={{ display: 'flex', gap: '12px' }}>
-                                    <button
-                                        onClick={() => setRedespacho(null)}
-                                        style={{
-                                            flex: 1, padding: '10px', borderRadius: '8px',
-                                            background: 'rgba(255,255,255,0.06)',
-                                            border: '1px solid rgba(255,255,255,0.12)',
-                                            color: '#94a3b8', cursor: 'pointer', fontSize: '13px'
-                                        }}
-                                    >
-                                        Voltar
-                                    </button>
-                                    <button
-                                        onClick={() => { if (nomeRedespacho.trim()) salvar(true, nomeRedespacho.trim()); }}
-                                        disabled={!nomeRedespacho.trim()}
-                                        style={{
-                                            flex: 2, padding: '10px', borderRadius: '8px',
-                                            background: nomeRedespacho.trim()
-                                                ? 'linear-gradient(135deg, #d97706, #92400e)'
-                                                : 'rgba(255,255,255,0.03)',
-                                            border: 'none',
-                                            color: nomeRedespacho.trim() ? '#fff' : '#475569',
-                                            cursor: nomeRedespacho.trim() ? 'pointer' : 'not-allowed',
-                                            fontSize: '14px', fontWeight: '700'
-                                        }}
-                                    >
-                                        Confirmar Redespacho
-                                    </button>
-                                </div>
-                            </>
-                        )}
                     </div>
                 </div>
             )}
+
+            {/* MODAL MULTI-REDESPACHO */}
+            {modalMultiRedespacho && (() => {
+                const selAtual = linhasFiltradas.filter(r => selecionados.has(r._idx));
+                const nfsEmRedespacho = new Set();
+                redespachos.forEach(rd => rd.nfs.forEach(idx => nfsEmRedespacho.add(idx)));
+                const nfsDiretas = selAtual.filter(r => !nfsEmRedespacho.has(r._idx));
+                const tudoValido = redespachos.every(rd => rd.nome.trim() && rd.uf && rd.nfs.size > 0);
+
+                const atualizarRedespacho = (id, campo, valor) => {
+                    setRedespachos(prev => prev.map(rd => rd.id === id ? { ...rd, [campo]: valor } : rd));
+                };
+                const toggleNfNoRedespacho = (rdId, idx) => {
+                    setRedespachos(prev => prev.map(rd => {
+                        const nfs = new Set(rd.nfs);
+                        if (rd.id === rdId) {
+                            if (nfs.has(idx)) nfs.delete(idx);
+                            else nfs.add(idx);
+                        } else {
+                            nfs.delete(idx); // garantir NF só em um redespacho
+                        }
+                        return { ...rd, nfs };
+                    }));
+                };
+                const adicionarRedespacho = () => {
+                    setRedespachos(prev => [...prev, { id: Date.now() + Math.random(), nome: '', uf: '', nfs: new Set() }]);
+                };
+                const removerRedespacho = (id) => {
+                    setRedespachos(prev => prev.length > 1 ? prev.filter(rd => rd.id !== id) : prev);
+                };
+                const confirmar = () => {
+                    if (!tudoValido) return;
+                    const mapa = {};
+                    redespachos.forEach(rd => {
+                        rd.nfs.forEach(idx => { mapa[idx] = { nome: rd.nome.trim(), uf: rd.uf }; });
+                    });
+                    const nomes = redespachos.map(rd => rd.nome.trim()).join(' / ');
+                    salvar(true, nomes, mapa);
+                };
+
+                return (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                        padding: '20px'
+                    }}>
+                        <div style={{
+                            ...glassCard,
+                            border: '1px solid rgba(251,191,36,0.35)',
+                            padding: '24px 28px',
+                            maxWidth: '900px', width: '100%', maxHeight: '90vh',
+                            display: 'flex', flexDirection: 'column',
+                            boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                <div style={{ color: '#fbbf24', fontSize: '17px', fontWeight: '700' }}>
+                                    Configurar Redespachos
+                                </div>
+                                <button onClick={() => setModalMultiRedespacho(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div style={{ overflowY: 'auto', flex: 1, paddingRight: '8px' }}>
+                                {redespachos.map((rd, i) => {
+                                    const ufsDisponiveis = [...new Set(
+                                        selAtual.filter(r => rd.nfs.has(r._idx)).map(r => (r.uf || '').toUpperCase()).filter(Boolean)
+                                    )].sort();
+                                    return (
+                                        <div key={rd.id} style={{
+                                            background: 'rgba(251,191,36,0.05)',
+                                            border: '1px solid rgba(251,191,36,0.2)',
+                                            borderRadius: '10px', padding: '14px 16px', marginBottom: '12px',
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                                <div style={{ color: '#fbbf24', fontWeight: '700', fontSize: '13px', minWidth: '100px' }}>
+                                                    Redespacho {i + 1}
+                                                </div>
+                                                <input
+                                                    value={rd.nome}
+                                                    onChange={e => atualizarRedespacho(rd.id, 'nome', e.target.value)}
+                                                    placeholder="Nome (ex: Transportadora XYZ)"
+                                                    style={{
+                                                        flex: 1, background: 'rgba(0,0,0,0.3)',
+                                                        border: '1px solid rgba(255,255,255,0.15)',
+                                                        borderRadius: '6px', color: '#e2e8f0',
+                                                        padding: '7px 10px', fontSize: '13px',
+                                                    }}
+                                                />
+                                                <select
+                                                    value={rd.uf}
+                                                    onChange={e => atualizarRedespacho(rd.id, 'uf', e.target.value)}
+                                                    style={{
+                                                        background: 'rgba(0,0,0,0.3)',
+                                                        border: '1px solid rgba(255,255,255,0.15)',
+                                                        borderRadius: '6px', color: '#e2e8f0',
+                                                        padding: '7px 10px', fontSize: '13px', minWidth: '90px',
+                                                    }}
+                                                >
+                                                    <option value="">UF…</option>
+                                                    {ufsDisponiveis.map(u => <option key={u} value={u}>{u}</option>)}
+                                                </select>
+                                                {redespachos.length > 1 && (
+                                                    <button
+                                                        onClick={() => removerRedespacho(rd.id)}
+                                                        style={{
+                                                            background: 'rgba(239,68,68,0.15)',
+                                                            border: '1px solid rgba(239,68,68,0.3)',
+                                                            borderRadius: '6px', color: '#f87171',
+                                                            cursor: 'pointer', padding: '4px 8px', fontSize: '12px',
+                                                        }}
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '6px', fontWeight: '600' }}>
+                                                NFs deste redespacho ({rd.nfs.size}):
+                                            </div>
+                                            <div style={{
+                                                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                                                gap: '6px', maxHeight: '160px', overflowY: 'auto',
+                                            }}>
+                                                {selAtual.map(r => {
+                                                    const isMine = rd.nfs.has(r._idx);
+                                                    const isInOther = !isMine && nfsEmRedespacho.has(r._idx);
+                                                    return (
+                                                        <div
+                                                            key={r._idx}
+                                                            onClick={() => toggleNfNoRedespacho(rd.id, r._idx)}
+                                                            style={{
+                                                                background: isMine ? 'rgba(251,191,36,0.2)' : isInOther ? 'rgba(100,116,139,0.1)' : 'rgba(0,0,0,0.2)',
+                                                                border: `1px solid ${isMine ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                                                                borderRadius: '5px', padding: '5px 8px', cursor: 'pointer',
+                                                                fontSize: '11px', color: isInOther ? '#475569' : '#cbd5e1',
+                                                                display: 'flex', gap: '6px', alignItems: 'center',
+                                                                opacity: isInOther ? 0.5 : 1,
+                                                            }}
+                                                        >
+                                                            {isMine
+                                                                ? <CheckSquare size={12} style={{ color: '#fbbf24' }} />
+                                                                : <Square size={12} style={{ color: '#475569' }} />
+                                                            }
+                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                NF {r.nf || '—'} · {r.uf || '—'} · {r.cliente || '—'}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                <button
+                                    onClick={adicionarRedespacho}
+                                    style={{
+                                        width: '100%', background: 'rgba(251,191,36,0.1)',
+                                        border: '1px dashed rgba(251,191,36,0.4)',
+                                        borderRadius: '8px', color: '#fbbf24',
+                                        cursor: 'pointer', padding: '10px', fontSize: '13px', fontWeight: '600',
+                                    }}
+                                >
+                                    + Adicionar outro redespacho
+                                </button>
+                            </div>
+
+                            <div style={{
+                                marginTop: '14px', padding: '10px 14px',
+                                background: 'rgba(0,0,0,0.3)', borderRadius: '8px',
+                                color: '#94a3b8', fontSize: '12px',
+                                display: 'flex', gap: '18px', flexWrap: 'wrap',
+                            }}>
+                                <span><strong style={{ color: '#fbbf24' }}>{nfsEmRedespacho.size}</strong> NF(s) em redespacho</span>
+                                <span><strong style={{ color: '#60a5fa' }}>{nfsDiretas.length}</strong> NF(s) irão direto ao cliente</span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                <button
+                                    onClick={() => setModalMultiRedespacho(false)}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: '8px',
+                                        background: 'rgba(255,255,255,0.06)',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        color: '#94a3b8', cursor: 'pointer', fontSize: '13px',
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmar}
+                                    disabled={!tudoValido}
+                                    style={{
+                                        flex: 2, padding: '10px', borderRadius: '8px',
+                                        background: tudoValido
+                                            ? 'linear-gradient(135deg, #d97706, #92400e)'
+                                            : 'rgba(255,255,255,0.03)',
+                                        border: 'none',
+                                        color: tudoValido ? '#fff' : '#475569',
+                                        cursor: tudoValido ? 'pointer' : 'not-allowed',
+                                        fontSize: '14px', fontWeight: '700',
+                                    }}
+                                >
+                                    Confirmar e Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* AVISO */}
             {aviso && (
@@ -484,23 +666,69 @@ export default function ModuloCubagem() {
                     {[
                         ['cliente', 'Cliente'],
                         ['cidade', 'Cidade'],
-                        ['uf', 'UF'],
+                        ['uf', 'UF', 'filter-uf'],
                         ['doca', 'Doca'],
                         ['volumes', 'Vol'],
                         ['peso_kg', 'Peso kg'],
                         ['m3', 'M³'],
                         ['valor', 'Valor R$'],
                         ['nf', 'NF'],
-                        ['status', 'Status'],
-                    ].map(([col, label]) => (
-                        <div
-                            key={col}
-                            onClick={() => ordenar(col)}
-                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', userSelect: 'none' }}
-                        >
-                            {label} <SortIcon col={col} />
-                        </div>
-                    ))}
+                        ['status', 'Status', 'filter-status'],
+                    ].map(([col, label, filterKind]) => {
+                        if (filterKind === 'filter-uf') {
+                            return (
+                                <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                    <select
+                                        value={filtroUF}
+                                        onChange={e => setFiltroUF(e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        style={{
+                                            background: filtroUF ? 'rgba(217,119,6,0.25)' : 'rgba(0,0,0,0.25)',
+                                            border: `1px solid ${filtroUF ? 'rgba(217,119,6,0.6)' : 'rgba(217,119,6,0.25)'}`,
+                                            borderRadius: '5px', color: '#d97706', fontSize: '10px',
+                                            padding: '2px 4px', fontWeight: '700', letterSpacing: '0.5px',
+                                            cursor: 'pointer', width: '100%', textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        <option value="">UF ▾</option>
+                                        {opcoesUF.map(u => <option key={u} value={u}>{u}</option>)}
+                                    </select>
+                                    <span onClick={() => ordenar(col)} style={{ cursor: 'pointer' }}><SortIcon col={col} /></span>
+                                </div>
+                            );
+                        }
+                        if (filterKind === 'filter-status') {
+                            return (
+                                <div key={col} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                    <select
+                                        value={filtroStatus}
+                                        onChange={e => setFiltroStatus(e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        style={{
+                                            background: filtroStatus ? 'rgba(217,119,6,0.25)' : 'rgba(0,0,0,0.25)',
+                                            border: `1px solid ${filtroStatus ? 'rgba(217,119,6,0.6)' : 'rgba(217,119,6,0.25)'}`,
+                                            borderRadius: '5px', color: '#d97706', fontSize: '10px',
+                                            padding: '2px 4px', fontWeight: '700', letterSpacing: '0.3px',
+                                            cursor: 'pointer', width: '100%', textOverflow: 'ellipsis', overflow: 'hidden',
+                                        }}
+                                    >
+                                        <option value="">STATUS ▾</option>
+                                        {opcoesStatus.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    <span onClick={() => ordenar(col)} style={{ cursor: 'pointer' }}><SortIcon col={col} /></span>
+                                </div>
+                            );
+                        }
+                        return (
+                            <div
+                                key={col}
+                                onClick={() => ordenar(col)}
+                                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', userSelect: 'none' }}
+                            >
+                                {label} <SortIcon col={col} />
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Linhas */}
