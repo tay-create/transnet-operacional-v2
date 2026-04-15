@@ -1513,22 +1513,19 @@ export default function PainelOperacional({
 
                                                 {/* Botões de Ação */}
                                                 <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', alignItems: 'center' }}>
-                                                    {/* Botão PDF Cubagem — aparece quando há coleta Moreno com cubagem atrelada */}
-                                                    {item.coletaMoreno && (
+                                                    {/* Botão PDF Cubagem — só para PORCELANA */}
+                                                    {item.operacao?.includes('PORCELANA') && item.coletaMoreno && (
                                                         <button
                                                             disabled={!!loadingPdf[item.id]}
                                                             onClick={async () => {
-                                                                const coletas = item.coletaMoreno.split(',').map(s => s.trim()).filter(Boolean);
+                                                                const coleta = item.coletaMoreno.split(',')[0].trim();
+                                                                if (!coleta) return;
                                                                 setLoadingPdf(p => ({ ...p, [item.id]: true }));
                                                                 try {
-                                                                    for (const coleta of coletas) {
-                                                                        const res = await api.get(`/cubagens/coleta/${coleta}`);
-                                                                        if (res.data?.success && res.data.cubagem) {
-                                                                            gerarPdfCubagem(res.data.cubagem);
-                                                                            return;
-                                                                        }
+                                                                    const res = await api.get(`/cubagens/coleta/${coleta}`);
+                                                                    if (res.data?.success && res.data.cubagem) {
+                                                                        gerarPdfCubagem(res.data.cubagem);
                                                                     }
-                                                                    alert('Nenhuma cubagem encontrada para as coletas deste veículo.');
                                                                 } finally {
                                                                     setLoadingPdf(p => ({ ...p, [item.id]: false }));
                                                                 }
