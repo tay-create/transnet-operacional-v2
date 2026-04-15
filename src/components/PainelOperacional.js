@@ -514,10 +514,10 @@ export default function PainelOperacional({
         return ehDataCerta && bateuBusca && bateuOperacao;
     }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, origem]); // eslint-disable-line
 
-    const ORDEM_STATUS = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+    const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
         const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
-        return ORDEM_STATUS.indexOf(a[campo] || 'AGUARDANDO') - ORDEM_STATUS.indexOf(b[campo] || 'AGUARDANDO');
+        return ORDEM_STATUS.indexOf(a[campo] || OPCOES_STATUS[0]) - ORDEM_STATUS.indexOf(b[campo] || OPCOES_STATUS[0]);
     }), [itensFiltrados, origem]); // eslint-disable-line
 
     const getEstiloRota = (valor) => ({
@@ -767,7 +767,7 @@ export default function PainelOperacional({
 
                             {ORDEM_STATUS.map(status => {
                                 const campoGrupo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
-                                const grupo = itensOrdenados.filter(item => (item[campoGrupo] || 'AGUARDANDO') === status);
+                                const grupo = itensOrdenados.filter(item => (item[campoGrupo] || OPCOES_STATUS[0]) === status);
                                 if (grupo.length === 0) return null;
                                 const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
                                 return (
