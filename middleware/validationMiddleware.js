@@ -39,12 +39,19 @@ const cubagemSchema = z.object({
             metragem: z.union([
                 z.string().transform(val => parseFloat(val) || 0),
                 z.number()
-            ]).refine(val => val >= 0, { message: 'Metragem deve ser positiva' })
+            ]).refine(val => val >= 0, { message: 'Metragem deve ser positiva' }),
+            uf: z.string().optional().default(''),
+            regiao: z.string().optional().default(''),
+            valor: z.number().nonnegative().optional().default(0),
+            volumes: z.number().nonnegative().optional().default(0),
+            peso_kg: z.number().nonnegative().optional().default(0),
         })
     ).optional().default([]),
     metragem_total: z.number().nonnegative().optional().default(0),
     valor_mix_total: z.number().nonnegative().optional().default(0),
-    valor_kit_total: z.number().nonnegative().optional().default(0)
+    valor_kit_total: z.number().nonnegative().optional().default(0),
+    valor_total: z.number().nonnegative().optional().default(0),
+    peso_total: z.number().nonnegative().optional().default(0),
 });
 
 const cadastroUsuarioSchema = z.object({

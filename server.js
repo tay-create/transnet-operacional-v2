@@ -1748,12 +1748,12 @@ app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'P
 
 app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(cubagemSchema), async (req, res) => {
     try {
-        const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total } = req.body;
+        const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total, valor_total, peso_total } = req.body;
 
         const cubagemId = await dbTransaction(async ({ run }) => {
             const result = await run(
-                `INSERT INTO cubagens (numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, metragem_total, valor_mix_total, valor_kit_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0]
+                `INSERT INTO cubagens (numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, metragem_total, valor_mix_total, valor_kit_total, valor_total, peso_total) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                [numero_coleta, motorista, cliente, redespacho ? 1 : 0, nome_redespacho || '', destino, volume, data, faturado ? 1 : 0, tipo, metragem_total || 0, valor_mix_total || 0, valor_kit_total || 0, valor_total || 0, peso_total || 0]
             );
 
             const id = result.lastID;
@@ -1764,10 +1764,23 @@ app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 
                 const valores = itensFiltrados.map(item => {
                     const metro = parseFloat(item.metragem) || 0;
                     const base = metro + (metro * 0.10);
-                    return [id, item.numero_nf || '', metro, (base / 2.5) / 1.3, (base / 2.5) / 1.9];
+                    return [
+                        id,
+                        item.numero_nf || '',
+                        metro,
+                        (base / 2.5) / 1.3,
+                        (base / 2.5) / 1.9,
+                        item.uf || '',
+                        item.regiao || '',
+                        parseFloat(item.valor) || 0,
+                        parseInt(item.volumes) || 0,
+                        parseFloat(item.peso_kg) || 0,
+                        item.redespacho_nome || null,
+                        item.redespacho_uf || null,
+                    ];
                 });
-                const placeholders = valores.map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`).join(', ');
-                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES ${placeholders}`, valores.flat());
+                const placeholders = valores.map((_, i) => `($${i*12+1}, $${i*12+2}, $${i*12+3}, $${i*12+4}, $${i*12+5}, $${i*12+6}, $${i*12+7}, $${i*12+8}, $${i*12+9}, $${i*12+10}, $${i*12+11}, $${i*12+12})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit, uf, regiao, valor, volumes, peso_kg, redespacho_nome, redespacho_uf) VALUES ${placeholders}`, valores.flat());
             }
 
             return id;
@@ -1799,10 +1812,23 @@ app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
                 const valores = itensFiltrados.map(item => {
                     const metro = parseFloat(item.metragem) || 0;
                     const base = metro + (metro * 0.10);
-                    return [id, item.numero_nf || '', metro, (base / 2.5) / 1.3, (base / 2.5) / 1.9];
+                    return [
+                        id,
+                        item.numero_nf || '',
+                        metro,
+                        (base / 2.5) / 1.3,
+                        (base / 2.5) / 1.9,
+                        item.uf || '',
+                        item.regiao || '',
+                        parseFloat(item.valor) || 0,
+                        parseInt(item.volumes) || 0,
+                        parseFloat(item.peso_kg) || 0,
+                        item.redespacho_nome || null,
+                        item.redespacho_uf || null,
+                    ];
                 });
-                const placeholders = valores.map((_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`).join(', ');
-                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit) VALUES ${placeholders}`, valores.flat());
+                const placeholders = valores.map((_, i) => `($${i*12+1}, $${i*12+2}, $${i*12+3}, $${i*12+4}, $${i*12+5}, $${i*12+6}, $${i*12+7}, $${i*12+8}, $${i*12+9}, $${i*12+10}, $${i*12+11}, $${i*12+12})`).join(', ');
+                await run(`INSERT INTO cubagem_itens (cubagem_id, numero_nf, metragem, valor_mix, valor_kit, uf, regiao, valor, volumes, peso_kg, redespacho_nome, redespacho_uf) VALUES ${placeholders}`, valores.flat());
             }
         });
 
@@ -3302,7 +3328,7 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
     try {
         const saJson  = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
         const sheetId = process.env.SHEETS_PORCELANA_ID;
-        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques - ABRIL 2026!A1:AJ500';
+        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques - ABRIL 2026!A1:AJ5000';
 
         if (!saJson || !sheetId) {
             return res.json({ success: true, configurado: false, linhas: [] });
@@ -3317,8 +3343,8 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
         const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
         const rows = resp.data.values || [];
 
-        // 3 linhas de cabeçalho → dados a partir do índice 3
-        const linhas = rows.slice(3).map((row, i) => ({
+        // 4 linhas de cabeçalho → dados a partir do índice 4
+        const linhas = rows.slice(4).map((row, i) => ({
             _idx: i,
             cliente:        row[1]  || '',
             cidade:         row[2]  || '',
@@ -3327,6 +3353,7 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
             volumes:        parseFloat((row[6]  || '0').replace(',', '.')) || 0,
             peso_kg:        parseFloat((row[7]  || '0').replace(',', '.')) || 0,
             m3:             parseFloat((row[8]  || '0').replace(',', '.')) || 0,
+            valor:          parseFloat((row[9]  || '0').replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.')) || 0,
             nf:             row[10] || '',
             status:         row[15] || '',
             doca:           row[16] || '',
@@ -3341,6 +3368,67 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
     } catch (err) {
         console.error('Sheets error:', err.message);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ── Relatório de Cubagem ─────────────────────────────────────────────────────
+app.get('/api/relatorio/cubagem', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), async (req, res) => {
+    try {
+        const { de, ate } = req.query;
+        if (!de || !ate) return res.status(400).json({ success: false, error: 'Parâmetros de e ate são obrigatórios' });
+
+        const cubagens = await dbAll(`
+            SELECT c.id, c.numero_coleta, c.motorista, c.cliente, c.destino,
+                   c.metragem_total, c.valor_mix_total, c.valor_kit_total,
+                   c.valor_total, c.peso_total, c.redespacho, c.nome_redespacho,
+                   c.tipo, c.data_criacao,
+                   COALESCE(json_agg(json_build_object(
+                       'numero_nf', ci.numero_nf, 'metragem', ci.metragem,
+                       'uf', ci.uf, 'regiao', ci.regiao, 'valor', ci.valor,
+                       'volumes', ci.volumes, 'peso_kg', ci.peso_kg,
+                       'redespacho_nome', ci.redespacho_nome, 'redespacho_uf', ci.redespacho_uf
+                   ) ORDER BY ci.id) FILTER (WHERE ci.id IS NOT NULL), '[]') AS itens
+            FROM cubagens c
+            LEFT JOIN cubagem_itens ci ON ci.cubagem_id = c.id
+            WHERE c.data_criacao::date >= $1 AND c.data_criacao::date <= $2
+              AND c.tipo = 'Porcelana'
+            GROUP BY c.id
+            ORDER BY c.data_criacao DESC
+        `, [de, ate]);
+
+        const porRegiao = await dbAll(`
+            SELECT
+                ci.regiao,
+                COUNT(DISTINCT c.id)::int AS qtd_cubagens,
+                ROUND(SUM(ci.metragem)::numeric, 3)::float AS m3_total,
+                ROUND(SUM(ci.peso_kg)::numeric, 1)::float AS peso_total,
+                ROUND(SUM(ci.valor)::numeric, 2)::float AS valor_total,
+                SUM(ci.volumes)::int AS volumes_total
+            FROM cubagens c
+            JOIN cubagem_itens ci ON ci.cubagem_id = c.id
+            WHERE c.data_criacao::date >= $1 AND c.data_criacao::date <= $2
+              AND c.tipo = 'Porcelana'
+              AND ci.regiao <> ''
+            GROUP BY ci.regiao
+            ORDER BY ci.regiao
+        `, [de, ate]);
+
+        const heatmap = await dbAll(`
+            SELECT
+                EXTRACT(DOW FROM data_criacao AT TIME ZONE 'America/Recife')::int AS dia_semana,
+                EXTRACT(HOUR FROM data_criacao AT TIME ZONE 'America/Recife')::int AS hora,
+                COUNT(*)::int AS qtd
+            FROM cubagens
+            WHERE data_criacao::date >= $1 AND data_criacao::date <= $2
+              AND tipo = 'Porcelana'
+            GROUP BY dia_semana, hora
+            ORDER BY dia_semana, hora
+        `, [de, ate]);
+
+        res.json({ success: true, cubagens, por_regiao: porRegiao, heatmap });
+    } catch (e) {
+        console.error('Erro relatorio cubagem:', e.message);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 

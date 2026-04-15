@@ -3,8 +3,9 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX
+    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX, Download
 } from 'lucide-react';
+import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
 import ModalConfirm from './ModalConfirm';
 import ModalImagem from './ModalImagem';
@@ -207,6 +208,7 @@ export default function PainelOperacional({
     const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
     const [frotaOrigem, setFrotaOrigem] = useState('');
     const [frotaDestino, setFrotaDestino] = useState('');
+    const [loadingPdf, setLoadingPdf] = useState({});
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -512,10 +514,10 @@ export default function PainelOperacional({
         return ehDataCerta && bateuBusca && bateuOperacao;
     }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, origem]); // eslint-disable-line
 
-    const ORDEM_STATUS = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+    const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
         const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
-        return ORDEM_STATUS.indexOf(a[campo] || 'AGUARDANDO') - ORDEM_STATUS.indexOf(b[campo] || 'AGUARDANDO');
+        return ORDEM_STATUS.indexOf(a[campo] || OPCOES_STATUS[0]) - ORDEM_STATUS.indexOf(b[campo] || OPCOES_STATUS[0]);
     }), [itensFiltrados, origem]); // eslint-disable-line
 
     const getEstiloRota = (valor) => ({
@@ -727,8 +729,10 @@ export default function PainelOperacional({
                             <p style={{ color: '#64748b', fontSize: '13px', marginTop: '10px' }}>Verifique os filtros ou faça um novo lançamento.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', paddingBottom: '40px' }}>
-                            {docasInterditadas.filter(c => c.unidade === origem).map(card => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: '40px' }}>
+                            {docasInterditadas.filter(c => c.unidade === origem).length > 0 && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                                    {docasInterditadas.filter(c => c.unidade === origem).map(card => (
                                 <div key={`fulgaz-${card.id}`} className="glass-panel-internal card-neon-hover" style={{ borderLeft: '4px solid #ef4444', borderRadius: '12px', overflow: 'hidden', background: 'rgba(239, 68, 68, 0.05)' }}>
                                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ fontWeight: 'bold', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -757,9 +761,25 @@ export default function PainelOperacional({
                                         </select>
                                     </div>
                                 </div>
-                            ))}
+                                    ))}
+                                </div>
+                            )}
 
-                            {itensOrdenados.map((item) => {
+                            {ORDEM_STATUS.map(status => {
+                                const campoGrupo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const grupo = itensOrdenados.filter(item => (item[campoGrupo] || OPCOES_STATUS[0]) === status);
+                                if (grupo.length === 0) return null;
+                                const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
+                                return (
+                                    <div key={status}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: corGrupo.border, flexShrink: 0 }} />
+                                            <span style={{ fontSize: '11px', fontWeight: '700', color: corGrupo.text, letterSpacing: '0.5px' }}>{status}</span>
+                                            <span style={{ fontSize: '11px', color: '#475569' }}>({grupo.length})</span>
+                                            <div style={{ flex: 1, height: '1px', background: `${corGrupo.border}33` }} />
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                                            {grupo.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
@@ -1493,6 +1513,40 @@ export default function PainelOperacional({
 
                                                 {/* Botões de Ação */}
                                                 <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', alignItems: 'center' }}>
+                                                    {/* Botão PDF Cubagem — só para PORCELANA */}
+                                                    {item.operacao?.includes('PORCELANA') && item.coletaMoreno && (
+                                                        <button
+                                                            disabled={!!loadingPdf[item.id]}
+                                                            onClick={async () => {
+                                                                const coleta = item.coletaMoreno.split(',')[0].trim();
+                                                                if (!coleta) return;
+                                                                setLoadingPdf(p => ({ ...p, [item.id]: true }));
+                                                                try {
+                                                                    const res = await api.get(`/cubagens/coleta/${coleta}`);
+                                                                    if (res.data?.success && res.data.cubagem) {
+                                                                        const cub = res.data.cubagem;
+                                                                        if (!cub.motorista || !String(cub.motorista).trim()) cub.motorista = item.motorista || '';
+                                                                        gerarPdfCubagem(cub);
+                                                                    }
+                                                                } finally {
+                                                                    setLoadingPdf(p => ({ ...p, [item.id]: false }));
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: '4px',
+                                                                padding: '5px 10px', borderRadius: '6px',
+                                                                background: 'rgba(168,85,247,0.15)',
+                                                                border: '1px solid rgba(168,85,247,0.4)',
+                                                                color: '#c084fc', fontSize: '11px', fontWeight: '600',
+                                                                cursor: loadingPdf[item.id] ? 'not-allowed' : 'pointer',
+                                                                opacity: loadingPdf[item.id] ? 0.6 : 1,
+                                                            }}
+                                                            title="Baixar PDF da cubagem"
+                                                        >
+                                                            <Download size={13} />
+                                                            {loadingPdf[item.id] ? '...' : 'PDF'}
+                                                        </button>
+                                                    )}
                                                     {isMista && souPrimeira && user.cidade === origem && (
                                                         <button onClick={() => socket.emit('enviar_alerta', { tipo: 'aviso', origem: origem, mensagem: `Veículo ${item.motorista} saindo!` })} style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.2)', border: 'none', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Avisar Saída">
                                                             <Truck size={16} />
@@ -1533,7 +1587,11 @@ export default function PainelOperacional({
                                     </div >
                                 );
                             })}
-                        </div >
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div >
             </div >
