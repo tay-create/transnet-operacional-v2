@@ -6,6 +6,7 @@ import LoginScreen from '../components/LoginScreen';
 import RedefinirSenha from '../components/RedefinirSenha';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
+import NotFound from '../components/NotFound';
 import io from 'socket.io-client';
 
 const MobileApp = React.lazy(() => import('../mobile/MobileApp'));
@@ -58,7 +59,14 @@ function AppRouter() {
         return null;
     }
 
-    // 3. Verificação de Autenticação para o Sistema Principal
+    // 3. Rotas desconhecidas → 404
+    const rotasValidas = ['/', '/cadastro', '/redefinir-senha', '/conferente', '/mobile', '/checklist'];
+    const isRotaValida = rotasValidas.some(r => path === r || path.startsWith(r + '/'));
+    if (!isRotaValida) {
+        return <NotFound />;
+    }
+
+    // 4. Verificação de Autenticação para o Sistema Principal
     if (!isAuthenticated) {
         return (
             <LoginScreen
@@ -68,7 +76,7 @@ function AppRouter() {
         );
     }
 
-    // 4. Sistema Principal (Admin/Operacional)
+    // 5. Sistema Principal (Admin/Operacional)
     return <App socket={socket} />;
 }
 
