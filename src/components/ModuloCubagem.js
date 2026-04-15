@@ -77,7 +77,7 @@ export default function ModuloCubagem() {
     const countdownRef = useRef(POLL_INTERVAL);
     const timerRef = useRef(null);
 
-    const STATUS_OCULTOS = useMemo(() => new Set(['', 'PEDIDO EM PLANEJAMENTO']), []);
+    const STATUS_OCULTOS = useMemo(() => new Set(['']), []);
 
     const buscar = useCallback(async () => {
         setLoading(true);
