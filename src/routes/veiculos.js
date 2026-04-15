@@ -146,7 +146,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
         } catch (e) { res.status(500).json({ success: false, message: e.message }); }
     });
 
-    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), validate(novoLancamentoSchema), async (req, res) => {
+    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), validate(novoLancamentoSchema), async (req, res) => {
         try {
             const v = req.body;
             const data_criacao = obterDataHoraBrasilia();

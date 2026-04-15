@@ -1356,7 +1356,7 @@ function App({ socket }) {
                     />
                 )}
 
-                {abaAtiva === 'novo_lancamento' && temAcesso('operacao') && (
+                {abaAtiva === 'novo_lancamento' && temAcesso('operacao') && !['Encarregado'].includes(user?.cargo) && (
                     <NovoLancamento
                         user={user}
                         formLanca={formLanca}
