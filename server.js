@@ -3328,8 +3328,8 @@ app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coorde
         const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
         const rows = resp.data.values || [];
 
-        // 3 linhas de cabeçalho → dados a partir do índice 3
-        const linhas = rows.slice(3).map((row, i) => ({
+        // 4 linhas de cabeçalho → dados a partir do índice 4
+        const linhas = rows.slice(4).map((row, i) => ({
             _idx: i,
             cliente:        row[1]  || '',
             cidade:         row[2]  || '',
