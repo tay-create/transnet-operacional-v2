@@ -73,3 +73,17 @@ export const CORES_STATUS = {
 };
 
 export const CARGOS_DISPONIVEIS = ['Direção', 'Coordenador', 'Adm Frota', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro', 'Dashboard Viewer', 'Conferente', 'Pos Embarque'];
+
+// Taxa de Usabilidade da Frota
+export const META_USABILIDADE = 85;
+export const ALERTA_USABILIDADE = 80;
+export const TIPOS_USABILIDADE = ['TRUCK', '3/4', 'CONJUNTO'];
+export const STATUS_USABILIDADE_OPERANDO = [
+    'EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'RETORNANDO',
+    'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA'
+];
+export const STATUS_USABILIDADE_OCIOSO = [
+    'DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO'
+];
+export const STATUS_USABILIDADE_EXCLUIDO = ['MANUTENCAO', 'SABADO'];
+export const CARGOS_ALERTA_USABILIDADE = ['Coordenador', 'Planejamento', 'Adm Frota'];

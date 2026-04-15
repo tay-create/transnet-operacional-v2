@@ -472,6 +472,16 @@ const inicializarBanco = async () => {
             atualizada_em TIMESTAMP DEFAULT NOW()
         )`);
 
+        await dbRun(`CREATE TABLE IF NOT EXISTS usabilidade_alertas_log (
+            id SERIAL PRIMARY KEY,
+            disparado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+            taxa NUMERIC(5,2) NOT NULL,
+            periodo_inicio DATE NOT NULL,
+            periodo_fim DATE NOT NULL,
+            resolvido_em TIMESTAMP NULL
+        )`);
+        try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_usab_alertas_disparado ON usabilidade_alertas_log(disparado_em)`); } catch (_) {}
+
         // Adicionar colunas faltantes em tabelas existentes (executado após todas as tabelas criadas)
         for (const { tabela, coluna, tipo } of colunasParaAdicionar) {
             try {
