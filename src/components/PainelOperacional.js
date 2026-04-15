@@ -729,8 +729,10 @@ export default function PainelOperacional({
                             <p style={{ color: '#64748b', fontSize: '13px', marginTop: '10px' }}>Verifique os filtros ou faça um novo lançamento.</p>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', paddingBottom: '40px' }}>
-                            {docasInterditadas.filter(c => c.unidade === origem).map(card => (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: '40px' }}>
+                            {docasInterditadas.filter(c => c.unidade === origem).length > 0 && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                                    {docasInterditadas.filter(c => c.unidade === origem).map(card => (
                                 <div key={`fulgaz-${card.id}`} className="glass-panel-internal card-neon-hover" style={{ borderLeft: '4px solid #ef4444', borderRadius: '12px', overflow: 'hidden', background: 'rgba(239, 68, 68, 0.05)' }}>
                                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ fontWeight: 'bold', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -759,9 +761,25 @@ export default function PainelOperacional({
                                         </select>
                                     </div>
                                 </div>
-                            ))}
+                                    ))}
+                                </div>
+                            )}
 
-                            {itensOrdenados.map((item) => {
+                            {ORDEM_STATUS.map(status => {
+                                const campoGrupo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const grupo = itensOrdenados.filter(item => (item[campoGrupo] || 'AGUARDANDO') === status);
+                                if (grupo.length === 0) return null;
+                                const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
+                                return (
+                                    <div key={status}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: corGrupo.border, flexShrink: 0 }} />
+                                            <span style={{ fontSize: '11px', fontWeight: '700', color: corGrupo.text, letterSpacing: '0.5px' }}>{status}</span>
+                                            <span style={{ fontSize: '11px', color: '#475569' }}>({grupo.length})</span>
+                                            <div style={{ flex: 1, height: '1px', background: `${corGrupo.border}33` }} />
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                                            {grupo.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
@@ -1567,7 +1585,11 @@ export default function PainelOperacional({
                                     </div >
                                 );
                             })}
-                        </div >
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div >
             </div >
