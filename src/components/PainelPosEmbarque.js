@@ -92,7 +92,7 @@ export default function PainelPosEmbarque() {
     const [ocorrenciaAtualId, setOcorrenciaAtualId] = useState(null);
     const [fotoUploadBase64, setFotoUploadBase64] = useState(null);
     const [modalConfirm, setModalConfirm] = useState(null);
-    const [modalSolicitar, setModalSolicitar] = useState(null); // { id, motivo }
+    const [editandoId, setEditandoId] = useState(null);
 
     // Form - Nova Ocorrência
     const [form, setForm] = useState({
@@ -198,29 +198,56 @@ export default function PainelPosEmbarque() {
         }
     };
 
-    const solicitar = (id) => {
-        setModalSolicitar({ id, motivo: '' });
+    const editar = (oc) => {
+        setForm({
+            data_ocorrencia: oc.data_ocorrencia ? String(oc.data_ocorrencia).substring(0, 10) : '',
+            hora_ocorrencia: oc.hora_ocorrencia || '',
+            motorista: oc.motorista || '',
+            modalidade: oc.modalidade || '',
+            cte: oc.cte || '',
+            operacao: oc.operacao || '',
+            nfs: oc.nfs || '',
+            cliente: oc.cliente || '',
+            cidade: oc.cidade || '',
+            motivo: oc.motivo || '',
+            link_email: oc.link_email || ''
+        });
+        setEditandoId(oc.id);
+        setAba('nova');
     };
 
-    const confirmarSolicitar = async () => {
-        if (!modalSolicitar || !modalSolicitar.motivo.trim()) {
+    const salvarEdicao = async () => {
+        if (!form.motorista || !form.cliente || !form.motivo) {
             setModalConfirm({
-                titulo: 'Motivo obrigatório',
-                mensagem: 'Informe o motivo da solicitação de edição.',
+                titulo: 'Campos obrigatórios',
+                mensagem: 'Preencha ao menos Motorista, Cliente e Motivo.',
                 variante: 'aviso'
             });
             return;
         }
-        const { id, motivo } = modalSolicitar;
-        setModalSolicitar(null);
         try {
-            await api.post(`/api/posembarque/ocorrencias/${id}/solicitar-edicao`, { motivo_edicao: motivo });
+            const res = await api.put(`/api/posembarque/ocorrencias/${editandoId}`, form);
+            if (!res.data?.success) {
+                setModalConfirm({
+                    titulo: 'Erro ao salvar',
+                    mensagem: res.data?.message || 'Erro ao atualizar ocorrência',
+                    variante: 'perigo'
+                });
+                return;
+            }
+            setEditandoId(null);
+            setForm({
+                data_ocorrencia: new Date().toISOString().split('T')[0],
+                hora_ocorrencia: new Date().toTimeString().substring(0, 5),
+                motorista: '', modalidade: '', cte: '', operacao: '', nfs: '', cliente: '', cidade: '', motivo: '', link_email: ''
+            });
+            setAba('dashboard');
             carregarOcorrencias();
         } catch (e) {
-            console.error('Erro ao solicitar:', e);
+            console.error('Erro ao atualizar ocorrência:', e);
             setModalConfirm({
-                titulo: 'Erro',
-                mensagem: 'Erro ao solicitar edição.',
+                titulo: 'Erro ao salvar',
+                mensagem: e?.response?.data?.message || 'Erro ao atualizar ocorrência',
                 variante: 'perigo'
             });
         }
@@ -428,7 +455,7 @@ export default function PainelPosEmbarque() {
                                                         <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => resolver(oc.id)} title="Resolver">
                                                             <CheckCircle size={14} />
                                                         </button>
-                                                        <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => solicitar(oc.id)} title="Solicitar Edição">
+                                                        <button style={{ ...s.btn, ...s.btnPrimary }} onClick={() => editar(oc)} title="Editar">
                                                             <Edit2 size={14} />
                                                         </button>
                                                     </>
@@ -469,7 +496,7 @@ export default function PainelPosEmbarque() {
             {/* ABA NOVA OCORRÊNCIA */}
             {aba === 'nova' && (
                 <div style={s.card}>
-                    <h3 style={{ marginBottom: '16px', color: '#06b6d4' }}>Registrar Ocorrência</h3>
+                    <h3 style={{ marginBottom: '16px', color: '#06b6d4' }}>{editandoId ? 'Editar Ocorrência' : 'Registrar Ocorrência'}</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                         <input type="date" style={s.input} value={form.data_ocorrencia} onChange={e => setForm({ ...form, data_ocorrencia: e.target.value })} />
                         <input type="time" style={s.input} value={form.hora_ocorrencia} onChange={e => setForm({ ...form, hora_ocorrencia: e.target.value })} />
@@ -565,9 +592,24 @@ export default function PainelPosEmbarque() {
 
                         <input type="text" placeholder="Link Email" style={{ ...s.input, gridColumn: '1 / -1' }} value={form.link_email} onChange={e => setForm({ ...form, link_email: e.target.value })} />
                     </div>
-                    <button style={{ ...s.btn, ...s.btnPrimary, marginTop: '16px' }} onClick={criarOcorrencia}>
-                        Criar Ocorrência
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                        <button style={{ ...s.btn, ...s.btnPrimary }} onClick={editandoId ? salvarEdicao : criarOcorrencia}>
+                            {editandoId ? 'Salvar Alterações' : 'Criar Ocorrência'}
+                        </button>
+                        {editandoId && (
+                            <button style={{ ...s.btn, background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)' }} onClick={() => {
+                                setEditandoId(null);
+                                setForm({
+                                    data_ocorrencia: new Date().toISOString().split('T')[0],
+                                    hora_ocorrencia: new Date().toTimeString().substring(0, 5),
+                                    motorista: '', modalidade: '', cte: '', operacao: '', nfs: '', cliente: '', cidade: '', motivo: '', link_email: ''
+                                });
+                                setAba('dashboard');
+                            }}>
+                                Cancelar
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -611,87 +653,6 @@ export default function PainelPosEmbarque() {
                 />
             )}
 
-            {/* MODAL - SOLICITAR EDIÇÃO (com input) */}
-            {modalSolicitar && (
-                <div style={{
-                    position: 'fixed', inset: 0, zIndex: 99999,
-                    background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-                }}>
-                    <div style={{
-                        background: '#0f172a',
-                        border: '1px solid rgba(56,189,248,0.3)',
-                        borderRadius: '14px',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
-                        width: '100%', maxWidth: '460px',
-                        overflow: 'hidden'
-                    }}>
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '16px 20px',
-                            background: 'rgba(56,189,248,0.12)',
-                            borderBottom: '1px solid rgba(56,189,248,0.3)'
-                        }}>
-                            <Edit2 size={20} color="#38bdf8" />
-                            <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '15px', flex: 1 }}>
-                                Solicitar edição
-                            </span>
-                            <button onClick={() => setModalSolicitar(null)} style={{
-                                background: 'none', border: 'none', cursor: 'pointer',
-                                color: '#64748b', padding: '2px'
-                            }}>
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <div style={{ padding: '20px' }}>
-                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '13px', marginBottom: '8px' }}>
-                                Informe o motivo da solicitação:
-                            </label>
-                            <textarea
-                                autoFocus
-                                rows={4}
-                                value={modalSolicitar.motivo}
-                                onChange={e => setModalSolicitar({ ...modalSolicitar, motivo: e.target.value })}
-                                placeholder="Descreva o motivo..."
-                                style={{
-                                    width: '100%',
-                                    background: 'rgba(255,255,255,0.06)',
-                                    border: '1px solid rgba(255,255,255,0.1)',
-                                    borderRadius: '6px',
-                                    padding: '10px 12px',
-                                    color: '#f1f5f9',
-                                    fontSize: '13px',
-                                    resize: 'vertical',
-                                    fontFamily: 'inherit'
-                                }}
-                            />
-                        </div>
-                        <div style={{
-                            display: 'flex', justifyContent: 'flex-end', gap: '10px',
-                            padding: '12px 20px',
-                            borderTop: '1px solid rgba(255,255,255,0.07)'
-                        }}>
-                            <button onClick={() => setModalSolicitar(null)} style={{
-                                padding: '8px 18px', borderRadius: '8px', fontSize: '13px',
-                                fontWeight: 500, cursor: 'pointer',
-                                background: 'rgba(255,255,255,0.07)',
-                                border: '1px solid rgba(255,255,255,0.12)',
-                                color: '#94a3b8'
-                            }}>
-                                Cancelar
-                            </button>
-                            <button onClick={confirmarSolicitar} style={{
-                                padding: '8px 18px', borderRadius: '8px', fontSize: '13px',
-                                fontWeight: 600, cursor: 'pointer',
-                                background: '#0ea5e9',
-                                border: 'none', color: '#fff'
-                            }}>
-                                Enviar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
