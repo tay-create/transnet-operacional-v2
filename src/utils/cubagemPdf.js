@@ -3,15 +3,10 @@ export function gerarPdfCubagem(cubagem) {
     const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const itens = cubagem.itens || [];
 
-    // Fallback: cubagem antiga (antes do fluxo multi-redespacho) — grava no nível do item
-    const temRedespachoPorItem = itens.some(it => it.redespacho_nome && String(it.redespacho_nome).trim());
-    const fallbackNome = (!temRedespachoPorItem && cubagem.redespacho && cubagem.nome_redespacho)
-        ? String(cubagem.nome_redespacho).trim()
-        : null;
-
-    // Enriquece itens com redespacho resolvido + ordena (redespachos primeiro, por nome, depois diretos)
+    // Cada NF mostra APENAS o redespacho em que foi colocada.
+    // NFs sem redespacho ficam com célula vazia = entrega direta ao cliente.
     const itensResolvidos = itens.map(it => {
-        const nomeRed = (it.redespacho_nome && String(it.redespacho_nome).trim()) || fallbackNome || '';
+        const nomeRed = (it.redespacho_nome && String(it.redespacho_nome).trim()) || '';
         const ufRed = it.redespacho_uf || '';
         return { ...it, _redNome: nomeRed, _redUf: ufRed };
     }).sort((a, b) => {
@@ -24,7 +19,7 @@ export function gerarPdfCubagem(cubagem) {
     const linhas = itensResolvidos.map(it => {
         const red = it._redNome
             ? `<span class="red-tag">${it._redNome}${it._redUf ? ` <span class="red-uf">${it._redUf}</span>` : ''}</span>`
-            : `<span class="red-direto">DIRETO</span>`;
+            : '';
         return `
             <tr>
                 <td class="check"></td>
@@ -43,29 +38,12 @@ export function gerarPdfCubagem(cubagem) {
     const totPeso = itensResolvidos.reduce((s, it) => s + Number(it.peso_kg || 0), 0);
     const totValor = itensResolvidos.reduce((s, it) => s + Number(it.valor || 0), 0);
 
-    // Resumo de redespachos (contagem por nome)
-    const resumoRed = new Map();
-    itensResolvidos.forEach(it => {
-        const k = it._redNome || '__DIRETO__';
-        resumoRed.set(k, (resumoRed.get(k) || 0) + 1);
-    });
-    const chipsResumo = [...resumoRed.entries()]
-        .sort((a, b) => a[0] === '__DIRETO__' ? 1 : b[0] === '__DIRETO__' ? -1 : a[0].localeCompare(b[0]))
-        .map(([k, qtd]) => k === '__DIRETO__'
-            ? `<span class="chip chip-direto">Direto ao cliente · ${qtd} NF</span>`
-            : `<span class="chip chip-red">${k} · ${qtd} NF</span>`
-        ).join(' ');
-
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <title>Cubagem Porcelana — ${cubagem.numero_coleta}</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 24px; }
         h2 { color: #92400e; margin-bottom: 4px; }
         .meta { color: #64748b; font-size: 11px; margin-bottom: 10px; }
-        .chips { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
-        .chip { font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 700; }
-        .chip-red { background: #fde68a; color: #78350f; border: 1px solid #d97706; }
-        .chip-direto { background: #dbeafe; color: #1e3a8a; border: 1px solid #3b82f6; }
         table { border-collapse: collapse; width: 100%; margin-top: 4px; margin-bottom: 12px; }
         th { background: #d97706; color: #fff; padding: 7px 10px; text-align: left; font-size: 11px; }
         td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
@@ -96,8 +74,6 @@ export function gerarPdfCubagem(cubagem) {
         &nbsp;|&nbsp; Motorista: <strong>${cubagem.motorista || '—'}</strong>
         &nbsp;|&nbsp; Cliente: <strong>${cubagem.cliente || '—'}</strong>
     </div>
-    <div class="chips">${chipsResumo}</div>
-
     <table>
         <thead>
             <tr>
@@ -131,25 +107,6 @@ export function gerarPdfCubagem(cubagem) {
         <div class="tot-card"><div class="tot-label">Destino</div><div class="tot-val" style="font-size:13px">${cubagem.destino || '—'}</div></div>
     </div>
 
-    <div class="conferencia">
-        <h3>CONFERÊNCIA</h3>
-        <div class="conf-row">
-            <div class="conf-field">
-                <div class="conf-label">Conferente</div>
-                <div class="conf-line"></div>
-            </div>
-            <div class="conf-field">
-                <div class="conf-label">Data / Hora</div>
-                <div class="conf-line"></div>
-            </div>
-            <div class="conf-field">
-                <div class="conf-label">Assinatura</div>
-                <div class="conf-line"></div>
-            </div>
-        </div>
-        <div class="conf-label">Observações</div>
-        <div class="conf-obs"></div>
-    </div>
     </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
