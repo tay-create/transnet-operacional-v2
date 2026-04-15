@@ -664,6 +664,203 @@ function obterSegundaFeira(data) {
     return seg.toISOString().substring(0, 10);
 }
 
+// ─── Taxa de Usabilidade da Frota ────────────────────────────────────────────
+
+function zonaCor(taxa) {
+    if (taxa == null) return { cor: '#475569', bg: 'rgba(71,85,105,0.15)', label: 'SEM DADO' };
+    if (taxa >= 85) return { cor: '#22c55e', bg: 'rgba(34,197,94,0.15)', label: 'VERDE' };
+    if (taxa > 80) return { cor: '#facc15', bg: 'rgba(250,204,21,0.15)', label: 'AMARELO' };
+    return { cor: '#ef4444', bg: 'rgba(239,68,68,0.15)', label: 'VERMELHO' };
+}
+
+function gerarQuinzenas(n = 6) {
+    const hoje = new Date();
+    const opcoes = [];
+    let y = hoje.getFullYear();
+    let m = hoje.getMonth() + 1;
+    let q = hoje.getDate() <= 15 ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+        const ultimoDia = new Date(y, m, 0).getDate();
+        const inicio = q === 1 ? `${y}-${String(m).padStart(2,'0')}-01` : `${y}-${String(m).padStart(2,'0')}-16`;
+        const fim = q === 1 ? `${y}-${String(m).padStart(2,'0')}-15` : `${y}-${String(m).padStart(2,'0')}-${ultimoDia}`;
+        const label = `${String(m).padStart(2,'0')}/${y} · Q${q}${i === 0 ? ' (atual)' : ''}`;
+        opcoes.push({ inicio, fim, label });
+        if (q === 2) { q = 1; } else { q = 2; m--; if (m === 0) { m = 12; y--; } }
+    }
+    return opcoes;
+}
+
+function Gauge({ taxa, tamanho = 220 }) {
+    const r = 90;
+    const cx = tamanho / 2;
+    const cy = tamanho * 0.62;
+    const inicioAng = Math.PI;
+    const fimAng = 0;
+    const valor = Math.max(0, Math.min(100, taxa ?? 0));
+    const valorAng = inicioAng - (valor / 100) * Math.PI;
+
+    const polar = (ang, raio = r) => [cx + raio * Math.cos(ang), cy - raio * Math.sin(ang)];
+    const arco = (a1, a2, raio = r) => {
+        const [x1, y1] = polar(a1, raio);
+        const [x2, y2] = polar(a2, raio);
+        const grande = Math.abs(a1 - a2) > Math.PI ? 1 : 0;
+        const sweep = a1 > a2 ? 1 : 0;
+        return `M ${x1} ${y1} A ${raio} ${raio} 0 ${grande} ${sweep} ${x2} ${y2}`;
+    };
+
+    const limVermelho = inicioAng - (80 / 100) * Math.PI;
+    const limAmarelo = inicioAng - (85 / 100) * Math.PI;
+    const zona = zonaCor(taxa);
+
+    return (
+        <svg width={tamanho} height={tamanho * 0.8} viewBox={`0 0 ${tamanho} ${tamanho * 0.8}`}>
+            <path d={arco(inicioAng, limVermelho)} stroke="#ef4444" strokeWidth="14" fill="none" opacity="0.35" />
+            <path d={arco(limVermelho, limAmarelo)} stroke="#facc15" strokeWidth="14" fill="none" opacity="0.35" />
+            <path d={arco(limAmarelo, fimAng)} stroke="#22c55e" strokeWidth="14" fill="none" opacity="0.35" />
+            {taxa != null && <path d={arco(inicioAng, valorAng)} stroke={zona.cor} strokeWidth="14" fill="none" strokeLinecap="round" />}
+            <text x={cx} y={cy - 10} textAnchor="middle" fontSize="34" fontWeight="800" fill={zona.cor}>
+                {taxa != null ? `${taxa.toFixed(1)}%` : '—'}
+            </text>
+            <text x={cx} y={cy + 14} textAnchor="middle" fontSize="11" fill="#94a3b8" fontWeight="600">Taxa de Usabilidade</text>
+            <text x={polar(limVermelho, r + 18)[0]} y={polar(limVermelho, r + 18)[1] + 4} textAnchor="middle" fontSize="10" fill="#ef4444" fontWeight="700">80</text>
+            <text x={polar(limAmarelo, r + 18)[0]} y={polar(limAmarelo, r + 18)[1] + 4} textAnchor="middle" fontSize="10" fill="#facc15" fontWeight="700">85</text>
+        </svg>
+    );
+}
+
+function TimelineDiaria({ diario }) {
+    if (!diario || diario.length === 0) return <div style={{ color: '#64748b', fontSize: 12, padding: 24 }}>Sem dados no período.</div>;
+    const w = 560, h = 140, pl = 36, pr = 12, pt = 12, pb = 24;
+    const iw = w - pl - pr, ih = h - pt - pb;
+    const pontos = diario.map((d, i) => ({ ...d, x: pl + (iw * i) / Math.max(1, diario.length - 1), y: d.taxa == null ? null : pt + ih - (d.taxa / 100) * ih }));
+    const metaY = pt + ih - (85 / 100) * ih;
+    const alertaY = pt + ih - (80 / 100) * ih;
+    const validos = pontos.filter(p => p.y != null);
+    const linha = validos.length > 0 ? validos.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') : '';
+
+    return (
+        <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ maxWidth: '100%' }}>
+            {[0, 25, 50, 75, 100].map(v => {
+                const y = pt + ih - (v / 100) * ih;
+                return <g key={v}>
+                    <line x1={pl} x2={w - pr} y1={y} y2={y} stroke="#1e293b" strokeWidth="1" />
+                    <text x={pl - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#475569">{v}</text>
+                </g>;
+            })}
+            <line x1={pl} x2={w - pr} y1={metaY} y2={metaY} stroke="#22c55e" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+            <line x1={pl} x2={w - pr} y1={alertaY} y2={alertaY} stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.6" />
+            {linha && <path d={linha} stroke="#60a5fa" strokeWidth="2" fill="none" />}
+            {pontos.map((p, i) => p.y != null && (
+                <circle key={i} cx={p.x} cy={p.y} r="3" fill={zonaCor(p.taxa).cor}>
+                    <title>{`${p.data}: ${p.taxa.toFixed(1)}% (${p.operando}/${p.operando + p.ocioso})`}</title>
+                </circle>
+            ))}
+            {pontos.map((p, i) => (i === 0 || i === pontos.length - 1 || i === Math.floor(pontos.length / 2)) && (
+                <text key={`lbl-${i}`} x={p.x} y={h - 6} textAnchor="middle" fontSize="9" fill="#64748b">{p.data.slice(8, 10)}/{p.data.slice(5, 7)}</text>
+            ))}
+        </svg>
+    );
+}
+
+function TaxaUsabilidade({ socket }) {
+    const quinzenas = React.useMemo(() => gerarQuinzenas(6), []);
+    const [periodo, setPeriodo] = useState(quinzenas[0]);
+    const [dados, setDados] = useState(null);
+    const [carregando, setCarregando] = useState(false);
+
+    const carregar = useCallback(async (p) => {
+        setCarregando(true);
+        try {
+            const r = await api.get(`/api/frota/usabilidade?inicio=${p.inicio}&fim=${p.fim}`);
+            if (r.data.success) setDados(r.data);
+        } catch (e) { console.error('usabilidade:', e); }
+        finally { setCarregando(false); }
+    }, []);
+
+    useEffect(() => { carregar(periodo); }, [periodo, carregar]);
+
+    useEffect(() => {
+        if (!socket) return;
+        const handler = () => carregar(periodo);
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
+    }, [socket, periodo, carregar]);
+
+    const zona = zonaCor(dados?.taxa_periodo);
+    const barras = [{ label: periodo.label.replace(' (atual)', ''), taxa: dados?.taxa_periodo ?? null, atual: true }]
+        .concat((dados?.quinzenas_anteriores || []).map(q => ({ label: q.label, taxa: q.taxa, atual: false })));
+
+    return (
+        <div style={{
+            background: 'linear-gradient(145deg, #0f172a 0%, #0d1520 100%)',
+            border: `1px solid ${zona.cor}33`,
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginBottom: 20,
+            boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                <div>
+                    <h3 style={{ color: '#f1f5f9', fontSize: 15, fontWeight: 700, margin: 0 }}>Taxa de Usabilidade da Frota</h3>
+                    <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>Meta ≥ 85% · Alerta ≤ 80% · Frota: TRUCK, 3/4, CONJUNTO</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {carregando && <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #1e293b', borderTop: `2px solid ${zona.cor}`, animation: 'spin 0.7s linear infinite' }} />}
+                    <select value={periodo.inicio} onChange={e => setPeriodo(quinzenas.find(q => q.inicio === e.target.value))}
+                        style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '6px 10px', fontSize: 12, outline: 'none' }}>
+                        {quinzenas.map(q => <option key={q.inicio} value={q.inicio}>{q.label}</option>)}
+                    </select>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: zona.cor, background: zona.bg, border: `1px solid ${zona.cor}55`, padding: '4px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{zona.label}</span>
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 260px) 1fr', gap: 20, alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}><Gauge taxa={dados?.taxa_periodo} /></div>
+                <div>
+                    <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 }}>Evolução diária · {periodo.label.replace(' (atual)', '')}</div>
+                    <TimelineDiaria diario={dados?.diario || []} />
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+                <div>
+                    <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Comparativo por quinzena</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {barras.map(b => {
+                            const z = zonaCor(b.taxa);
+                            const w = b.taxa != null ? `${Math.max(2, Math.min(100, b.taxa))}%` : '0%';
+                            return (
+                                <div key={b.label} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 52px', gap: 8, alignItems: 'center' }}>
+                                    <span style={{ color: b.atual ? '#f1f5f9' : '#94a3b8', fontSize: 11, fontWeight: b.atual ? 700 : 500 }}>{b.label}</span>
+                                    <div style={{ height: 12, background: '#1e293b', borderRadius: 4, overflow: 'hidden' }}>
+                                        <div style={{ width: w, height: '100%', background: z.cor, transition: 'width 0.3s' }} />
+                                    </div>
+                                    <span style={{ color: z.cor, fontSize: 11, fontWeight: 700, textAlign: 'right' }}>{b.taxa != null ? `${b.taxa.toFixed(1)}%` : '—'}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div>
+                    <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Por tipo de veículo</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                        {['TRUCK', '3/4', 'CONJUNTO'].map(t => {
+                            const taxa = dados?.por_tipo?.[t];
+                            const z = zonaCor(taxa);
+                            return (
+                                <div key={t} style={{ background: z.bg, border: `1px solid ${z.cor}55`, borderRadius: 8, padding: '10px 12px' }}>
+                                    <div style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>{t}</div>
+                                    <div style={{ color: z.cor, fontSize: 20, fontWeight: 800, marginTop: 2 }}>{taxa != null ? `${taxa.toFixed(1)}%` : '—'}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function VistaSemanal({ socket }) {
     const hoje = new Date().toISOString().substring(0, 10);
     const [inicioSemana, setInicioSemana] = useState(() => obterSegundaFeira(hoje));
@@ -1154,6 +1351,8 @@ export default function DashboardFrota({ socket }) {
 
             {/* Aba: Dashboard */}
             {abaAtiva === 'dashboard' && (<>
+                <TaxaUsabilidade socket={socket} />
+
                 {/* Visão Semanal no topo */}
                 <VistaSemanal socket={socket} />
 

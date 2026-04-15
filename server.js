@@ -47,6 +47,7 @@ const DESTINATARIOS_NOTIFICACAO = {
     'nova_marcacao':       ['Pos Embarque'],
     'nova_marcacao_coord': [],
     'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
+    'alerta_usabilidade_frota': ['Coordenador', 'Planejamento', 'Adm Frota'],
 };
 
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
@@ -3156,6 +3157,178 @@ app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planeja
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
+
+// ── Taxa de Usabilidade da Frota ─────────────────────────────────────────────
+const STATUS_OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
+const STATUS_OCIOSO = new Set(['DISPONIVEL','CARREGADO','AGUARDANDO_FRETE_RETORNO']);
+const TIPOS_USAB = ['TRUCK','3/4','CONJUNTO'];
+const META_USAB = 85;
+const ALERTA_USAB = 80;
+
+function quinzenaDe(dataStr) {
+    const [y, m, d] = dataStr.split('-').map(Number);
+    const ultimoDia = new Date(y, m, 0).getDate();
+    if (d <= 15) return { inicio: `${y}-${String(m).padStart(2,'0')}-01`, fim: `${y}-${String(m).padStart(2,'0')}-15`, label: `${String(m).padStart(2,'0')}/Q1` };
+    return { inicio: `${y}-${String(m).padStart(2,'0')}-16`, fim: `${y}-${String(m).padStart(2,'0')}-${ultimoDia}`, label: `${String(m).padStart(2,'0')}/Q2` };
+}
+
+function quinzenaAnterior(q) {
+    const [y, m, d] = q.inicio.split('-').map(Number);
+    if (d === 1) {
+        const prevMes = m === 1 ? 12 : m - 1;
+        const prevAno = m === 1 ? y - 1 : y;
+        const ultimoDia = new Date(prevAno, prevMes, 0).getDate();
+        return { inicio: `${prevAno}-${String(prevMes).padStart(2,'0')}-16`, fim: `${prevAno}-${String(prevMes).padStart(2,'0')}-${ultimoDia}`, label: `${String(prevMes).padStart(2,'0')}/Q2` };
+    }
+    return { inicio: `${y}-${String(m).padStart(2,'0')}-01`, fim: `${y}-${String(m).padStart(2,'0')}-15`, label: `${String(m).padStart(2,'0')}/Q1` };
+}
+
+function dataRecife() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+}
+
+function listarDias(inicio, fim) {
+    const dias = [];
+    const [y1, m1, d1] = inicio.split('-').map(Number);
+    const [y2, m2, d2] = fim.split('-').map(Number);
+    const cur = new Date(Date.UTC(y1, m1 - 1, d1));
+    const end = new Date(Date.UTC(y2, m2 - 1, d2));
+    while (cur <= end) {
+        dias.push(cur.toISOString().slice(0, 10));
+        cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return dias;
+}
+
+async function calcularUsabilidadePeriodo(inicio, fim) {
+    const veiculos = await dbAll(
+        "SELECT id, tipo_veiculo FROM prov_veiculos WHERE ativo = 1 AND tipo_veiculo = ANY($1)",
+        [TIPOS_USAB]
+    );
+    const totalFrota = veiculos.length;
+    const vidMap = new Map(veiculos.map(v => [v.id, v.tipo_veiculo]));
+
+    const progs = await dbAll(
+        "SELECT veiculo_id, data::text AS data, status FROM prov_programacao WHERE data BETWEEN $1 AND $2 AND veiculo_id = ANY($3)",
+        [inicio, fim, veiculos.map(v => v.id)]
+    );
+
+    const dias = listarDias(inicio, fim);
+    const porDia = new Map();
+    for (const d of dias) porDia.set(d, new Map());
+    for (const p of progs) {
+        const m = porDia.get(p.data);
+        if (m) m.set(p.veiculo_id, p.status);
+    }
+
+    const diario = [];
+    let somaTaxa = 0, diasComBase = 0;
+    const porTipoAgg = Object.fromEntries(TIPOS_USAB.map(t => [t, { operando: 0, base: 0 }]));
+
+    for (const d of dias) {
+        const mapVid = porDia.get(d);
+        let operando = 0, ocioso = 0, excluido = 0;
+        for (const v of veiculos) {
+            const st = mapVid.get(v.id) || 'DISPONIVEL';
+            if (STATUS_OPERANDO.has(st)) { operando++; porTipoAgg[v.tipo_veiculo].operando++; porTipoAgg[v.tipo_veiculo].base++; }
+            else if (STATUS_OCIOSO.has(st)) { ocioso++; porTipoAgg[v.tipo_veiculo].base++; }
+            else excluido++;
+        }
+        const base = operando + ocioso;
+        const taxa = base > 0 ? (operando / base) * 100 : null;
+        diario.push({ data: d, taxa, operando, ocioso, excluido, total: totalFrota });
+        if (taxa !== null) { somaTaxa += taxa; diasComBase++; }
+    }
+
+    const taxa_periodo = diasComBase > 0 ? somaTaxa / diasComBase : 0;
+    const por_tipo = {};
+    for (const t of TIPOS_USAB) {
+        const a = porTipoAgg[t];
+        por_tipo[t] = a.base > 0 ? (a.operando / a.base) * 100 : null;
+    }
+
+    let status_atual = 'VERDE';
+    if (taxa_periodo <= ALERTA_USAB) status_atual = 'VERMELHO';
+    else if (taxa_periodo < META_USAB) status_atual = 'AMARELO';
+
+    return { taxa_periodo, status_atual, diario, por_tipo, total_frota: totalFrota };
+}
+
+app.get('/api/frota/usabilidade', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Encarregado']), async (req, res) => {
+    try {
+        const hoje = dataRecife();
+        const qAtual = quinzenaDe(hoje);
+        const inicio = req.query.inicio || qAtual.inicio;
+        const fim = req.query.fim || qAtual.fim;
+
+        const atual = await calcularUsabilidadePeriodo(inicio, fim);
+
+        const anteriores = [];
+        let q = { inicio, fim };
+        for (let i = 0; i < 3; i++) {
+            q = quinzenaAnterior(q);
+            const prev = await calcularUsabilidadePeriodo(q.inicio, q.fim);
+            anteriores.push({ label: q.label, inicio: q.inicio, fim: q.fim, taxa: prev.taxa_periodo });
+        }
+
+        res.json({
+            success: true,
+            periodo: { inicio, fim },
+            taxa_periodo: atual.taxa_periodo,
+            taxa_meta: META_USAB,
+            taxa_alerta: ALERTA_USAB,
+            status_atual: atual.status_atual,
+            total_frota: atual.total_frota,
+            diario: atual.diario,
+            por_tipo: atual.por_tipo,
+            quinzenas_anteriores: anteriores,
+        });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// CRON: alertas de usabilidade 3x/dia (08h, 13h, 17h Recife) quando taxa ≤ 80%
+cron.schedule('0 8,13,17 * * *', async () => {
+    try {
+        const hoje = dataRecife();
+        const { inicio, fim } = quinzenaDe(hoje);
+        const dados = await calcularUsabilidadePeriodo(inicio, fim);
+
+        // Auto-resolve: marcar alertas pendentes como resolvidos se taxa voltou a >= META
+        if (dados.taxa_periodo >= META_USAB) {
+            await dbRun(
+                `UPDATE usabilidade_alertas_log SET resolvido_em = NOW()
+                 WHERE resolvido_em IS NULL AND periodo_inicio = $1 AND periodo_fim = $2`,
+                [inicio, fim]
+            );
+            return;
+        }
+        if (dados.taxa_periodo > ALERTA_USAB) return;
+
+        const hora = new Date().toLocaleString('en-US', { timeZone: 'America/Recife', hour: 'numeric', hour12: false });
+        const ja = await dbGet(
+            `SELECT 1 FROM usabilidade_alertas_log
+             WHERE DATE(disparado_em AT TIME ZONE 'America/Recife') = $1
+               AND EXTRACT(HOUR FROM disparado_em AT TIME ZONE 'America/Recife') = $2`,
+            [hoje, Number(hora)]
+        );
+        if (ja) return;
+
+        await enviarNotificacao('alerta_usabilidade_frota', {
+            tipo: 'alerta_usabilidade_frota',
+            mensagem: `Taxa de usabilidade da frota em ${dados.taxa_periodo.toFixed(1)}% (meta ${META_USAB}%). Quinzena ${inicio} a ${fim}.`,
+            taxa: dados.taxa_periodo,
+            periodo: { inicio, fim },
+            data_criacao: new Date().toISOString(),
+        });
+        await dbRun(
+            `INSERT INTO usabilidade_alertas_log (disparado_em, taxa, periodo_inicio, periodo_fim)
+             VALUES (NOW(), $1, $2, $3)`,
+            [dados.taxa_periodo.toFixed(2), inicio, fim]
+        );
+    } catch (e) {
+        console.error('[CRON usabilidade]', e.message);
+    }
+}, { scheduled: true, timezone: 'America/Recife' });
 
 // ─────────────────────────────────────────────────────────────────────────────
 
