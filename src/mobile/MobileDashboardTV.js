@@ -7,17 +7,15 @@ const TELAS = ['Embarques', 'Operação', 'CT-e'];
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
-    'AGUARDANDO':                '#94a3b8',
+    'AGUARDANDO P/ SEPARAÇÃO':   '#94a3b8',
     'EM SEPARAÇÃO':              '#facc15',
-    'LIBERADO P/ DOCA':          '#60a5fa',
     'LIBERADO P/ CARREGAMENTO':  '#60a5fa',
     'EM CARREGAMENTO':           '#fb923c',
     'CARREGADO':                 '#4ade80',
     'LIBERADO P/ CT-e':          '#c084fc',
 };
 
-// Valor no banco é 'LIBERADO P/ DOCA' mas o nome exibido é 'LIBERADO P/ CARREGAMENTO'
-const traduzirStatus = st => st === 'LIBERADO P/ DOCA' ? 'LIBERADO P/ CARREGAMENTO' : st;
+const traduzirStatus = st => st;
 
 const CORES_OP = {
     delta:       '#2563eb',
@@ -61,7 +59,7 @@ function hexToRgb(hex) {
 }
 
 function buildDocaMap(veiculosUnidade, docasLista, docasInterdUnidade, campoStatus, campoDoca) {
-    const PRIO = { 'AGUARDANDO': 0, 'EM SEPARAÇÃO': 1, 'LIBERADO P/ DOCA': 2, 'EM CARREGAMENTO': 3 };
+    const PRIO = { 'AGUARDANDO P/ SEPARAÇÃO': 0, 'EM SEPARAÇÃO': 1, 'LIBERADO P/ CARREGAMENTO': 2, 'EM CARREGAMENTO': 3 };
     const map = {};
     docasLista.filter(d => d !== 'SELECIONE').forEach(d => { map[d] = null; });
     veiculosUnidade.forEach(v => {
@@ -209,7 +207,7 @@ export default function MobileDashboardTV({ socket }) {
     const totalGeral = Object.values(contOp).reduce((a, b) => a + b, 0);
 
     // Tela 1 — Operação
-    const STATUS_ORDEM = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
+    const STATUS_ORDEM = ['AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e'];
     // STATUS_ORDEM usa o valor do banco ('LIBERADO P/ DOCA') para buscar contagens; label exibido é traduzido.
 
     // Operações R×M e consolidados contam nas duas unidades (mesma regra do DashboardTV desktop)
@@ -230,14 +228,14 @@ export default function MobileDashboardTV({ socket }) {
     const statusRecife = {};
     const statusMoreno = {};
     vRecife.forEach(v => {
-        const st = v.status_recife || 'AGUARDANDO';
+        const st = v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO';
         statusRecife[st] = (statusRecife[st] || 0) + 1;
         if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') {
             statusRecife['LIBERADO P/ CT-e'] = (statusRecife['LIBERADO P/ CT-e'] || 0) + 1;
         }
     });
     vMoreno.forEach(v => {
-        const st = v.status_moreno || 'AGUARDANDO';
+        const st = v.status_moreno || 'AGUARDANDO P/ SEPARAÇÃO';
         statusMoreno[st] = (statusMoreno[st] || 0) + 1;
         if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') {
             statusMoreno['LIBERADO P/ CT-e'] = (statusMoreno['LIBERADO P/ CT-e'] || 0) + 1;
