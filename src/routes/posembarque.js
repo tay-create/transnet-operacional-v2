@@ -110,17 +110,9 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             const id = req.params.id;
             const { data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email } = req.body;
 
-            // Verificar status_edicao se não for gerencial
-            if (!['Coordenador', 'Direção'].includes(req.user?.cargo)) {
-                const oc = await dbGet('SELECT status_edicao FROM posemb_ocorrencias WHERE id = ?', [id]);
-                if (oc && oc.status_edicao !== 'AUTORIZADO') {
-                    return res.status(403).json({ success: false, message: 'Edição não autorizada.' });
-                }
-            }
-
             await dbRun(
                 `UPDATE posemb_ocorrencias
-                 SET data_ocorrencia = ?, hora_ocorrencia = ?, motorista = ?, modalidade = ?, cte = ?, operacao = ?, nfs = ?, cliente = ?, cidade = ?, motivo = ?, link_email = ?, status_edicao = 'BLOQUEADO'
+                 SET data_ocorrencia = ?, hora_ocorrencia = ?, motorista = ?, modalidade = ?, cte = ?, operacao = ?, nfs = ?, cliente = ?, cidade = ?, motivo = ?, link_email = ?
                  WHERE id = ?`,
                 [data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email, id]
             );
