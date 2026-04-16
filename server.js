@@ -3161,9 +3161,17 @@ app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planeja
 // ── Taxa de Usabilidade da Frota ─────────────────────────────────────────────
 const STATUS_OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
 const STATUS_OCIOSO = new Set(['DISPONIVEL','CARREGADO','AGUARDANDO_FRETE_RETORNO']);
+const STATUS_EXCLUIDO = new Set(['MANUTENCAO','SABADO']);
 const TIPOS_USAB = ['TRUCK','3/4','CONJUNTO'];
 const META_USAB = 85;
 const ALERTA_USAB = 80;
+const LABEL_MOTIVO = {
+    DISPONIVEL: 'Disponível sem viagem',
+    CARREGADO: 'Carregado aguardando saída',
+    AGUARDANDO_FRETE_RETORNO: 'Aguardando frete retorno',
+    MANUTENCAO: 'Em manutenção',
+    SABADO: 'Sábado (sem operação)',
+};
 
 function quinzenaDe(dataStr) {
     const [y, m, d] = dataStr.split('-').map(Number);
@@ -3228,17 +3236,35 @@ async function calcularUsabilidadePeriodo(inicio, fim) {
     for (const d of dias) {
         const mapVid = porDia.get(d);
         let operando = 0, ocioso = 0, excluido = 0;
+        const motivosCount = {};
         for (const v of veiculos) {
             const st = mapVid.get(v.id) || 'DISPONIVEL';
             if (STATUS_OPERANDO.has(st)) { operando++; porTipoAgg[v.tipo_veiculo].operando++; porTipoAgg[v.tipo_veiculo].base++; }
-            else if (STATUS_OCIOSO.has(st)) { ocioso++; porTipoAgg[v.tipo_veiculo].base++; }
-            else excluido++;
+            else if (STATUS_OCIOSO.has(st)) { ocioso++; porTipoAgg[v.tipo_veiculo].base++; motivosCount[st] = (motivosCount[st] || 0) + 1; }
+            else { excluido++; motivosCount[st] = (motivosCount[st] || 0) + 1; }
         }
         const base = operando + ocioso;
         const taxa = base > 0 ? (operando / base) * 100 : null;
-        diario.push({ data: d, taxa, operando, ocioso, excluido, total: totalFrota });
+        const motivos_dia = Object.entries(motivosCount)
+            .map(([status, qtd]) => ({ status, qtd, label: LABEL_MOTIVO[status] || status }))
+            .sort((a, b) => b.qtd - a.qtd);
+        diario.push({ data: d, taxa, operando, ocioso, excluido, total: totalFrota, motivos_dia });
         if (taxa !== null) { somaTaxa += taxa; diasComBase++; }
     }
+
+    const motivosAgregados = {};
+    for (const d of diario) {
+        for (const m of d.motivos_dia) {
+            if (!motivosAgregados[m.status]) {
+                motivosAgregados[m.status] = { status: m.status, label: m.label, veiculo_dias: 0, dias_presente: 0 };
+            }
+            motivosAgregados[m.status].veiculo_dias += m.qtd;
+            motivosAgregados[m.status].dias_presente += 1;
+        }
+    }
+    const motivos_quinzena = Object.values(motivosAgregados)
+        .sort((a, b) => b.veiculo_dias - a.veiculo_dias)
+        .slice(0, 5);
 
     const taxa_periodo = diasComBase > 0 ? somaTaxa / diasComBase : 0;
     const por_tipo = {};
@@ -3251,7 +3277,7 @@ async function calcularUsabilidadePeriodo(inicio, fim) {
     if (taxa_periodo <= ALERTA_USAB) status_atual = 'VERMELHO';
     else if (taxa_periodo < META_USAB) status_atual = 'AMARELO';
 
-    return { taxa_periodo, status_atual, diario, por_tipo, total_frota: totalFrota };
+    return { taxa_periodo, status_atual, diario, por_tipo, total_frota: totalFrota, motivos_quinzena };
 }
 
 app.get('/api/frota/usabilidade', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Encarregado']), async (req, res) => {
@@ -3281,6 +3307,7 @@ app.get('/api/frota/usabilidade', authMiddleware, authorize(['Coordenador', 'Dir
             total_frota: atual.total_frota,
             diario: atual.diario,
             por_tipo: atual.por_tipo,
+            motivos_quinzena: atual.motivos_quinzena,
             quinzenas_anteriores: anteriores,
         });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
