@@ -250,19 +250,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
-            // data_inicio_patio: herda data_marcacao (Tempo de Espera) se motorista tem marcação
+            // data_inicio_patio: herda data_marcacao se motorista está aguardando (sem data_contratacao)
+            // Se já foi contratado antes (data_contratacao preenchida), usa data_criacao do card atual
             // Frota própria não conta tempo de pátio (circulam várias vezes por dia)
             let data_inicio_patio = null;
             if (motoristaNome && motoristaNome !== 'A DEFINIR' && !isFrotaMotorista) {
                 if (v.id_marcacao) {
-                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
+                    const marcPatio = await dbGet("SELECT data_marcacao, data_contratacao, is_frota FROM marcacoes_placas WHERE id = ?", [v.id_marcacao]);
                     if (marcPatio && !marcPatio.is_frota) {
-                        data_inicio_patio = marcPatio.data_marcacao || data_criacao;
+                        data_inicio_patio = marcPatio.data_contratacao ? data_criacao : (marcPatio.data_marcacao || data_criacao);
                     }
                 } else if (telefoneMotorista) {
-                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefoneMotorista]);
+                    const marcPatio = await dbGet("SELECT data_marcacao, data_contratacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefoneMotorista]);
                     if (marcPatio && !marcPatio.is_frota) {
-                        data_inicio_patio = marcPatio.data_marcacao || data_criacao;
+                        data_inicio_patio = marcPatio.data_contratacao ? data_criacao : (marcPatio.data_marcacao || data_criacao);
                     } else if (!marcPatio) {
                         data_inicio_patio = data_criacao;
                     }
