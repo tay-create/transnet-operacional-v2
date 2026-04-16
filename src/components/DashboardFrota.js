@@ -1630,10 +1630,6 @@ export default function DashboardFrota({ socket }) {
 
             {/* Aba: Dashboard */}
             {abaAtiva === 'dashboard' && (<>
-                <TaxaUsabilidade socket={socket} />
-
-                <MotivosBaixaUsabilidade socket={socket} veiculos={veiculosNorm} />
-
                 {/* Card Geral */}
                 <div style={{ marginBottom: '20px' }}>
                     <CardGeral
@@ -1643,7 +1639,7 @@ export default function DashboardFrota({ socket }) {
                 </div>
 
                 {/* Cards por tipo (exceto CARRETA) */}
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
                     {TIPOS.filter(t => t !== 'CARRETA').map((tipo) => (
                         <CardTipo
                             key={tipo}
@@ -1652,6 +1648,10 @@ export default function DashboardFrota({ socket }) {
                         />
                     ))}
                 </div>
+
+                <TaxaUsabilidade socket={socket} />
+
+                <MotivosBaixaUsabilidade socket={socket} veiculos={veiculosNorm} />
 
                 {/* CARRETA — fora do cálculo de usabilidade */}
                 <div style={{ marginTop: '20px' }}>
