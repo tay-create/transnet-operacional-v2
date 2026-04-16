@@ -472,7 +472,7 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                         borderRadius: '12px',
                         padding: '6px 14px',
                         textAlign: 'center',
-                        cursor: veiculosTipo.length > 0 ? 'default' : 'default',
+                        cursor: veiculosTipo.length > 0 ? 'pointer' : 'default',
                         position: 'relative',
                     }}
                 >
