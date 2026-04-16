@@ -3235,6 +3235,11 @@ async function calcularUsabilidadePeriodo(inicio, fim) {
 
     for (const d of dias) {
         const mapVid = porDia.get(d);
+        // Dia sem nenhum registro de provisionamento = ainda não lançado, não entra no cálculo
+        if (mapVid.size === 0) {
+            diario.push({ data: d, taxa: null, operando: 0, ocioso: 0, excluido: 0, total: totalFrota, motivos_dia: [] });
+            continue;
+        }
         let operando = 0, ocioso = 0, excluido = 0;
         const motivosCount = {};
         for (const v of veiculos) {
