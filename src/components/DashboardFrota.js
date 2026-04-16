@@ -871,7 +871,8 @@ function TaxaUsabilidade({ socket }) {
     }, [socket, periodo, carregar]);
 
     const diario = dados?.diario || [];
-    const ultimoDia = diario.length > 0 ? diario[diario.length - 1] : null;
+    // Último dia com dados reais (taxa != null); dias sem provisionamento são ignorados
+    const ultimoDia = [...diario].reverse().find(d => d.taxa != null) || (diario.length > 0 ? diario[diario.length - 1] : null);
     const taxaHoje = ultimoDia?.taxa ?? null;
     const zonaHoje = zonaCor(taxaHoje);
     const zona = zonaCor(dados?.taxa_periodo);
@@ -905,8 +906,8 @@ function TaxaUsabilidade({ socket }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 260px) 1fr', gap: 20, alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <Gauge taxa={taxaHoje} />
-                    {ultimoDia && <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -8 }}>
-                        {ultimoDia.data.slice(8,10)}/{ultimoDia.data.slice(5,7)} · hoje
+                    {ultimoDia && ultimoDia.taxa != null && <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -8 }}>
+                        {ultimoDia.data.slice(8,10)}/{ultimoDia.data.slice(5,7)} · último dado
                     </div>}
                 </div>
                 <div>
