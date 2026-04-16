@@ -1023,6 +1023,7 @@ function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
 
     const motivosQuinzena = dadosAnt?.motivos_quinzena || [];
     const totalDiasAnt = (dadosAnt?.diario || []).length;
+    const maxVeiculoDias = motivosQuinzena.length > 0 ? motivosQuinzena[0].veiculo_dias : 1;
     const periodoAntLabel = quinzenas[1]?.label?.replace(' (atual)', '') || '—';
 
     const fmtData = (s) => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '';
@@ -1102,7 +1103,7 @@ function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {motivosQuinzena.map((m, idx) => {
                                 const cfg = MOTIVOS_USABILIDADE[m.status] || { cor: '#94a3b8' };
-                                const pct = totalDiasAnt > 0 ? (m.dias_presente / totalDiasAnt) * 100 : 0;
+                                const pct = (m.veiculo_dias / maxVeiculoDias) * 100;
                                 return (
                                     <div key={m.status} style={{
                                         display: 'grid', gridTemplateColumns: '24px 1fr', gap: 10, alignItems: 'center',
