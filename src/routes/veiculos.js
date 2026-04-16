@@ -650,14 +650,19 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 data_inicio_patio_novo = null; // resetar antes de rebuscar
                 const telefone = (v.telefoneMotorista || '').replace(/\D/g, '');
                 if (telefone) {
-                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefone]);
+                    const marcPatio = await dbGet("SELECT data_marcacao, data_contratacao, is_frota FROM marcacoes_placas WHERE telefone = ? ORDER BY data_marcacao DESC LIMIT 1", [telefone]);
                     if (marcPatio && !marcPatio.is_frota) {
-                        data_inicio_patio_novo = marcPatio.data_marcacao || obterDataHoraBrasilia();
+                        // Se ja foi contratado antes, usa data_criacao do card (nao herda marcacao antiga)
+                        data_inicio_patio_novo = marcPatio.data_contratacao
+                            ? (veiculoAntigo?.data_criacao || obterDataHoraBrasilia())
+                            : (marcPatio.data_marcacao || obterDataHoraBrasilia());
                     }
                 } else {
-                    const marcPatio = await dbGet("SELECT data_marcacao, is_frota FROM marcacoes_placas WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?)) ORDER BY data_marcacao DESC LIMIT 1", [motoristaNovo]);
+                    const marcPatio = await dbGet("SELECT data_marcacao, data_contratacao, is_frota FROM marcacoes_placas WHERE LOWER(TRIM(nome_motorista)) = LOWER(TRIM(?)) ORDER BY data_marcacao DESC LIMIT 1", [motoristaNovo]);
                     if (marcPatio && !marcPatio.is_frota) {
-                        data_inicio_patio_novo = marcPatio.data_marcacao || obterDataHoraBrasilia();
+                        data_inicio_patio_novo = marcPatio.data_contratacao
+                            ? (veiculoAntigo?.data_criacao || obterDataHoraBrasilia())
+                            : (marcPatio.data_marcacao || obterDataHoraBrasilia());
                     }
                 }
                 // Fallback para terceiros sem marcação
