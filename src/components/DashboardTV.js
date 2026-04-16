@@ -64,6 +64,51 @@ const classificarOperacao = (op) => {
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
+// Agrega operações consolidadas (contém '/') por nome e contagem
+const agruparConsolidados = (veiculosList) => {
+    const mapa = {};
+    veiculosList.forEach(v => {
+        if (classificarOperacao(v.operacao) === 'consolidado') {
+            mapa[v.operacao] = (mapa[v.operacao] || 0) + 1;
+        }
+    });
+    return Object.entries(mapa).sort((a, b) => b[1] - a[1]);
+};
+
+// Card com hover mostrando breakdown das operações consolidadas
+function CardConsolidado({ valor, cor, label, veiculosList, t }) {
+    const [hovered, setHovered] = useState(false);
+    const grupos = agruparConsolidados(veiculosList);
+    return (
+        <div
+            style={{ position: 'relative' }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+        >
+            <div style={{ ...glassCard(t, `${cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${cor}`, cursor: grupos.length > 0 ? 'default' : undefined, transition: 'all 0.5s ease-in-out' }}>
+                <div style={{ fontSize: '44px', fontWeight: '900', color: cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${cor}60)` }}>{valor}</div>
+                <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{label}</div>
+            </div>
+            {hovered && grupos.length > 0 && (
+                <div style={{
+                    position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
+                    background: '#0f172a', border: `1px solid ${cor}60`, borderRadius: 10,
+                    padding: '10px 14px', zIndex: 100, minWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                    pointerEvents: 'none',
+                }}>
+                    <div style={{ color: cor, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Operações consolidadas</div>
+                    {grupos.map(([op, qtd]) => (
+                        <div key={op} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 12, color: '#e2e8f0', marginBottom: 3 }}>
+                            <span>{op}</span>
+                            <span style={{ color: cor, fontWeight: 700 }}>{qtd}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // Prioridade de status (maior = mais avancado)
 const PRIORIDADE_STATUS = {
     'AGUARDANDO': 0, 'AGUARDANDO P/ SEPARAÇÃO': 0,
@@ -342,7 +387,9 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
 
                 {/* KPI Cards — linha de cima (operação) */}
-                {kpis.map(kpi => (
+                {kpis.map(kpi => kpi.label === 'Consolidado' ? (
+                    <CardConsolidado key={kpi.label} valor={kpi.valor} cor={kpi.cor} label={kpi.label} veiculosList={veiculos} t={t} />
+                ) : (
                     <div key={kpi.label} style={{ ...glassCard(t, `${kpi.cor}40`), padding: '16px 12px', textAlign: 'center', borderTop: `3px solid ${kpi.cor}` }}>
                         <div style={{ fontSize: '36px', fontWeight: '900', color: kpi.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${kpi.cor}60)` }}>{kpi.valor}</div>
                         <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
@@ -636,7 +683,9 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
                     { label: 'Consolidado', valor: contOp.consolidado, cor: '#3b82f6' },
                     { label: 'Plástico Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
                     { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => !o.unidade || o.unidade === 'Recife').length, cor: '#f59e0b', icon: true }
-                ].map(c => (
+                ].map(c => c.label === 'Consolidado' ? (
+                    <CardConsolidado key={c.label} valor={c.valor} cor={c.cor} label={c.label} veiculosList={veiculosRecife} t={t} />
+                ) : (
                     <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                         <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
                         <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
@@ -1528,7 +1577,9 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
                                 { label: 'Plástico Recife/Moreno', valor: contOp.deltaRxM, cor: '#60a5fa' },
                                 { label: 'Consolidados', valor: consolidadosMoreno, cor: '#93c5fd' },
                                 { label: 'Ocorrências Hoje', valor: ocorrenciasHoje.filter(o => o.unidade === 'Moreno').length, cor: '#f59e0b', icon: true }
-                            ].map(c => (
+                            ].map(c => c.label === 'Consolidados' ? (
+                                <CardConsolidado key={c.label} valor={c.valor} cor={c.cor} label={c.label} veiculosList={veiculosMoreno} t={t} />
+                            ) : (
                                 <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}`, transition: 'all 0.5s ease-in-out' }}>
                                     <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
                                     <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
