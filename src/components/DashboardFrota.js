@@ -980,28 +980,49 @@ function MotivosBaixaUsabilidade({ socket }) {
     const quinzenas = React.useMemo(() => gerarQuinzenas(6), []);
     const [periodo, setPeriodo] = useState(quinzenas[0]);
     const [dados, setDados] = useState(null);
+    const [dadosAnt, setDadosAnt] = useState(null);
 
-    const carregar = useCallback(async (p) => {
+    const carregar = useCallback(async (p, pAnt) => {
         try {
-            const r = await api.get(`/api/frota/usabilidade?inicio=${p.inicio}&fim=${p.fim}`);
+            const [r, rAnt] = await Promise.all([
+                api.get(`/api/frota/usabilidade?inicio=${p.inicio}&fim=${p.fim}`),
+                api.get(`/api/frota/usabilidade?inicio=${pAnt.inicio}&fim=${pAnt.fim}`),
+            ]);
             if (r.data.success) setDados(r.data);
+            if (rAnt.data.success) setDadosAnt(rAnt.data);
         } catch (e) { console.error('motivos:', e); }
     }, []);
 
-    useEffect(() => { carregar(periodo); }, [periodo, carregar]);
+    useEffect(() => {
+        const idx = quinzenas.indexOf(periodo);
+        const ant = quinzenas[idx + 1] || quinzenas[quinzenas.length - 1];
+        carregar(periodo, ant);
+    }, [periodo, carregar, quinzenas]);
+
     useEffect(() => {
         if (!socket) return;
-        const handler = () => carregar(periodo);
+        const handler = () => {
+            const idx = quinzenas.indexOf(periodo);
+            const ant = quinzenas[idx + 1] || quinzenas[quinzenas.length - 1];
+            carregar(periodo, ant);
+        };
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
-    }, [socket, periodo, carregar]);
+    }, [socket, periodo, carregar, quinzenas]);
 
     const diario = dados?.diario || [];
-    const hoje = diario.length > 0 ? diario[diario.length - 1] : null;
-    const motivosHoje = hoje?.motivos_dia || [];
-    const motivosQuinzena = dados?.motivos_quinzena || [];
-    const totalDias = diario.length;
-    const saudavel = hoje?.taxa != null && hoje.taxa >= 85;
+    // Dia de hoje em Recife — procurar no diario[], fallback para o último
+    const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+    const diaHoje = diario.find(d => d.data === hojeStr) || (diario.length > 0 ? diario[diario.length - 1] : null);
+    const motivosHoje = diaHoje?.motivos_dia || [];
+    const motivosQuinzena = dadosAnt?.motivos_quinzena || [];
+    const totalDiasAnt = (dadosAnt?.diario || []).length;
+    const saudavel = diaHoje?.taxa != null && diaHoje.taxa >= 85;
+
+    const periodoAntLabel = (() => {
+        const idx = quinzenas.indexOf(periodo);
+        return (quinzenas[idx + 1] || quinzenas[quinzenas.length - 1])?.label?.replace(' (atual)', '') || '—';
+    })();
 
     const fmtData = (s) => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '';
 
@@ -1019,7 +1040,7 @@ function MotivosBaixaUsabilidade({ socket }) {
                     <AlertTriangle size={18} style={{ color: '#facc15' }} />
                     <div>
                         <h3 style={{ color: '#f1f5f9', fontSize: 15, fontWeight: 700, margin: 0 }}>Motivos de Baixa Usabilidade</h3>
-                        <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>Por que a frota não está operando · Diário + consolidado da quinzena</p>
+                        <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>Por que a frota não está operando · Hoje + recorrentes da quinzena anterior</p>
                     </div>
                 </div>
                 <select value={periodo.inicio} onChange={e => setPeriodo(quinzenas.find(q => q.inicio === e.target.value))}
@@ -1033,11 +1054,11 @@ function MotivosBaixaUsabilidade({ socket }) {
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Último dia{hoje ? ` · ${fmtData(hoje.data)}` : ''}
+                            Hoje{diaHoje ? ` · ${fmtData(diaHoje.data)}` : ''}
                         </span>
-                        {hoje?.taxa != null && (
-                            <span style={{ color: zonaCor(hoje.taxa).cor, fontSize: 12, fontWeight: 700 }}>
-                                {hoje.taxa.toFixed(1)}%
+                        {diaHoje?.taxa != null && (
+                            <span style={{ color: zonaCor(diaHoje.taxa).cor, fontSize: 12, fontWeight: 700 }}>
+                                {diaHoje.taxa.toFixed(1)}%
                             </span>
                         )}
                     </div>
@@ -1075,15 +1096,15 @@ function MotivosBaixaUsabilidade({ socket }) {
                 {/* QUINZENA */}
                 <div>
                     <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-                        Recorrentes · {periodo.label.replace(' (atual)', '')}
+                        Recorrentes · {periodoAntLabel}
                     </div>
                     {motivosQuinzena.length === 0 ? (
-                        <div style={{ color: '#64748b', fontSize: 12, padding: 16, textAlign: 'center' }}>Sem ocorrências no período.</div>
+                        <div style={{ color: '#64748b', fontSize: 12, padding: 16, textAlign: 'center' }}>Sem ocorrências no período anterior.</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {motivosQuinzena.map((m, idx) => {
                                 const cfg = MOTIVOS_USABILIDADE[m.status] || { cor: '#94a3b8' };
-                                const pct = totalDias > 0 ? (m.dias_presente / totalDias) * 100 : 0;
+                                const pct = totalDiasAnt > 0 ? (m.dias_presente / totalDiasAnt) * 100 : 0;
                                 return (
                                     <div key={m.status} style={{
                                         display: 'grid', gridTemplateColumns: '24px 1fr', gap: 10, alignItems: 'center',
@@ -1106,7 +1127,7 @@ function MotivosBaixaUsabilidade({ socket }) {
                                                 <div style={{ flex: 1, height: 4, background: '#1e293b', borderRadius: 2, overflow: 'hidden' }}>
                                                     <div style={{ width: `${pct}%`, height: '100%', background: cfg.cor }} />
                                                 </div>
-                                                <span style={{ color: '#64748b', fontSize: 10 }}>{m.dias_presente}/{totalDias} dias</span>
+                                                <span style={{ color: '#64748b', fontSize: 10 }}>{m.dias_presente}/{totalDiasAnt} dias</span>
                                             </div>
                                         </div>
                                     </div>
