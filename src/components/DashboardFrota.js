@@ -871,8 +871,9 @@ function TaxaUsabilidade({ socket }) {
     }, [socket, periodo, carregar]);
 
     const diario = dados?.diario || [];
-    // Último dia com dados reais (taxa != null); dias sem provisionamento são ignorados
-    const ultimoDia = [...diario].reverse().find(d => d.taxa != null) || (diario.length > 0 ? diario[diario.length - 1] : null);
+    // Último dia com dados reais até hoje (ignora dias futuros e dias sem provisionamento)
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+    const ultimoDia = [...diario].reverse().find(d => d.taxa != null && d.data <= hoje) || (diario.length > 0 ? diario[diario.length - 1] : null);
     const taxaHoje = ultimoDia?.taxa ?? null;
     const zonaHoje = zonaCor(taxaHoje);
     const zona = zonaCor(dados?.taxa_periodo);
