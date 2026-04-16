@@ -9,6 +9,14 @@ import { MOTIVOS_USABILIDADE } from '../constants';
 // Cards na ordem de exibição
 const TIPOS = ['TRUCK', '3/4', 'CONJUNTO', 'CARRETA'];
 
+const LABEL_MOTIVO_FRONT = {
+    DISPONIVEL: 'Disponível sem viagem',
+    CARREGADO: 'Carregado aguardando saída',
+    AGUARDANDO_FRETE_RETORNO: 'Aguardando frete retorno',
+    MANUTENCAO: 'Em manutenção',
+    SABADO: 'Sábado (sem operação)',
+};
+
 const TIPO_LABEL = { TRUCK: 'Truck', '3/4': '3/4', CONJUNTO: 'Conjunto', CARRETA: 'Carreta' };
 
 // Cor por tipo de card
@@ -976,52 +984,44 @@ function MiniGauge({ taxa, tamanho = 90 }) {
     );
 }
 
-function MotivosBaixaUsabilidade({ socket }) {
+function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
     const quinzenas = React.useMemo(() => gerarQuinzenas(6), []);
-    const [periodo, setPeriodo] = useState(quinzenas[0]);
-    const [dados, setDados] = useState(null);
     const [dadosAnt, setDadosAnt] = useState(null);
 
-    const carregar = useCallback(async (p, pAnt) => {
+    const carregarAnt = useCallback(async () => {
+        const ant = quinzenas[1];
+        if (!ant) return;
         try {
-            const [r, rAnt] = await Promise.all([
-                api.get(`/api/frota/usabilidade?inicio=${p.inicio}&fim=${p.fim}`),
-                api.get(`/api/frota/usabilidade?inicio=${pAnt.inicio}&fim=${pAnt.fim}`),
-            ]);
-            if (r.data.success) setDados(r.data);
-            if (rAnt.data.success) setDadosAnt(rAnt.data);
-        } catch (e) { console.error('motivos:', e); }
-    }, []);
+            const r = await api.get(`/api/frota/usabilidade?inicio=${ant.inicio}&fim=${ant.fim}`);
+            if (r.data.success) setDadosAnt(r.data);
+        } catch (e) { console.error('motivos-ant:', e); }
+    }, [quinzenas]);
 
-    useEffect(() => {
-        const idx = quinzenas.indexOf(periodo);
-        const ant = quinzenas[idx + 1] || quinzenas[quinzenas.length - 1];
-        carregar(periodo, ant);
-    }, [periodo, carregar, quinzenas]);
+    useEffect(() => { carregarAnt(); }, [carregarAnt]);
 
-    useEffect(() => {
-        if (!socket) return;
-        const handler = () => {
-            const idx = quinzenas.indexOf(periodo);
-            const ant = quinzenas[idx + 1] || quinzenas[quinzenas.length - 1];
-            carregar(periodo, ant);
-        };
-        socket.on('receber_atualizacao', handler);
-        return () => socket.off('receber_atualizacao', handler);
-    }, [socket, periodo, carregar, quinzenas]);
+    // Motivos de hoje — calculados direto dos veículos ativos (TRUCK/3/4/CONJUNTO)
+    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
+    const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
+    const operandoSet = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
 
-    const diario = dados?.diario || [];
-    // Último dia com dados de provisionamento no período
-    const diaHoje = diario.length > 0 ? diario[diario.length - 1] : null;
-    const motivosHoje = diaHoje?.motivos_dia || [];
+    const veiculosUsab = veiculos.filter(v => ['TRUCK','3/4','CONJUNTO'].includes(v.tipo_veiculo));
+    const motivosCount = {};
+    let operando = 0;
+    for (const v of veiculosUsab) {
+        const st = v.status || 'DISPONIVEL';
+        if (operandoSet.has(st)) { operando++; continue; }
+        motivosCount[st] = (motivosCount[st] || 0) + 1;
+    }
+    const base = veiculosUsab.length;
+    const taxaHoje = base > 0 ? (operando / base) * 100 : null;
+    const motivosHoje = Object.entries(motivosCount)
+        .map(([status, qtd]) => ({ status, qtd, label: LABEL_MOTIVO_FRONT[status] || status }))
+        .sort((a, b) => b.qtd - a.qtd);
+    const saudavel = taxaHoje != null && taxaHoje >= 85;
+
     const motivosQuinzena = dadosAnt?.motivos_quinzena || [];
     const totalDiasAnt = (dadosAnt?.diario || []).length;
-    const saudavel = diaHoje?.taxa != null && diaHoje.taxa >= 85;
-
-    const periodoAntLabel = (() => {
-        const idx = quinzenas.indexOf(periodo);
-        return (quinzenas[idx + 1] || quinzenas[quinzenas.length - 1])?.label?.replace(' (atual)', '') || '—';
-    })();
+    const periodoAntLabel = quinzenas[1]?.label?.replace(' (atual)', '') || '—';
 
     const fmtData = (s) => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '';
 
@@ -1042,10 +1042,7 @@ function MotivosBaixaUsabilidade({ socket }) {
                         <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>Por que a frota não está operando · Hoje + recorrentes da quinzena anterior</p>
                     </div>
                 </div>
-                <select value={periodo.inicio} onChange={e => setPeriodo(quinzenas.find(q => q.inicio === e.target.value))}
-                    style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '6px 10px', fontSize: 12, outline: 'none' }}>
-                    {quinzenas.map(q => <option key={q.inicio} value={q.inicio}>{q.label}</option>)}
-                </select>
+                <span style={{ color: '#64748b', fontSize: 11 }}>Recorrentes: {periodoAntLabel}</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
@@ -1053,11 +1050,11 @@ function MotivosBaixaUsabilidade({ socket }) {
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Último dia{diaHoje ? ` · ${fmtData(diaHoje.data)}` : ''}
+                            Agora
                         </span>
-                        {diaHoje?.taxa != null && (
-                            <span style={{ color: zonaCor(diaHoje.taxa).cor, fontSize: 12, fontWeight: 700 }}>
-                                {diaHoje.taxa.toFixed(1)}%
+                        {taxaHoje != null && (
+                            <span style={{ color: zonaCor(taxaHoje).cor, fontSize: 12, fontWeight: 700 }}>
+                                {taxaHoje.toFixed(1)}%
                             </span>
                         )}
                     </div>
@@ -1632,7 +1629,7 @@ export default function DashboardFrota({ socket }) {
             {abaAtiva === 'dashboard' && (<>
                 <TaxaUsabilidade socket={socket} />
 
-                <MotivosBaixaUsabilidade socket={socket} />
+                <MotivosBaixaUsabilidade socket={socket} veiculos={veiculosNorm} />
 
                 {/* Card Geral */}
                 <div style={{ marginBottom: '20px' }}>
