@@ -560,7 +560,7 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748b' }} />
                                 <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{excluido}</span>
-                                <span style={{ color: '#64748b', fontSize: 11 }}>excluído</span>
+                                <span style={{ color: '#64748b', fontSize: 11 }}>fora de operação</span>
                             </div>
                         )}
                     </div>
@@ -641,7 +641,7 @@ function CardGeral({ veiculos, contsPorTipo }) {
     const dadosGrafico = [
         { label: 'Operando', cor: '#22c55e', valor: operando },
         { label: 'Ocioso', cor: '#f59e0b', valor: ocioso },
-        { label: 'Excluído', cor: '#64748b', valor: excluido },
+        { label: 'Fora de Operação', cor: '#64748b', valor: excluido },
     ].filter(d => d.valor > 0);
 
     const pct = (n) => total > 0 ? ((n / total) * 100).toFixed(0) : 0;
@@ -689,7 +689,7 @@ function CardGeral({ veiculos, contsPorTipo }) {
                     {[
                         { label: 'Operando', cor: '#22c55e', bg: 'rgba(34,197,94,0.08)', n: operando, hint: 'Em viagem, carregando, operação' },
                         { label: 'Ocioso', cor: '#f59e0b', bg: 'rgba(245,158,11,0.08)', n: ocioso, hint: 'Disponível, carregado, aguardando frete' },
-                        { label: 'Excluído', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido, hint: 'Manutenção, sábado' },
+                        { label: 'Fora de Operação', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido, hint: 'Manutenção, sábado' },
                     ].map(z => (
                         <div key={z.label} style={{
                             background: z.bg,
@@ -862,6 +862,10 @@ function TaxaUsabilidade({ socket }) {
         return () => socket.off('receber_atualizacao', handler);
     }, [socket, periodo, carregar]);
 
+    const diario = dados?.diario || [];
+    const ultimoDia = diario.length > 0 ? diario[diario.length - 1] : null;
+    const taxaHoje = ultimoDia?.taxa ?? null;
+    const zonaHoje = zonaCor(taxaHoje);
     const zona = zonaCor(dados?.taxa_periodo);
     const barras = [{ label: periodo.label.replace(' (atual)', ''), taxa: dados?.taxa_periodo ?? null, atual: true }]
         .concat((dados?.quinzenas_anteriores || []).map(q => ({ label: q.label, taxa: q.taxa, atual: false })));
@@ -869,7 +873,7 @@ function TaxaUsabilidade({ socket }) {
     return (
         <div style={{
             background: 'linear-gradient(145deg, #0f172a 0%, #0d1520 100%)',
-            border: `1px solid ${zona.cor}33`,
+            border: `1px solid ${zonaHoje.cor}33`,
             borderRadius: 16,
             padding: '20px 24px',
             marginBottom: 20,
@@ -886,12 +890,17 @@ function TaxaUsabilidade({ socket }) {
                         style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '6px 10px', fontSize: 12, outline: 'none' }}>
                         {quinzenas.map(q => <option key={q.inicio} value={q.inicio}>{q.label}</option>)}
                     </select>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: zona.cor, background: zona.bg, border: `1px solid ${zona.cor}55`, padding: '4px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{zona.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: zonaHoje.cor, background: zonaHoje.bg, border: `1px solid ${zonaHoje.cor}55`, padding: '4px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{zonaHoje.label}</span>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 260px) 1fr', gap: 20, alignItems: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'center' }}><Gauge taxa={dados?.taxa_periodo} /></div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <Gauge taxa={taxaHoje} />
+                    {ultimoDia && <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -8 }}>
+                        {ultimoDia.data.slice(8,10)}/{ultimoDia.data.slice(5,7)} · hoje
+                    </div>}
+                </div>
                 <div>
                     <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 }}>Evolução diária · {periodo.label.replace(' (atual)', '')}</div>
                     <TimelineDiaria diario={dados?.diario || []} />

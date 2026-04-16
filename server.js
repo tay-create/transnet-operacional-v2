@@ -3363,7 +3363,7 @@ cron.schedule('0 8,13,17 * * *', async () => {
 app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Dashboard Viewer']), async (req, res) => {
     try {
         const data = req.query.data || new Date().toISOString().slice(0, 10);
-        const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [data]);
+        const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1 OR data_referencia IS NULL', [data]);
         res.json({ success: true, docas: rows });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
