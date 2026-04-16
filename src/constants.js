@@ -87,3 +87,11 @@ export const STATUS_USABILIDADE_OCIOSO = [
 ];
 export const STATUS_USABILIDADE_EXCLUIDO = ['MANUTENCAO', 'SABADO'];
 export const CARGOS_ALERTA_USABILIDADE = ['Coordenador', 'Planejamento', 'Adm Frota'];
+
+export const MOTIVOS_USABILIDADE = {
+    DISPONIVEL:               { label: 'Disponível sem viagem',      categoria: 'OCIOSO',   cor: '#f59e0b' },
+    CARREGADO:                { label: 'Carregado aguardando saída', categoria: 'OCIOSO',   cor: '#eab308' },
+    AGUARDANDO_FRETE_RETORNO: { label: 'Aguardando frete retorno',   categoria: 'OCIOSO',   cor: '#fb923c' },
+    MANUTENCAO:               { label: 'Em manutenção',              categoria: 'EXCLUIDO', cor: '#64748b' },
+    SABADO:                   { label: 'Sábado (sem operação)',      categoria: 'EXCLUIDO', cor: '#475569' },
+};

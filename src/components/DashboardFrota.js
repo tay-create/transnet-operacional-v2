@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import api from '../services/apiService';
+import { MOTIVOS_USABILIDADE } from '../constants';
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -386,12 +387,8 @@ function IconeTipo({ tipo, size = 36 }) {
 
 function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
     const { cor, rgb } = COR_TIPO[tipo] || { cor: '#94a3b8', rgb: '100,116,139' };
-    // CARRETA: total = só veículos Livre (não atrelados)
-    const total = tipo === 'CARRETA'
-        ? veiculosTipo.filter(v => v._atrelada === false).length
-        : veiculosTipo.length;
+    const total = veiculosTipo.length;
 
-    // Hover no total do card (mostra lista de veículos)
     const [showTotalTooltip, setShowTotalTooltip] = useState(false);
     const [totalTooltipPos, setTotalTooltipPos] = useState({ top: 0, left: 0 });
     const totalRef = useRef(null);
@@ -407,20 +404,22 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
         totalTimerRef.current = setTimeout(() => setShowTotalTooltip(false), 120);
     }
 
-    // Card CARRETA usa grupos especiais (Livre/Manutenção)
-    const grupos = tipo === 'CARRETA' ? STATUS_GRUPOS_CARRETA : STATUS_GRUPOS;
+    const operandoSet = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
+    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
+    const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
 
-    const dadosGrafico = grupos.map(g => ({
-        label: g.label,
-        cor: g.cor,
-        valor: veiculosTipo.filter(v => g.match(v.status, v)).length,
-    })).filter(d => d.valor > 0);
-
-    // "Outros" só para tipos não-CARRETA
-    const outrosCount = tipo !== 'CARRETA'
-        ? veiculosTipo.filter(v => STATUS_OUTROS_MATCH(v.status)).length
-        : 0;
-    if (outrosCount > 0) dadosGrafico.push({ label: 'Outros', cor: '#475569', valor: outrosCount });
+    let operando = 0, ocioso = 0, excluido = 0;
+    for (const v of veiculosTipo) {
+        const st = v.status || 'DISPONIVEL';
+        if (operandoSet.has(st)) operando++;
+        else if (ociosoSet.has(st)) ocioso++;
+        else if (excluidoSet.has(st)) excluido++;
+        else ocioso++;
+    }
+    const base = operando + ocioso;
+    const taxa = base > 0 ? (operando / base) * 100 : null;
+    const zona = zonaCor(taxa);
+    const pctOp = base > 0 ? (operando / base) * 100 : 0;
 
     return (
         <div style={{
@@ -481,9 +480,7 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                     <div style={{ color: '#64748b', fontSize: '10px', marginTop: '2px' }}>veículos</div>
 
                     {showTotalTooltip && veiculosTipo.length > 0 && typeof document !== 'undefined' && (() => {
-                        const lista = tipo === 'CARRETA'
-                            ? veiculosTipo.filter(v => v._atrelada === false)
-                            : veiculosTipo;
+                        const lista = veiculosTipo;
                         if (lista.length === 0) return null;
                         return createPortal(
                             <div
@@ -533,31 +530,88 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                 </div>
             </div>
 
-            {/* Gráfico + Badges */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                {total > 0 ? (
-                    <DonutChart dados={dadosGrafico} total={total} size={150} />
-                ) : (
-                    <div style={{
-                        width: 150, height: 150, borderRadius: '50%',
-                        border: '12px solid rgba(255,255,255,0.05)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0,
-                    }}>
-                        <span style={{ color: '#334155', fontSize: '12px' }}>Sem dados</span>
-                    </div>
-                )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: 14 }}>
+                <div style={{ flexShrink: 0 }}>
+                    <MiniGauge taxa={taxa} tamanho={110} />
+                    <div style={{ textAlign: 'center', color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -6 }}>Usabilidade</div>
+                </div>
 
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                    {grupos.map(g => (
-                        <StatusBadge key={g.key} grupo={g} veiculosFiltrados={veiculosTipo} />
-                    ))}
-                    {outrosCount > 0 && (
-                        <StatusBadge
-                            grupo={{ key: 'OUTROS', label: 'Outros Status', cor: '#94a3b8', corBg: 'rgba(100,116,139,0.1)', corBorder: 'rgba(100,116,139,0.25)', match: STATUS_OUTROS_MATCH }}
-                            veiculosFiltrados={veiculosTipo}
-                        />
-                    )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ color: '#94a3b8', fontSize: 10, fontWeight: 700, letterSpacing: 0.3 }}>OPERANDO vs OCIOSO</span>
+                        <span style={{ color: zona.cor, fontSize: 11, fontWeight: 700 }}>{base > 0 ? `${operando}/${base}` : '—'}</span>
+                    </div>
+                    <div style={{ height: 14, background: '#1e293b', borderRadius: 7, overflow: 'hidden', display: 'flex' }}>
+                        {operando > 0 && <div style={{ width: `${pctOp}%`, background: '#22c55e', transition: 'width 0.3s' }} />}
+                        {ocioso > 0 && <div style={{ width: `${100 - pctOp}%`, background: '#f59e0b' }} />}
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
+                            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{operando}</span>
+                            <span style={{ color: '#64748b', fontSize: 11 }}>operando</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
+                            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{ocioso}</span>
+                            <span style={{ color: '#64748b', fontSize: 11 }}>ocioso</span>
+                        </div>
+                        {excluido > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748b' }} />
+                                <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{excluido}</span>
+                                <span style={{ color: '#64748b', fontSize: 11 }}>excluído</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CardCarretaFooter({ veiculosTipo }) {
+    const { cor, rgb } = COR_TIPO['CARRETA'] || { cor: '#94a3b8', rgb: '100,116,139' };
+    const total = veiculosTipo.length;
+    const atreladas = veiculosTipo.filter(v => v._atrelada === true).length;
+    const livres = veiculosTipo.filter(v => v._atrelada === false && v.status !== 'MANUTENCAO').length;
+    const manutencao = veiculosTipo.filter(v => v.status === 'MANUTENCAO').length;
+
+    return (
+        <div style={{
+            background: 'linear-gradient(145deg, #0f172a 0%, #111827 100%)',
+            border: `1px solid rgba(${rgb},0.2)`,
+            borderRadius: 14,
+            padding: '18px 22px',
+            display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+        }}>
+            <div style={{
+                background: `rgba(${rgb},0.1)`,
+                border: `1px solid rgba(${rgb},0.25)`,
+                borderRadius: 10, padding: 10,
+            }}>
+                <IconeTipo tipo="CARRETA" size={30} />
+            </div>
+            <div style={{ flex: '1 1 200px', minWidth: 180 }}>
+                <div style={{ color: cor, fontWeight: 700, fontSize: 15 }}>Carreta</div>
+                <div style={{ color: '#475569', fontSize: 10, marginTop: 2 }}>Fora do cálculo de usabilidade</div>
+            </div>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: cor, fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{total}</div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>Total</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#60a5fa', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{atreladas}</div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>Atreladas</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#22c55e', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{livres}</div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>Livres</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <div style={{ color: '#f87171', fontSize: 18, fontWeight: 700, lineHeight: 1 }}>{manutencao}</div>
+                    <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>Manutenção</div>
                 </div>
             </div>
         </div>
@@ -567,16 +621,30 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
 // ─── Card Geral (todos os tipos) ──────────────────────────────────────────────
 
 function CardGeral({ veiculos, contsPorTipo }) {
-    const total = veiculos.length;
+    // Apenas frota computada na usabilidade (exclui CARRETA)
+    const veiculosUsab = veiculos.filter(v => ['TRUCK', '3/4', 'CONJUNTO'].includes(v.tipo_veiculo));
+    const total = veiculosUsab.length;
 
-    const dadosGrafico = STATUS_GRUPOS.map(g => ({
-        label: g.label,
-        cor: g.cor,
-        valor: veiculos.filter(v => g.match(v.status)).length,
-    })).filter(d => d.valor > 0);
+    const operandoSet = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
+    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
+    const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
 
-    const outrosCount = veiculos.filter(v => STATUS_OUTROS_MATCH(v.status)).length;
-    if (outrosCount > 0) dadosGrafico.push({ label: 'Outros', cor: '#475569', valor: outrosCount });
+    let operando = 0, ocioso = 0, excluido = 0;
+    for (const v of veiculosUsab) {
+        const st = v.status || 'DISPONIVEL';
+        if (operandoSet.has(st)) operando++;
+        else if (ociosoSet.has(st)) ocioso++;
+        else if (excluidoSet.has(st)) excluido++;
+        else ocioso++;
+    }
+
+    const dadosGrafico = [
+        { label: 'Operando', cor: '#22c55e', valor: operando },
+        { label: 'Ocioso', cor: '#f59e0b', valor: ocioso },
+        { label: 'Excluído', cor: '#64748b', valor: excluido },
+    ].filter(d => d.valor > 0);
+
+    const pct = (n) => total > 0 ? ((n / total) * 100).toFixed(0) : 0;
 
     return (
         <div style={{
@@ -589,7 +657,6 @@ function CardGeral({ veiculos, contsPorTipo }) {
             position: 'relative',
             overflow: 'hidden',
         }}>
-            {/* Glow */}
             <div style={{
                 position: 'absolute', top: -60, right: -60,
                 width: 240, height: 240, borderRadius: '50%',
@@ -597,14 +664,13 @@ function CardGeral({ veiculos, contsPorTipo }) {
                 pointerEvents: 'none',
             }} />
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap' }}>
-                {/* Lado esquerdo: título + gráfico */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', minWidth: 200 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', minWidth: 200 }}>
                     <div style={{ textAlign: 'center' }}>
                         <div style={{ color: '#a5b4fc', fontWeight: '700', fontSize: '18px', letterSpacing: '0.5px' }}>
                             Frota Total
                         </div>
-                        <div style={{ color: '#475569', fontSize: '12px', marginTop: '2px' }}>Todos os veículos · Hoje</div>
+                        <div style={{ color: '#475569', fontSize: '11px', marginTop: '2px' }}>TRUCK · 3/4 · CONJUNTO</div>
                     </div>
                     {total > 0 ? (
                         <DonutChart dados={dadosGrafico} total={total} size={200} />
@@ -619,28 +685,38 @@ function CardGeral({ veiculos, contsPorTipo }) {
                     )}
                 </div>
 
-                {/* Lado direito: legendas + badges */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '10px', minWidth: 220 }}>
-                    {/* Status badges */}
-                    {STATUS_GRUPOS.map(g => (
-                        <StatusBadge key={g.key} grupo={g} veiculosFiltrados={veiculos} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '12px', minWidth: 240 }}>
+                    {[
+                        { label: 'Operando', cor: '#22c55e', bg: 'rgba(34,197,94,0.08)', n: operando, hint: 'Em viagem, carregando, operação' },
+                        { label: 'Ocioso', cor: '#f59e0b', bg: 'rgba(245,158,11,0.08)', n: ocioso, hint: 'Disponível, carregado, aguardando frete' },
+                        { label: 'Excluído', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido, hint: 'Manutenção, sábado' },
+                    ].map(z => (
+                        <div key={z.label} style={{
+                            background: z.bg,
+                            border: `1px solid ${z.cor}40`,
+                            borderRadius: 10, padding: '12px 14px',
+                            display: 'grid', gridTemplateColumns: '10px 1fr auto', gap: 12, alignItems: 'center',
+                        }}>
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: z.cor }} />
+                            <div>
+                                <div style={{ color: '#f1f5f9', fontSize: 13, fontWeight: 700 }}>{z.label}</div>
+                                <div style={{ color: '#64748b', fontSize: 10 }}>{z.hint}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ color: z.cor, fontSize: 20, fontWeight: 800, lineHeight: 1 }}>{z.n}</div>
+                                <div style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>{pct(z.n)}%</div>
+                            </div>
+                        </div>
                     ))}
-                    {outrosCount > 0 && (
-                        <StatusBadge
-                            grupo={{ key: 'OUTROS', label: 'Outros Status', cor: '#94a3b8', corBg: 'rgba(100,116,139,0.1)', corBorder: 'rgba(100,116,139,0.25)', match: STATUS_OUTROS_MATCH }}
-                            veiculosFiltrados={veiculos}
-                        />
-                    )}
 
-                    {/* Mini breakdown por tipo */}
-                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        {TIPOS.map(t => {
+                    <div style={{ marginTop: '4px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        {['TRUCK', '3/4', 'CONJUNTO'].map(t => {
                             const n = contsPorTipo?.[t] ?? 0;
                             const cor = COR_TIPO[t]?.cor || '#94a3b8';
                             return (
-                                <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div key={t} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <span style={{ color: cor, fontWeight: '700', fontSize: '15px' }}>{n}</span>
-                                    <span style={{ color: '#475569', fontSize: '11px' }}>{TIPO_LABEL[t]}</span>
+                                    <span style={{ color: '#64748b', fontSize: '11px' }}>{TIPO_LABEL[t]}</span>
                                 </div>
                             );
                         })}
@@ -855,6 +931,180 @@ function TaxaUsabilidade({ socket }) {
                             );
                         })}
                     </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function MiniGauge({ taxa, tamanho = 90 }) {
+    const r = 34;
+    const cx = tamanho / 2;
+    const cy = tamanho * 0.62;
+    const inicioAng = Math.PI;
+    const fimAng = 0;
+    const valor = Math.max(0, Math.min(100, taxa ?? 0));
+    const valorAng = inicioAng - (valor / 100) * Math.PI;
+
+    const polar = (ang, raio = r) => [cx + raio * Math.cos(ang), cy - raio * Math.sin(ang)];
+    const arco = (a1, a2, raio = r) => {
+        const [x1, y1] = polar(a1, raio);
+        const [x2, y2] = polar(a2, raio);
+        const grande = Math.abs(a1 - a2) > Math.PI ? 1 : 0;
+        const sweep = a1 > a2 ? 1 : 0;
+        return `M ${x1} ${y1} A ${raio} ${raio} 0 ${grande} ${sweep} ${x2} ${y2}`;
+    };
+    const zona = zonaCor(taxa);
+
+    return (
+        <svg width={tamanho} height={tamanho * 0.66} viewBox={`0 0 ${tamanho} ${tamanho * 0.66}`}>
+            <path d={arco(inicioAng, fimAng)} stroke="#1e293b" strokeWidth="6" fill="none" />
+            {taxa != null && <path d={arco(inicioAng, valorAng)} stroke={zona.cor} strokeWidth="6" fill="none" strokeLinecap="round" />}
+            <text x={cx} y={cy - 4} textAnchor="middle" fontSize="16" fontWeight="800" fill={zona.cor}>
+                {taxa != null ? `${taxa.toFixed(1)}%` : '—'}
+            </text>
+        </svg>
+    );
+}
+
+function MotivosBaixaUsabilidade({ socket }) {
+    const quinzenas = React.useMemo(() => gerarQuinzenas(6), []);
+    const [periodo, setPeriodo] = useState(quinzenas[0]);
+    const [dados, setDados] = useState(null);
+
+    const carregar = useCallback(async (p) => {
+        try {
+            const r = await api.get(`/api/frota/usabilidade?inicio=${p.inicio}&fim=${p.fim}`);
+            if (r.data.success) setDados(r.data);
+        } catch (e) { console.error('motivos:', e); }
+    }, []);
+
+    useEffect(() => { carregar(periodo); }, [periodo, carregar]);
+    useEffect(() => {
+        if (!socket) return;
+        const handler = () => carregar(periodo);
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
+    }, [socket, periodo, carregar]);
+
+    const diario = dados?.diario || [];
+    const hoje = diario.length > 0 ? diario[diario.length - 1] : null;
+    const motivosHoje = hoje?.motivos_dia || [];
+    const motivosQuinzena = dados?.motivos_quinzena || [];
+    const totalDias = diario.length;
+    const saudavel = hoje?.taxa != null && hoje.taxa >= 85;
+
+    const fmtData = (s) => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '';
+
+    return (
+        <div style={{
+            background: 'linear-gradient(145deg, #0f172a 0%, #0d1520 100%)',
+            border: '1px solid rgba(250,204,21,0.2)',
+            borderRadius: 16,
+            padding: '20px 24px',
+            marginBottom: 20,
+            boxShadow: '0 4px 32px rgba(0,0,0,0.4)',
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <AlertTriangle size={18} style={{ color: '#facc15' }} />
+                    <div>
+                        <h3 style={{ color: '#f1f5f9', fontSize: 15, fontWeight: 700, margin: 0 }}>Motivos de Baixa Usabilidade</h3>
+                        <p style={{ color: '#64748b', fontSize: 11, margin: '2px 0 0' }}>Por que a frota não está operando · Diário + consolidado da quinzena</p>
+                    </div>
+                </div>
+                <select value={periodo.inicio} onChange={e => setPeriodo(quinzenas.find(q => q.inicio === e.target.value))}
+                    style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '6px 10px', fontSize: 12, outline: 'none' }}>
+                    {quinzenas.map(q => <option key={q.inicio} value={q.inicio}>{q.label}</option>)}
+                </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+                {/* HOJE */}
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            Último dia{hoje ? ` · ${fmtData(hoje.data)}` : ''}
+                        </span>
+                        {hoje?.taxa != null && (
+                            <span style={{ color: zonaCor(hoje.taxa).cor, fontSize: 12, fontWeight: 700 }}>
+                                {hoje.taxa.toFixed(1)}%
+                            </span>
+                        )}
+                    </div>
+
+                    {saudavel || motivosHoje.length === 0 ? (
+                        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 10, padding: '16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <CheckCircle2 size={18} style={{ color: '#22c55e', flexShrink: 0 }} />
+                            <span style={{ color: '#bbf7d0', fontSize: 12, fontWeight: 500 }}>
+                                Frota saudável — sem motivos de perda relevantes.
+                            </span>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {motivosHoje.map(m => {
+                                const cfg = MOTIVOS_USABILIDADE[m.status] || { cor: '#94a3b8', categoria: '—' };
+                                return (
+                                    <div key={m.status} style={{
+                                        display: 'grid', gridTemplateColumns: '10px 1fr auto', gap: 10, alignItems: 'center',
+                                        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+                                        padding: '8px 12px', borderRadius: 8,
+                                    }}>
+                                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.cor }} />
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 600 }}>{m.label}</span>
+                                            <span style={{ color: '#64748b', fontSize: 10 }}>{cfg.categoria}</span>
+                                        </div>
+                                        <span style={{ color: cfg.cor, fontSize: 16, fontWeight: 800 }}>{m.qtd}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* QUINZENA */}
+                <div>
+                    <div style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                        Recorrentes · {periodo.label.replace(' (atual)', '')}
+                    </div>
+                    {motivosQuinzena.length === 0 ? (
+                        <div style={{ color: '#64748b', fontSize: 12, padding: 16, textAlign: 'center' }}>Sem ocorrências no período.</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {motivosQuinzena.map((m, idx) => {
+                                const cfg = MOTIVOS_USABILIDADE[m.status] || { cor: '#94a3b8' };
+                                const pct = totalDias > 0 ? (m.dias_presente / totalDias) * 100 : 0;
+                                return (
+                                    <div key={m.status} style={{
+                                        display: 'grid', gridTemplateColumns: '24px 1fr', gap: 10, alignItems: 'center',
+                                        background: idx === 0 ? `${cfg.cor}14` : 'rgba(255,255,255,0.02)',
+                                        border: `1px solid ${idx === 0 ? cfg.cor + '40' : 'rgba(255,255,255,0.05)'}`,
+                                        padding: '10px 12px', borderRadius: 8,
+                                    }}>
+                                        <span style={{
+                                            width: 24, height: 24, borderRadius: '50%',
+                                            background: `${cfg.cor}22`, color: cfg.cor,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 11, fontWeight: 800,
+                                        }}>{idx + 1}</span>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 600 }}>{m.label}</span>
+                                                <span style={{ color: cfg.cor, fontSize: 13, fontWeight: 800 }}>{m.veiculo_dias}</span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                                <div style={{ flex: 1, height: 4, background: '#1e293b', borderRadius: 2, overflow: 'hidden' }}>
+                                                    <div style={{ width: `${pct}%`, height: '100%', background: cfg.cor }} />
+                                                </div>
+                                                <span style={{ color: '#64748b', fontSize: 10 }}>{m.dias_presente}/{totalDias} dias</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1353,8 +1603,7 @@ export default function DashboardFrota({ socket }) {
             {abaAtiva === 'dashboard' && (<>
                 <TaxaUsabilidade socket={socket} />
 
-                {/* Visão Semanal no topo */}
-                <VistaSemanal socket={socket} />
+                <MotivosBaixaUsabilidade socket={socket} />
 
                 {/* Card Geral */}
                 <div style={{ marginBottom: '20px' }}>
@@ -1364,15 +1613,20 @@ export default function DashboardFrota({ socket }) {
                     />
                 </div>
 
-                {/* Cards por tipo */}
+                {/* Cards por tipo (exceto CARRETA) */}
                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                    {TIPOS.map((tipo) => (
+                    {TIPOS.filter(t => t !== 'CARRETA').map((tipo) => (
                         <CardTipo
                             key={tipo}
                             tipo={tipo}
                             veiculosTipo={veiculosPorTipo[tipo] || []}
                         />
                     ))}
+                </div>
+
+                {/* CARRETA — fora do cálculo de usabilidade */}
+                <div style={{ marginTop: '20px' }}>
+                    <CardCarretaFooter veiculosTipo={veiculosPorTipo['CARRETA'] || []} />
                 </div>
             </>)}
 
