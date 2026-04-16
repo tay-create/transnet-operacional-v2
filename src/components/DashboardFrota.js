@@ -1011,9 +1011,8 @@ function MotivosBaixaUsabilidade({ socket }) {
     }, [socket, periodo, carregar, quinzenas]);
 
     const diario = dados?.diario || [];
-    // Dia de hoje em Recife — procurar no diario[], fallback para o último
-    const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
-    const diaHoje = diario.find(d => d.data === hojeStr) || (diario.length > 0 ? diario[diario.length - 1] : null);
+    // Último dia com dados de provisionamento no período
+    const diaHoje = diario.length > 0 ? diario[diario.length - 1] : null;
     const motivosHoje = diaHoje?.motivos_dia || [];
     const motivosQuinzena = dadosAnt?.motivos_quinzena || [];
     const totalDiasAnt = (dadosAnt?.diario || []).length;
@@ -1054,7 +1053,7 @@ function MotivosBaixaUsabilidade({ socket }) {
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                         <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                            Hoje{diaHoje ? ` · ${fmtData(diaHoje.data)}` : ''}
+                            Último dia{diaHoje ? ` · ${fmtData(diaHoje.data)}` : ''}
                         </span>
                         {diaHoje?.taxa != null && (
                             <span style={{ color: zonaCor(diaHoje.taxa).cor, fontSize: 12, fontWeight: 700 }}>
