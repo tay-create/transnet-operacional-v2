@@ -1931,31 +1931,6 @@ export default function DashboardFrota({ socket }) {
                             </div>
                         )}
 
-                        {/* OBS geral do dia */}
-                        <div style={{
-                            background: 'linear-gradient(135deg, #0f172a 0%, #111827 100%)',
-                            borderRadius: '14px', padding: '18px 20px',
-                            border: '1px solid #1e293b',
-                            boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                                <div style={{ width: '3px', height: '16px', background: '#f59e0b', borderRadius: '2px' }} />
-                                <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px' }}>Observações do Dia</span>
-                            </div>
-                            <textarea
-                                value={obsDia}
-                                onChange={e => setObsDia(e.target.value)}
-                                placeholder="Ex: Disponibilizar motorista carreteiro para possíveis movimentações..."
-                                style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid #1e293b', color: '#f1f5f9', borderRadius: '8px', padding: '12px', fontSize: '13px', resize: 'vertical', minHeight: '72px', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit', lineHeight: '1.5' }}
-                            />
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                                <button onClick={salvarObs} disabled={obsSalvando}
-                                    style={{ padding: '7px 22px', background: obsSalvando ? '#1e293b' : 'linear-gradient(135deg,#3b82f6,#2563eb)', color: obsSalvando ? '#475569' : '#fff', border: 'none', borderRadius: '8px', cursor: obsSalvando ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: '700', boxShadow: obsSalvando ? 'none' : '0 2px 8px rgba(59,130,246,0.3)' }}>
-                                    {obsSalvando ? 'Salvando...' : '✓ Salvar'}
-                                </button>
-                            </div>
-                        </div>
-
                     </div>
                 );
             })()}
