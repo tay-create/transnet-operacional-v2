@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Truck, FileText, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import api from '../services/apiService';
@@ -75,6 +75,18 @@ function buildDocaMap(veiculosUnidade, docasLista, docasInterdUnidade, campoStat
     return map;
 }
 
+function buildDocaVeiculoMap(veiculosUnidade, campoStatus, campoDoca, campoColeta) {
+    const map = {};
+    veiculosUnidade.forEach(v => {
+        if (v[campoStatus] === 'CARREGADO' || v[campoStatus] === 'LIBERADO P/ CT-e') return;
+        const doca = v[campoDoca];
+        if (!doca || doca === 'SELECIONE') return;
+        if (!map[doca]) map[doca] = [];
+        map[doca].push({ motorista: v.motorista || '—', coleta: v[campoColeta] || v.coleta || '' });
+    });
+    return map;
+}
+
 function KpiCard({ valor, label, cor }) {
     return (
         <div style={{
@@ -89,8 +101,15 @@ function KpiCard({ valor, label, cor }) {
     );
 }
 
-function DocaGrid({ docaMap, docasLista }) {
+function DocaGrid({ docaMap, docasLista, veiculoMap = {} }) {
     const docas = docasLista.filter(d => d !== 'SELECIONE');
+    const [tapped, setTapped] = useState(null);
+
+    const handleTap = useCallback((doca, veiculos) => {
+        if (!veiculos || veiculos.length === 0) return;
+        setTapped(t => t === doca ? null : doca);
+    }, []);
+
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '8px' }}>
             {docas.map(doca => {
@@ -99,21 +118,68 @@ function DocaGrid({ docaMap, docasLista }) {
                 const cor = STATUS_COR[st] || null;
                 const bg = st === 'FULGAZ' ? 'rgba(239,68,68,0.2)' : livre ? 'rgba(52,211,153,0.10)' : `${cor}18`;
                 const border = st === 'FULGAZ' ? '#ef4444' : livre ? '#34d399' : (cor || '#475569');
+                const veiculos = veiculoMap[doca];
+                const temInfo = veiculos && veiculos.length > 0;
+                const isOpen = tapped === doca;
+
                 return (
-                    <div key={doca} style={{
-                        padding: '8px 4px', borderRadius: '8px', textAlign: 'center',
-                        background: bg, border: `1px solid ${border}`,
-                        boxShadow: livre ? '0 0 5px rgba(52,211,153,0.15)' : 'none',
-                    }}>
-                        <div style={{ fontSize: '10px', fontWeight: '700',
-                            color: st === 'FULGAZ' ? '#fca5a5' : livre ? '#34d399' : (cor || '#94a3b8') }}>{doca}</div>
-                        <div style={{ fontSize: '8px', color: '#475569', marginTop: '2px',
-                            fontWeight: st === 'FULGAZ' ? '900' : 'normal' }}>
-                            {st === 'FULGAZ' ? 'CONTAINER' : (st || 'Livre')}
+                    <div key={doca} style={{ position: 'relative' }}>
+                        <div
+                            onClick={() => handleTap(doca, veiculos)}
+                            style={{
+                                padding: '8px 4px', borderRadius: '8px', textAlign: 'center',
+                                background: isOpen ? (st === 'FULGAZ' ? 'rgba(239,68,68,0.3)' : livre ? 'rgba(52,211,153,0.2)' : `${cor}30`) : bg,
+                                border: `1px solid ${isOpen ? border : border}`,
+                                boxShadow: isOpen ? `0 0 8px ${border}60` : livre ? '0 0 5px rgba(52,211,153,0.15)' : 'none',
+                                cursor: temInfo ? 'pointer' : 'default',
+                                WebkitTapHighlightColor: 'transparent',
+                                transition: 'background 0.15s',
+                            }}
+                        >
+                            <div style={{ fontSize: '10px', fontWeight: '700',
+                                color: st === 'FULGAZ' ? '#fca5a5' : livre ? '#34d399' : (cor || '#94a3b8') }}>{doca}</div>
+                            <div style={{ fontSize: '8px', color: '#475569', marginTop: '2px',
+                                fontWeight: st === 'FULGAZ' ? '900' : 'normal' }}>
+                                {st === 'FULGAZ' ? 'CONTAINER' : (st || 'Livre')}
+                            </div>
+                            {temInfo && !isOpen && (
+                                <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: border, margin: '3px auto 0', opacity: 0.7 }} />
+                            )}
                         </div>
+
+                        {/* Tooltip ao toque */}
+                        {isOpen && temInfo && (
+                            <div style={{
+                                position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+                                background: '#0f172a', border: `1px solid ${border}60`,
+                                borderRadius: '10px', padding: '10px 12px',
+                                zIndex: 999, minWidth: '150px', maxWidth: '220px',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.7)',
+                                pointerEvents: 'none',
+                            }}>
+                                <div style={{ fontSize: '9px', fontWeight: '700', color: border, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>{doca}</div>
+                                {veiculos.map((vv, i) => (
+                                    <div key={i} style={{
+                                        borderTop: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                                        paddingTop: i > 0 ? '6px' : 0, marginTop: i > 0 ? '6px' : 0,
+                                    }}>
+                                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0', lineHeight: 1.3 }}>{vv.motorista}</div>
+                                        {vv.coleta && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Coleta {vv.coleta}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             })}
+
+            {/* Overlay invisível para fechar ao tocar fora */}
+            {tapped && (
+                <div
+                    onClick={() => setTapped(null)}
+                    style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+                />
+            )}
         </div>
     );
 }
@@ -246,6 +312,10 @@ export default function MobileDashboardTV({ socket }) {
         docasInterditadas.filter(c => c.unidade === 'Recife'), 'status_recife', 'doca_recife');
     const docaMapMoreno = buildDocaMap(vMoreno, DOCAS_MORENO_LISTA,
         docasInterditadas.filter(c => c.unidade === 'Moreno'), 'status_moreno', 'doca_moreno');
+
+    // Mapas doca → veículo(s) para tooltip
+    const docaVeiculoRecife = buildDocaVeiculoMap(vRecife, 'status_recife', 'doca_recife', 'coletaRecife');
+    const docaVeiculoMoreno = buildDocaVeiculoMap(vMoreno, 'status_moreno', 'doca_moreno', 'coletaMoreno');
 
     // Tela 2 — CT-e
     const ctesRecife = ctes.filter(c => c.origem === 'Recife');
@@ -427,6 +497,7 @@ export default function MobileDashboardTV({ socket }) {
                                     <DocaGrid
                                         docaMap={abaOp === 'recife' ? docaMapRecife : docaMapMoreno}
                                         docasLista={abaOp === 'recife' ? DOCAS_RECIFE_LISTA : DOCAS_MORENO_LISTA}
+                                        veiculoMap={abaOp === 'recife' ? docaVeiculoRecife : docaVeiculoMoreno}
                                     />
                                 </div>
 
