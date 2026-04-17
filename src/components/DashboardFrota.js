@@ -875,15 +875,20 @@ function TaxaUsabilidade({ socket }) {
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
     const ultimoDia = [...diario].reverse().find(d => d.taxa != null && d.data <= hoje) || (diario.length > 0 ? diario[diario.length - 1] : null);
     const taxaHoje = ultimoDia?.taxa ?? null;
-    const zonaHoje = zonaCor(taxaHoje);
+    const ehQuinzenaAtual = periodo.inicio === quinzenas[0].inicio;
+    const taxaGauge = ehQuinzenaAtual ? taxaHoje : (dados?.taxa_periodo ?? null);
+    const zonaGauge = zonaCor(taxaGauge);
     const zona = zonaCor(dados?.taxa_periodo);
+    const labelGauge = ehQuinzenaAtual
+        ? (ultimoDia?.taxa != null ? `${ultimoDia.data.slice(8,10)}/${ultimoDia.data.slice(5,7)} · último dado` : '')
+        : periodo.label.replace(' (atual)', '');
     const barras = [{ label: periodo.label.replace(' (atual)', ''), taxa: dados?.taxa_periodo ?? null, atual: true }]
         .concat((dados?.quinzenas_anteriores || []).map(q => ({ label: q.label, taxa: q.taxa, atual: false })));
 
     return (
         <div style={{
             background: 'linear-gradient(145deg, #0f172a 0%, #0d1520 100%)',
-            border: `1px solid ${zonaHoje.cor}33`,
+            border: `1px solid ${zonaGauge.cor}33`,
             borderRadius: 16,
             padding: '20px 24px',
             marginBottom: 20,
@@ -900,15 +905,15 @@ function TaxaUsabilidade({ socket }) {
                         style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '6px 10px', fontSize: 12, outline: 'none' }}>
                         {quinzenas.map(q => <option key={q.inicio} value={q.inicio}>{q.label}</option>)}
                     </select>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: zonaHoje.cor, background: zonaHoje.bg, border: `1px solid ${zonaHoje.cor}55`, padding: '4px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{zonaHoje.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 800, color: zonaGauge.cor, background: zonaGauge.bg, border: `1px solid ${zonaGauge.cor}55`, padding: '4px 10px', borderRadius: 6, letterSpacing: 0.5 }}>{zonaGauge.label}</span>
                 </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 260px) 1fr', gap: 20, alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <Gauge taxa={taxaHoje} />
-                    {ultimoDia && ultimoDia.taxa != null && <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -8 }}>
-                        {ultimoDia.data.slice(8,10)}/{ultimoDia.data.slice(5,7)} · último dado
+                    <Gauge taxa={taxaGauge} />
+                    {labelGauge && <div style={{ color: '#64748b', fontSize: 10, fontWeight: 600, marginTop: -8 }}>
+                        {labelGauge}
                     </div>}
                 </div>
                 <div>
@@ -1140,7 +1145,7 @@ function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
     );
 }
 
-function VistaSemanal({ socket }) {
+function VistaSemanal({ socket, onDiaClick, diaSelecionado }) {
     const hoje = new Date().toISOString().substring(0, 10);
     const [inicioSemana, setInicioSemana] = useState(() => obterSegundaFeira(hoje));
     const [dadosSemana, setDadosSemana] = useState(null);
@@ -1274,21 +1279,24 @@ function VistaSemanal({ socket }) {
                             </th>
                             {dias.map(d => {
                                 const isHoje = d === hoje;
+                                const isSel = d === diaSelecionado;
                                 const dow = new Date(d + 'T12:00:00').getDay();
                                 return (
                                     <th key={d} style={{
                                         textAlign: 'center', paddingBottom: '8px', minWidth: 68,
-                                    }}>
+                                        cursor: onDiaClick ? 'pointer' : 'default',
+                                    }} onClick={() => onDiaClick && onDiaClick(d)}>
                                         <div style={{
                                             display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
-                                            background: isHoje ? 'rgba(99,102,241,0.15)' : 'transparent',
-                                            border: isHoje ? '1px solid rgba(99,102,241,0.35)' : '1px solid transparent',
+                                            background: isSel ? 'rgba(59,130,246,0.2)' : isHoje ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                            border: isSel ? '1px solid rgba(59,130,246,0.5)' : isHoje ? '1px solid rgba(99,102,241,0.35)' : '1px solid transparent',
                                             borderRadius: '8px', padding: '4px 10px',
+                                            transition: 'all 0.15s',
                                         }}>
-                                            <span style={{ color: isHoje ? '#a5b4fc' : '#475569', fontSize: '10px', fontWeight: '600' }}>
+                                            <span style={{ color: isSel ? '#93c5fd' : isHoje ? '#a5b4fc' : '#475569', fontSize: '10px', fontWeight: '600' }}>
                                                 {DIAS_SEMANA[dow]}
                                             </span>
-                                            <span style={{ color: isHoje ? '#c7d2fe' : '#64748b', fontSize: '12px', fontWeight: '700', marginTop: '1px' }}>
+                                            <span style={{ color: isSel ? '#dbeafe' : isHoje ? '#c7d2fe' : '#64748b', fontSize: '12px', fontWeight: '700', marginTop: '1px' }}>
                                                 {fmt(d)}
                                             </span>
                                         </div>
@@ -1408,6 +1416,7 @@ const STATUS_COR_PROG = {
     PUXADA:           '#a78bfa',
     TRANSFERENCIA:    '#60a5fa',
     CARREGANDO:       '#fb923c',
+    CARREGADO:        '#818cf8',
     EM_VIAGEM:        '#34d399',
     EM_OPERACAO:      '#a78bfa',
     MANUTENCAO:       '#f87171',
@@ -1417,12 +1426,16 @@ const STATUS_COR_PROG = {
     AGUARDANDO_FRETE_RETORNO: '#fbbf24',
     PROJETO_SUL:      '#60a5fa',
     PROJETO_SP:       '#60a5fa',
+    SABADO:           '#64748b',
+    DOMINGO:          '#64748b',
+    FERIADO:          '#64748b',
 };
 
 const STATUS_LABEL_PROG = {
     PUXADA: 'Puxada',
     TRANSFERENCIA: 'Transferência',
     CARREGANDO: 'Carregamento',
+    CARREGADO: 'Carregado',
     EM_VIAGEM: 'Em Viagem',
     EM_OPERACAO: 'Em Operação',
     DISPONIVEL: 'Disponível',
@@ -1432,6 +1445,9 @@ const STATUS_LABEL_PROG = {
     AGUARDANDO_FRETE_RETORNO: 'Ag. Frete Ret.',
     PROJETO_SUL: 'Projeto Sul',
     PROJETO_SP: 'Projeto SP',
+    SABADO: 'Sábado',
+    DOMINGO: 'Domingo',
+    FERIADO: 'Feriado',
 };
 
 export default function DashboardFrota({ socket }) {
@@ -1449,6 +1465,17 @@ export default function DashboardFrota({ socket }) {
     const [obsSalvando, setObsSalvando] = useState(false);
     const [dataProgDia, setDataProgDia] = useState(hoje);
     const [carregandoProg, setCarregandoProg] = useState(false);
+    const [obsCards, setObsCards] = useState({});
+    const [obsSalvandoCard, setObsSalvandoCard] = useState({});
+
+    const salvarObsCard = async (veiculoId) => {
+        setObsSalvandoCard(prev => ({ ...prev, [veiculoId]: true }));
+        try {
+            await api.put('/api/provisionamento/obs', { veiculo_id: veiculoId, data: dataProgDia, observacao: obsCards[veiculoId] || '' });
+            setProgDia(prev => prev.map(v => v.id === veiculoId ? { ...v, observacao: obsCards[veiculoId] || '' } : v));
+        } catch (e) { console.error('Erro salvar obs card:', e); }
+        finally { setObsSalvandoCard(prev => ({ ...prev, [veiculoId]: false })); }
+    };
 
     const carregarProgDia = useCallback(async (data) => {
         setCarregandoProg(true);
@@ -1457,7 +1484,12 @@ export default function DashboardFrota({ socket }) {
                 api.get(`/api/provisionamento/dashboard?data=${data}`),
                 api.get(`/api/frota/obs-dia?data=${data}`)
             ]);
-            if (r1.data.success) setProgDia(r1.data.veiculos);
+            if (r1.data.success) {
+                setProgDia(r1.data.veiculos);
+                const obsMap = {};
+                r1.data.veiculos.forEach(v => { if (v.observacao) obsMap[v.id] = v.observacao; });
+                setObsCards(obsMap);
+            }
             const obs = r2.data.observacao || '';
             setObsDia(obs);
             setObsSalvo(obs);
@@ -1616,7 +1648,7 @@ export default function DashboardFrota({ socket }) {
 
             {/* Abas */}
             <div style={{ display: 'flex', gap: '0', marginBottom: '24px', borderBottom: '1px solid #1e293b' }}>
-                {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'programacao', label: 'Programação do Dia' }].map(t => (
+                {[{ id: 'dashboard', label: 'Dashboard' }, { id: 'programacao', label: 'Visão de Provisionamento' }].map(t => (
                     <button key={t.id} onClick={() => setAbaAtiva(t.id)} style={{
                         padding: '8px 20px', background: 'none', border: 'none',
                         borderBottom: abaAtiva === t.id ? '2px solid #60a5fa' : '2px solid transparent',
@@ -1659,7 +1691,7 @@ export default function DashboardFrota({ socket }) {
                 </div>
             </>)}
 
-            {/* Aba: Programação do Dia */}
+            {/* Aba: Visão de Provisionamento */}
             {abaAtiva === 'programacao' && (() => {
                 const veiculosAtivos = progDia.filter(v => v.status !== 'DISPONIVEL' || v.motorista);
 
@@ -1677,11 +1709,20 @@ export default function DashboardFrota({ socket }) {
                     return v.destino || '';
                 };
 
+                const dataSaidaVeiculo = (v) => {
+                    if (!v.destinos_json) return null;
+                    try {
+                        const ds = JSON.parse(v.destinos_json);
+                        const datas = ds.map(d => d.data).filter(Boolean).sort();
+                        if (datas.length > 0) return datas[0];
+                    } catch {}
+                    return null;
+                };
+
                 const corStatus = (s) => STATUS_COR_PROG[s] || '#475569';
                 const rgbStatus = (s) => hexToRgb(corStatus(s));
                 const labelStatus = (s) => STATUS_LABEL_PROG[s] || s;
 
-                // Cor do tipo de veículo
                 const corTipo = (tipo) => {
                     if (!tipo) return '#475569';
                     if (tipo === 'CONJUNTO') return '#fb923c';
@@ -1693,11 +1734,14 @@ export default function DashboardFrota({ socket }) {
 
                 return (
                     <div>
-                        {/* Cabeçalho */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                        {/* Visão Semanal integrada */}
+                        <VistaSemanal socket={socket} onDiaClick={(d) => setDataProgDia(d)} diaSelecionado={dataProgDia} />
+
+                        {/* Cabeçalho do dia selecionado */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
                             <div>
-                                <div style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Programação da Frota</div>
-                                <div style={{ color: '#f1f5f9', fontSize: '20px', fontWeight: '800', letterSpacing: '-0.5px' }}>{formatarDataExibicao(dataProgDia)}</div>
+                                <div style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Dia selecionado</div>
+                                <div style={{ color: '#f1f5f9', fontSize: '18px', fontWeight: '800', letterSpacing: '-0.5px' }}>{formatarDataExibicao(dataProgDia)}</div>
                             </div>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
                                 <input type="date" value={dataProgDia}
@@ -1720,7 +1764,7 @@ export default function DashboardFrota({ socket }) {
                         {/* Ticker OBS */}
                         {obsSalvo && (
                             <div style={{
-                                marginBottom: '20px',
+                                marginBottom: '16px',
                                 background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
                                 border: '1px solid rgba(245,158,11,0.25)',
                                 borderRadius: '10px',
@@ -1760,13 +1804,18 @@ export default function DashboardFrota({ socket }) {
                                 <div style={{ color: '#475569', fontSize: '14px' }}>Nenhum veículo em operação neste dia.</div>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
                                 {veiculosAtivos.map(v => {
                                     const cor = corStatus(v.status);
                                     const rgb = rgbStatus(v.status);
                                     const destinos = gerarDestinos(v);
+                                    const dSaida = dataSaidaVeiculo(v);
                                     const placas = [v.placa && v.placa !== '-' ? v.placa : null, v.carreta || null].filter(Boolean).join(' / ');
                                     const cTipo = corTipo(v.tipo_veiculo);
+                                    const obsVal = obsCards[v.id] ?? v.observacao ?? '';
+                                    const obsOriginal = v.observacao || '';
+                                    const obsModificado = obsVal !== obsOriginal;
+                                    const salvando = obsSalvandoCard[v.id];
                                     return (
                                         <div key={v.id} style={{
                                             background: `linear-gradient(135deg, #0f172a 0%, rgba(${rgb},0.04) 100%)`,
@@ -1774,60 +1823,107 @@ export default function DashboardFrota({ socket }) {
                                             borderLeft: `3px solid ${cor}`,
                                             borderRadius: '12px',
                                             padding: '14px 18px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '16px',
                                             transition: 'border-color 0.2s',
                                             boxShadow: `0 2px 12px rgba(${rgb},0.06)`,
                                         }}>
-                                            {/* Tipo */}
-                                            <div style={{
-                                                minWidth: '64px', textAlign: 'center',
-                                                padding: '4px 8px', borderRadius: '6px',
-                                                background: `rgba(${hexToRgb(cTipo)},0.12)`,
-                                                border: `1px solid rgba(${hexToRgb(cTipo)},0.25)`,
-                                                color: cTipo, fontSize: '10px', fontWeight: '800',
-                                                letterSpacing: '0.5px',
-                                            }}>
-                                                {v.tipo_veiculo || '—'}
-                                            </div>
+                                            {/* Linha principal */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                                                {/* Tipo */}
+                                                <div style={{
+                                                    minWidth: '64px', textAlign: 'center',
+                                                    padding: '4px 8px', borderRadius: '6px',
+                                                    background: `rgba(${hexToRgb(cTipo)},0.12)`,
+                                                    border: `1px solid rgba(${hexToRgb(cTipo)},0.25)`,
+                                                    color: cTipo, fontSize: '10px', fontWeight: '800',
+                                                    letterSpacing: '0.5px',
+                                                }}>
+                                                    {v.tipo_veiculo || '—'}
+                                                </div>
 
-                                            {/* Motorista */}
-                                            <div style={{ minWidth: '160px' }}>
-                                                <div style={{ color: v.motorista ? '#f1f5f9' : '#334155', fontWeight: '700', fontSize: '13px', lineHeight: 1.2 }}>
-                                                    {v.motorista || '— —'}
+                                                {/* Motorista */}
+                                                <div style={{ minWidth: '150px' }}>
+                                                    <div style={{ color: v.motorista ? '#f1f5f9' : '#334155', fontWeight: '700', fontSize: '13px', lineHeight: 1.2 }}>
+                                                        {v.motorista || '— —'}
+                                                    </div>
+                                                </div>
+
+                                                {/* Placas */}
+                                                <div style={{ minWidth: '130px' }}>
+                                                    {placas ? (
+                                                        <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '800', letterSpacing: '1px', background: 'rgba(251,146,60,0.08)', padding: '3px 8px', borderRadius: '5px', border: '1px solid rgba(251,146,60,0.2)' }}>
+                                                            {placas}
+                                                        </span>
+                                                    ) : <span style={{ color: '#334155' }}>—</span>}
+                                                </div>
+
+                                                {/* Destinos */}
+                                                <div style={{ flex: 1, color: '#94a3b8', fontSize: '12px', minWidth: 0 }}>
+                                                    {destinos ? (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <span style={{ color: '#475569', fontSize: '10px' }}>📍</span>
+                                                            {destinos}
+                                                        </span>
+                                                    ) : <span style={{ color: '#334155' }}>—</span>}
+                                                </div>
+
+                                                {/* Data Saída */}
+                                                {dSaida && (
+                                                    <div style={{
+                                                        padding: '3px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '700',
+                                                        background: 'rgba(52,211,153,0.1)', color: '#34d399',
+                                                        border: '1px solid rgba(52,211,153,0.25)',
+                                                        whiteSpace: 'nowrap',
+                                                    }}>
+                                                        Saída: {dSaida.split('-').reverse().slice(0,2).join('/')}
+                                                    </div>
+                                                )}
+
+                                                {/* Status badge */}
+                                                <div style={{
+                                                    padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
+                                                    background: `rgba(${rgb},0.12)`,
+                                                    color: cor,
+                                                    border: `1px solid rgba(${rgb},0.3)`,
+                                                    whiteSpace: 'nowrap',
+                                                    letterSpacing: '0.3px',
+                                                }}>
+                                                    {labelStatus(v.status)}
                                                 </div>
                                             </div>
 
-                                            {/* Placas */}
-                                            <div style={{ minWidth: '140px' }}>
-                                                {placas ? (
-                                                    <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#fb923c', fontWeight: '800', letterSpacing: '1px', background: 'rgba(251,146,60,0.08)', padding: '3px 8px', borderRadius: '5px', border: '1px solid rgba(251,146,60,0.2)' }}>
-                                                        {placas}
-                                                    </span>
-                                                ) : <span style={{ color: '#334155' }}>—</span>}
-                                            </div>
-
-                                            {/* Destinos */}
-                                            <div style={{ flex: 1, color: '#94a3b8', fontSize: '12px', minWidth: 0 }}>
-                                                {destinos ? (
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <span style={{ color: '#475569', fontSize: '10px' }}>📍</span>
-                                                        {destinos}
-                                                    </span>
-                                                ) : <span style={{ color: '#334155' }}>—</span>}
-                                            </div>
-
-                                            {/* Status badge */}
-                                            <div style={{
-                                                padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '700',
-                                                background: `rgba(${rgb},0.12)`,
-                                                color: cor,
-                                                border: `1px solid rgba(${rgb},0.3)`,
-                                                whiteSpace: 'nowrap',
-                                                letterSpacing: '0.3px',
-                                            }}>
-                                                {labelStatus(v.status)}
+                                            {/* Linha de observação */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
+                                                <span style={{ color: '#475569', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>OBS:</span>
+                                                <input
+                                                    type="text"
+                                                    value={obsVal}
+                                                    onChange={e => setObsCards(prev => ({ ...prev, [v.id]: e.target.value }))}
+                                                    placeholder="Observação..."
+                                                    style={{
+                                                        flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid #1e293b',
+                                                        color: '#e2e8f0', borderRadius: '6px', padding: '5px 10px', fontSize: '12px',
+                                                        outline: 'none', fontFamily: 'inherit',
+                                                    }}
+                                                />
+                                                {obsModificado && (
+                                                    <button onClick={() => salvarObsCard(v.id)} disabled={salvando}
+                                                        style={{
+                                                            padding: '4px 12px', fontSize: '11px', fontWeight: '700',
+                                                            background: salvando ? '#1e293b' : 'rgba(59,130,246,0.15)',
+                                                            color: salvando ? '#475569' : '#60a5fa',
+                                                            border: '1px solid rgba(59,130,246,0.3)',
+                                                            borderRadius: '6px', cursor: salvando ? 'not-allowed' : 'pointer',
+                                                        }}>
+                                                        {salvando ? '...' : 'Salvar'}
+                                                    </button>
+                                                )}
+                                                {!obsModificado && obsOriginal && (
+                                                    <span style={{
+                                                        padding: '3px 10px', fontSize: '10px', fontWeight: '600',
+                                                        background: 'rgba(99,102,241,0.1)', color: '#a5b4fc',
+                                                        border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px',
+                                                    }}>salvo</span>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -1835,7 +1931,7 @@ export default function DashboardFrota({ socket }) {
                             </div>
                         )}
 
-                        {/* OBS do dia */}
+                        {/* OBS geral do dia */}
                         <div style={{
                             background: 'linear-gradient(135deg, #0f172a 0%, #111827 100%)',
                             borderRadius: '14px', padding: '18px 20px',

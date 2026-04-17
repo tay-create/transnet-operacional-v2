@@ -3109,7 +3109,7 @@ app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
         const data = req.query.data || new Date().toISOString().substring(0, 10);
         const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1');
         const progs = await dbAll(
-            'SELECT veiculo_id, status, destino, destinos_json, motorista FROM prov_programacao WHERE data = $1',
+            'SELECT veiculo_id, status, destino, destinos_json, motorista, observacao FROM prov_programacao WHERE data = $1',
             [data]
         );
         const progMap = {};
@@ -3127,10 +3127,26 @@ app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
                 status: p?.status || 'DISPONIVEL',
                 destino: p?.destino || null,
                 destinos_json: p?.destinos_json || null,
+                observacao: p?.observacao || '',
             };
         });
 
         res.json({ success: true, data, veiculos: resultado });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// PUT /api/provisionamento/obs — observação por veículo/dia
+app.put('/api/provisionamento/obs', authMiddleware, async (req, res) => {
+    try {
+        const { veiculo_id, data, observacao } = req.body;
+        if (!veiculo_id || !data) return res.status(400).json({ success: false, message: 'veiculo_id e data obrigatórios' });
+        await dbRun(
+            `INSERT INTO prov_programacao (veiculo_id, data, status, observacao)
+             VALUES ($1, $2, 'DISPONIVEL', $3)
+             ON CONFLICT (veiculo_id, data) DO UPDATE SET observacao = $3`,
+            [veiculo_id, data, observacao || '']
+        );
+        res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
@@ -3345,10 +3361,12 @@ cron.schedule('0 8,13,17 * * *', async () => {
         );
         if (ja) return;
 
+        const diaHoje = dados.diario.find(d => d.data === hoje);
+        const taxaDia = diaHoje?.taxa ?? dados.taxa_periodo;
         await enviarNotificacao('alerta_usabilidade_frota', {
             tipo: 'alerta_usabilidade_frota',
-            mensagem: `Taxa de usabilidade da frota em ${dados.taxa_periodo.toFixed(1)}% (meta ${META_USAB}%). Quinzena ${inicio} a ${fim}.`,
-            taxa: dados.taxa_periodo,
+            mensagem: `Taxa de usabilidade da frota em ${taxaDia.toFixed(1)}% (meta ${META_USAB}%). Dia ${hoje.split('-').reverse().join('/')}.`,
+            taxa: taxaDia,
             periodo: { inicio, fim },
             data_criacao: new Date().toISOString(),
         });
