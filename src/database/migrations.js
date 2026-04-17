@@ -214,6 +214,8 @@ const inicializarBanco = async () => {
             // Cubagem v3 — múltiplos redespachos por cubagem (por NF)
             { tabela: 'cubagem_itens', coluna: 'redespacho_nome', tipo: 'TEXT' },
             { tabela: 'cubagem_itens', coluna: 'redespacho_uf', tipo: 'TEXT' },
+            // Observação por veículo/dia no provisionamento
+            { tabela: 'prov_programacao', coluna: 'observacao', tipo: 'TEXT DEFAULT \'\'' },
         ];
 
         // Criação de Índices Otimizados

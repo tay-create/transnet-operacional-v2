@@ -51,7 +51,7 @@ const COR_STATUS = {
     RETORNANDO:               { bg: 'rgba(234,179,8,0.14)',   text: '#fbbf24',  border: 'rgba(234,179,8,0.3)' },
     MANUTENCAO:               { bg: 'rgba(239,68,68,0.18)',   text: '#f87171',  border: 'rgba(239,68,68,0.35)' },
     CARREGANDO:               { bg: 'rgba(100,116,139,0.18)', text: '#94a3b8',  border: 'rgba(100,116,139,0.3)' },
-    CARREGADO:                { bg: 'rgba(34,197,94,0.18)',   text: '#4ade80',  border: 'rgba(34,197,94,0.35)' },
+    CARREGADO:                { bg: 'rgba(129,140,248,0.18)', text: '#818cf8',  border: 'rgba(129,140,248,0.35)' },
     PUXADA:                   { bg: 'rgba(59,130,246,0.18)',  text: '#60a5fa',  border: 'rgba(59,130,246,0.35)' },
     TRANSFERENCIA:            { bg: 'rgba(14,165,233,0.18)',  text: '#38bdf8',  border: 'rgba(14,165,233,0.35)' },
     PROJETO_SUL:              { bg: 'rgba(22,163,74,0.18)',   text: '#34d399',  border: 'rgba(22,163,74,0.35)' },
