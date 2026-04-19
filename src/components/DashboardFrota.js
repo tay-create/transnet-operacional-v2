@@ -777,7 +777,7 @@ function CardGeral({ veiculos, contsPorTipo }) {
                         { key: 'ocioso',     label: 'Ocioso',           cor: '#f59e0b', bg: 'rgba(245,158,11,0.08)',   n: ocioso,     lista: vOcioso,     hint: 'Disponível, aguardando frete' },
                         { key: 'manutencao', label: 'Manutenção',       cor: '#f87171', bg: 'rgba(248,113,113,0.08)',  n: manutencao, lista: vManutencao, hint: 'Veículos em manutenção' },
                         { key: 'excluido',   label: 'Fora de Operação', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido,   lista: vExcluido,   hint: 'Sábado, domingo' },
-                    ].filter(z => z.n > 0 || z.key === 'operando' || z.key === 'ocioso').map(z => (
+                    ].filter(z => z.n > 0 || z.key === 'operando' || z.key === 'ocioso' || z.key === 'manutencao').map(z => (
                         <div
                             key={z.label}
                             ref={el => catGRefs.current[z.key] = el}
