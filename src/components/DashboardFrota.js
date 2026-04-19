@@ -402,6 +402,11 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
     const totalRef = useRef(null);
     const totalTimerRef = useRef(null);
 
+    const [hoveredCat, setHoveredCat] = useState(null);
+    const [catTooltipPos, setCatTooltipPos] = useState({ top: 0, left: 0 });
+    const catTimerRef = useRef(null);
+    const catRefs = useRef({});
+
     function handleTotalEnter() {
         clearTimeout(totalTimerRef.current);
         const rect = totalRef.current?.getBoundingClientRect();
@@ -412,17 +417,30 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
         totalTimerRef.current = setTimeout(() => setShowTotalTooltip(false), 120);
     }
 
-    const operandoSet = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
-    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
-    const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
+    function handleCatEnter(cat) {
+        clearTimeout(catTimerRef.current);
+        const rect = catRefs.current[cat]?.getBoundingClientRect();
+        if (rect) setCatTooltipPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+        setHoveredCat(cat);
+    }
+    function handleCatLeave() {
+        catTimerRef.current = setTimeout(() => setHoveredCat(null), 120);
+    }
 
-    let operando = 0, ocioso = 0, excluido = 0;
+    const operandoSet   = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'CARREGADO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
+    const ociosoSet     = new Set(['DISPONIVEL', 'AGUARDANDO_FRETE_RETORNO']);
+    const excluidoSet   = new Set(['SABADO', 'DOMINGO']);
+    const manutencaoSet = new Set(['MANUTENCAO']);
+
+    let operando = 0, ocioso = 0, excluido = 0, manutencao = 0;
+    const vOperando = [], vOcioso = [], vExcluido = [], vManutencao = [];
     for (const v of veiculosTipo) {
         const st = v.status || 'DISPONIVEL';
-        if (operandoSet.has(st)) operando++;
-        else if (ociosoSet.has(st)) ocioso++;
-        else if (excluidoSet.has(st)) excluido++;
-        else ocioso++;
+        if (operandoSet.has(st))        { operando++;   vOperando.push(v); }
+        else if (ociosoSet.has(st))     { ocioso++;     vOcioso.push(v); }
+        else if (manutencaoSet.has(st)) { manutencao++; vManutencao.push(v); }
+        else if (excluidoSet.has(st))   { excluido++;   vExcluido.push(v); }
+        else                            { ocioso++;     vOcioso.push(v); }
     }
     const base = operando + ocioso;
     const taxa = base > 0 ? (operando / base) * 100 : null;
@@ -554,24 +572,65 @@ function CardTipo({ tipo, veiculosTipo, style: extraStyle = {} }) {
                         {ocioso > 0 && <div style={{ width: `${100 - pctOp}%`, background: '#f59e0b' }} />}
                     </div>
                     <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-                            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{operando}</span>
-                            <span style={{ color: '#64748b', fontSize: 11 }}>operando</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-                            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{ocioso}</span>
-                            <span style={{ color: '#64748b', fontSize: 11 }}>ocioso</span>
-                        </div>
-                        {excluido > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748b' }} />
-                                <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{excluido}</span>
-                                <span style={{ color: '#64748b', fontSize: 11 }}>fora de operação</span>
+                        {[
+                            { key: 'operando',   n: operando,   lista: vOperando,   cor: '#22c55e', label: 'operando' },
+                            { key: 'ocioso',     n: ocioso,     lista: vOcioso,     cor: '#f59e0b', label: 'ocioso' },
+                            { key: 'manutencao', n: manutencao, lista: vManutencao, cor: '#f87171', label: 'manutenção' },
+                            { key: 'excluido',   n: excluido,   lista: vExcluido,   cor: '#64748b', label: 'fora de op.' },
+                        ].filter(c => c.n > 0).map(c => (
+                            <div
+                                key={c.key}
+                                ref={el => catRefs.current[c.key] = el}
+                                onMouseEnter={() => handleCatEnter(c.key)}
+                                onMouseLeave={handleCatLeave}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'default' }}
+                            >
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor }} />
+                                <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 700 }}>{c.n}</span>
+                                <span style={{ color: '#64748b', fontSize: 11 }}>{c.label}</span>
                             </div>
-                        )}
+                        ))}
                     </div>
+
+                    {/* Tooltip categoria */}
+                    {hoveredCat && (() => {
+                        const catMap = { operando: vOperando, ocioso: vOcioso, manutencao: vManutencao, excluido: vExcluido };
+                        const lista = catMap[hoveredCat] || [];
+                        const corMap = { operando: '#22c55e', ocioso: '#f59e0b', manutencao: '#f87171', excluido: '#64748b' };
+                        const labelMap = { operando: 'Operando', ocioso: 'Ocioso', manutencao: 'Manutenção', excluido: 'Fora de Op.' };
+                        if (lista.length === 0) return null;
+                        return createPortal(
+                            <div
+                                onMouseEnter={() => clearTimeout(catTimerRef.current)}
+                                onMouseLeave={handleCatLeave}
+                                style={{
+                                    position: 'fixed', top: catTooltipPos.top, left: catTooltipPos.left,
+                                    transform: 'translateY(-50%)', zIndex: 99999,
+                                    background: '#0f172a', border: `1px solid ${corMap[hoveredCat]}40`,
+                                    borderRadius: 10, padding: '10px 14px', minWidth: 180, maxWidth: 280,
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                }}
+                            >
+                                <div style={{ color: corMap[hoveredCat], fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    {labelMap[hoveredCat]} — {lista.length}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                    {lista.map((v, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: 4, letterSpacing: 0.5, flexShrink: 0 }}>
+                                                {v._placaExibicao || v.placa}
+                                            </span>
+                                            {tipo === 'CONJUNTO' && v.carreta && (
+                                                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>+ {v.carreta}</span>
+                                            )}
+                                            {v.motorista && <span style={{ color: '#64748b', fontSize: 11 }}>{v.motorista.split(' ')[0]}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>,
+                            document.body
+                        );
+                    })()}
                 </div>
             </div>
         </div>
@@ -633,22 +692,41 @@ function CardGeral({ veiculos, contsPorTipo }) {
     const veiculosUsab = veiculos.filter(v => ['TRUCK', '3/4', 'CONJUNTO'].includes(v.tipo_veiculo));
     const total = veiculosUsab.length;
 
-    const operandoSet = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
-    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
-    const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
+    const operandoSet   = new Set(['EM_VIAGEM', 'EM_OPERACAO', 'CARREGANDO', 'CARREGADO', 'RETORNANDO', 'EM_VIAGEM_FRETE_RETORNO', 'TRANSFERENCIA', 'PUXADA']);
+    const ociosoSet     = new Set(['DISPONIVEL', 'AGUARDANDO_FRETE_RETORNO']);
+    const excluidoSet   = new Set(['SABADO', 'DOMINGO']);
+    const manutencaoSet = new Set(['MANUTENCAO']);
 
-    let operando = 0, ocioso = 0, excluido = 0;
+    let operando = 0, ocioso = 0, excluido = 0, manutencao = 0;
+    const vOperando = [], vOcioso = [], vExcluido = [], vManutencao = [];
     for (const v of veiculosUsab) {
         const st = v.status || 'DISPONIVEL';
-        if (operandoSet.has(st)) operando++;
-        else if (ociosoSet.has(st)) ocioso++;
-        else if (excluidoSet.has(st)) excluido++;
-        else ocioso++;
+        if (operandoSet.has(st))        { operando++;   vOperando.push(v); }
+        else if (ociosoSet.has(st))     { ocioso++;     vOcioso.push(v); }
+        else if (manutencaoSet.has(st)) { manutencao++; vManutencao.push(v); }
+        else if (excluidoSet.has(st))   { excluido++;   vExcluido.push(v); }
+        else                            { ocioso++;     vOcioso.push(v); }
+    }
+
+    const [hoveredCatG, setHoveredCatG] = useState(null);
+    const [catGTooltipPos, setCatGTooltipPos] = useState({ top: 0, left: 0 });
+    const catGTimerRef = useRef(null);
+    const catGRefs = useRef({});
+
+    function handleCatGEnter(cat) {
+        clearTimeout(catGTimerRef.current);
+        const rect = catGRefs.current[cat]?.getBoundingClientRect();
+        if (rect) setCatGTooltipPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+        setHoveredCatG(cat);
+    }
+    function handleCatGLeave() {
+        catGTimerRef.current = setTimeout(() => setHoveredCatG(null), 120);
     }
 
     const dadosGrafico = [
-        { label: 'Operando', cor: '#22c55e', valor: operando },
-        { label: 'Ocioso', cor: '#f59e0b', valor: ocioso },
+        { label: 'Operando',       cor: '#22c55e', valor: operando },
+        { label: 'Ocioso',         cor: '#f59e0b', valor: ocioso },
+        { label: 'Manutenção',     cor: '#f87171', valor: manutencao },
         { label: 'Fora de Operação', cor: '#64748b', valor: excluido },
     ].filter(d => d.valor > 0);
 
@@ -695,16 +773,24 @@ function CardGeral({ veiculos, contsPorTipo }) {
 
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '12px', minWidth: 240 }}>
                     {[
-                        { label: 'Operando', cor: '#22c55e', bg: 'rgba(34,197,94,0.08)', n: operando, hint: 'Em viagem, carregando, operação' },
-                        { label: 'Ocioso', cor: '#f59e0b', bg: 'rgba(245,158,11,0.08)', n: ocioso, hint: 'Disponível, carregado, aguardando frete' },
-                        { label: 'Fora de Operação', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido, hint: 'Manutenção, sábado' },
-                    ].map(z => (
-                        <div key={z.label} style={{
-                            background: z.bg,
-                            border: `1px solid ${z.cor}40`,
-                            borderRadius: 10, padding: '12px 14px',
-                            display: 'grid', gridTemplateColumns: '10px 1fr auto', gap: 12, alignItems: 'center',
-                        }}>
+                        { key: 'operando',   label: 'Operando',         cor: '#22c55e', bg: 'rgba(34,197,94,0.08)',    n: operando,   lista: vOperando,   hint: 'Em viagem, carregando, operação' },
+                        { key: 'ocioso',     label: 'Ocioso',           cor: '#f59e0b', bg: 'rgba(245,158,11,0.08)',   n: ocioso,     lista: vOcioso,     hint: 'Disponível, aguardando frete' },
+                        { key: 'manutencao', label: 'Manutenção',       cor: '#f87171', bg: 'rgba(248,113,113,0.08)',  n: manutencao, lista: vManutencao, hint: 'Veículos em manutenção' },
+                        { key: 'excluido',   label: 'Fora de Operação', cor: '#64748b', bg: 'rgba(100,116,139,0.08)', n: excluido,   lista: vExcluido,   hint: 'Sábado, domingo' },
+                    ].filter(z => z.n > 0 || z.key === 'operando' || z.key === 'ocioso').map(z => (
+                        <div
+                            key={z.label}
+                            ref={el => catGRefs.current[z.key] = el}
+                            onMouseEnter={() => z.lista.length > 0 && handleCatGEnter(z.key)}
+                            onMouseLeave={handleCatGLeave}
+                            style={{
+                                background: z.bg,
+                                border: `1px solid ${z.cor}40`,
+                                borderRadius: 10, padding: '12px 14px',
+                                display: 'grid', gridTemplateColumns: '10px 1fr auto', gap: 12, alignItems: 'center',
+                                cursor: z.lista.length > 0 ? 'default' : 'default',
+                            }}
+                        >
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: z.cor }} />
                             <div>
                                 <div style={{ color: '#f1f5f9', fontSize: 13, fontWeight: 700 }}>{z.label}</div>
@@ -716,6 +802,46 @@ function CardGeral({ veiculos, contsPorTipo }) {
                             </div>
                         </div>
                     ))}
+
+                    {/* Tooltip categoria CardGeral */}
+                    {hoveredCatG && (() => {
+                        const catMap = { operando: vOperando, ocioso: vOcioso, manutencao: vManutencao, excluido: vExcluido };
+                        const lista = catMap[hoveredCatG] || [];
+                        const corMap = { operando: '#22c55e', ocioso: '#f59e0b', manutencao: '#f87171', excluido: '#64748b' };
+                        const labelMap = { operando: 'Operando', ocioso: 'Ocioso', manutencao: 'Manutenção', excluido: 'Fora de Op.' };
+                        if (lista.length === 0) return null;
+                        return createPortal(
+                            <div
+                                onMouseEnter={() => clearTimeout(catGTimerRef.current)}
+                                onMouseLeave={handleCatGLeave}
+                                style={{
+                                    position: 'fixed', top: catGTooltipPos.top, left: catGTooltipPos.left,
+                                    transform: 'translateY(-50%)', zIndex: 99999,
+                                    background: '#0f172a', border: `1px solid ${corMap[hoveredCatG]}40`,
+                                    borderRadius: 10, padding: '10px 14px', minWidth: 180, maxWidth: 300,
+                                    boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                }}
+                            >
+                                <div style={{ color: corMap[hoveredCatG], fontSize: 11, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    {labelMap[hoveredCatG]} — {lista.length}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                    {lista.map((v, i) => (
+                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: '#f1f5f9', background: 'rgba(255,255,255,0.06)', padding: '2px 7px', borderRadius: 4, letterSpacing: 0.5, flexShrink: 0 }}>
+                                                {v._placaExibicao || v.placa}
+                                            </span>
+                                            {v.tipo_veiculo === 'CONJUNTO' && v.carreta && (
+                                                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>+ {v.carreta}</span>
+                                            )}
+                                            {v.motorista && <span style={{ color: '#64748b', fontSize: 11 }}>{v.motorista.split(' ')[0]}</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>,
+                            document.body
+                        );
+                    })()}
 
                     <div style={{ marginTop: '4px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                         {['TRUCK', '3/4', 'CONJUNTO'].map(t => {
@@ -1147,7 +1273,7 @@ function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
 
 function VistaSemanal({ socket, onDiaClick, diaSelecionado }) {
     const hoje = new Date().toISOString().substring(0, 10);
-    const [inicioSemana, setInicioSemana] = useState(() => obterSegundaFeira(hoje));
+    const [inicioSemana, setInicioSemana] = useState(hoje);
     const [dadosSemana, setDadosSemana] = useState(null);
     const [carregandoSemana, setCarregandoSemana] = useState(false);
     const [hoveredCell, setHoveredCell] = useState(null); // { linhaKey, diaIdx, top, left }
@@ -1181,17 +1307,17 @@ function VistaSemanal({ socket, onDiaClick, diaSelecionado }) {
     }
 
     function irHoje() {
-        setInicioSemana(obterSegundaFeira(hoje));
+        setInicioSemana(hoje);
     }
 
-    // Gerar array de 7 dias da semana (seg→dom)
+    // Gerar array de 7 dias a partir do inicioSemana
     const dias = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(inicioSemana + 'T12:00:00');
         d.setDate(d.getDate() + i);
         return d.toISOString().substring(0, 10);
     });
 
-    const semanaAtual = inicioSemana === obterSegundaFeira(hoje);
+    const semanaAtual = inicioSemana === hoje;
 
     const totaisPorDia = dadosSemana?.totais || dadosSemana?.totalizadores || {};
 
