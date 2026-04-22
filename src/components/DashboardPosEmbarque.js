@@ -6,7 +6,12 @@ import {
 } from 'lucide-react';
 
 // ──────────── Helpers ────────────────────────────────────
-const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+const formatData = (d) => {
+    if (!d) return '—';
+    // Strings YYYY-MM-DD sem horário devem ser tratadas como BRT, não UTC
+    const s = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00-03:00' : d;
+    return new Date(s).toLocaleDateString('pt-BR');
+};
 
 function parseDatetimeBRT(data, hora) {
     // Constrói Date tratando como horário de Brasília (BRT = UTC-3)
