@@ -407,6 +407,18 @@ module.exports = function createChecklistsRouter(io) {
                 if (forcar || !tempos.t_inicio_carregado) tempos.t_inicio_carregado = agoraHHMM;
             }
 
+            // Bloquear CARREGADO sem foto do lacre
+            if (novoStatus === 'CARREGADO') {
+                const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+                if (!veiculo[campoLacre]) {
+                    return res.status(403).json({
+                        success: false,
+                        precisaFotoLacre: true,
+                        message: 'Foto do lacre obrigatória para marcar como CARREGADO.',
+                    });
+                }
+            }
+
             // Construir query de update
             const sets = [`${statusField} = ?`, `timestamps_status = ?`, `${temposField} = ?`];
             const vals = [novoStatus, JSON.stringify(ts), JSON.stringify(tempos)];
@@ -536,6 +548,22 @@ module.exports = function createChecklistsRouter(io) {
         } catch (e) {
             console.error('Erro ao atualizar status pelo conferente:', e);
             res.status(500).json({ success: false, message: 'Erro ao atualizar status.' });
+        }
+    });
+
+    // ── Conferente: Salvar foto do lacre ──
+    router.post('/api/conferente/salvar-lacre', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
+        try {
+            const { veiculoId, unidade, foto } = req.body;
+            if (!veiculoId || !foto) return res.status(400).json({ success: false, message: 'veiculoId e foto obrigatórios.' });
+            const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
+            const campo = cidade === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+            await dbRun(`UPDATE veiculos SET ${campo} = $1 WHERE id = $2`, [foto, veiculoId]);
+            io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, foto });
+            res.json({ success: true });
+        } catch (e) {
+            console.error('[Conferente/salvar-lacre] Erro:', e);
+            res.status(500).json({ success: false, message: 'Erro ao salvar foto do lacre.' });
         }
     });
 

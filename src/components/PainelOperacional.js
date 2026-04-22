@@ -209,6 +209,7 @@ export default function PainelOperacional({
     const [frotaOrigem, setFrotaOrigem] = useState('');
     const [frotaDestino, setFrotaDestino] = useState('');
     const [loadingPdf, setLoadingPdf] = useState({});
+    const [modalLacre, setModalLacre] = useState(null); // { foto, motorista }
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -237,6 +238,20 @@ export default function PainelOperacional({
             return () => socket.off('docas_interditadas_update', handleDocas);
         }
     }, [socket, dataInicio]);
+
+    // Atualizar foto do lacre no card via socket em tempo real
+    useEffect(() => {
+        if (!socket) return;
+        const handleFotoLacre = ({ veiculoId, campo, foto }) => {
+            setLista(prev => prev.map(item =>
+                item.id === veiculoId ? { ...item, [campo]: foto } : item
+            ));
+        };
+        socket.on('receber_atualizacao', (payload) => {
+            if (payload?.tipo === 'foto_lacre') handleFotoLacre(payload);
+        });
+        return () => socket.off('receber_atualizacao', handleFotoLacre);
+    }, [socket, setLista]);
 
     const addCardFulgaz = () => {
         api.post('/api/docas-interditadas', { unidade: origem, data: dataInicio }).catch(() => { });
@@ -1144,6 +1159,22 @@ export default function PainelOperacional({
                                                             <FileText size={16} />
                                                         </a>
 
+                                                        {/* Badge Lacre */}
+                                                        {(() => {
+                                                            const campoLacre = origem === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+                                                            const fotoLacre = item[campoLacre];
+                                                            if (!fotoLacre) return null;
+                                                            return (
+                                                                <button
+                                                                    onClick={() => setModalLacre({ foto: fotoLacre, motorista: item.motorista })}
+                                                                    title="Ver foto do lacre"
+                                                                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', color: '#22c55e', cursor: 'pointer', border: 'none' }}
+                                                                >
+                                                                    <Lock size={16} />
+                                                                </button>
+                                                            );
+                                                        })()}
+
                                                         {/* Botao 2: Chamada para Doca */}
                                                         {
                                                             (() => {
@@ -1598,6 +1629,23 @@ export default function PainelOperacional({
 
             {/* Modal de Visualização de Imagem Ampliada */}
             <ModalImagem imagemAmpliada={imagemAmpliada} setImagemAmpliada={setImagemAmpliada} />
+
+            {/* Modal Foto do Lacre */}
+            {modalLacre && (
+                <div onClick={() => setModalLacre(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '480px', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f1f5f9', fontWeight: '700', fontSize: '14px' }}>
+                                <Lock size={14} color="#22c55e" /> Lacre — {modalLacre.motorista}
+                            </div>
+                            <button onClick={() => setModalLacre(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <img src={modalLacre.foto} alt="Foto do lacre" style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
+                    </div>
+                </div>
+            )}
 
             {/* Modal de Coletas Embutido */}
             {modalColetasAberto && veiculoSelecionado && (

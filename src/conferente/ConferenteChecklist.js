@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar
+    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar, Camera, Lock
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -108,6 +108,10 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [confirmTransfer, setConfirmTransfer] = useState(false);
     const [salvandoTransfer, setSalvandoTransfer] = useState(false);
     const [statusManual, setStatusManual] = useState(v.status || STATUS_CONFERENTE[0]);
+    const [modalFotoLacre, setModalFotoLacre] = useState(false);
+    const [fotoLacre, setFotoLacre] = useState(null);
+    const [salvandoLacre, setSalvandoLacre] = useState(false);
+    const inputFotoRef = useRef(null);
     const [horaManual, setHoraManual] = useState(() => {
         const now = new Date();
         return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -132,6 +136,12 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const avancarStatus = async () => {
         const proximo = STATUS_CONFERENTE[idxAtual + 1];
         if (!proximo) return;
+        // Interceptar CARREGADO para exigir foto do lacre primeiro
+        if (proximo === 'CARREGADO') {
+            setFotoLacre(null);
+            setModalFotoLacre(true);
+            return;
+        }
         setSalvando(true);
         setErro('');
         try {
@@ -150,6 +160,51 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
             setSalvando(false);
         }
     };
+
+    async function comprimirImagem(file) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+                const max = 1000;
+                let w = img.width, h = img.height;
+                if (w > max) { h = Math.round(h * max / w); w = max; }
+                else if (h > max) { w = Math.round(w * max / h); h = max; }
+                const canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
+    async function confirmarComLacre() {
+        if (!fotoLacre) return;
+        setSalvandoLacre(true);
+        setErro('');
+        try {
+            await api.post('/api/conferente/salvar-lacre', {
+                veiculoId: v.id,
+                unidade: v.unidade,
+                foto: fotoLacre,
+            });
+            const res = await api.post('/api/conferente/atualizar-status', {
+                veiculoId: v.id,
+                novoStatus: 'CARREGADO',
+                novaDoca: docaSelecionada !== 'SELECIONE' ? docaSelecionada : undefined,
+                unidade: v.unidade,
+            });
+            if (res.data.success) {
+                setModalFotoLacre(false);
+                setFotoLacre(null);
+                onAtualizarStatus(v.id, 'CARREGADO', docaSelecionada);
+            }
+        } catch (err) {
+            setErro(err.response?.data?.message || 'Erro ao confirmar carregamento.');
+        } finally {
+            setSalvandoLacre(false);
+        }
+    }
 
     const salvarDoca = async (novaDoca) => {
         setDocaSelecionada(novaDoca);
@@ -514,6 +569,103 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                                     {salvando ? 'Salvando...' : 'Confirmar'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Foto do Lacre */}
+            {modalFotoLacre && (
+                <div
+                    onClick={() => { if (!salvandoLacre) { setModalFotoLacre(false); setFotoLacre(null); } }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: 'linear-gradient(160deg, #020617 0%, #0f172a 100%)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '24px', color: '#f1f5f9' }}
+                    >
+                        {/* Cabeçalho */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Lock size={16} color="#22c55e" />
+                                <span style={{ fontWeight: '800', fontSize: '15px' }}>Foto do Lacre</span>
+                            </div>
+                            {!salvandoLacre && (
+                                <button onClick={() => { setModalFotoLacre(false); setFotoLacre(null); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                    <X size={16} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Instrução */}
+                        <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.5' }}>
+                            Fotografe o lacre colocado no baú de <strong style={{ color: '#f1f5f9' }}>{v.motorista}</strong> antes de confirmar o carregamento.
+                        </p>
+
+                        {/* Input câmera */}
+                        <input
+                            ref={inputFotoRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const b64 = await comprimirImagem(file);
+                                setFotoLacre(b64);
+                                e.target.value = '';
+                            }}
+                        />
+
+                        {/* Área de preview / botão câmera */}
+                        {fotoLacre ? (
+                            <div style={{ position: 'relative', marginBottom: '16px', borderRadius: '10px', overflow: 'hidden', border: '2px solid rgba(34,197,94,0.4)' }}>
+                                <img src={fotoLacre} alt="Lacre" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'cover' }} />
+                                <button
+                                    onClick={() => inputFotoRef.current?.click()}
+                                    style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#f1f5f9', cursor: 'pointer', padding: '5px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                    <Camera size={12} /> Refazer
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => inputFotoRef.current?.click()}
+                                style={{ width: '100%', padding: '32px', marginBottom: '16px', borderRadius: '10px', border: '2px dashed rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.05)', color: '#22c55e', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
+                            >
+                                <Camera size={28} />
+                                <span style={{ fontSize: '13px', fontWeight: '700' }}>Tirar Foto do Lacre</span>
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>ou selecionar da galeria</span>
+                            </button>
+                        )}
+
+                        {/* Erro */}
+                        {erro && (
+                            <div style={{ padding: '8px 12px', marginBottom: '12px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <AlertTriangle size={13} /> {erro}
+                            </div>
+                        )}
+
+                        {/* Botões */}
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => { setModalFotoLacre(false); setFotoLacre(null); setErro(''); }}
+                                disabled={salvandoLacre}
+                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmarComLacre}
+                                disabled={!fotoLacre || salvandoLacre}
+                                style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: !fotoLacre || salvandoLacre ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white', fontSize: '13px', cursor: !fotoLacre || salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                {salvandoLacre
+                                    ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Confirmando...</>
+                                    : <><CheckCircle size={13} /> Confirmar CARREGADO</>
+                                }
+                            </button>
                         </div>
                     </div>
                 </div>

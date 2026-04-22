@@ -218,6 +218,9 @@ const inicializarBanco = async () => {
             { tabela: 'prov_programacao', coluna: 'observacao', tipo: 'TEXT DEFAULT \'\'' },
             // Timestamp ISO completo de resolução de ocorrência pós-embarque
             { tabela: 'posemb_ocorrencias', coluna: 'resolved_at', tipo: 'TEXT' },
+            // Foto do lacre do baú (base64) registrada pelo conferente ao marcar CARREGADO
+            { tabela: 'veiculos', coluna: 'foto_lacre_recife', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'foto_lacre_moreno', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados
