@@ -15,11 +15,14 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = (page - 1) * limit;
-            const { dataInicio, dataFim } = req.query;
+            const { dataInicio, dataFim, dataCriacaoInicio, dataCriacaoFim } = req.query;
 
             const whereParams = [];
             let whereClause = '';
-            if (dataInicio && dataFim) {
+            if (dataCriacaoInicio && dataCriacaoFim) {
+                whereClause = `WHERE v.data_criacao::date BETWEEN ? AND ?`;
+                whereParams.push(dataCriacaoInicio, dataCriacaoFim);
+            } else if (dataInicio && dataFim) {
                 whereClause = 'WHERE v.data_prevista >= ? AND v.data_prevista <= ?';
                 whereParams.push(dataInicio, dataFim);
             }

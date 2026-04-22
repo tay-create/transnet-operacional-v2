@@ -1709,154 +1709,148 @@ export default function DashboardFrota({ socket }) {
         if (!pdfDe || !pdfAte) return;
         setGerandoPdfProv(true);
         try {
-            // Busca todos os dias no intervalo
-            const datas = [];
-            const cur = new Date(pdfDe + 'T12:00:00');
-            const fim = new Date(pdfAte + 'T12:00:00');
-            while (cur <= fim) {
-                datas.push(cur.toISOString().substring(0, 10));
-                cur.setDate(cur.getDate() + 1);
-            }
-            if (datas.length === 0) return;
-
-            // Busca dados de cada dia em paralelo
-            const resultados = await Promise.all(
-                datas.map(d => api.get(`/api/provisionamento/dashboard?data=${d}`).then(r => ({ data: d, veiculos: r.data.veiculos || [] })).catch(() => ({ data: d, veiculos: [] })))
-            );
+            // Busca cards operacionais criados no período (data_criacao)
+            const r = await api.get(`/veiculos?dataCriacaoInicio=${pdfDe}&dataCriacaoFim=${pdfAte}&limit=500`);
+            const vs = (r.data?.veiculos || []);
 
             const OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA','PROJETO_SUL','PROJETO_SP']);
             const MANUT    = new Set(['MANUTENCAO']);
-            const EXCLUIDO = new Set(['SABADO','DOMINGO','FERIADO']);
 
-            // Cores por status individual (substituem a categoria genérica)
+            // Retorna o status mais relevante para exibição principal
+            const statusEfetivo = (v) => {
+                if (v.operacao === 'Moreno') return v.status_moreno || 'DISPONIVEL';
+                if (v.operacao === 'Ambas' || v.operacao === 'Consolidado') {
+                    // Para consolidado, retorna o mais avançado
+                    const sr = v.status_recife || 'DISPONIVEL';
+                    const sm = v.status_moreno || 'DISPONIVEL';
+                    return OPERANDO.has(sr) ? sr : OPERANDO.has(sm) ? sm : sr;
+                }
+                return v.status_recife || 'DISPONIVEL';
+            };
+
+            const nTotal = vs.length;
+            const nOp = vs.filter(v => OPERANDO.has(statusEfetivo(v))).length;
+            const nOc = vs.filter(v => !OPERANDO.has(statusEfetivo(v)) && !MANUT.has(statusEfetivo(v))).length;
+            const nMt = vs.filter(v => MANUT.has(statusEfetivo(v))).length;
+
             const COR_ST = {
-                DISPONIVEL:               { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
-                EM_OPERACAO:              { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-                CARREGADO:                { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-                CARREGANDO:               { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-                PUXADA:                   { bg:'#dbeafe', text:'#1d4ed8', border:'#93c5fd' },
-                MANUTENCAO:               { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
+                DISPONIVEL:  { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
+                EM_OPERACAO: { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                CARREGADO:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                CARREGANDO:  { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                PUXADA:      { bg:'#dbeafe', text:'#1d4ed8', border:'#93c5fd' },
+                MANUTENCAO:  { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
             };
-            const COR_CAT = {
-                operando:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
-                ocioso:     { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
-                manutencao: { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
-                excluido:   { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' },
-            };
-            const catDe = st => OPERANDO.has(st) ? 'operando' : MANUT.has(st) ? 'manutencao' : EXCLUIDO.has(st) ? 'excluido' : 'ocioso';
-            const corSt = st => COR_ST[st] || COR_CAT[catDe(st)];
+            const corSt = st => COR_ST[st] || { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' };
             const labelSt = st => STATUS_LABEL_PROG[st] || st;
-            const fmtD = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
-            const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-            const nomeDia = d => DIAS_PT[new Date(d+'T12:00:00').getUTCDay()];
 
+            const fmtD = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
+            const fmtDT = dt => fmtD((dt||'').substring(0,10));
             const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
             const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
 
-            const paginasHtml = resultados.map(({ data: dia, veiculos: vs }) => {
-                const nOp = vs.filter(v => OPERANDO.has(v.status || 'DISPONIVEL')).length;
-                const nOc = vs.filter(v => !OPERANDO.has(v.status||'DISPONIVEL') && !MANUT.has(v.status||'DISPONIVEL') && !EXCLUIDO.has(v.status||'DISPONIVEL')).length;
-                const nMt = vs.filter(v => MANUT.has(v.status || 'DISPONIVEL')).length;
-                const nEx = vs.filter(v => EXCLUIDO.has(v.status || 'DISPONIVEL')).length;
-
-                const gerarDestinos = (v) => {
-                    if (v.destinos_json) {
-                        try {
-                            const ds = JSON.parse(v.destinos_json);
-                            return ds.map(d => d.cidade).filter(Boolean).join(' → ');
-                        } catch {}
-                    }
-                    return v.destino || '';
-                };
-
-                const linhas = vs.map((v, idx) => {
-                    const st = v.status || 'DISPONIVEL';
-                    const c = corSt(st);
-                    const destino = gerarDestinos(v);
-                    const tipoCor = v.tipo_veiculo === 'CONJUNTO' ? '#fb923c' : v.tipo_veiculo === 'TRUCK' ? '#2563eb' : v.tipo_veiculo === 'CARRETA' ? '#059669' : '#7c3aed';
-                    return `<tr style="background:${idx%2===0?'#fff':'#f8fafc'};">
-                        <td style="padding:6px 10px;font-weight:700;font-size:11px;letter-spacing:.05em;white-space:nowrap;color:#0f172a;">${v.placa || '—'}</td>
-                        <td style="padding:6px 10px;font-size:10px;color:#64748b;">${v.carreta || '—'}</td>
-                        <td style="padding:6px 10px;"><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${tipoCor}22;color:${tipoCor};border:1px solid ${tipoCor}44;">${v.tipo_veiculo || '—'}</span></td>
-                        <td style="padding:6px 10px;font-size:11px;color:#1e293b;">${v.motorista || '—'}</td>
-                        <td style="padding:6px 10px;"><span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span></td>
-                        <td style="padding:6px 10px;font-size:10px;color:#475569;font-style:${destino?'normal':'italic'};">${destino || '—'}</td>
-                        <td style="padding:6px 10px;font-size:10px;color:#334155;">${v.observacao || ''}</td>
-                    </tr>`;
-                }).join('');
-
-                return `
-                <div class="pagina">
-                  <div class="header">
-                    <div>
-                      <div class="header-title">TRANSNET — PROVISIONAMENTO DIÁRIO</div>
-                      <div class="header-sub">${nomeDia(dia)}, ${fmtD(dia)}</div>
-                    </div>
-                    <div style="text-align:right;font-size:10px;color:#94a3b8;">
-                      <div style="font-size:11px;color:#7dd3fc;font-weight:700;">Relatório Gerencial</div>
-                      <div>Gerado: ${geradoEm}</div>
-                    </div>
-                  </div>
-                  <div class="kpi-bar">
-                    <div class="kpi-card" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;"><div class="kpi-val">${vs.length}</div><div class="kpi-lbl">Total Veículos</div></div>
-                    <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
-                    <div class="kpi-card" style="background:#fffbeb;border-color:#f59e0b;color:#92400e;"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
-                    <div class="kpi-card" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
-                  </div>
-                  <div style="padding:0 20px 8px;">
-                    <table>
-                      <thead><tr>
-                        <th>Veículo</th><th>Carreta</th><th>Tipo</th><th>Motorista</th><th>Status</th><th>Destino</th><th>Obs.</th>
-                      </tr></thead>
-                      <tbody>${linhas || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Nenhum veículo no dia</td></tr>'}</tbody>
-                    </table>
-                  </div>
-                  <div class="legenda">
-                    <strong>LEGENDA:</strong>
-                    <span class="leg-item"><span class="leg-dot" style="background:#dcfce7;border-color:#86efac;"></span>Disponível</span>
-                    <span class="leg-item"><span class="leg-dot" style="background:#fef9c3;border-color:#fde047;"></span>Em Operação / Carregado</span>
-                    <span class="leg-item"><span class="leg-dot" style="background:#dbeafe;border-color:#93c5fd;"></span>Puxada</span>
-                    <span class="leg-item"><span class="leg-dot" style="background:#fee2e2;border-color:#fca5a5;"></span>Manutenção</span>
-                    <span class="leg-item"><span class="leg-dot" style="background:#f1f5f9;border-color:#cbd5e1;"></span>Fora de Op.</span>
-                  </div>
-                  <div class="footer">
-                    <span>Transnet Logística — Sistema de Provisionamento</span>
-                    <span>Período: ${periodoStr}</span>
-                  </div>
-                </div>`;
-            }).join('<div style="page-break-after:always;"></div>');
+            const linhas = vs.map((v, idx) => {
+                const st = statusEfetivo(v);
+                const c = corSt(st);
+                const tipoCor = v.tipo_veiculo === 'CONJUNTO' ? '#fb923c' : v.tipo_veiculo === 'TRUCK' ? '#2563eb' : v.tipo_veiculo === 'CARRETA' ? '#059669' : '#7c3aed';
+                const destino = v.destino || '';
+                // Para consolidado, mostrar ambos os status
+                const statusHtml = (v.operacao === 'Ambas' || v.operacao === 'Consolidado')
+                    ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:${corSt(v.status_recife||'DISPONIVEL').bg};color:${corSt(v.status_recife||'DISPONIVEL').text};border:1px solid ${corSt(v.status_recife||'DISPONIVEL').border};">REC: ${labelSt(v.status_recife||'DISPONIVEL')}</span><br><span style="display:inline-block;margin-top:2px;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:${corSt(v.status_moreno||'DISPONIVEL').bg};color:${corSt(v.status_moreno||'DISPONIVEL').text};border:1px solid ${corSt(v.status_moreno||'DISPONIVEL').border};">MOR: ${labelSt(v.status_moreno||'DISPONIVEL')}</span>`
+                    : `<span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span>`;
+                return `<tr style="background:${idx%2===0?'#fff':'#f8fafc'};">
+                    <td style="padding:5px 8px;font-size:10px;color:#64748b;white-space:nowrap;">${fmtDT(v.data_criacao)}</td>
+                    <td style="padding:5px 8px;font-weight:700;font-size:11px;white-space:nowrap;color:#0f172a;">${v.placa || '—'}</td>
+                    <td style="padding:5px 8px;font-size:10px;color:#64748b;">${v.carreta || '—'}</td>
+                    <td style="padding:5px 8px;"><span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:${tipoCor}22;color:${tipoCor};border:1px solid ${tipoCor}44;">${v.tipo_veiculo || '—'}</span></td>
+                    <td style="padding:5px 8px;font-size:11px;color:#1e293b;">${v.motorista || '—'}</td>
+                    <td style="padding:5px 8px;font-size:10px;color:#475569;">${v.operacao || '—'}</td>
+                    <td style="padding:5px 8px;">${statusHtml}</td>
+                    <td style="padding:5px 8px;font-size:10px;color:#475569;font-style:${destino?'normal':'italic'};">${destino || '—'}</td>
+                    <td style="padding:5px 8px;font-size:10px;color:#334155;">${v.observacao || ''}</td>
+                </tr>`;
+            }).join('');
 
             const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Provisionamento — ${periodoStr}</title>
+<title>Cards Operacionais — ${periodoStr}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;background:#fff;}
   @media print{
-    @page{size:A4 portrait;margin:0;}
+    @page{size:A4 landscape;margin:10mm 8mm;}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    .pagina{page-break-after:always;}
-    .pagina:last-child{page-break-after:avoid;}
   }
-  .pagina{width:210mm;min-height:297mm;display:flex;flex-direction:column;}
-  .header{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
-  .header-title{font-size:17px;font-weight:800;letter-spacing:.5px;color:#7dd3fc;}
-  .header-sub{font-size:13px;color:#e2e8f0;margin-top:3px;font-weight:600;}
-  .kpi-bar{display:flex;gap:10px;padding:12px 20px;background:#f8fafc;border-bottom:2px solid #e2e8f0;}
-  .kpi-card{flex:1;border-radius:8px;padding:10px 14px;border-left:4px solid;}
-  .kpi-val{font-size:24px;font-weight:800;line-height:1;}
+  .pagina{width:277mm;min-height:190mm;display:flex;flex-direction:column;}
+  .header{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:white;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;}
+  .header-title{font-size:16px;font-weight:800;letter-spacing:.5px;color:#7dd3fc;}
+  .header-sub{font-size:12px;color:#e2e8f0;margin-top:3px;font-weight:600;}
+  .kpi-bar{display:flex;gap:10px;padding:10px 18px;background:#f8fafc;border-bottom:2px solid #e2e8f0;}
+  .kpi-card{flex:1;border-radius:8px;padding:8px 12px;border-left:4px solid;}
+  .kpi-val{font-size:22px;font-weight:800;line-height:1;}
   .kpi-lbl{font-size:9px;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
-  table{width:100%;border-collapse:collapse;font-size:11px;}
-  thead th{padding:8px 10px;background:#1e293b;color:#f1f5f9;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:2px solid #334155;}
-  tbody tr:hover{background:#f0f9ff;}
-  td{border-bottom:1px solid #f1f5f9;}
-  .legenda{padding:10px 20px;display:flex;gap:16px;align-items:center;border-top:1px solid #e2e8f0;flex-wrap:wrap;font-size:9px;color:#475569;margin-top:auto;}
+  table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
+  col.c-criado{width:72px;}
+  col.c-veiculo{width:72px;}
+  col.c-carreta{width:80px;}
+  col.c-tipo{width:58px;}
+  col.c-motorista{width:130px;}
+  col.c-operacao{width:70px;}
+  col.c-status{width:105px;}
+  col.c-destino{width:90px;}
+  col.c-obs{width:auto;}
+  thead th{padding:7px 8px;background:#1e293b;color:#f1f5f9;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:2px solid #334155;overflow:hidden;white-space:nowrap;}
+  td{border-bottom:1px solid #f1f5f9;vertical-align:top;overflow:hidden;}
+  .legenda{padding:8px 18px;display:flex;gap:14px;align-items:center;border-top:1px solid #e2e8f0;flex-wrap:wrap;font-size:9px;color:#475569;margin-top:auto;}
   .leg-item{display:flex;align-items:center;gap:4px;}
   .leg-dot{width:11px;height:11px;border-radius:3px;border:1px solid;flex-shrink:0;}
-  .footer{padding:8px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;}
-</style></head><body>${paginasHtml}</body></html>`;
+  .footer{padding:7px 18px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;}
+</style></head><body>
+<div class="pagina">
+  <div class="header">
+    <div>
+      <div class="header-title">TRANSNET — CARDS OPERACIONAIS CRIADOS</div>
+      <div class="header-sub">Período: ${periodoStr}</div>
+    </div>
+    <div style="text-align:right;font-size:10px;color:#94a3b8;">
+      <div style="font-size:11px;color:#7dd3fc;font-weight:700;">Relatório Gerencial</div>
+      <div>Gerado: ${geradoEm}</div>
+    </div>
+  </div>
+  <div class="kpi-bar">
+    <div class="kpi-card" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;"><div class="kpi-val">${nTotal}</div><div class="kpi-lbl">Total Cards</div></div>
+    <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
+    <div class="kpi-card" style="background:#fffbeb;border-color:#f59e0b;color:#92400e;"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
+    <div class="kpi-card" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
+  </div>
+  <div style="padding:0 18px 8px;">
+    <table>
+      <colgroup>
+        <col class="c-criado"><col class="c-veiculo"><col class="c-carreta"><col class="c-tipo">
+        <col class="c-motorista"><col class="c-operacao"><col class="c-status"><col class="c-destino"><col class="c-obs">
+      </colgroup>
+      <thead><tr>
+        <th>Criado em</th><th>Veículo</th><th>Carreta</th><th>Tipo</th>
+        <th>Motorista</th><th>Operação</th><th>Status</th><th>Destino</th><th>Observação</th>
+      </tr></thead>
+      <tbody>${linhas || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;">Nenhum card criado no período</td></tr>'}</tbody>
+    </table>
+  </div>
+  <div class="legenda">
+    <strong>LEGENDA:</strong>
+    <span class="leg-item"><span class="leg-dot" style="background:#dcfce7;border-color:#86efac;"></span>Disponível</span>
+    <span class="leg-item"><span class="leg-dot" style="background:#fef9c3;border-color:#fde047;"></span>Em Operação / Carregado</span>
+    <span class="leg-item"><span class="leg-dot" style="background:#dbeafe;border-color:#93c5fd;"></span>Puxada</span>
+    <span class="leg-item"><span class="leg-dot" style="background:#fee2e2;border-color:#fca5a5;"></span>Manutenção</span>
+  </div>
+  <div class="footer">
+    <span>Transnet Logística — Sistema Operacional</span>
+    <span>Período: ${periodoStr}</span>
+  </div>
+</div>
+</body></html>`;
 
             const iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;';
+            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:297mm;height:210mm;border:none;';
             document.body.appendChild(iframe);
             iframe.contentDocument.open();
             iframe.contentDocument.write(html);
