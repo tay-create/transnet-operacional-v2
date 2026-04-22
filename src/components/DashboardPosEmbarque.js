@@ -18,12 +18,12 @@ function parseDatetime(data, hora) {
 }
 
 function calcularHorasAtraso(oc) {
-    // Prefere data_criacao (ISO preciso) como início; fallback para data_ocorrencia+hora
+    // Usa timestamps ISO completos quando disponíveis (mais precisos)
     const inicio = oc.data_criacao
         ? parseDatetime(oc.data_criacao, null)
         : parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
     const fim = oc.situacao === 'RESOLVIDO'
-        ? parseDatetime(oc.data_conclusao, oc.hora_conclusao)
+        ? (oc.resolved_at ? parseDatetime(oc.resolved_at, null) : parseDatetime(oc.data_conclusao, oc.hora_conclusao))
         : new Date();
     return (fim - inicio) / (60 * 60 * 1000);
 }

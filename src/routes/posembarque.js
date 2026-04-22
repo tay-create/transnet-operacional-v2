@@ -146,12 +146,15 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
         try {
             const id = req.params.id;
             const agora = new Date();
-            const data_conclusao = agora.toISOString().split('T')[0];
-            const hora_conclusao = agora.toTimeString().substring(0, 5);
+            const resolved_at = agora.toISOString();
+            // Brasília UTC-3 para exibição nos campos legados
+            const agoraBRT = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
+            const data_conclusao = agoraBRT.toISOString().split('T')[0];
+            const hora_conclusao = agoraBRT.toISOString().substring(11, 16);
 
             await dbRun(
-                `UPDATE posemb_ocorrencias SET situacao = 'RESOLVIDO', data_conclusao = ?, hora_conclusao = ? WHERE id = ?`,
-                [data_conclusao, hora_conclusao, id]
+                `UPDATE posemb_ocorrencias SET situacao = 'RESOLVIDO', data_conclusao = $1, hora_conclusao = $2, resolved_at = $3 WHERE id = $4`,
+                [data_conclusao, hora_conclusao, resolved_at, id]
             );
 
             await registrarLog('POSEMB_OCORRENCIA_RESOLVIDA', req.user?.nome || '?', id, 'posemb_ocorrencias', 'Em Andamento', 'RESOLVIDO', '');
