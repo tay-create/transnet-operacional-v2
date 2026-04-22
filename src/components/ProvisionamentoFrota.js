@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save, Users, Truck, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save, Users, Truck } from 'lucide-react';
 import api from '../services/apiService';
 
 const TIPOS_VEICULO = ['TRUCK', 'CARRETA', 'CONJUNTO', '3/4'];
@@ -160,9 +160,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
     const destinoCache = useRef({});
 
     // Modal PDF
-    const [modalPdf, setModalPdf] = useState(false);
-    const [pdfSemana, setPdfSemana] = useState('');
-    const [gerandoPdf, setGerandoPdf] = useState(false);
 
     const carregarSemana = useCallback(async (inicio) => {
         setCarregando(true);
@@ -333,164 +330,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
 
     const cor = (st) => COR_STATUS[st] || COR_STATUS.DISPONIVEL;
 
-    async function gerarPdfProvisionamento() {
-        if (!pdfSemana) return;
-        setGerandoPdf(true);
-        try {
-            const r = await api.get(`/api/provisionamento/semana?inicio=${pdfSemana}`);
-            if (!r.data.success) throw new Error('Falha ao buscar dados');
-            const { veiculos: vs, dias: ds, programacao: prog } = r.data;
-
-            const OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA','PROJETO_SUL','PROJETO_SP']);
-            const OCIOSO   = new Set(['DISPONIVEL','AGUARDANDO_FRETE_RETORNO']);
-            const MANUT    = new Set(['MANUTENCAO']);
-            let nOp=0, nOc=0, nMt=0;
-            vs.forEach(v => {
-                const st = prog[v.id]?.[ds[0]]?.status || 'DISPONIVEL';
-                if (OPERANDO.has(st)) nOp++;
-                else if (MANUT.has(st)) nMt++;
-                else nOc++;
-            });
-
-            const DIAS_SEMANA_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-            const fmtDia = d => { const dt = new Date(d+'T12:00:00'); return `${DIAS_SEMANA_PT[dt.getUTCDay()]} ${String(dt.getUTCDate()).padStart(2,'0')}/${String(dt.getUTCMonth()+1).padStart(2,'0')}`; };
-            const fmtDataLonga = d => { const dt = new Date(d+'T12:00:00'); return `${String(dt.getUTCDate()).padStart(2,'0')}/${String(dt.getUTCMonth()+1).padStart(2,'0')}/${dt.getUTCFullYear()}`; };
-
-            const COR_CAT = {
-                operando:   { bg:'#d1fae5', text:'#065f46', border:'#6ee7b7' },
-                ocioso:     { bg:'#fef3c7', text:'#92400e', border:'#fcd34d' },
-                manutencao: { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
-                excluido:   { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' },
-            };
-            const catDe = st => OPERANDO.has(st)?'operando':MANUT.has(st)?'manutencao':OCIOSO.has(st)?'ocioso':'excluido';
-
-            const labelSt = st => STATUS_LABEL[st] || st;
-
-            const celulaHtml = (v, dia) => {
-                const st = prog[v.id]?.[dia]?.status || (() => { const d=new Date(dia+'T12:00:00').getUTCDay(); return d===6?'SABADO':d===0?'DOMINGO':'DISPONIVEL'; })();
-                const destino = prog[v.id]?.[dia]?.destino || '';
-                const mot = prog[v.id]?.[dia]?.motorista || '';
-                const motDiferente = mot && mot !== v.motorista;
-                const cat = catDe(st);
-                const c = COR_CAT[cat];
-                return `<td style="padding:5px 6px;vertical-align:top;border:1px solid #e2e8f0;">
-                    <div style="display:inline-block;padding:3px 7px;border-radius:5px;font-size:9px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</div>
-                    ${destino ? `<div style="font-size:8px;color:#475569;margin-top:2px;font-style:italic;">${destino}</div>` : ''}
-                    ${motDiferente ? `<div style="font-size:8px;color:#94a3b8;margin-top:1px;">${mot.split(' ')[0]}</div>` : ''}
-                </td>`;
-            };
-
-            const linhas = vs.map(v => `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:5px 8px;font-weight:700;font-size:10px;letter-spacing:.05em;white-space:nowrap;border:1px solid #e2e8f0;">${v.placa}</td>
-                    <td style="padding:5px 8px;font-size:9px;color:#64748b;white-space:nowrap;border:1px solid #e2e8f0;">${v.carreta||'—'}</td>
-                    <td style="padding:5px 8px;font-size:9px;font-weight:700;color:#475569;border:1px solid #e2e8f0;">${v.tipo_veiculo}</td>
-                    <td style="padding:5px 8px;font-size:9px;color:#374151;border:1px solid #e2e8f0;">${v.motorista||'—'}</td>
-                    ${ds.map(d => celulaHtml(v,d)).join('')}
-                </tr>`).join('');
-
-            const cabDias = ds.map(d => `<th style="padding:6px 4px;text-align:center;font-size:9px;font-weight:700;color:#1e293b;background:#f8fafc;border:1px solid #e2e8f0;white-space:nowrap;">${fmtDia(d)}</th>`).join('');
-
-            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            const periodoStr = ds.length ? `${fmtDataLonga(ds[0])} a ${fmtDataLonga(ds[ds.length-1])}` : '';
-
-            const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Provisionamento de Frota — ${periodoStr}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; padding: 0; }
-  @media print {
-    @page { size: A4 landscape; margin: 8mm 6mm; }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .no-print { display: none !important; }
-  }
-  .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
-  .header-title { font-size: 18px; font-weight: 800; letter-spacing: .5px; color: #7dd3fc; }
-  .header-sub { font-size: 11px; color: #94a3b8; margin-top: 3px; }
-  .header-right { text-align: right; font-size: 10px; color: #94a3b8; }
-  .kpi-bar { display: flex; gap: 12px; padding: 12px 20px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-  .kpi-card { flex: 1; border-radius: 8px; padding: 10px 14px; border-left: 4px solid; }
-  .kpi-val { font-size: 22px; font-weight: 800; line-height: 1; }
-  .kpi-lbl { font-size: 10px; font-weight: 600; margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
-  .kpi-total { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
-  .kpi-op    { background: #f0fdf4; border-color: #22c55e; color: #15803d; }
-  .kpi-oc    { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
-  .kpi-mt    { background: #fff1f2; border-color: #ef4444; color: #991b1b; }
-  .table-wrap { padding: 12px 20px 6px; overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 10px; }
-  thead th:nth-child(-n+4) { background: #1e293b; color: #f1f5f9; }
-  thead th { padding: 7px 6px; text-align: left; font-weight: 700; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; border: 1px solid #e2e8f0; }
-  tbody tr:nth-child(even) { background: #f8fafc; }
-  tbody tr:hover { background: #f0f9ff; }
-  .legenda { padding: 10px 20px 14px; display: flex; gap: 18px; flex-wrap: wrap; border-top: 1px solid #e2e8f0; margin-top: 6px; }
-  .leg-item { display: flex; align-items: center; gap: 5px; font-size: 9px; color: #475569; }
-  .leg-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-  .footer { padding: 8px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
-</style></head><body>
-<div class="header">
-  <div>
-    <div class="header-title">TRANSNET — PROVISIONAMENTO DE FROTA</div>
-    <div class="header-sub">Semana: ${periodoStr}</div>
-  </div>
-  <div class="header-right">
-    <div style="font-size:11px;color:#7dd3fc;font-weight:700;">Relatório Gerencial</div>
-    <div>Gerado em: ${geradoEm}</div>
-  </div>
-</div>
-
-<div class="kpi-bar">
-  <div class="kpi-card kpi-total"><div class="kpi-val">${vs.length}</div><div class="kpi-lbl">Total Veículos</div></div>
-  <div class="kpi-card kpi-op"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
-  <div class="kpi-card kpi-oc"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
-  <div class="kpi-card kpi-mt"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
-</div>
-
-<div class="table-wrap">
-<table>
-  <thead><tr>
-    <th style="min-width:70px;">Veículo</th>
-    <th style="min-width:65px;">Carreta</th>
-    <th style="min-width:55px;">Tipo</th>
-    <th style="min-width:100px;">Motorista</th>
-    ${cabDias}
-  </tr></thead>
-  <tbody>${linhas}</tbody>
-</table>
-</div>
-
-<div class="legenda">
-  <strong style="font-size:9px;color:#475569;align-self:center;">LEGENDA:</strong>
-  <div class="leg-item"><div class="leg-dot" style="background:#d1fae5;border:1px solid #6ee7b7;"></div>Operando (EM VIAGEM, EM OPERAÇÃO, CARREGANDO, CARREGADO, RETORNANDO, TRANSFERÊNCIA, PUXADA)</div>
-  <div class="leg-item"><div class="leg-dot" style="background:#fef3c7;border:1px solid #fcd34d;"></div>Ocioso (DISPONÍVEL, AGUARD. FRETE RET.)</div>
-  <div class="leg-item"><div class="leg-dot" style="background:#fee2e2;border:1px solid #fca5a5;"></div>Manutenção</div>
-  <div class="leg-item"><div class="leg-dot" style="background:#f1f5f9;border:1px solid #cbd5e1;"></div>Fora de Op. (SÁBADO, DOMINGO, FERIADO)</div>
-</div>
-
-<div class="footer">
-  <span>Transnet Logística — Sistema de Provisionamento de Frota</span>
-  <span>Gerado em: ${geradoEm}</span>
-</div>
-</body></html>`;
-
-            const iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:297mm;height:210mm;border:none;';
-            document.body.appendChild(iframe);
-            iframe.contentDocument.open();
-            iframe.contentDocument.write(html);
-            iframe.contentDocument.close();
-            setTimeout(() => {
-                iframe.contentWindow.print();
-                setTimeout(() => document.body.removeChild(iframe), 1500);
-            }, 800);
-            setModalPdf(false);
-        } catch (e) {
-            console.error('Erro ao gerar PDF provisionamento:', e);
-            alert('Erro ao gerar PDF. Tente novamente.');
-        } finally {
-            setGerandoPdf(false);
-        }
-    }
-
     return (
         <div style={{ padding: '16px 20px', height: 'calc(100vh - 124px)', overflowY: 'auto', overflowX: 'auto' }}>
 
@@ -525,9 +364,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                         {formatarSemana(dias)}
                     </span>
                     <button onClick={() => navegarSemana(1)} style={s.btnNav}><ChevronRight size={16} /></button>
-                    <button onClick={() => { setPdfSemana(semanaInicio); setModalPdf(true); }} style={{ ...s.btnPrimary, background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171' }}>
-                        <FileText size={14} /> Relatório PDF
-                    </button>
                     {podeEditar && (
                         <button onClick={abrirModalNovo} style={s.btnPrimary}>
                             <Plus size={14} /> Veículo
@@ -714,43 +550,6 @@ export default function ProvisionamentoFrota({ socket, user }) {
                         </tbody>
 
                     </table>
-                </div>
-            )}
-
-            {/* Modal PDF */}
-            {modalPdf && (
-                <div style={s.overlay} onClick={() => setModalPdf(false)}>
-                    <div style={{ ...s.modal, maxWidth: '360px' }} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <FileText size={16} color="#f87171" />
-                                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#f1f5f9' }}>Relatório PDF</h3>
-                            </div>
-                            <button onClick={() => setModalPdf(false)} style={s.btnIconSm}><X size={16} /></button>
-                        </div>
-                        <div style={{ marginBottom: '18px' }}>
-                            <label style={s.label}>Início da semana</label>
-                            <input
-                                type="date"
-                                value={pdfSemana}
-                                onChange={e => setPdfSemana(e.target.value)}
-                                style={{ ...s.input, colorScheme: 'dark' }}
-                            />
-                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '6px' }}>
-                                O relatório mostrará 7 dias a partir desta data.
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                            <button onClick={() => setModalPdf(false)} style={s.btnSecondary}>Cancelar</button>
-                            <button
-                                onClick={gerarPdfProvisionamento}
-                                disabled={gerandoPdf || !pdfSemana}
-                                style={{ ...s.btnPrimary, background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171', opacity: !pdfSemana ? 0.5 : 1 }}
-                            >
-                                <FileText size={14} /> {gerandoPdf ? 'Gerando...' : 'Gerar PDF'}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
 
