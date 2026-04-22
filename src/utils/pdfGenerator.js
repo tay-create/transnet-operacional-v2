@@ -1,11 +1,11 @@
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-
 /**
  * Gera PDF ultra-compacto de relatório de carga
  * Otimizado para suportar 30-35 NFs por página
  */
-export const gerarPDFCompacto = (item) => {
+export const gerarPDFCompacto = async (item) => {
+    try {
+    const { jsPDF } = await import('jspdf');
+    await import('jspdf-autotable');
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -200,6 +200,10 @@ export const gerarPDFCompacto = (item) => {
     a.href = url; a.download = nomeArquivo;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Erro ao gerar PDF:', e);
+        alert('Erro ao gerar PDF. Tente novamente.');
+    }
 };
 
 /**
@@ -207,7 +211,10 @@ export const gerarPDFCompacto = (item) => {
  * @param {Array} registros - Lista de registros do saldo
  * @param {Object} kpis - { totalPbr, saldoPbr, totalDevPbr, pendentes }
  */
-export const gerarPDFPaletes = (registros, kpis) => {
+export const gerarPDFPaletes = async (registros, kpis) => {
+    try {
+    const { jsPDF } = await import('jspdf');
+    await import('jspdf-autotable');
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Recife', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const dataArquivo = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
@@ -311,4 +318,8 @@ export const gerarPDFPaletes = (registros, kpis) => {
     a.href = url; a.download = `saldo-paletes-${dataArquivo}.pdf`;
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Erro ao gerar PDF paletes:', e);
+        alert('Erro ao gerar PDF. Tente novamente.');
+    }
 };

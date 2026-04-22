@@ -466,8 +466,8 @@ export default function RelatorioPerformance() {
         iframe.contentWindow.focus();
         setTimeout(() => {
             iframe.contentWindow.print();
-            setTimeout(() => document.body.removeChild(iframe), 1000);
-        }, 400);
+            setTimeout(() => document.body.removeChild(iframe), 1500);
+        }, 800);
     }
 
     // ── Estilos ──────────────────────────────────────────────────────────────

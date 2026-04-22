@@ -188,7 +188,8 @@ function gerarPdfRelatorio(dados, kpis, dadosBarras, de, ate) {
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const win = window.open(url, '_blank');
-    if (win) win.focus();
+    if (!win) { alert('Popup bloqueado. Permita popups para este site e tente novamente.'); return; }
+    win.focus();
 }
 
 // ── Estilos ──────────────────────────────────────────────────────────────────

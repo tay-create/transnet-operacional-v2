@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import {
     X, Clock, BarChart3, Search, FileDown,
     ClipboardList, GripVertical, Plus, Trash2,
@@ -424,7 +422,10 @@ function CardEfetividade({ titulo, cor, dados }) {
 }
 
 // ── Gerador de PDF Performance CT-e ──────────────────────────────────────────
-function gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, filtroData }) {
+async function gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, filtroData }) {
+  try {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const mL = 14, mR = 196;
     let y = 14;
@@ -561,6 +562,10 @@ function gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, filtro
     }
 
     doc.save(`performance-cte-${filtroData || new Date().toISOString().slice(0, 10)}.pdf`);
+  } catch (e) {
+    console.error('Erro ao gerar PDF performance CT-e:', e);
+    alert('Erro ao gerar PDF. Tente novamente.');
+  }
 }
 
 // ── Modal Performance CT-e ────────────────────────────────────────────────────
