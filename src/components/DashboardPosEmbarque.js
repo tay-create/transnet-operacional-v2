@@ -8,22 +8,19 @@ import {
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
-function parseDatetime(data, hora) {
-    // data_criacao / data_conclusao podem ser ISO completo ou "YYYY-MM-DD"
-    if (data && data.length > 10) return new Date(data); // ISO completo — usa direto
-    const d = (data || '').substring(0, 10);
-    const h = (hora || '00:00').substring(0, 5);
-    // Append -03:00 (Brasília) para evitar interpretação UTC
+function parseDatetimeBRT(data, hora) {
+    // Constrói Date tratando como horário de Brasília (BRT = UTC-3)
+    const d = (data || '').substring(0, 10);       // YYYY-MM-DD
+    const h = (hora || '00:00').substring(0, 5);   // HH:MM
     return new Date(`${d}T${h}:00-03:00`);
 }
 
 function calcularHorasAtraso(oc) {
-    // Usa timestamps ISO completos quando disponíveis (mais precisos)
-    const inicio = oc.data_criacao
-        ? parseDatetime(oc.data_criacao, null)
-        : parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
+    // Início: quando a ocorrência aconteceu (preenchido pelo usuário, horário BRT)
+    const inicio = parseDatetimeBRT(oc.data_ocorrencia, oc.hora_ocorrencia);
+    // Fim: resolved_at (ISO preciso) se resolvido, senão agora
     const fim = oc.situacao === 'RESOLVIDO'
-        ? (oc.resolved_at ? parseDatetime(oc.resolved_at, null) : parseDatetime(oc.data_conclusao, oc.hora_conclusao))
+        ? (oc.resolved_at ? new Date(oc.resolved_at) : parseDatetimeBRT(oc.data_conclusao, oc.hora_conclusao))
         : new Date();
     return (fim - inicio) / (60 * 60 * 1000);
 }
