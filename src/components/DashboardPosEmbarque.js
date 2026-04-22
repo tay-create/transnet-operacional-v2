@@ -8,10 +8,16 @@ import {
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
+function parseDatetime(data, hora) {
+    const d = (data || '').substring(0, 10);           // YYYY-MM-DD
+    const h = (hora || '00:00').substring(0, 5);       // HH:MM
+    return new Date(`${d}T${h}:00`);
+}
+
 function calcularHorasAtraso(oc) {
-    const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia}:00`);
+    const inicio = parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
     const fim = oc.situacao === 'RESOLVIDO'
-        ? new Date(`${oc.data_conclusao}T${oc.hora_conclusao}:00`)
+        ? parseDatetime(oc.data_conclusao, oc.hora_conclusao)
         : new Date();
     return (fim - inicio) / (60 * 60 * 1000);
 }
