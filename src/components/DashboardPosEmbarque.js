@@ -9,13 +9,19 @@ import {
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
 function parseDatetime(data, hora) {
-    const d = (data || '').substring(0, 10);           // YYYY-MM-DD
-    const h = (hora || '00:00').substring(0, 5);       // HH:MM
-    return new Date(`${d}T${h}:00`);
+    // data_criacao / data_conclusao podem ser ISO completo ou "YYYY-MM-DD"
+    if (data && data.length > 10) return new Date(data); // ISO completo — usa direto
+    const d = (data || '').substring(0, 10);
+    const h = (hora || '00:00').substring(0, 5);
+    // Append -03:00 (Brasília) para evitar interpretação UTC
+    return new Date(`${d}T${h}:00-03:00`);
 }
 
 function calcularHorasAtraso(oc) {
-    const inicio = parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
+    // Prefere data_criacao (ISO preciso) como início; fallback para data_ocorrencia+hora
+    const inicio = oc.data_criacao
+        ? parseDatetime(oc.data_criacao, null)
+        : parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
     const fim = oc.situacao === 'RESOLVIDO'
         ? parseDatetime(oc.data_conclusao, oc.hora_conclusao)
         : new Date();
