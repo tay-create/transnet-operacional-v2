@@ -1728,13 +1728,23 @@ export default function DashboardFrota({ socket }) {
             const MANUT    = new Set(['MANUTENCAO']);
             const EXCLUIDO = new Set(['SABADO','DOMINGO','FERIADO']);
 
+            // Cores por status individual (substituem a categoria genérica)
+            const COR_ST = {
+                DISPONIVEL:               { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
+                EM_OPERACAO:              { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                CARREGADO:                { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                CARREGANDO:               { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                PUXADA:                   { bg:'#dbeafe', text:'#1d4ed8', border:'#93c5fd' },
+                MANUTENCAO:               { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
+            };
             const COR_CAT = {
-                operando:   { bg:'#d1fae5', text:'#065f46', border:'#6ee7b7' },
-                ocioso:     { bg:'#fef3c7', text:'#92400e', border:'#fcd34d' },
+                operando:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                ocioso:     { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
                 manutencao: { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
                 excluido:   { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' },
             };
             const catDe = st => OPERANDO.has(st) ? 'operando' : MANUT.has(st) ? 'manutencao' : EXCLUIDO.has(st) ? 'excluido' : 'ocioso';
+            const corSt = st => COR_ST[st] || COR_CAT[catDe(st)];
             const labelSt = st => STATUS_LABEL_PROG[st] || st;
             const fmtD = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
             const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -1761,8 +1771,7 @@ export default function DashboardFrota({ socket }) {
 
                 const linhas = vs.map((v, idx) => {
                     const st = v.status || 'DISPONIVEL';
-                    const cat = catDe(st);
-                    const c = COR_CAT[cat];
+                    const c = corSt(st);
                     const destino = gerarDestinos(v);
                     const tipoCor = v.tipo_veiculo === 'CONJUNTO' ? '#fb923c' : v.tipo_veiculo === 'TRUCK' ? '#2563eb' : v.tipo_veiculo === 'CARRETA' ? '#059669' : '#7c3aed';
                     return `<tr style="background:${idx%2===0?'#fff':'#f8fafc'};">
@@ -1772,7 +1781,7 @@ export default function DashboardFrota({ socket }) {
                         <td style="padding:6px 10px;font-size:11px;color:#1e293b;">${v.motorista || '—'}</td>
                         <td style="padding:6px 10px;"><span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span></td>
                         <td style="padding:6px 10px;font-size:10px;color:#475569;font-style:${destino?'normal':'italic'};">${destino || '—'}</td>
-                        <td style="padding:6px 10px;font-size:10px;color:#475569;">${v.obs || ''}</td>
+                        <td style="padding:6px 10px;font-size:10px;color:#334155;">${v.observacao || ''}</td>
                     </tr>`;
                 }).join('');
 
@@ -1793,7 +1802,6 @@ export default function DashboardFrota({ socket }) {
                     <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
                     <div class="kpi-card" style="background:#fffbeb;border-color:#f59e0b;color:#92400e;"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
                     <div class="kpi-card" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
-                    <div class="kpi-card" style="background:#f8fafc;border-color:#94a3b8;color:#475569;"><div class="kpi-val">${nEx}</div><div class="kpi-lbl">Fora de Op.</div></div>
                   </div>
                   <div style="padding:0 20px 8px;">
                     <table>
@@ -1805,8 +1813,9 @@ export default function DashboardFrota({ socket }) {
                   </div>
                   <div class="legenda">
                     <strong>LEGENDA:</strong>
-                    <span class="leg-item"><span class="leg-dot" style="background:#d1fae5;border-color:#6ee7b7;"></span>Operando</span>
-                    <span class="leg-item"><span class="leg-dot" style="background:#fef3c7;border-color:#fcd34d;"></span>Ocioso</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#dcfce7;border-color:#86efac;"></span>Disponível</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#fef9c3;border-color:#fde047;"></span>Em Operação / Carregado</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#dbeafe;border-color:#93c5fd;"></span>Puxada</span>
                     <span class="leg-item"><span class="leg-dot" style="background:#fee2e2;border-color:#fca5a5;"></span>Manutenção</span>
                     <span class="leg-item"><span class="leg-dot" style="background:#f1f5f9;border-color:#cbd5e1;"></span>Fora de Op.</span>
                   </div>

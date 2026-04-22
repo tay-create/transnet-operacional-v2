@@ -683,9 +683,9 @@ export default function ModuloCubagem() {
                                         onChange={e => setFiltroUF(e.target.value)}
                                         onClick={e => e.stopPropagation()}
                                         style={{
-                                            background: filtroUF ? 'rgba(217,119,6,0.25)' : 'rgba(0,0,0,0.25)',
-                                            border: `1px solid ${filtroUF ? 'rgba(217,119,6,0.6)' : 'rgba(217,119,6,0.25)'}`,
-                                            borderRadius: '5px', color: '#d97706', fontSize: '10px',
+                                            background: filtroUF ? 'rgba(30,41,59,0.8)' : 'rgba(0,0,0,0.25)',
+                                            border: `1px solid ${filtroUF ? 'rgba(148,163,184,0.6)' : 'rgba(148,163,184,0.25)'}`,
+                                            borderRadius: '5px', color: filtroUF ? '#f1f5f9' : '#94a3b8', fontSize: '10px',
                                             padding: '2px 4px', fontWeight: '700', letterSpacing: '0.5px',
                                             cursor: 'pointer', width: '100%', textTransform: 'uppercase',
                                         }}
@@ -705,9 +705,9 @@ export default function ModuloCubagem() {
                                         onChange={e => setFiltroStatus(e.target.value)}
                                         onClick={e => e.stopPropagation()}
                                         style={{
-                                            background: filtroStatus ? 'rgba(217,119,6,0.25)' : 'rgba(0,0,0,0.25)',
-                                            border: `1px solid ${filtroStatus ? 'rgba(217,119,6,0.6)' : 'rgba(217,119,6,0.25)'}`,
-                                            borderRadius: '5px', color: '#d97706', fontSize: '10px',
+                                            background: filtroStatus ? 'rgba(30,41,59,0.8)' : 'rgba(0,0,0,0.25)',
+                                            border: `1px solid ${filtroStatus ? 'rgba(148,163,184,0.6)' : 'rgba(148,163,184,0.25)'}`,
+                                            borderRadius: '5px', color: filtroStatus ? '#f1f5f9' : '#94a3b8', fontSize: '10px',
                                             padding: '2px 4px', fontWeight: '700', letterSpacing: '0.3px',
                                             cursor: 'pointer', width: '100%', textOverflow: 'ellipsis', overflow: 'hidden',
                                         }}
