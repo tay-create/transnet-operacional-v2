@@ -109,7 +109,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [salvandoTransfer, setSalvandoTransfer] = useState(false);
     const [statusManual, setStatusManual] = useState(v.status || STATUS_CONFERENTE[0]);
     const [modalFotoLacre, setModalFotoLacre] = useState(false);
-    const [fotoLacre, setFotoLacre] = useState(null);
+    const [fotosLacre, setFotosLacre] = useState([]);
     const [salvandoLacre, setSalvandoLacre] = useState(false);
     const inputFotoRef = useRef(null);
     const [horaManual, setHoraManual] = useState(() => {
@@ -138,7 +138,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
         if (!proximo) return;
         // Interceptar CARREGADO para exigir foto do lacre primeiro
         if (proximo === 'CARREGADO') {
-            setFotoLacre(null);
+            setFotosLacre([]);
             setModalFotoLacre(true);
             return;
         }
@@ -179,14 +179,14 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     }
 
     async function confirmarComLacre() {
-        if (!fotoLacre) return;
+        if (fotosLacre.length === 0) return;
         setSalvandoLacre(true);
         setErro('');
         try {
             await api.post('/api/conferente/salvar-lacre', {
                 veiculoId: v.id,
                 unidade: v.unidade,
-                foto: fotoLacre,
+                fotos: fotosLacre,
             });
             const res = await api.post('/api/conferente/atualizar-status', {
                 veiculoId: v.id,
@@ -196,7 +196,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
             });
             if (res.data.success) {
                 setModalFotoLacre(false);
-                setFotoLacre(null);
+                setFotosLacre([]);
                 onAtualizarStatus(v.id, 'CARREGADO', docaSelecionada);
             }
         } catch (err) {
@@ -577,21 +577,23 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
             {/* Modal Foto do Lacre */}
             {modalFotoLacre && (
                 <div
-                    onClick={() => { if (!salvandoLacre) { setModalFotoLacre(false); setFotoLacre(null); } }}
+                    onClick={() => { if (!salvandoLacre) { setModalFotoLacre(false); setFotosLacre([]); } }}
                     style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
                 >
                     <div
                         onClick={e => e.stopPropagation()}
-                        style={{ background: 'linear-gradient(160deg, #020617 0%, #0f172a 100%)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '24px', color: '#f1f5f9' }}
+                        style={{ background: 'linear-gradient(160deg, #020617 0%, #0f172a 100%)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', width: '100%', maxWidth: '400px', padding: '24px', color: '#f1f5f9', maxHeight: '90vh', overflowY: 'auto' }}
                     >
                         {/* Cabeçalho */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Lock size={16} color="#22c55e" />
-                                <span style={{ fontWeight: '800', fontSize: '15px' }}>Foto do Lacre</span>
+                                <span style={{ fontWeight: '800', fontSize: '15px' }}>
+                                    Fotos do Lacre {fotosLacre.length > 0 && <span style={{ color: '#22c55e', fontSize: '13px' }}>({fotosLacre.length})</span>}
+                                </span>
                             </div>
                             {!salvandoLacre && (
-                                <button onClick={() => { setModalFotoLacre(false); setFotoLacre(null); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                <button onClick={() => { setModalFotoLacre(false); setFotosLacre([]); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
                                     <X size={16} />
                                 </button>
                             )}
@@ -599,10 +601,10 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
 
                         {/* Instrução */}
                         <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 16px', lineHeight: '1.5' }}>
-                            Fotografe o lacre colocado no baú de <strong style={{ color: '#f1f5f9' }}>{v.motorista}</strong> antes de confirmar o carregamento.
+                            Fotografe todos os lacres colocados no baú de <strong style={{ color: '#f1f5f9' }}>{v.motorista}</strong>. Adicione quantas fotos forem necessárias.
                         </p>
 
-                        {/* Input câmera */}
+                        {/* Input câmera (oculto) */}
                         <input
                             ref={inputFotoRef}
                             type="file"
@@ -613,32 +615,43 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 const b64 = await comprimirImagem(file);
-                                setFotoLacre(b64);
+                                setFotosLacre(prev => [...prev, b64]);
                                 e.target.value = '';
                             }}
                         />
 
-                        {/* Área de preview / botão câmera */}
-                        {fotoLacre ? (
-                            <div style={{ position: 'relative', marginBottom: '16px', borderRadius: '10px', overflow: 'hidden', border: '2px solid rgba(34,197,94,0.4)' }}>
-                                <img src={fotoLacre} alt="Lacre" style={{ width: '100%', display: 'block', maxHeight: '220px', objectFit: 'cover' }} />
-                                <button
-                                    onClick={() => inputFotoRef.current?.click()}
-                                    style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: '#f1f5f9', cursor: 'pointer', padding: '5px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                    <Camera size={12} /> Refazer
-                                </button>
+                        {/* Grid de fotos adicionadas */}
+                        {fotosLacre.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                                {fotosLacre.map((foto, idx) => (
+                                    <div key={idx} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(34,197,94,0.35)', aspectRatio: '1' }}>
+                                        <img src={foto} alt={`Lacre ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                        <button
+                                            onClick={() => setFotosLacre(prev => prev.filter((_, i) => i !== idx))}
+                                            style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(239,68,68,0.8)', border: 'none', borderRadius: '50%', color: 'white', cursor: 'pointer', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                        <div style={{ position: 'absolute', bottom: '4px', left: '4px', background: 'rgba(0,0,0,0.6)', borderRadius: '4px', fontSize: '10px', fontWeight: '700', color: '#f1f5f9', padding: '2px 5px' }}>
+                                            #{idx + 1}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ) : (
-                            <button
-                                onClick={() => inputFotoRef.current?.click()}
-                                style={{ width: '100%', padding: '32px', marginBottom: '16px', borderRadius: '10px', border: '2px dashed rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.05)', color: '#22c55e', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
-                            >
-                                <Camera size={28} />
-                                <span style={{ fontSize: '13px', fontWeight: '700' }}>Tirar Foto do Lacre</span>
-                                <span style={{ fontSize: '11px', color: '#64748b' }}>ou selecionar da galeria</span>
-                            </button>
                         )}
+
+                        {/* Botão adicionar foto */}
+                        <button
+                            onClick={() => inputFotoRef.current?.click()}
+                            disabled={salvandoLacre}
+                            style={{ width: '100%', padding: fotosLacre.length === 0 ? '28px' : '12px', marginBottom: '16px', borderRadius: '10px', border: '2px dashed rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.05)', color: '#22c55e', cursor: 'pointer', display: 'flex', flexDirection: fotosLacre.length === 0 ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        >
+                            <Camera size={fotosLacre.length === 0 ? 28 : 16} />
+                            <span style={{ fontSize: '13px', fontWeight: '700' }}>
+                                {fotosLacre.length === 0 ? 'Tirar Foto do Lacre' : '+ Adicionar mais um lacre'}
+                            </span>
+                            {fotosLacre.length === 0 && <span style={{ fontSize: '11px', color: '#64748b' }}>ou selecionar da galeria</span>}
+                        </button>
 
                         {/* Erro */}
                         {erro && (
@@ -650,7 +663,7 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                         {/* Botões */}
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button
-                                onClick={() => { setModalFotoLacre(false); setFotoLacre(null); setErro(''); }}
+                                onClick={() => { setModalFotoLacre(false); setFotosLacre([]); setErro(''); }}
                                 disabled={salvandoLacre}
                                 style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
                             >
@@ -658,8 +671,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             </button>
                             <button
                                 onClick={confirmarComLacre}
-                                disabled={!fotoLacre || salvandoLacre}
-                                style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: !fotoLacre || salvandoLacre ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white', fontSize: '13px', cursor: !fotoLacre || salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                disabled={fotosLacre.length === 0 || salvandoLacre}
+                                style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: fotosLacre.length === 0 || salvandoLacre ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white', fontSize: '13px', cursor: fotosLacre.length === 0 || salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 {salvandoLacre
                                     ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Confirmando...</>

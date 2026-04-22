@@ -551,19 +551,20 @@ module.exports = function createChecklistsRouter(io) {
         }
     });
 
-    // ── Conferente: Salvar foto do lacre ──
+    // ── Conferente: Salvar fotos do lacre (array) ──
     router.post('/api/conferente/salvar-lacre', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
         try {
-            const { veiculoId, unidade, foto } = req.body;
-            if (!veiculoId || !foto) return res.status(400).json({ success: false, message: 'veiculoId e foto obrigatórios.' });
+            const { veiculoId, unidade, fotos } = req.body;
+            if (!veiculoId || !fotos || !fotos.length) return res.status(400).json({ success: false, message: 'veiculoId e fotos obrigatórios.' });
             const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
             const campo = cidade === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
-            await dbRun(`UPDATE veiculos SET ${campo} = $1 WHERE id = $2`, [foto, veiculoId]);
-            io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, foto });
+            const valor = JSON.stringify(fotos);
+            await dbRun(`UPDATE veiculos SET ${campo} = $1 WHERE id = $2`, [valor, veiculoId]);
+            io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, fotos });
             res.json({ success: true });
         } catch (e) {
             console.error('[Conferente/salvar-lacre] Erro:', e);
-            res.status(500).json({ success: false, message: 'Erro ao salvar foto do lacre.' });
+            res.status(500).json({ success: false, message: 'Erro ao salvar fotos do lacre.' });
         }
     });
 

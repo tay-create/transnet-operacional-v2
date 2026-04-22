@@ -239,18 +239,17 @@ export default function PainelOperacional({
         }
     }, [socket, dataInicio]);
 
-    // Atualizar foto do lacre no card via socket em tempo real
+    // Atualizar fotos do lacre no card via socket em tempo real
     useEffect(() => {
         if (!socket) return;
-        const handleFotoLacre = ({ veiculoId, campo, foto }) => {
+        const handleFotoLacre = ({ veiculoId, campo, fotos }) => {
             setLista(prev => prev.map(item =>
-                item.id === veiculoId ? { ...item, [campo]: foto } : item
+                item.id === veiculoId ? { ...item, [campo]: JSON.stringify(fotos) } : item
             ));
         };
-        socket.on('receber_atualizacao', (payload) => {
-            if (payload?.tipo === 'foto_lacre') handleFotoLacre(payload);
-        });
-        return () => socket.off('receber_atualizacao', handleFotoLacre);
+        const handler = (payload) => { if (payload?.tipo === 'foto_lacre') handleFotoLacre(payload); };
+        socket.on('receber_atualizacao', handler);
+        return () => socket.off('receber_atualizacao', handler);
     }, [socket, setLista]);
 
     const addCardFulgaz = () => {
@@ -1162,15 +1161,19 @@ export default function PainelOperacional({
                                                         {/* Badge Lacre */}
                                                         {(() => {
                                                             const campoLacre = origem === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
-                                                            const fotoLacre = item[campoLacre];
-                                                            if (!fotoLacre) return null;
+                                                            const raw = item[campoLacre];
+                                                            if (!raw) return null;
+                                                            let fotos = [];
+                                                            try { fotos = JSON.parse(raw); } catch { fotos = [raw]; }
+                                                            if (!fotos.length) return null;
                                                             return (
                                                                 <button
-                                                                    onClick={() => setModalLacre({ foto: fotoLacre, motorista: item.motorista })}
-                                                                    title="Ver foto do lacre"
-                                                                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '4px', background: 'rgba(34,197,94,0.15)', borderRadius: '50%', color: '#22c55e', cursor: 'pointer', border: 'none' }}
+                                                                    onClick={() => setModalLacre({ fotos, motorista: item.motorista })}
+                                                                    title={`Ver fotos do lacre (${fotos.length})`}
+                                                                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px 6px', background: 'rgba(34,197,94,0.15)', borderRadius: '12px', color: '#22c55e', cursor: 'pointer', border: 'none', fontSize: '10px', fontWeight: '700' }}
                                                                 >
-                                                                    <Lock size={16} />
+                                                                    <Lock size={13} />
+                                                                    {fotos.length > 1 && fotos.length}
                                                                 </button>
                                                             );
                                                         })()}
@@ -1630,19 +1633,31 @@ export default function PainelOperacional({
             {/* Modal de Visualização de Imagem Ampliada */}
             <ModalImagem imagemAmpliada={imagemAmpliada} setImagemAmpliada={setImagemAmpliada} />
 
-            {/* Modal Foto do Lacre */}
+            {/* Modal Fotos do Lacre */}
             {modalLacre && (
                 <div onClick={() => setModalLacre(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                    <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '480px', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '16px', padding: '20px', width: '100%', maxWidth: '520px', boxShadow: '0 25px 50px rgba(0,0,0,0.6)', maxHeight: '85vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f1f5f9', fontWeight: '700', fontSize: '14px' }}>
-                                <Lock size={14} color="#22c55e" /> Lacre — {modalLacre.motorista}
+                                <Lock size={14} color="#22c55e" />
+                                Lacre{modalLacre.fotos.length > 1 ? `s (${modalLacre.fotos.length})` : ''} — {modalLacre.motorista}
                             </div>
                             <button onClick={() => setModalLacre(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
                                 <X size={16} />
                             </button>
                         </div>
-                        <img src={modalLacre.foto} alt="Foto do lacre" style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
+                        {modalLacre.fotos.length === 1 ? (
+                            <img src={modalLacre.fotos[0]} alt="Lacre" style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                                {modalLacre.fotos.map((foto, idx) => (
+                                    <div key={idx} style={{ position: 'relative' }}>
+                                        <img src={foto} alt={`Lacre ${idx + 1}`} style={{ width: '100%', borderRadius: '8px', display: 'block', aspectRatio: '1', objectFit: 'cover' }} />
+                                        <div style={{ position: 'absolute', top: '6px', left: '6px', background: 'rgba(0,0,0,0.65)', borderRadius: '5px', fontSize: '11px', fontWeight: '700', color: '#f1f5f9', padding: '2px 6px' }}>#{idx + 1}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
