@@ -8,10 +8,22 @@ import {
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 
+function parseDatetime(data, hora) {
+    // data_criacao / data_conclusao podem ser ISO completo ou "YYYY-MM-DD"
+    if (data && data.length > 10) return new Date(data); // ISO completo — usa direto
+    const d = (data || '').substring(0, 10);
+    const h = (hora || '00:00').substring(0, 5);
+    // Append -03:00 (Brasília) para evitar interpretação UTC
+    return new Date(`${d}T${h}:00-03:00`);
+}
+
 function calcularHorasAtraso(oc) {
-    const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia}:00`);
+    // Usa timestamps ISO completos quando disponíveis (mais precisos)
+    const inicio = oc.data_criacao
+        ? parseDatetime(oc.data_criacao, null)
+        : parseDatetime(oc.data_ocorrencia, oc.hora_ocorrencia);
     const fim = oc.situacao === 'RESOLVIDO'
-        ? new Date(`${oc.data_conclusao}T${oc.hora_conclusao}:00`)
+        ? (oc.resolved_at ? parseDatetime(oc.resolved_at, null) : parseDatetime(oc.data_conclusao, oc.hora_conclusao))
         : new Date();
     return (fim - inicio) / (60 * 60 * 1000);
 }

@@ -536,7 +536,7 @@ function App({ socket }) {
         };
     }, [handleReceberAlerta, handleReceberAtualizacao, adicionarNotificacao, socket, logado]);
 
-    // Busca veiculos do banco SQLite
+    // Busca veiculos do banco
     const carregarVeiculos = async () => {
         try {
             const response = await api.get('/veiculos');
@@ -548,7 +548,7 @@ function App({ socket }) {
         }
     };
 
-    // Busca CT-es ativos do banco SQLite
+    // Busca CT-es ativos do banco
     const carregarCtes = async (dataInicio, dataFim) => {
         try {
             const params = dataInicio && dataFim ? `?dataInicio=${dataInicio}&dataFim=${dataFim}` : '';

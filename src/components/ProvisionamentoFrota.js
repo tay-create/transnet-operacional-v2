@@ -239,6 +239,32 @@ export default function ProvisionamentoFrota({ socket, user }) {
         } finally {
             setSalvando(prev => { const n = { ...prev }; delete n[key]; return n; });
         }
+
+        // Auto-fill: ao marcar EM_VIAGEM, preenche dias intermediários com CARREGADO
+        // (desde o dia seguinte ao último EM_OPERACAO até o dia anterior ao EM_VIAGEM)
+        if (status === 'EM_VIAGEM') {
+            const idxViagem = dias.indexOf(data);
+            if (idxViagem > 0) {
+                // Procura o EM_OPERACAO mais próximo antes do dia de EM_VIAGEM
+                let idxOperacao = -1;
+                const preenchaveis = new Set(['DISPONIVEL', 'SABADO', 'DOMINGO', 'CARREGADO']);
+                for (let i = idxViagem - 1; i >= 0; i--) {
+                    const st = getStatusCelula(veiculoId, dias[i]);
+                    if (st === 'EM_OPERACAO') { idxOperacao = i; break; }
+                    if (!preenchaveis.has(st)) break;
+                }
+                if (idxOperacao >= 0 && idxViagem - idxOperacao > 1) {
+                    // Dias intermediários: idxOperacao+1 até idxViagem-1
+                    for (let i = idxOperacao + 1; i < idxViagem; i++) {
+                        const diaInter = dias[i];
+                        const stInter = getStatusCelula(veiculoId, diaInter);
+                        if (preenchaveis.has(stInter) && stInter !== 'CARREGADO') {
+                            await salvarStatus(veiculoId, diaInter, 'CARREGADO', null);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     async function salvarDestino(veiculoId, data, destino) {

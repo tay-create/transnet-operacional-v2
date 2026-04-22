@@ -216,6 +216,8 @@ const inicializarBanco = async () => {
             { tabela: 'cubagem_itens', coluna: 'redespacho_uf', tipo: 'TEXT' },
             // Observação por veículo/dia no provisionamento
             { tabela: 'prov_programacao', coluna: 'observacao', tipo: 'TEXT DEFAULT \'\'' },
+            // Timestamp ISO completo de resolução de ocorrência pós-embarque
+            { tabela: 'posemb_ocorrencias', coluna: 'resolved_at', tipo: 'TEXT' },
         ];
 
         // Criação de Índices Otimizados
