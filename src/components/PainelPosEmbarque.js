@@ -5,15 +5,24 @@ import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2
 import ModalConfirm from './ModalConfirm';
 
 // ──────────── Helpers ────────────────────────────────────
-const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+const formatData = (d) => {
+    if (!d) return '—';
+    const s = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00-03:00' : d;
+    return new Date(s).toLocaleDateString('pt-BR');
+};
+
+function parseDatetimeBRT(data, hora) {
+    const d = (data || '').substring(0, 10);
+    const h = (hora || '00:00').substring(0, 5);
+    return new Date(`${d}T${h}:00-03:00`);
+}
 
 function calcularHorasAtraso(oc) {
-    const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia}:00`);
+    const inicio = parseDatetimeBRT(oc.data_ocorrencia, oc.hora_ocorrencia);
     const fim = oc.situacao === 'RESOLVIDO'
-        ? new Date(`${oc.data_conclusao}T${oc.hora_conclusao}:00`)
+        ? (oc.resolved_at ? new Date(oc.resolved_at) : parseDatetimeBRT(oc.data_conclusao, oc.hora_conclusao))
         : new Date();
-    const diffMs = fim - inicio;
-    return diffMs / (60 * 60 * 1000); // retorna horas
+    return (fim - inicio) / (60 * 60 * 1000);
 }
 
 function verificarAtraso(oc) {
@@ -96,8 +105,8 @@ export default function PainelPosEmbarque() {
 
     // Form - Nova Ocorrência
     const [form, setForm] = useState({
-        data_ocorrencia: new Date().toISOString().split('T')[0],
-        hora_ocorrencia: new Date().toTimeString().substring(0, 5),
+        data_ocorrencia: new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }),
+        hora_ocorrencia: new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }),
         motorista: '',
         modalidade: '',
         cte: '',
