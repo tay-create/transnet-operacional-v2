@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle2, FileText, X } from 'lucide-react';
 import api from '../services/apiService';
 import { MOTIVOS_USABILIDADE } from '../constants';
 
@@ -1592,6 +1592,12 @@ export default function DashboardFrota({ socket }) {
     const [dataProgDia, setDataProgDia] = useState(hoje);
     const [carregandoProg, setCarregandoProg] = useState(false);
     const [obsCards, setObsCards] = useState({});
+
+    // Modal PDF Provisionamento
+    const [modalPdfProv, setModalPdfProv] = useState(false);
+    const [pdfDe, setPdfDe] = useState(hoje);
+    const [pdfAte, setPdfAte] = useState(hoje);
+    const [gerandoPdfProv, setGerandoPdfProv] = useState(false);
     const [obsSalvandoCard, setObsSalvandoCard] = useState({});
 
     const salvarObsCard = async (veiculoId) => {
@@ -1698,6 +1704,166 @@ export default function DashboardFrota({ socket }) {
         const [y, m, d] = ds.split('-');
         return `${d}/${m}/${y}`;
     };
+
+    async function gerarPdfProvDiario() {
+        if (!pdfDe || !pdfAte) return;
+        setGerandoPdfProv(true);
+        try {
+            // Busca todos os dias no intervalo
+            const datas = [];
+            const cur = new Date(pdfDe + 'T12:00:00');
+            const fim = new Date(pdfAte + 'T12:00:00');
+            while (cur <= fim) {
+                datas.push(cur.toISOString().substring(0, 10));
+                cur.setDate(cur.getDate() + 1);
+            }
+            if (datas.length === 0) return;
+
+            // Busca dados de cada dia em paralelo
+            const resultados = await Promise.all(
+                datas.map(d => api.get(`/api/provisionamento/dashboard?data=${d}`).then(r => ({ data: d, veiculos: r.data.veiculos || [] })).catch(() => ({ data: d, veiculos: [] })))
+            );
+
+            const OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA','PROJETO_SUL','PROJETO_SP']);
+            const MANUT    = new Set(['MANUTENCAO']);
+            const EXCLUIDO = new Set(['SABADO','DOMINGO','FERIADO']);
+
+            const COR_CAT = {
+                operando:   { bg:'#d1fae5', text:'#065f46', border:'#6ee7b7' },
+                ocioso:     { bg:'#fef3c7', text:'#92400e', border:'#fcd34d' },
+                manutencao: { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
+                excluido:   { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' },
+            };
+            const catDe = st => OPERANDO.has(st) ? 'operando' : MANUT.has(st) ? 'manutencao' : EXCLUIDO.has(st) ? 'excluido' : 'ocioso';
+            const labelSt = st => STATUS_LABEL_PROG[st] || st;
+            const fmtD = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+            const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+            const nomeDia = d => DIAS_PT[new Date(d+'T12:00:00').getUTCDay()];
+
+            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
+
+            const paginasHtml = resultados.map(({ data: dia, veiculos: vs }) => {
+                const nOp = vs.filter(v => OPERANDO.has(v.status || 'DISPONIVEL')).length;
+                const nOc = vs.filter(v => !OPERANDO.has(v.status||'DISPONIVEL') && !MANUT.has(v.status||'DISPONIVEL') && !EXCLUIDO.has(v.status||'DISPONIVEL')).length;
+                const nMt = vs.filter(v => MANUT.has(v.status || 'DISPONIVEL')).length;
+                const nEx = vs.filter(v => EXCLUIDO.has(v.status || 'DISPONIVEL')).length;
+
+                const gerarDestinos = (v) => {
+                    if (v.destinos_json) {
+                        try {
+                            const ds = JSON.parse(v.destinos_json);
+                            return ds.map(d => d.cidade).filter(Boolean).join(' → ');
+                        } catch {}
+                    }
+                    return v.destino || '';
+                };
+
+                const linhas = vs.map((v, idx) => {
+                    const st = v.status || 'DISPONIVEL';
+                    const cat = catDe(st);
+                    const c = COR_CAT[cat];
+                    const destino = gerarDestinos(v);
+                    const tipoCor = v.tipo_veiculo === 'CONJUNTO' ? '#fb923c' : v.tipo_veiculo === 'TRUCK' ? '#2563eb' : v.tipo_veiculo === 'CARRETA' ? '#059669' : '#7c3aed';
+                    return `<tr style="background:${idx%2===0?'#fff':'#f8fafc'};">
+                        <td style="padding:6px 10px;font-weight:700;font-size:11px;letter-spacing:.05em;white-space:nowrap;color:#0f172a;">${v.placa || '—'}</td>
+                        <td style="padding:6px 10px;font-size:10px;color:#64748b;">${v.carreta || '—'}</td>
+                        <td style="padding:6px 10px;"><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${tipoCor}22;color:${tipoCor};border:1px solid ${tipoCor}44;">${v.tipo_veiculo || '—'}</span></td>
+                        <td style="padding:6px 10px;font-size:11px;color:#1e293b;">${v.motorista || '—'}</td>
+                        <td style="padding:6px 10px;"><span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span></td>
+                        <td style="padding:6px 10px;font-size:10px;color:#475569;font-style:${destino?'normal':'italic'};">${destino || '—'}</td>
+                        <td style="padding:6px 10px;font-size:10px;color:#475569;">${v.obs || ''}</td>
+                    </tr>`;
+                }).join('');
+
+                return `
+                <div class="pagina">
+                  <div class="header">
+                    <div>
+                      <div class="header-title">TRANSNET — PROVISIONAMENTO DIÁRIO</div>
+                      <div class="header-sub">${nomeDia(dia)}, ${fmtD(dia)}</div>
+                    </div>
+                    <div style="text-align:right;font-size:10px;color:#94a3b8;">
+                      <div style="font-size:11px;color:#7dd3fc;font-weight:700;">Relatório Gerencial</div>
+                      <div>Gerado: ${geradoEm}</div>
+                    </div>
+                  </div>
+                  <div class="kpi-bar">
+                    <div class="kpi-card" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;"><div class="kpi-val">${vs.length}</div><div class="kpi-lbl">Total Veículos</div></div>
+                    <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
+                    <div class="kpi-card" style="background:#fffbeb;border-color:#f59e0b;color:#92400e;"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
+                    <div class="kpi-card" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
+                    <div class="kpi-card" style="background:#f8fafc;border-color:#94a3b8;color:#475569;"><div class="kpi-val">${nEx}</div><div class="kpi-lbl">Fora de Op.</div></div>
+                  </div>
+                  <div style="padding:0 20px 8px;">
+                    <table>
+                      <thead><tr>
+                        <th>Veículo</th><th>Carreta</th><th>Tipo</th><th>Motorista</th><th>Status</th><th>Destino</th><th>Obs.</th>
+                      </tr></thead>
+                      <tbody>${linhas || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">Nenhum veículo no dia</td></tr>'}</tbody>
+                    </table>
+                  </div>
+                  <div class="legenda">
+                    <strong>LEGENDA:</strong>
+                    <span class="leg-item"><span class="leg-dot" style="background:#d1fae5;border-color:#6ee7b7;"></span>Operando</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#fef3c7;border-color:#fcd34d;"></span>Ocioso</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#fee2e2;border-color:#fca5a5;"></span>Manutenção</span>
+                    <span class="leg-item"><span class="leg-dot" style="background:#f1f5f9;border-color:#cbd5e1;"></span>Fora de Op.</span>
+                  </div>
+                  <div class="footer">
+                    <span>Transnet Logística — Sistema de Provisionamento</span>
+                    <span>Período: ${periodoStr}</span>
+                  </div>
+                </div>`;
+            }).join('<div style="page-break-after:always;"></div>');
+
+            const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Provisionamento — ${periodoStr}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;background:#fff;}
+  @media print{
+    @page{size:A4 portrait;margin:0;}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .pagina{page-break-after:always;}
+    .pagina:last-child{page-break-after:avoid;}
+  }
+  .pagina{width:210mm;min-height:297mm;display:flex;flex-direction:column;}
+  .header{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);color:white;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;}
+  .header-title{font-size:17px;font-weight:800;letter-spacing:.5px;color:#7dd3fc;}
+  .header-sub{font-size:13px;color:#e2e8f0;margin-top:3px;font-weight:600;}
+  .kpi-bar{display:flex;gap:10px;padding:12px 20px;background:#f8fafc;border-bottom:2px solid #e2e8f0;}
+  .kpi-card{flex:1;border-radius:8px;padding:10px 14px;border-left:4px solid;}
+  .kpi-val{font-size:24px;font-weight:800;line-height:1;}
+  .kpi-lbl{font-size:9px;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
+  table{width:100%;border-collapse:collapse;font-size:11px;}
+  thead th{padding:8px 10px;background:#1e293b;color:#f1f5f9;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:2px solid #334155;}
+  tbody tr:hover{background:#f0f9ff;}
+  td{border-bottom:1px solid #f1f5f9;}
+  .legenda{padding:10px 20px;display:flex;gap:16px;align-items:center;border-top:1px solid #e2e8f0;flex-wrap:wrap;font-size:9px;color:#475569;margin-top:auto;}
+  .leg-item{display:flex;align-items:center;gap:4px;}
+  .leg-dot{width:11px;height:11px;border-radius:3px;border:1px solid;flex-shrink:0;}
+  .footer{padding:8px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;}
+</style></head><body>${paginasHtml}</body></html>`;
+
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;';
+            document.body.appendChild(iframe);
+            iframe.contentDocument.open();
+            iframe.contentDocument.write(html);
+            iframe.contentDocument.close();
+            setTimeout(() => {
+                iframe.contentWindow.print();
+                setTimeout(() => document.body.removeChild(iframe), 1500);
+            }, 800);
+            setModalPdfProv(false);
+        } catch (e) {
+            console.error('Erro ao gerar PDF:', e);
+            alert('Erro ao gerar PDF. Tente novamente.');
+        } finally {
+            setGerandoPdfProv(false);
+        }
+    }
 
     return (
         <div style={{
@@ -1884,6 +2050,10 @@ export default function DashboardFrota({ socket }) {
                                     style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '8px', color: '#a5b4fc', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600', opacity: carregandoProg ? 0.6 : 1 }}>
                                     ↻
                                 </button>
+                                <button onClick={() => setModalPdfProv(true)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', color: '#34d399', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600' }}>
+                                    <FileText size={13} /> Relatório PDF
+                                </button>
                             </div>
                         </div>
 
@@ -2060,6 +2230,55 @@ export default function DashboardFrota({ socket }) {
                     </div>
                 );
             })()}
+
+            {/* Modal PDF Provisionamento */}
+            {modalPdfProv && createPortal(
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setModalPdfProv(false)}>
+                    <div style={{
+                        background: '#1e293b', border: '1px solid #334155', borderRadius: '16px',
+                        padding: '28px', width: '380px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <FileText size={18} color="#34d399" />
+                                <span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: '700' }}>Relatório de Provisionamento</span>
+                            </div>
+                            <button onClick={() => setModalPdfProv(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 20px' }}>
+                            Gera um relatório PDF com uma página por dia, mostrando todos os veículos em operação, destinos e motoristas.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+                            <div>
+                                <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>De</label>
+                                <input type="date" value={pdfDe} onChange={e => setPdfDe(e.target.value)}
+                                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', padding: '8px 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                            <div>
+                                <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>Até</label>
+                                <input type="date" value={pdfAte} onChange={e => setPdfAte(e.target.value)}
+                                    style={{ width: '100%', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', padding: '8px 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setModalPdfProv(false)}
+                                style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', cursor: 'pointer', padding: '8px 16px', fontSize: '13px', fontWeight: '600' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={gerarPdfProvDiario} disabled={gerandoPdfProv}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: gerandoPdfProv ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#34d399', cursor: gerandoPdfProv ? 'not-allowed' : 'pointer', padding: '8px 18px', fontSize: '13px', fontWeight: '700', opacity: gerandoPdfProv ? 0.7 : 1 }}>
+                                <FileText size={14} /> {gerandoPdfProv ? 'Gerando...' : 'Gerar PDF'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* CSS animation */}
             <style>{`
