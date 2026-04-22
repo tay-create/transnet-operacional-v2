@@ -147,10 +147,8 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             const id = req.params.id;
             const agora = new Date();
             const resolved_at = agora.toISOString();
-            // Brasília UTC-3 para exibição nos campos legados
-            const agoraBRT = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
-            const data_conclusao = agoraBRT.toISOString().split('T')[0];
-            const hora_conclusao = agoraBRT.toISOString().substring(11, 16);
+            const data_conclusao = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+            const hora_conclusao = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
 
             await dbRun(
                 `UPDATE posemb_ocorrencias SET situacao = 'RESOLVIDO', data_conclusao = $1, hora_conclusao = $2, resolved_at = $3 WHERE id = $4`,
