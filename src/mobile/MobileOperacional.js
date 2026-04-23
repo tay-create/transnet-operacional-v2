@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, RefreshCw, FileText, Package, Search } from 'lucide-react';
+import { Truck, RefreshCw, FileText, Package, Search, Lock, X } from 'lucide-react';
 import api from '../services/apiService';
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
@@ -21,7 +21,13 @@ function hexToRgb(hex) {
     return r ? `${parseInt(r[1], 16)},${parseInt(r[2], 16)},${parseInt(r[3], 16)}` : '71,85,105';
 }
 
+function parseFotos(raw) {
+    if (!raw) return [];
+    try { const p = JSON.parse(raw); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
 export default function MobileOperacional() {
+    const [fotoAmpliada, setFotoAmpliada] = useState(null);
     const [origem, setOrigem] = useState('Recife');
     const [todosVeiculos, setTodosVeiculos] = useState([]);
     const [carregando, setCarregando] = useState(false);
@@ -105,6 +111,23 @@ export default function MobileOperacional() {
     return (
         <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
             style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+
+            {/* Modal foto ampliada */}
+            {fotoAmpliada && (
+                <div onClick={() => setFotoAmpliada(null)} style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)',
+                    zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <button onClick={() => setFotoAmpliada(null)} style={{
+                        position: 'absolute', top: 16, right: 16,
+                        background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                        width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    }}>
+                        <X size={18} color="#f1f5f9" />
+                    </button>
+                    <img src={fotoAmpliada} alt="Lacre" style={{ maxWidth: '95vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
+                </div>
+            )}
 
             {/* Header fixo */}
             <div style={{ background: '#0f172a', padding: '16px 16px 10px', borderBottom: '1px solid #1e293b', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -208,6 +231,8 @@ export default function MobileOperacional() {
                     const docaV = doca(v);
                     const coletaV = coleta(v);
                     const cteEmitido = v.numero_cte;
+                    const campoLacre = origem === 'Moreno' ? v.foto_lacre_moreno : v.foto_lacre_recife;
+                    const fotosLacre = parseFotos(campoLacre);
                     return (
                         <div key={v.id} style={{
                             background: '#0f172a', border: '1px solid #1e293b',
@@ -260,6 +285,33 @@ export default function MobileOperacional() {
                                     </span>
                                 )}
                             </div>
+
+                            {/* Fotos do lacre */}
+                            {fotosLacre.length > 0 && (
+                                <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                                        <Lock size={10} color="#4ade80" strokeWidth={2} />
+                                        <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                            Lacre ({fotosLacre.length})
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                        {fotosLacre.map((foto, i) => (
+                                            <img
+                                                key={i}
+                                                src={foto}
+                                                alt={`Lacre ${i + 1}`}
+                                                onClick={() => setFotoAmpliada(foto)}
+                                                style={{
+                                                    width: 56, height: 56, objectFit: 'cover',
+                                                    borderRadius: 6, border: '1px solid rgba(74,222,128,0.25)',
+                                                    cursor: 'pointer',
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}
