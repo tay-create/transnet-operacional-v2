@@ -323,3 +323,350 @@ export const gerarPDFPaletes = async (registros, kpis) => {
         alert('Erro ao gerar PDF. Tente novamente.');
     }
 };
+
+// ─────────────────────────────────────────────────────────────
+// PDF: Relatório Pós-Embarque
+// ─────────────────────────────────────────────────────────────
+export const gerarPDFPosEmbarque = async (relatorio, filtros = {}, periodo = {}) => {
+    try {
+        const { jsPDF } = await import('jspdf');
+        await import('jspdf-autotable');
+
+        const ocorrencias = relatorio?.ocorrencias || [];
+        const metricas = relatorio?.metricas || { total: 0, resolvidos: 0, atrasados: 0, em_andamento: 0 };
+        const porOperacao = relatorio?.por_operacao || {};
+        const topMotivos = relatorio?.top_motivos || [];
+
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const W = 297, H = 210;
+        const ML = 10, MR = W - ML;
+        const hoje = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const dataArquivo = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+
+        const formatData = (d) => {
+            if (!d) return '—';
+            const s = String(d).length >= 10 ? String(d).substring(0, 10) : d;
+            const [y, m, day] = s.split('-');
+            return `${day}/${m}/${y}`;
+        };
+
+        const calcAtraso = (oc) => {
+            const inicio = new Date(`${oc.data_ocorrencia}T${oc.hora_ocorrencia || '00:00'}:00-03:00`);
+            const fim = oc.situacao === 'RESOLVIDO'
+                ? (oc.resolved_at ? new Date(oc.resolved_at) : new Date(`${oc.data_conclusao}T${oc.hora_conclusao || '00:00'}:00-03:00`))
+                : new Date();
+            return (fim - inicio) / (60 * 60 * 1000);
+        };
+
+        const getSituacao = (oc) => {
+            const horas = calcAtraso(oc);
+            if (oc.situacao === 'RESOLVIDO') {
+                return horas > 24
+                    ? { texto: 'RESOLVIDO (>24H)', cor: [217, 119, 6] }
+                    : { texto: 'RESOLVIDO', cor: [22, 163, 74] };
+            }
+            return horas > 24
+                ? { texto: 'ATRASADO (>24H)', cor: [220, 38, 38] }
+                : { texto: 'EM ANDAMENTO', cor: [71, 85, 105] };
+        };
+
+        // ── Cabeçalho (reutilizado em cada página via função) ──
+        const desenharCabecalho = (pdf, pageNum, pageTotal) => {
+            pdf.setFillColor(15, 23, 42);
+            pdf.rect(0, 0, W, 22, 'F');
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(14);
+            pdf.setTextColor(241, 245, 249);
+            pdf.text('TRANS', ML, 10);
+            pdf.setTextColor(37, 99, 235);
+            const larguraTrans = pdf.getTextWidth('TRANS');
+            pdf.text('NET', ML + larguraTrans, 10);
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text('LOGÍSTICA OPERACIONAL', ML, 15);
+
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(11);
+            pdf.setTextColor(241, 245, 249);
+            pdf.text('RELATÓRIO CONSOLIDADO — PÓS-EMBARQUE', W / 2, 10, { align: 'center' });
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text(`Gerado em ${hoje}`, W / 2, 15, { align: 'center' });
+
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text(`Página ${pageNum} / ${pageTotal}`, MR, 10, { align: 'right' });
+
+            pdf.setDrawColor(37, 99, 235);
+            pdf.setLineWidth(0.6);
+            pdf.line(0, 22, W, 22);
+        };
+
+        // ── Faixa de filtros aplicados ──
+        const filtrosAplicados = [];
+        if (periodo.de && periodo.ate) {
+            filtrosAplicados.push(`Período ${formatData(periodo.de)} → ${formatData(periodo.ate)}`);
+        }
+        ['motorista', 'cliente', 'cidade', 'motivo', 'operacao', 'modalidade', 'situacao'].forEach(k => {
+            if (filtros[k]) filtrosAplicados.push(`${k.charAt(0).toUpperCase() + k.slice(1)}: ${filtros[k]}`);
+        });
+        const faixaFiltros = filtrosAplicados.length ? filtrosAplicados.join(' · ') : 'Sem filtros aplicados';
+
+        desenharCabecalho(doc, 1, 1);
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text(faixaFiltros, ML, 28);
+        doc.text(`${metricas.total} ocorrência(s) no período`, MR, 28, { align: 'right' });
+
+        // ── Tabela 13 colunas ──
+        const cabecalhos = ['DATA INÍCIO', 'HORA', 'DATA FIM', 'HR FIM', 'MOTORISTA', 'MODAL.', 'CTE', 'OPERAÇÃO', 'NF\'S', 'CLIENTE', 'CIDADE', 'MOTIVO', 'SITUAÇÃO'];
+
+        const linhas = ocorrencias.map(oc => {
+            const situ = getSituacao(oc);
+            return [
+                formatData(oc.data_ocorrencia),
+                oc.hora_ocorrencia || '—',
+                oc.situacao === 'RESOLVIDO' ? formatData(oc.data_conclusao || (oc.resolved_at ? String(oc.resolved_at).substring(0, 10) : null)) : '—',
+                oc.situacao === 'RESOLVIDO' ? (oc.hora_conclusao || '—') : '—',
+                oc.motorista || '—',
+                oc.modalidade || '—',
+                oc.cte || '—',
+                oc.operacao || '—',
+                oc.nfs || '—',
+                oc.cliente || '—',
+                oc.cidade || '—',
+                oc.motivo || '—',
+                { content: situ.texto, styles: { textColor: situ.cor, fontStyle: 'bold' } }
+            ];
+        });
+
+        doc.autoTable({
+            startY: 32,
+            head: [cabecalhos],
+            body: linhas,
+            margin: { top: 26, left: ML, right: ML, bottom: 12 },
+            styles: { fontSize: 7, cellPadding: 1.5, textColor: [30, 41, 59], lineColor: [203, 213, 225], lineWidth: 0.1, overflow: 'linebreak' },
+            headStyles: { fillColor: [30, 41, 59], textColor: [241, 245, 249], fontStyle: 'bold', fontSize: 7, halign: 'center' },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+                0: { halign: 'center', cellWidth: 18 },
+                1: { halign: 'center', cellWidth: 12 },
+                2: { halign: 'center', cellWidth: 18 },
+                3: { halign: 'center', cellWidth: 12 },
+                4: { cellWidth: 32 },
+                5: { halign: 'center', cellWidth: 15 },
+                6: { halign: 'center', cellWidth: 18 },
+                7: { halign: 'center', cellWidth: 22 },
+                8: { cellWidth: 22 },
+                9: { cellWidth: 32 },
+                10: { cellWidth: 28 },
+                11: { cellWidth: 36 },
+                12: { halign: 'center', cellWidth: 'auto' }
+            },
+            didDrawPage: (data) => {
+                // Cabeçalho em cada nova página
+                if (data.pageNumber > 1) {
+                    desenharCabecalho(doc, data.pageNumber, doc.internal.getNumberOfPages());
+                }
+            }
+        });
+
+        // ── Página de análise consolidada ──
+        doc.addPage();
+        desenharCabecalho(doc, doc.internal.getNumberOfPages(), doc.internal.getNumberOfPages());
+
+        let y = 30;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(30, 41, 59);
+        doc.text('ANÁLISE CONSOLIDADA', ML, y);
+        y += 6;
+
+        // Cards resumo grandes
+        const cards = [
+            { label: 'TOTAL OPERAÇÕES', valor: metricas.total, cor: [37, 99, 235] },
+            { label: 'RESOLVIDAS', valor: metricas.resolvidos, cor: [22, 163, 74] },
+            { label: 'PASSARAM DE 24H', valor: metricas.atrasados, cor: [220, 38, 38] }
+        ];
+        const cardW = (MR - ML - 8) / 3;
+        cards.forEach((c, i) => {
+            const x = ML + i * (cardW + 4);
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.4);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(x, y, cardW, 28, 2, 2, 'FD');
+            doc.setFillColor(...c.cor);
+            doc.rect(x, y, cardW, 2, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(c.label, x + cardW / 2, y + 9, { align: 'center' });
+            doc.setFontSize(22);
+            doc.setTextColor(...c.cor);
+            doc.text(String(c.valor), x + cardW / 2, y + 22, { align: 'center' });
+        });
+        y += 34;
+
+        // Donut — Volume por Operação
+        const colunaW = (MR - ML - 10) / 2;
+        const xCol1 = ML;
+        const xCol2 = ML + colunaW + 10;
+        const graficoH = 70;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text('VOLUME POR OPERAÇÃO', xCol1, y);
+
+        doc.text('RESOLVIDAS × ATRASADAS (>24H)', xCol2, y);
+        y += 2;
+
+        // === Donut: volume por operação ===
+        const paleta = [[37, 99, 235], [139, 92, 246], [245, 158, 11], [34, 197, 94], [236, 72, 153], [14, 165, 233]];
+        const opEntries = Object.entries(porOperacao);
+        const totalOp = opEntries.reduce((acc, [, v]) => acc + v, 0) || 1;
+        const cxDonut = xCol1 + 22;
+        const cyDonut = y + graficoH / 2;
+        const rOut = 22, rIn = 12;
+
+        let anguloAcum = -Math.PI / 2;
+        opEntries.forEach(([, v], idx) => {
+            const frac = v / totalOp;
+            const fim = anguloAcum + frac * Math.PI * 2;
+            const cor = paleta[idx % paleta.length];
+            // aproximar fatia com polígono (many segmentos)
+            const steps = Math.max(6, Math.ceil(frac * 60));
+            doc.setFillColor(...cor);
+            const pts = [[cxDonut, cyDonut]];
+            for (let s = 0; s <= steps; s++) {
+                const ang = anguloAcum + (fim - anguloAcum) * (s / steps);
+                pts.push([cxDonut + Math.cos(ang) * rOut, cyDonut + Math.sin(ang) * rOut]);
+            }
+            // desenhar triangulação simples usando lines + fill via doc.triangle
+            for (let s = 1; s < pts.length - 1; s++) {
+                doc.triangle(pts[0][0], pts[0][1], pts[s][0], pts[s][1], pts[s + 1][0], pts[s + 1][1], 'F');
+            }
+            anguloAcum = fim;
+        });
+        // buraco central (fundo branco para simular donut)
+        doc.setFillColor(255, 255, 255);
+        doc.circle(cxDonut, cyDonut, rIn, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(totalOp), cxDonut, cyDonut + 1, { align: 'center' });
+        doc.setFontSize(6);
+        doc.setTextColor(100, 116, 139);
+        doc.text('TOTAL', cxDonut, cyDonut + 4.5, { align: 'center' });
+
+        // Legenda donut
+        const xLeg = cxDonut + rOut + 8;
+        let yLeg = y + 4;
+        opEntries.forEach(([nome, v], idx) => {
+            const cor = paleta[idx % paleta.length];
+            doc.setFillColor(...cor);
+            doc.roundedRect(xLeg, yLeg - 2.5, 3, 3, 0.5, 0.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(30, 41, 59);
+            const pct = Math.round((v / totalOp) * 100);
+            doc.text(`${nome} — ${v} (${pct}%)`, xLeg + 4.5, yLeg);
+            yLeg += 4;
+        });
+
+        // === Pizza: Resolvidas × Atrasadas ===
+        const cxPie = xCol2 + 22;
+        const cyPie = y + graficoH / 2;
+        const rPie = 22;
+        const totalPie = (metricas.resolvidos + metricas.atrasados) || 1;
+        const fatias = [
+            { v: metricas.resolvidos, cor: [22, 163, 74], label: 'Resolvidas' },
+            { v: metricas.atrasados, cor: [220, 38, 38], label: 'Atrasadas (>24h)' }
+        ];
+        let angAcum2 = -Math.PI / 2;
+        fatias.forEach(f => {
+            const frac = f.v / totalPie;
+            const fim = angAcum2 + frac * Math.PI * 2;
+            doc.setFillColor(...f.cor);
+            const steps = Math.max(6, Math.ceil(frac * 60));
+            const pts = [[cxPie, cyPie]];
+            for (let s = 0; s <= steps; s++) {
+                const ang = angAcum2 + (fim - angAcum2) * (s / steps);
+                pts.push([cxPie + Math.cos(ang) * rPie, cyPie + Math.sin(ang) * rPie]);
+            }
+            for (let s = 1; s < pts.length - 1; s++) {
+                doc.triangle(pts[0][0], pts[0][1], pts[s][0], pts[s][1], pts[s + 1][0], pts[s + 1][1], 'F');
+            }
+            angAcum2 = fim;
+        });
+
+        const xLeg2 = cxPie + rPie + 8;
+        let yLeg2 = y + 8;
+        fatias.forEach(f => {
+            doc.setFillColor(...f.cor);
+            doc.roundedRect(xLeg2, yLeg2 - 2.5, 3, 3, 0.5, 0.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(30, 41, 59);
+            const pct = totalPie ? Math.round((f.v / totalPie) * 100) : 0;
+            doc.text(`${f.label} — ${f.v} (${pct}%)`, xLeg2 + 4.5, yLeg2);
+            yLeg2 += 5;
+        });
+
+        y += graficoH + 4;
+
+        // === Barras horizontais: TOP 5 MOTIVOS ===
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 41, 59);
+        doc.text('TOP 5 MOTIVOS DE OCORRÊNCIAS', ML, y);
+        y += 4;
+
+        const maxCount = Math.max(1, ...topMotivos.map(m => m.count));
+        const barMaxW = MR - ML - 80;
+        topMotivos.slice(0, 5).forEach(m => {
+            const pct = m.count / maxCount;
+            const barW = Math.max(2, barMaxW * pct);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(30, 41, 59);
+            const label = (m.motivo || '').length > 40 ? (m.motivo || '').substring(0, 38) + '…' : (m.motivo || '—');
+            doc.text(label, ML, y + 3);
+            doc.setFillColor(37, 99, 235);
+            doc.roundedRect(ML + 70, y, barW, 5, 1, 1, 'F');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.text(String(m.count), ML + 70 + barW + 1.5, y + 3.6);
+            y += 7;
+        });
+
+        // ── Rodapé em todas as páginas ──
+        const totalPags = doc.internal.getNumberOfPages();
+        for (let p = 1; p <= totalPags; p++) {
+            doc.setPage(p);
+            const yFoot = H - 5;
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.line(ML, yFoot - 3, MR, yFoot - 3);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Transnet Logística — ${hoje}`, ML, yFoot);
+            doc.text(`Página ${p} / ${totalPags}`, MR, yFoot, { align: 'right' });
+        }
+
+        const blob = new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const deStr = (periodo.de || '').replace(/-/g, '');
+        const ateStr = (periodo.ate || '').replace(/-/g, '');
+        a.href = url;
+        a.download = `posembarque-${deStr}-a-${ateStr || dataArquivo}.pdf`;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Erro ao gerar PDF pós-embarque:', e);
+        alert('Erro ao gerar PDF. Tente novamente.');
+    }
+};

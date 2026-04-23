@@ -284,7 +284,7 @@ export default function RelatorioPerformance() {
             const valor = Math.round((yMax * i) / NTICKS);
             const yPx = y0 + plotH - (valor / yMax) * plotH;
             gridLines.push(`<line x1="${x0}" y1="${yPx}" x2="${x0 + plotW}" y2="${yPx}" stroke="#e2e8f0" stroke-width="0.6"${i === 0 ? '' : ' stroke-dasharray="2 3"'}/>`);
-            yTicks.push(`<text x="${x0 - 4}" y="${yPx + 3}" text-anchor="end" font-size="8" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif">${valor}min</text>`);
+            yTicks.push(`<text x="${x0 - 4}" y="${yPx + 3}" text-anchor="end" font-size="8" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif">${valor === 0 ? '0h00' : formatMin(valor)}</text>`);
         }
 
         // Barras agrupadas + rótulos
@@ -293,9 +293,6 @@ export default function RelatorioPerformance() {
         const groupW = slotW - groupPad * 2;
         const barW = Math.min(14, groupW / 3 - 2);     // 3 barras por dia
         const gap = (groupW - barW * 3) / 2;
-
-        // Pontos da linha de tendência (total diário)
-        const trendPoints = [];
 
         const svgBars = dadosGrafico.map((d, i) => {
             const sep = d['Separação'] || 0;
@@ -331,30 +328,8 @@ export default function RelatorioPerformance() {
             // Rótulo do eixo X (data)
             const xLabel = `<text x="${cx.toFixed(2)}" y="${(y0 + plotH + 14).toFixed(2)}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Segoe UI, Arial, sans-serif">${d.data}</text>`;
 
-            // Acumular ponto de tendência
-            if (total > 0) {
-                trendPoints.push({ x: cx, y: y0 + plotH - (total / yMax) * plotH });
-            }
-
             return barsHtml + totalLabel + xLabel;
         }).join('');
-
-        // Linha de tendência (path suave conectando totais)
-        let trendPath = '';
-        if (trendPoints.length >= 2) {
-            const pts = trendPoints;
-            let d = `M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`;
-            for (let i = 1; i < pts.length; i++) {
-                const prev = pts[i - 1];
-                const cur = pts[i];
-                const cx1 = (prev.x + cur.x) / 2;
-                d += ` C ${cx1.toFixed(2)} ${prev.y.toFixed(2)}, ${cx1.toFixed(2)} ${cur.y.toFixed(2)}, ${cur.x.toFixed(2)} ${cur.y.toFixed(2)}`;
-            }
-            trendPath = `
-                <path d="${d}" fill="none" stroke="#0f766e" stroke-width="1.5" stroke-opacity="0.75"/>
-                ${pts.map(p => `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="2.2" fill="#0f766e"/>`).join('')}
-            `;
-        }
 
         // Linha de média geral (dashed)
         let mediaLine = '';
@@ -372,7 +347,6 @@ export default function RelatorioPerformance() {
             ${yTicks.join('')}
             ${svgBars}
             ${mediaLine}
-            ${trendPath}
         </svg>`;
 
         // Legenda topo com valores médios
@@ -392,10 +366,6 @@ export default function RelatorioPerformance() {
                     <span class="leg-dot" style="background:#f59e0b"></span>
                     <span class="leg-nome">Carregamento</span>
                     <span class="leg-media">${formatMin(mediaCar)}</span>
-                </div>
-                <div class="leg-card" style="border-left-color:#0f766e">
-                    <span class="leg-linha"></span>
-                    <span class="leg-nome">Tendência total/dia</span>
                 </div>
                 <div class="leg-card" style="border-left-color:#ef4444">
                     <span class="leg-traco"></span>
@@ -446,7 +416,7 @@ export default function RelatorioPerformance() {
 
   <div class="kpi-grid">${kpiCards}</div>
 
-  <div class="section-title">&#9641; Tempo médio por dia (min) — barras agrupadas</div>
+  <div class="section-title">&#9641; Tempo médio por dia — barras agrupadas</div>
   ${legendaTopo}
   <div class="grafico-wrap">${graficoSVG}</div>
 

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink, X } from 'lucide-react';
+import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink, X, Download, Filter } from 'lucide-react';
 import ModalConfirm from './ModalConfirm';
+import { gerarPDFPosEmbarque } from '../utils/pdfGenerator';
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => {
@@ -46,6 +47,18 @@ function getCorAtraso(oc) {
     if (horas > 48) return '#ef4444';  // vermelho
     if (horas > 24) return '#f59e0b';  // amarelo/laranja
     return null;
+}
+
+function getSituacaoDisplay(oc) {
+    const horas = calcularHorasAtraso(oc);
+    if (oc.situacao === 'RESOLVIDO') {
+        return horas > 24
+            ? { texto: 'RESOLVIDO (>24H)', cor: '#d97706' }
+            : { texto: 'RESOLVIDO', cor: '#16a34a' };
+    }
+    return horas > 24
+        ? { texto: 'ATRASADO (>24H)', cor: '#dc2626' }
+        : { texto: 'EM ANDAMENTO', cor: '#64748b' };
 }
 
 function ordenarOcorrencias(lista) {
@@ -623,7 +636,7 @@ export default function PainelPosEmbarque() {
             )}
 
             {/* ABA RELATÓRIOS */}
-            {aba === 'relatorio' && <RelatorioAba dataInicio={dataInicio} setDataInicio={setDataInicio} dataFim={dataFim} setDataFim={setDataFim} s={s} />}
+            {aba === 'relatorio' && <RelatorioAba dataInicio={dataInicio} setDataInicio={setDataInicio} dataFim={dataFim} setDataFim={setDataFim} s={s} listas={listas} />}
 
             {/* MODAL - NOVA OCORRÊNCIA */}
             {modalNovaAberto && (
@@ -667,41 +680,118 @@ export default function PainelPosEmbarque() {
 }
 
 // ──────────── Componente Relatório ────────────────────────────────────
-function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s }) {
+function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, listas }) {
     const [relatorio, setRelatorio] = useState(null);
     const [carregando, setCarregando] = useState(false);
+    const [gerandoPDF, setGerandoPDF] = useState(false);
+
+    const [filtros, setFiltros] = useState({
+        motorista: '',
+        cliente: '',
+        cidade: '',
+        motivo: '',
+        operacao: '',
+        modalidade: '',
+        situacao: ''
+    });
+
+    const atualizarFiltro = (campo, valor) => setFiltros(prev => ({ ...prev, [campo]: valor }));
 
     const carregar = useCallback(async () => {
         setCarregando(true);
         try {
-            const res = await api.get('/api/posembarque/relatorio', {
-                params: { de: dataInicio, ate: dataFim }
-            });
+            const params = { de: dataInicio, ate: dataFim };
+            Object.entries(filtros).forEach(([k, v]) => { if (v) params[k] = v; });
+            const res = await api.get('/api/posembarque/relatorio', { params });
             if (res.data.success) setRelatorio(res.data);
         } catch (e) {
             console.error('Erro ao carregar relatório:', e);
         } finally {
             setCarregando(false);
         }
-    }, [dataInicio, dataFim]);
+    }, [dataInicio, dataFim, filtros]);
 
     useEffect(() => {
         carregar();
     }, [carregar]);
 
+    const exportarPDF = async () => {
+        if (!relatorio) return;
+        setGerandoPDF(true);
+        try {
+            await gerarPDFPosEmbarque(relatorio, filtros, { de: dataInicio, ate: dataFim });
+        } finally {
+            setGerandoPDF(false);
+        }
+    };
+
     if (!relatorio) return <div style={s.card}>Carregando...</div>;
 
     const dadosPorOperacao = Object.entries(relatorio.por_operacao).map(([op, count]) => ({ name: op, value: count }));
     const dadosTopMotivos = relatorio.top_motivos;
+    const ocorrencias = relatorio.ocorrencias || [];
+
+    const inputFiltro = { ...s.input, fontSize: '12px', padding: '6px 10px' };
 
     return (
         <div>
-            <div style={{ ...s.card, display: 'flex', gap: '8px', marginBottom: '16px' }}>
-                <input type="date" style={s.input} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
-                <input type="date" style={s.input} value={dataFim} onChange={e => setDataFim(e.target.value)} />
-                <button style={{ ...s.btn, ...s.btnPrimary }} onClick={carregar}>
-                    Atualizar
-                </button>
+            {/* Barra de filtros + ações */}
+            <div style={{ ...s.card, marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: '#94a3b8', fontSize: '12px', fontWeight: 600 }}>
+                    <Filter size={14} /> Filtros
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', marginBottom: '10px' }}>
+                    <input type="date" style={inputFiltro} value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+                    <input type="date" style={inputFiltro} value={dataFim} onChange={e => setDataFim(e.target.value)} />
+                    <input list="rel-motoristas" placeholder="Motorista" style={inputFiltro} value={filtros.motorista} onChange={e => atualizarFiltro('motorista', e.target.value)} />
+                    <datalist id="rel-motoristas">
+                        {(listas?.motoristas || []).map(m => <option key={m} value={m} />)}
+                    </datalist>
+                    <input list="rel-clientes" placeholder="Cliente" style={inputFiltro} value={filtros.cliente} onChange={e => atualizarFiltro('cliente', e.target.value)} />
+                    <datalist id="rel-clientes">
+                        {(listas?.clientes || []).map(c => <option key={c} value={c} />)}
+                    </datalist>
+                    <input list="rel-cidades" placeholder="Cidade" style={inputFiltro} value={filtros.cidade} onChange={e => atualizarFiltro('cidade', e.target.value)} />
+                    <datalist id="rel-cidades">
+                        {(listas?.cidades || []).map(c => <option key={c} value={c} />)}
+                    </datalist>
+                    <input list="rel-motivos" placeholder="Motivo" style={inputFiltro} value={filtros.motivo} onChange={e => atualizarFiltro('motivo', e.target.value)} />
+                    <datalist id="rel-motivos">
+                        {(listas?.motivos || []).map(m => <option key={m} value={m} />)}
+                    </datalist>
+                    <input list="rel-operacoes" placeholder="Operação" style={inputFiltro} value={filtros.operacao} onChange={e => atualizarFiltro('operacao', e.target.value)} />
+                    <datalist id="rel-operacoes">
+                        {(listas?.operacoes || ['Plastico', 'Porcelana', 'Eletrik', 'Consolidado']).map(o => <option key={o} value={o} />)}
+                    </datalist>
+                    <select style={inputFiltro} value={filtros.modalidade} onChange={e => atualizarFiltro('modalidade', e.target.value)}>
+                        <option value="">Modalidade (todas)</option>
+                        <option value="Terceiro">Terceiro</option>
+                        <option value="Frota">Frota</option>
+                    </select>
+                    <select style={inputFiltro} value={filtros.situacao} onChange={e => atualizarFiltro('situacao', e.target.value)}>
+                        <option value="">Situação (todas)</option>
+                        <option value="Em Andamento">Em Andamento</option>
+                        <option value="RESOLVIDO">Resolvido</option>
+                    </select>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button style={{ ...s.btn, ...s.btnPrimary }} onClick={carregar} disabled={carregando}>
+                        <Search size={14} /> {carregando ? 'Carregando...' : 'Aplicar'}
+                    </button>
+                    <button
+                        style={{ ...s.btn, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
+                        onClick={exportarPDF}
+                        disabled={gerandoPDF || ocorrencias.length === 0}
+                    >
+                        <Download size={14} /> {gerandoPDF ? 'Gerando...' : 'Exportar PDF'}
+                    </button>
+                    <button
+                        style={{ ...s.btn, background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)' }}
+                        onClick={() => setFiltros({ motorista: '', cliente: '', cidade: '', motivo: '', operacao: '', modalidade: '', situacao: '' })}
+                    >
+                        <X size={14} /> Limpar filtros
+                    </button>
+                </div>
             </div>
 
             {/* KPIs */}
@@ -735,7 +825,7 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s }) {
             )}
 
             {dadosTopMotivos.length > 0 && (
-                <div style={s.card}>
+                <div style={{ ...s.card, marginBottom: '16px' }}>
                     <h4 style={{ marginBottom: '12px' }}>Top 5 Motivos</h4>
                     <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={dadosTopMotivos} layout="vertical">
@@ -747,6 +837,59 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s }) {
                     </ResponsiveContainer>
                 </div>
             )}
+
+            {/* Tabela detalhada de ocorrências */}
+            <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0 }}>Ocorrências Detalhadas</h4>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>{ocorrencias.length} registro(s)</span>
+                </div>
+                {ocorrencias.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Nenhuma ocorrência para os filtros aplicados</div>
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1400px', fontSize: '11px' }}>
+                            <thead style={{ position: 'sticky', top: 0, background: 'rgba(15,23,42,0.95)', backdropFilter: 'blur(4px)' }}>
+                                <tr>
+                                    {['DATA INÍCIO', 'HORA', 'DATA FIM', 'HR FIM', 'MOTORISTA', 'MODAL.', 'CTE', 'OPERAÇÃO', 'NF\'S', 'CLIENTE', 'CIDADE', 'MOTIVO', 'SITUAÇÃO'].map(h => (
+                                        <th key={h} style={{ padding: '10px 8px', textAlign: 'left', color: '#94a3b8', fontSize: '10px', letterSpacing: '0.5px', borderBottom: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {ocorrencias.map((oc, idx) => {
+                                    const situ = getSituacaoDisplay(oc);
+                                    const dash = (v) => (v === null || v === undefined || v === '') ? '—' : v;
+                                    const dataFim = oc.situacao === 'RESOLVIDO'
+                                        ? (oc.data_conclusao ? formatData(oc.data_conclusao) : (oc.resolved_at ? formatData(String(oc.resolved_at).substring(0, 10)) : '—'))
+                                        : '—';
+                                    const horaFim = oc.situacao === 'RESOLVIDO' ? dash(oc.hora_conclusao) : '—';
+                                    const rowBg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)';
+                                    return (
+                                        <tr key={oc.id} style={{ background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{formatData(oc.data_ocorrencia)}</td>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dash(oc.hora_ocorrencia)}</td>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dataFim}</td>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{horaFim}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.motorista)}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.modalidade)}</td>
+                                            <td style={{ padding: '8px', fontVariantNumeric: 'tabular-nums' }}>{dash(oc.cte)}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.operacao)}</td>
+                                            <td style={{ padding: '8px', fontVariantNumeric: 'tabular-nums' }}>{dash(oc.nfs)}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.cliente)}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.cidade)}</td>
+                                            <td style={{ padding: '8px' }}>{dash(oc.motivo)}</td>
+                                            <td style={{ padding: '8px', color: situ.cor, fontWeight: 700, whiteSpace: 'nowrap' }}>{situ.texto}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
