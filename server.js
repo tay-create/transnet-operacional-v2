@@ -3175,15 +3175,14 @@ app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planeja
 });
 
 // ── Taxa de Usabilidade da Frota ─────────────────────────────────────────────
-const STATUS_OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
-const STATUS_OCIOSO = new Set(['DISPONIVEL','CARREGADO','AGUARDANDO_FRETE_RETORNO']);
+const STATUS_OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
+const STATUS_OCIOSO = new Set(['DISPONIVEL','AGUARDANDO_FRETE_RETORNO']);
 const STATUS_EXCLUIDO = new Set(['MANUTENCAO','SABADO']);
 const TIPOS_USAB = ['TRUCK','3/4','CONJUNTO'];
 const META_USAB = 85;
 const ALERTA_USAB = 80;
 const LABEL_MOTIVO = {
     DISPONIVEL: 'Disponível sem viagem',
-    CARREGADO: 'Carregado aguardando saída',
     AGUARDANDO_FRETE_RETORNO: 'Aguardando frete retorno',
     MANUTENCAO: 'Em manutenção',
     SABADO: 'Sábado (sem operação)',

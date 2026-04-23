@@ -90,7 +90,7 @@ export const CARGOS_ALERTA_USABILIDADE = ['Coordenador', 'Planejamento', 'Adm Fr
 
 export const MOTIVOS_USABILIDADE = {
     DISPONIVEL:               { label: 'Disponível sem viagem',      categoria: 'OCIOSO',   cor: '#f59e0b' },
-    CARREGADO:                { label: 'Carregado aguardando saída', categoria: 'OCIOSO',   cor: '#eab308' },
+    CARREGADO:                { label: 'Carregado aguardando saída', categoria: 'OPERANDO', cor: '#22c55e' },
     AGUARDANDO_FRETE_RETORNO: { label: 'Aguardando frete retorno',   categoria: 'OCIOSO',   cor: '#fb923c' },
     MANUTENCAO:               { label: 'Em manutenção',              categoria: 'EXCLUIDO', cor: '#64748b' },
     SABADO:                   { label: 'Sábado (sem operação)',      categoria: 'EXCLUIDO', cor: '#475569' },

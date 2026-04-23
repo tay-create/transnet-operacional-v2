@@ -1133,7 +1133,7 @@ function MotivosBaixaUsabilidade({ socket, veiculos = [] }) {
     useEffect(() => { carregarAnt(); }, [carregarAnt]);
 
     // Motivos de hoje — calculados direto dos veículos ativos (TRUCK/3/4/CONJUNTO)
-    const ociosoSet = new Set(['DISPONIVEL', 'CARREGADO', 'AGUARDANDO_FRETE_RETORNO']);
+    const ociosoSet = new Set(['DISPONIVEL', 'AGUARDANDO_FRETE_RETORNO']);
     const excluidoSet = new Set(['MANUTENCAO', 'SABADO']);
     const operandoSet = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
 
