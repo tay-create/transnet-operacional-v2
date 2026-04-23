@@ -206,6 +206,34 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
         }
     }
 
+    async function pularLacre() {
+        setSalvandoLacre(true);
+        setErro('');
+        try {
+            const res = await api.post('/api/conferente/atualizar-status', {
+                veiculoId: v.id,
+                novoStatus: 'CARREGADO',
+                novaDoca: docaSelecionada !== 'SELECIONE' ? docaSelecionada : undefined,
+                unidade: v.unidade,
+            });
+            if (res.data.success) {
+                setModalFotoLacre(false);
+                setFotosLacre([]);
+                onAtualizarStatus(v.id, 'CARREGADO', docaSelecionada);
+            }
+        } catch (err) {
+            setErro(err.response?.data?.message || 'Erro ao confirmar carregamento.');
+        } finally {
+            setSalvandoLacre(false);
+        }
+    }
+
+    // Detecta se é operação consolidada (Ambas/Consolidado) e se a outra unidade ainda não foi carregada
+    const ehConsolidada = v.operacao === 'Ambas' || v.operacao === 'Consolidado' || (v.coletaRecife && v.coletaMoreno);
+    const statusOutraUnidade = v.unidade === 'Moreno' ? v.status_recife : v.status_moreno;
+    const outraJaCarregada = statusOutraUnidade === 'CARREGADO';
+    const podePularLacre = ehConsolidada && !outraJaCarregada;
+
     const salvarDoca = async (novaDoca) => {
         setDocaSelecionada(novaDoca);
         try {
@@ -604,6 +632,13 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             Fotografe todos os lacres colocados no baú de <strong style={{ color: '#f1f5f9' }}>{v.motorista}</strong>. Adicione quantas fotos forem necessárias.
                         </p>
 
+                        {/* Aviso consolidada: pular lacre */}
+                        {podePularLacre && (
+                            <div style={{ padding: '10px 12px', marginBottom: '14px', borderRadius: '8px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', color: '#93c5fd', fontSize: '11px', lineHeight: '1.5' }}>
+                                <strong style={{ color: '#bfdbfe' }}>Operação consolidada:</strong> se o lacre ainda não foi colocado (será na outra unidade), você pode pular esta etapa agora.
+                            </div>
+                        )}
+
                         {/* Input câmera (oculto) */}
                         <input
                             ref={inputFotoRef}
@@ -661,24 +696,35 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                         )}
 
                         {/* Botões */}
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button
-                                onClick={() => { setModalFotoLacre(false); setFotosLacre([]); setErro(''); }}
-                                disabled={salvandoLacre}
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={confirmarComLacre}
-                                disabled={fotosLacre.length === 0 || salvandoLacre}
-                                style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: fotosLacre.length === 0 || salvandoLacre ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white', fontSize: '13px', cursor: fotosLacre.length === 0 || salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                            >
-                                {salvandoLacre
-                                    ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Confirmando...</>
-                                    : <><CheckCircle size={13} /> Confirmar CARREGADO</>
-                                }
-                            </button>
+                        <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                    onClick={() => { setModalFotoLacre(false); setFotosLacre([]); setErro(''); }}
+                                    disabled={salvandoLacre}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmarComLacre}
+                                    disabled={fotosLacre.length === 0 || salvandoLacre}
+                                    style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: fotosLacre.length === 0 || salvandoLacre ? 'rgba(34,197,94,0.2)' : 'linear-gradient(135deg, #16a34a, #22c55e)', color: 'white', fontSize: '13px', cursor: fotosLacre.length === 0 || salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                >
+                                    {salvandoLacre
+                                        ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Confirmando...</>
+                                        : <><CheckCircle size={13} /> Confirmar CARREGADO</>
+                                    }
+                                </button>
+                            </div>
+                            {podePularLacre && (
+                                <button
+                                    onClick={pularLacre}
+                                    disabled={salvandoLacre}
+                                    style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.35)', background: 'rgba(59,130,246,0.08)', color: '#93c5fd', fontSize: '12px', cursor: salvandoLacre ? 'not-allowed' : 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                                >
+                                    Pular — lacre ficará para a outra unidade
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

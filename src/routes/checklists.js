@@ -182,6 +182,7 @@ module.exports = function createChecklistsRouter(io) {
                 // Retorna cards de Recife E de Moreno, cada um como entrada separada
                 const recife = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_recife as status, doca_recife as doca,
+                        status_recife, status_moreno,
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
@@ -196,6 +197,7 @@ module.exports = function createChecklistsRouter(io) {
                 );
                 const moreno = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_moreno as status, doca_moreno as doca,
+                        status_recife, status_moreno,
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
@@ -217,6 +219,7 @@ module.exports = function createChecklistsRouter(io) {
                 const cidadeFiltro = cidade === 'Moreno' ? FILTRO_MORENO : FILTRO_RECIFE;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
+                        status_recife, status_moreno,
                         coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
@@ -275,7 +278,9 @@ module.exports = function createChecklistsRouter(io) {
                     coletaMoreno,
                     isMista,
                     checklistAprovado,
-                    status_cte: v.status_cte || ''
+                    status_cte: v.status_cte || '',
+                    status_recife: v.status_recife || '',
+                    status_moreno: v.status_moreno || ''
                 };
             }));
 
@@ -408,9 +413,16 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             // Bloquear CARREGADO sem foto do lacre
+            // Em operação consolidada (Ambas), a primeira unidade pode pular — lacre só vai na última
             if (novoStatus === 'CARREGADO') {
                 const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
-                if (!veiculo[campoLacre]) {
+                const ehConsolidada = veiculo.operacao === 'Ambas' || veiculo.operacao === 'Consolidado';
+                const statusOutraUnidade = prefix === 'moreno' ? veiculo.status_recife : veiculo.status_moreno;
+                const outraJaCarregada = statusOutraUnidade === 'CARREGADO';
+                // Só permite pular se for consolidada E a outra unidade ainda não foi carregada (é a "primeira")
+                const podePular = ehConsolidada && !outraJaCarregada;
+
+                if (!veiculo[campoLacre] && !podePular) {
                     return res.status(403).json({
                         success: false,
                         precisaFotoLacre: true,
@@ -556,11 +568,21 @@ module.exports = function createChecklistsRouter(io) {
         try {
             const { veiculoId, unidade, fotos } = req.body;
             if (!veiculoId || !fotos || !fotos.length) return res.status(400).json({ success: false, message: 'veiculoId e fotos obrigatórios.' });
-            const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
-            const campo = cidade === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+            const veiculo = await dbGet(`SELECT operacao FROM veiculos WHERE id = ?`, [veiculoId]);
+            const ehConsolidada = veiculo && (veiculo.operacao === 'Ambas' || veiculo.operacao === 'Consolidado');
             const valor = JSON.stringify(fotos);
-            await dbRun(`UPDATE veiculos SET ${campo} = $1 WHERE id = $2`, [valor, veiculoId]);
-            io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, fotos });
+
+            if (ehConsolidada) {
+                // Em consolidada: salva nos dois campos para aparecer em ambos os cards
+                await dbRun(`UPDATE veiculos SET foto_lacre_recife = $1, foto_lacre_moreno = $1 WHERE id = $2`, [valor, veiculoId]);
+                io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo: 'foto_lacre_recife', fotos });
+                io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo: 'foto_lacre_moreno', fotos });
+            } else {
+                const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
+                const campo = cidade === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+                await dbRun(`UPDATE veiculos SET ${campo} = $1 WHERE id = $2`, [valor, veiculoId]);
+                io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, fotos });
+            }
             res.json({ success: true });
         } catch (e) {
             console.error('[Conferente/salvar-lacre] Erro:', e);
