@@ -61,6 +61,7 @@ const DESTINATARIOS_ALERTA = {
     'nova_marcacao':       ['Pos Embarque'],
     'nova_marcacao_coord': [],
     'doca':                ['Cadastro', 'Conhecimento'],
+    'veiculo_manutencao':  ['Manutenção', 'Coordenador', 'Adm Frota'],
 };
 
 console.log("🚀 [App] Carregando v0.3.4");

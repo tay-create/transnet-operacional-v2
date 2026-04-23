@@ -48,6 +48,7 @@ const DESTINATARIOS_NOTIFICACAO = {
     'nova_marcacao_coord': [],
     'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
     'alerta_usabilidade_frota': ['Coordenador', 'Planejamento', 'Adm Frota'],
+    'veiculo_manutencao':       ['Manutenção', 'Coordenador', 'Adm Frota'],
 };
 
 // ── Segurança: headers HTTP ───────────────────────────────────────────────────
@@ -2890,7 +2891,7 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
 
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
-const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota'];
+const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Manutenção'];
 const STATUS_VIAGEM_PROV = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'CARREGANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'];
 
 // GET /api/provisionamento/veiculos — listar veículos ativos
@@ -3027,6 +3028,20 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
             [veiculo_id, data, status, destino || null]
         );
         io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data, status, destino: destino || null });
+
+        if (status === 'MANUTENCAO') {
+            const veiculo = await dbGet(`SELECT placa FROM prov_veiculos WHERE id = $1`, [veiculo_id]);
+            const placa = veiculo?.placa || `#${veiculo_id}`;
+            await enviarNotificacao('receber_alerta', {
+                tipo: 'veiculo_manutencao',
+                mensagem: `Veículo ${placa} está em manutenção`,
+                placa,
+                veiculo_id,
+                data,
+                data_criacao: new Date().toISOString(),
+            });
+        }
+
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });

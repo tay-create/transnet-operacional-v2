@@ -72,7 +72,7 @@ export const CORES_STATUS = {
     'LIBERADO P/ CT-e': { border: '#a855f7', text: '#c084fc' },
 };
 
-export const CARGOS_DISPONIVEIS = ['Direção', 'Coordenador', 'Adm Frota', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro', 'Dashboard Viewer', 'Conferente', 'Pos Embarque'];
+export const CARGOS_DISPONIVEIS = ['Direção', 'Coordenador', 'Adm Frota', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro', 'Dashboard Viewer', 'Conferente', 'Pos Embarque', 'Manutenção'];
 
 // Taxa de Usabilidade da Frota
 export const META_USABILIDADE = 85;
