@@ -228,8 +228,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
         }
     }
 
-    // Detecta se é operação consolidada (Ambas/Consolidado) e se a outra unidade ainda não foi carregada
-    const ehConsolidada = v.operacao === 'Ambas' || v.operacao === 'Consolidado' || (v.coletaRecife && v.coletaMoreno);
+    // Operação consolidada: tem coleta preenchida em ambas as unidades
+    const ehConsolidada = !!(v.coletaRecife && v.coletaMoreno);
     const statusOutraUnidade = v.unidade === 'Moreno' ? v.status_recife : v.status_moreno;
     const outraJaCarregada = statusOutraUnidade === 'CARREGADO';
     const podePularLacre = ehConsolidada && !outraJaCarregada;

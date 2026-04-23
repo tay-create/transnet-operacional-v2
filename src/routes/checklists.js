@@ -413,10 +413,10 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             // Bloquear CARREGADO sem foto do lacre
-            // Em operação consolidada (Ambas), a primeira unidade pode pular — lacre só vai na última
+            // Em operação consolidada (ambas coletas preenchidas), a primeira unidade pode pular — lacre só vai na última
             if (novoStatus === 'CARREGADO') {
                 const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
-                const ehConsolidada = veiculo.operacao === 'Ambas' || veiculo.operacao === 'Consolidado';
+                const ehConsolidada = !!(veiculo.coletarecife && veiculo.coletamoreno);
                 const statusOutraUnidade = prefix === 'moreno' ? veiculo.status_recife : veiculo.status_moreno;
                 const outraJaCarregada = statusOutraUnidade === 'CARREGADO';
                 // Só permite pular se for consolidada E a outra unidade ainda não foi carregada (é a "primeira")
@@ -568,8 +568,8 @@ module.exports = function createChecklistsRouter(io) {
         try {
             const { veiculoId, unidade, fotos } = req.body;
             if (!veiculoId || !fotos || !fotos.length) return res.status(400).json({ success: false, message: 'veiculoId e fotos obrigatórios.' });
-            const veiculo = await dbGet(`SELECT operacao FROM veiculos WHERE id = ?`, [veiculoId]);
-            const ehConsolidada = veiculo && (veiculo.operacao === 'Ambas' || veiculo.operacao === 'Consolidado');
+            const veiculo = await dbGet(`SELECT coletarecife, coletamoreno FROM veiculos WHERE id = ?`, [veiculoId]);
+            const ehConsolidada = !!(veiculo && veiculo.coletarecife && veiculo.coletamoreno);
             const valor = JSON.stringify(fotos);
 
             if (ehConsolidada) {
