@@ -1598,6 +1598,7 @@ export default function DashboardFrota({ socket }) {
     const [pdfDe, setPdfDe] = useState(hoje);
     const [pdfAte, setPdfAte] = useState(hoje);
     const [gerandoPdfProv, setGerandoPdfProv] = useState(false);
+    const [pdfErro, setPdfErro] = useState('');
     const [obsSalvandoCard, setObsSalvandoCard] = useState({});
 
     const salvarObsCard = async (veiculoId) => {
@@ -1708,63 +1709,96 @@ export default function DashboardFrota({ socket }) {
     async function gerarPdfProvDiario() {
         if (!pdfDe || !pdfAte) return;
         setGerandoPdfProv(true);
+        setPdfErro('');
         try {
-            // Busca cards operacionais criados no período (data_criacao)
-            const r = await api.get(`/veiculos?dataCriacaoInicio=${pdfDe}&dataCriacaoFim=${pdfAte}&limit=500`);
-            const vs = (r.data?.veiculos || []);
+            const fmtD = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
+            const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
+            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+            // Monta lista de datas no intervalo (UTC-safe via parsing manual)
+            const datas = [];
+            {
+                const [y1,m1,d1] = pdfDe.split('-').map(Number);
+                const [y2,m2,d2] = pdfAte.split('-').map(Number);
+                const cur = new Date(Date.UTC(y1, m1-1, d1));
+                const end = new Date(Date.UTC(y2, m2-1, d2));
+                while (cur <= end) {
+                    datas.push(cur.toISOString().substring(0,10));
+                    cur.setUTCDate(cur.getUTCDate() + 1);
+                }
+            }
+
+            // Busca o snapshot de provisionamento de cada dia
+            const snapshots = await Promise.all(
+                datas.map(async data => {
+                    try {
+                        const r = await api.get(`/api/provisionamento/dashboard?data=${data}`);
+                        const lista = (r.data?.veiculos || []).map(v => ({ ...v, _data: data }));
+                        return { data, lista };
+                    } catch (e) {
+                        console.error('Erro ao buscar provisionamento de', data, e);
+                        return { data, lista: [] };
+                    }
+                })
+            );
+
+            const vs = snapshots.flatMap(s => s.lista);
 
             const OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA','PROJETO_SUL','PROJETO_SP']);
             const MANUT    = new Set(['MANUTENCAO']);
-
-            // Retorna o status mais relevante para exibição principal
-            const statusEfetivo = (v) => {
-                if (v.operacao === 'Moreno') return v.status_moreno || 'DISPONIVEL';
-                if (v.operacao === 'Ambas' || v.operacao === 'Consolidado') {
-                    // Para consolidado, retorna o mais avançado
-                    const sr = v.status_recife || 'DISPONIVEL';
-                    const sm = v.status_moreno || 'DISPONIVEL';
-                    return OPERANDO.has(sr) ? sr : OPERANDO.has(sm) ? sm : sr;
-                }
-                return v.status_recife || 'DISPONIVEL';
-            };
+            const DISP     = new Set(['DISPONIVEL']);
 
             const nTotal = vs.length;
-            const nOp = vs.filter(v => OPERANDO.has(statusEfetivo(v))).length;
-            const nOc = vs.filter(v => !OPERANDO.has(statusEfetivo(v)) && !MANUT.has(statusEfetivo(v))).length;
-            const nMt = vs.filter(v => MANUT.has(statusEfetivo(v))).length;
+            const nOp = vs.filter(v => OPERANDO.has(v.status || 'DISPONIVEL')).length;
+            const nDp = vs.filter(v => DISP.has(v.status || 'DISPONIVEL')).length;
+            const nMt = vs.filter(v => MANUT.has(v.status || 'DISPONIVEL')).length;
 
             const COR_ST = {
                 DISPONIVEL:  { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
                 EM_OPERACAO: { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
                 CARREGADO:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
                 CARREGANDO:  { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                EM_VIAGEM:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
                 PUXADA:      { bg:'#dbeafe', text:'#1d4ed8', border:'#93c5fd' },
                 MANUTENCAO:  { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
             };
             const corSt = st => COR_ST[st] || { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' };
             const labelSt = st => STATUS_LABEL_PROG[st] || st;
-
-            const fmtD = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
-            const fmtDT = dt => fmtD((dt||'').substring(0,10));
-            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-            const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
+            const fmtTipo = t => {
+                if (!t) return '—';
+                const u = String(t).toUpperCase();
+                if (u === '3/4' || u === 'TRES_QUARTOS' || u === 'TRES/QUARTOS') return '3/4';
+                if (u === 'TOCO') return 'TOCO';
+                if (u === 'TRUCK') return 'TRUCK';
+                if (u === 'CARRETA') return 'CARRETA';
+                if (u === 'CONJUNTO') return 'CONJUNTO';
+                if (u === 'BITRUCK') return 'BITRUCK';
+                return t;
+            };
+            const corTipo = t => {
+                const u = String(t || '').toUpperCase();
+                if (u === 'CONJUNTO') return '#fb923c';
+                if (u === 'TRUCK') return '#2563eb';
+                if (u === 'CARRETA') return '#059669';
+                if (u === '3/4' || u === 'TRES_QUARTOS') return '#0ea5e9';
+                if (u === 'TOCO') return '#a855f7';
+                if (u === 'BITRUCK') return '#ef4444';
+                return '#7c3aed';
+            };
 
             const linhas = vs.map((v, idx) => {
-                const st = statusEfetivo(v);
+                const st = v.status || 'DISPONIVEL';
                 const c = corSt(st);
-                const tipoCor = v.tipo_veiculo === 'CONJUNTO' ? '#fb923c' : v.tipo_veiculo === 'TRUCK' ? '#2563eb' : v.tipo_veiculo === 'CARRETA' ? '#059669' : '#7c3aed';
+                const tipoFmt = fmtTipo(v.tipo_veiculo);
+                const tCor = corTipo(v.tipo_veiculo);
                 const destino = v.destino || '';
-                // Para consolidado, mostrar ambos os status
-                const statusHtml = (v.operacao === 'Ambas' || v.operacao === 'Consolidado')
-                    ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:${corSt(v.status_recife||'DISPONIVEL').bg};color:${corSt(v.status_recife||'DISPONIVEL').text};border:1px solid ${corSt(v.status_recife||'DISPONIVEL').border};">REC: ${labelSt(v.status_recife||'DISPONIVEL')}</span><br><span style="display:inline-block;margin-top:2px;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:${corSt(v.status_moreno||'DISPONIVEL').bg};color:${corSt(v.status_moreno||'DISPONIVEL').text};border:1px solid ${corSt(v.status_moreno||'DISPONIVEL').border};">MOR: ${labelSt(v.status_moreno||'DISPONIVEL')}</span>`
-                    : `<span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span>`;
+                const statusHtml = `<span style="display:inline-block;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;background:${c.bg};color:${c.text};border:1px solid ${c.border};white-space:nowrap;">${labelSt(st)}</span>`;
                 return `<tr style="background:${idx%2===0?'#fff':'#f8fafc'};">
-                    <td style="padding:5px 8px;font-size:10px;color:#64748b;white-space:nowrap;">${fmtDT(v.data_criacao)}</td>
+                    <td style="padding:5px 8px;font-size:10px;color:#64748b;white-space:nowrap;">${fmtD(v._data)}</td>
                     <td style="padding:5px 8px;font-weight:700;font-size:11px;white-space:nowrap;color:#0f172a;">${v.placa || '—'}</td>
                     <td style="padding:5px 8px;font-size:10px;color:#64748b;">${v.carreta || '—'}</td>
-                    <td style="padding:5px 8px;"><span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:${tipoCor}22;color:${tipoCor};border:1px solid ${tipoCor}44;">${v.tipo_veiculo || '—'}</span></td>
+                    <td style="padding:5px 8px;"><span style="font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;background:${tCor}22;color:${tCor};border:1px solid ${tCor}44;">${tipoFmt}</span></td>
                     <td style="padding:5px 8px;font-size:11px;color:#1e293b;">${v.motorista || '—'}</td>
-                    <td style="padding:5px 8px;font-size:10px;color:#475569;">${v.operacao || '—'}</td>
                     <td style="padding:5px 8px;">${statusHtml}</td>
                     <td style="padding:5px 8px;font-size:10px;color:#475569;font-style:${destino?'normal':'italic'};">${destino || '—'}</td>
                     <td style="padding:5px 8px;font-size:10px;color:#334155;">${v.observacao || ''}</td>
@@ -1772,7 +1806,7 @@ export default function DashboardFrota({ socket }) {
             }).join('');
 
             const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Cards Operacionais — ${periodoStr}</title>
+<title>Programação Diária — ${periodoStr}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;background:#fff;}
@@ -1790,13 +1824,12 @@ export default function DashboardFrota({ socket }) {
   .kpi-lbl{font-size:9px;font-weight:700;margin-top:3px;text-transform:uppercase;letter-spacing:.5px;}
   table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;}
   col.c-criado{width:72px;}
-  col.c-veiculo{width:72px;}
-  col.c-carreta{width:80px;}
-  col.c-tipo{width:58px;}
-  col.c-motorista{width:130px;}
-  col.c-operacao{width:70px;}
-  col.c-status{width:105px;}
-  col.c-destino{width:90px;}
+  col.c-veiculo{width:80px;}
+  col.c-carreta{width:90px;}
+  col.c-tipo{width:62px;}
+  col.c-motorista{width:150px;}
+  col.c-status{width:115px;}
+  col.c-destino{width:140px;}
   col.c-obs{width:auto;}
   thead th{padding:7px 8px;background:#1e293b;color:#f1f5f9;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.4px;text-align:left;border-bottom:2px solid #334155;overflow:hidden;white-space:nowrap;}
   td{border-bottom:1px solid #f1f5f9;vertical-align:top;overflow:hidden;}
@@ -1808,7 +1841,7 @@ export default function DashboardFrota({ socket }) {
 <div class="pagina">
   <div class="header">
     <div>
-      <div class="header-title">TRANSNET — CARDS OPERACIONAIS CRIADOS</div>
+      <div class="header-title">TRANSNET — PROGRAMAÇÃO DIÁRIA</div>
       <div class="header-sub">Período: ${periodoStr}</div>
     </div>
     <div style="text-align:right;font-size:10px;color:#94a3b8;">
@@ -1817,22 +1850,22 @@ export default function DashboardFrota({ socket }) {
     </div>
   </div>
   <div class="kpi-bar">
-    <div class="kpi-card" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;"><div class="kpi-val">${nTotal}</div><div class="kpi-lbl">Total Cards</div></div>
-    <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Operando</div></div>
-    <div class="kpi-card" style="background:#fffbeb;border-color:#f59e0b;color:#92400e;"><div class="kpi-val">${nOc}</div><div class="kpi-lbl">Ociosos</div></div>
+    <div class="kpi-card" style="background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;"><div class="kpi-val">${nTotal}</div><div class="kpi-lbl">Total Veículos</div></div>
+    <div class="kpi-card" style="background:#f0fdf4;border-color:#22c55e;color:#15803d;"><div class="kpi-val">${nOp}</div><div class="kpi-lbl">Em Operação</div></div>
+    <div class="kpi-card" style="background:#ecfdf5;border-color:#10b981;color:#047857;"><div class="kpi-val">${nDp}</div><div class="kpi-lbl">Disponíveis</div></div>
     <div class="kpi-card" style="background:#fff1f2;border-color:#ef4444;color:#991b1b;"><div class="kpi-val">${nMt}</div><div class="kpi-lbl">Manutenção</div></div>
   </div>
   <div style="padding:0 18px 8px;">
     <table>
       <colgroup>
         <col class="c-criado"><col class="c-veiculo"><col class="c-carreta"><col class="c-tipo">
-        <col class="c-motorista"><col class="c-operacao"><col class="c-status"><col class="c-destino"><col class="c-obs">
+        <col class="c-motorista"><col class="c-status"><col class="c-destino"><col class="c-obs">
       </colgroup>
       <thead><tr>
-        <th>Criado em</th><th>Veículo</th><th>Carreta</th><th>Tipo</th>
-        <th>Motorista</th><th>Operação</th><th>Status</th><th>Destino</th><th>Observação</th>
+        <th>Data</th><th>Veículo</th><th>Carreta</th><th>Tipo</th>
+        <th>Motorista</th><th>Status</th><th>Destino</th><th>Observação</th>
       </tr></thead>
-      <tbody>${linhas || '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;">Nenhum card criado no período</td></tr>'}</tbody>
+      <tbody>${linhas || '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">Nenhum veículo provisionado no período</td></tr>'}</tbody>
     </table>
   </div>
   <div class="legenda">
@@ -1862,7 +1895,7 @@ export default function DashboardFrota({ socket }) {
             setModalPdfProv(false);
         } catch (e) {
             console.error('Erro ao gerar PDF:', e);
-            alert('Erro ao gerar PDF. Tente novamente.');
+            setPdfErro(e?.message ? `Erro ao gerar PDF: ${e.message}` : 'Erro ao gerar PDF. Tente novamente.');
         } finally {
             setGerandoPdfProv(false);
         }
@@ -2276,6 +2309,36 @@ export default function DashboardFrota({ socket }) {
                             <button onClick={gerarPdfProvDiario} disabled={gerandoPdfProv}
                                 style={{ display: 'flex', alignItems: 'center', gap: '6px', background: gerandoPdfProv ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#34d399', cursor: gerandoPdfProv ? 'not-allowed' : 'pointer', padding: '8px 18px', fontSize: '13px', fontWeight: '700', opacity: gerandoPdfProv ? 0.7 : 1 }}>
                                 <FileText size={14} /> {gerandoPdfProv ? 'Gerando...' : 'Gerar PDF'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Modal Erro PDF */}
+            {pdfErro && createPortal(
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }} onClick={() => setPdfErro('')}>
+                    <div style={{
+                        background: '#1e293b', border: '1px solid #7f1d1d', borderRadius: '16px',
+                        padding: '24px', width: '380px', boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <X size={18} color="#ef4444" />
+                            </div>
+                            <span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: '700' }}>Falha ao gerar PDF</span>
+                        </div>
+                        <p style={{ color: '#cbd5e1', fontSize: '13px', margin: '0 0 20px', lineHeight: 1.5 }}>
+                            {pdfErro}
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setPdfErro('')}
+                                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', color: '#fca5a5', cursor: 'pointer', padding: '8px 18px', fontSize: '13px', fontWeight: '700' }}>
+                                Fechar
                             </button>
                         </div>
                     </div>
