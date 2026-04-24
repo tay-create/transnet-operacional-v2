@@ -19,6 +19,13 @@ const { authMiddleware, authorize, generateToken } = require('./middleware/authM
 const { sendVerificationEmail, sendPasswordResetEmail } = require('./src/services/emailService');
 
 const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const limparPrefixoColeta = (str) => {
+    const s = (str || '').toString().trim();
+    if (!s) return '';
+    if (!s.includes('PLAS:') && !s.includes('PORC:') && !s.includes('ELET:')) return s;
+    return s.split('|').map(p => p.trim().replace(/^(PLAS|PORC|ELET):/, '').trim()).filter(Boolean).join(',');
+};
 const { validate, loginSchema, novoLancamentoSchema, cubagemSchema, cadastroUsuarioSchema } = require('./middleware/validationMiddleware');
 
 // ── Logger seguro: suprime dados sensíveis em produção ────────────────────────
@@ -1554,7 +1561,7 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
                     // Colunas dedicadas têm prioridade sobre dados_json
                     motorista: row.motorista || dados.motorista || '',
                     placa1Motorista: row.placa1 || dados.placa1Motorista || '',
-                    coleta: row.coleta || dados.coletaRecife || dados.coletaMoreno || '',
+                    coleta: row.coleta || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || '',
                     numero_liberacao: row.numero_liberacao || dados.numero_liberacao || '',
                     data_liberacao: row.data_liberacao || dados.data_liberacao || null,
                     origem_cad: row.origem_cad || dados.origem_cad || '',
@@ -1601,7 +1608,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
                 origem, status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
-                dados.coletaRecife || dados.coletaMoreno || null,
+                dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null,
                 dados.numero_liberacao || null,
                 dados.data_liberacao || null,
                 dados.origem_cad || null,
@@ -1611,7 +1618,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
             ]
         );
         const novo = { id: result.lastID, origem, status, ...dados };
-        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coletaRecife || dados.coletaMoreno || '-'}`);
+        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) {
@@ -1638,7 +1645,7 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 req.params.id, origemCte, status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
-                dados.coletaRecife || dados.coletaMoreno || null,
+                dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null,
                 dados.numero_liberacao || null,
                 dados.data_liberacao || null,
                 dados.origem_cad || null,
@@ -2624,7 +2631,7 @@ async function gerarProgramacaoDiaria(turno) {
                     operacao: v.operacao || '',
                     cliente,
                     unidade: v.unidade || '',
-                    coleta: v.coletaRecife || v.coletaMoreno || v.coleta || v.numero_coleta || '',
+                    coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
                     reprogramado: foiReprogramado ? 1 : 0,
                 });
             });
@@ -2655,7 +2662,7 @@ async function gerarProgramacaoDiaria(turno) {
                     operacao: v.operacao || '',
                     cliente,
                     unidade: v.unidade || '',
-                    coleta: v.coletaRecife || v.coletaMoreno || v.coleta || v.numero_coleta || '',
+                    coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
                     reprogramado: 0,
                 });
             });

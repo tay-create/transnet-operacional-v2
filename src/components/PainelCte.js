@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Copy, ChevronRight, Loader, Trash2 } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
+import { parseColetaMoreno } from '../utils/coletaMoreno';
 
 const COR_STATUS_CTE = {
     'Aguardando Emissão': { border: '#f59e0b', text: '#fcd34d', bg: 'rgba(245,158,11,0.15)' },
@@ -182,18 +183,43 @@ function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, i
                                     </div>
                                 )}
                                 {/* Coletas Moreno */}
-                                {cte.coletaMoreno && cte.coletaMoreno.trim() && (
-                                    <div style={{ marginBottom: '4px' }}>
-                                        <span style={{ fontSize: '9px', color: '#fbbf24', fontWeight: 'bold', textTransform: 'uppercase' }}>Moreno</span>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
-                                            {cte.coletaMoreno.split(',').map((doc, di) => (
-                                                <span key={`m-${di}`} className="doc-badge" style={{ background: 'rgba(245,158,11,0.2)', color: '#fcd34d', border: '1px solid #f59e0b' }}>
-                                                    {doc.trim()}
-                                                </span>
-                                            ))}
+                                {cte.coletaMoreno && cte.coletaMoreno.trim() && (() => {
+                                    const { plastico, porcelana, eletrik } = parseColetaMoreno(cte.coletaMoreno, cte.operacao);
+                                    const grupos = [
+                                        { key: 'plas', valor: plastico, label: 'PLAS', badgeBg: 'rgba(148,163,184,0.22)', badgeText: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', tagBg: 'rgba(148,163,184,0.15)', tagText: '#e2e8f0', tagBorder: 'rgba(148,163,184,0.5)' },
+                                        { key: 'porc', valor: porcelana, label: 'PORC', badgeBg: 'rgba(168,85,247,0.2)', badgeText: '#c084fc', badgeBorder: 'rgba(168,85,247,0.4)', tagBg: 'rgba(168,85,247,0.15)', tagText: '#d8b4fe', tagBorder: 'rgba(168,85,247,0.5)' },
+                                        { key: 'elet', valor: eletrik, label: 'ELET', badgeBg: 'rgba(6,182,212,0.2)', badgeText: '#22d3ee', badgeBorder: 'rgba(6,182,212,0.4)', tagBg: 'rgba(6,182,212,0.15)', tagText: '#67e8f9', tagBorder: 'rgba(6,182,212,0.5)' },
+                                    ].filter(g => g.valor && g.valor.trim());
+                                    const qtdPreenchidos = grupos.length;
+                                    if (qtdPreenchidos >= 2) {
+                                        return (
+                                            <div style={{ marginBottom: '4px' }}>
+                                                <span style={{ fontSize: '9px', color: '#fbbf24', fontWeight: 'bold', textTransform: 'uppercase' }}>Moreno</span>
+                                                {grupos.map(g => (
+                                                    <div key={g.key} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px', marginTop: '3px' }}>
+                                                        <span style={{ fontSize: '8px', fontWeight: '800', padding: '1px 5px', borderRadius: '3px', background: g.badgeBg, color: g.badgeText, border: `1px solid ${g.badgeBorder}` }}>{g.label}</span>
+                                                        {g.valor.split(',').map((doc, di) => (
+                                                            <span key={`${g.key}-${di}`} className="doc-badge" style={{ background: g.tagBg, color: g.tagText, border: `1px solid ${g.tagBorder}` }}>{doc.trim()}</span>
+                                                        ))}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                    const cruas = (plastico || porcelana || eletrik || cte.coletaMoreno).toString();
+                                    return (
+                                        <div style={{ marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '9px', color: '#fbbf24', fontWeight: 'bold', textTransform: 'uppercase' }}>Moreno</span>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+                                                {cruas.split(',').map((doc, di) => (
+                                                    <span key={`m-${di}`} className="doc-badge" style={{ background: 'rgba(245,158,11,0.2)', color: '#fcd34d', border: '1px solid #f59e0b' }}>
+                                                        {doc.trim()}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
                                 {/* Fallback: coleta geral */}
                                 {(!cte.coletaRecife || !cte.coletaRecife.trim()) && (!cte.coletaMoreno || !cte.coletaMoreno.trim()) && cte.coleta && (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>

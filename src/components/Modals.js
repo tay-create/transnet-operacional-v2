@@ -5,6 +5,7 @@ import {
     CheckCircle,
     PieChart, TrendingUp, TrendingDown
 } from 'lucide-react';
+import { displayColetaMoreno } from '../utils/coletaMoreno';
 
 // --- MODAL DE TEMPOS (OPERAÇÃO) ---
 export const ModalTempos = ({ item, onClose, atualizarTempo, isOpen }) => {
@@ -520,7 +521,7 @@ async function gerarPDFPerformanceCte({ listaRec, listaMor, dadosRec, dadosMor, 
             if (y > 230) { doc.addPage(); y = 14; }
             const rows = lista.map(c => [
                 c.motorista || '—',
-                c.coleta || c.coletaRecife || c.coletaMoreno || '—',
+                c.coleta || c.coletaRecife || displayColetaMoreno(c.coletaMoreno) || '—',
                 c.status || '—',
                 c.t_fim_liberado_cte || '—',
                 c.minutos_cte != null ? fmtMinCte(c.minutos_cte) : '—',

@@ -1,3 +1,5 @@
+import { displayColetaMoreno } from './coletaMoreno';
+
 /**
  * Gera PDF ultra-compacto de relatório de carga
  * Otimizado para suportar 30-35 NFs por página
@@ -139,7 +141,7 @@ export const gerarPDFCompacto = async (item) => {
         todasNFs.push(...nfsRecife.map(nf => `${nf} (REC)`));
     }
     if (item.coletaMoreno) {
-        const nfsMoreno = item.coletaMoreno.split(',').map(nf => nf.trim()).filter(Boolean);
+        const nfsMoreno = displayColetaMoreno(item.coletaMoreno).split(',').map(nf => nf.trim()).filter(Boolean);
         todasNFs.push(...nfsMoreno.map(nf => `${nf} (MOR)`));
     }
 

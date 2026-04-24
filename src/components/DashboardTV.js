@@ -6,6 +6,7 @@ import { OPCOES_STATUS, CORES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } f
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
+import { displayColetaMoreno } from '../utils/coletaMoreno';
 
 // Telas extras (Paletes Diário e Fluxo Mensal) — mudar para true no lançamento do sistema
 const TELAS_EXTRAS_ATIVAS = false;
@@ -1440,7 +1441,7 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         const doca = v.doca_moreno;
         if (!doca || doca === 'SELECIONE') return;
         if (!docaVeiculoMapM[doca]) docaVeiculoMapM[doca] = [];
-        docaVeiculoMapM[doca].push({ motorista: v.motorista, coleta: v.coletaMoreno || v.coleta || '' });
+        docaVeiculoMapM[doca].push({ motorista: v.motorista, coleta: displayColetaMoreno(v.coletaMoreno) || v.coleta || '' });
     });
 
     // Fluxo CT-e para Moreno — Consolidado/R×M só entram quando usuario_aceitou estiver preenchido

@@ -8,6 +8,7 @@ import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
 import { gerarPdfCubagem } from '../utils/cubagemPdf';
+import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
@@ -115,7 +116,8 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
 
     useEffect(() => {
         if (formLanca.operacao?.includes('PORCELANA') && formLanca.coletaMoreno) {
-            const primeiraColeta = formLanca.coletaMoreno.split(',')[0].trim();
+            const { porcelana } = parseColetaMoreno(formLanca.coletaMoreno, formLanca.operacao);
+            const primeiraColeta = (porcelana || '').split(',')[0].trim();
             if (primeiraColeta && !cubagensCache[primeiraColeta]) {
                 buscarCubagemPorColeta(primeiraColeta).then(cubagem => {
                     if (cubagem) setCubagemFormulario(cubagem);
@@ -208,11 +210,48 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                             )}
 
                             {/* MORENO */}
-                            {mostraMorenoNoInput && (
+                            {mostraMorenoNoInput && (() => {
+                                const split = opPrecisaSplit(formLanca.operacao);
+                                const showPlas = opTemPlastico(formLanca.operacao);
+                                const showPorc = opTemPorcelana(formLanca.operacao);
+                                const showElet = opTemEletrik(formLanca.operacao);
+                                const { plastico: coletaPlas, porcelana: coletaPorc, eletrik: coletaElet } = parseColetaMoreno(formLanca.coletaMoreno, formLanca.operacao);
+                                const updateSplit = (parte, val) => {
+                                    const atual = { plastico: coletaPlas, porcelana: coletaPorc, eletrik: coletaElet };
+                                    atual[parte] = val;
+                                    setFormLanca({ ...formLanca, coletaMoreno: joinColetaMoreno(atual) });
+                                };
+                                const SUB_STYLES = {
+                                    plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO', placeholder: 'Coletas Plástico...' },
+                                    porcelana: { bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.3)', badgeBg: 'rgba(168,85,247,0.2)', text: '#c084fc', badgeBorder: 'rgba(168,85,247,0.4)', label: 'PORCELANA', placeholder: 'Coletas Porcelana...' },
+                                    eletrik:   { bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.3)', badgeBg: 'rgba(6,182,212,0.2)', text: '#22d3ee', badgeBorder: 'rgba(6,182,212,0.4)', label: 'ELETRIK', placeholder: 'Coletas Eletrik...' },
+                                };
+                                const SubBloco = ({ parte, valor }) => {
+                                    const s = SUB_STYLES[parte];
+                                    return (
+                                        <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '6px', padding: '8px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                                                <span style={{ fontSize: '9px', fontWeight: '800', letterSpacing: '0.5px', padding: '2px 7px', borderRadius: '4px', background: s.badgeBg, color: s.text, border: `1px solid ${s.badgeBorder}` }}>{s.label}</span>
+                                                <label className="label-tech-sm" style={{ color: s.text, margin: 0 }}>COLETAS</label>
+                                            </div>
+                                            <TagInput value={valor} onChange={val => updateSplit(parte, val)} placeholder={s.placeholder} />
+                                        </div>
+                                    );
+                                };
+                                return (
                                 <div style={{ borderLeft: '3px solid #f59e0b', paddingLeft: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     <div>
-                                        <label className="label-tech-sm" style={{ color: '#fbbf24' }}>COLETAS MORENO</label>
-                                        <TagInput value={formLanca.coletaMoreno} onChange={val => setFormLanca({ ...formLanca, coletaMoreno: val })} placeholder="Digite a nota..." />
+                                        {!split && (<>
+                                            <label className="label-tech-sm" style={{ color: '#fbbf24' }}>COLETAS MORENO</label>
+                                            <TagInput value={formLanca.coletaMoreno} onChange={val => setFormLanca({ ...formLanca, coletaMoreno: val })} placeholder="Digite a nota..." />
+                                        </>)}
+                                        {split && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {showPlas && <SubBloco parte="plastico" valor={coletaPlas} />}
+                                                {showPorc && <SubBloco parte="porcelana" valor={coletaPorc} />}
+                                                {showElet && <SubBloco parte="eletrik" valor={coletaElet} />}
+                                            </div>
+                                        )}
 
                                         {/* Card de cubagem encontrada */}
                                         {cubagemFormulario && formLanca.operacao?.includes('PORCELANA') && (
@@ -270,7 +309,8 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                         </div>
                                     </div>
                                 </div>
-                            )}
+                                );
+                            })()}
                         </div>
 
                         {/* Linha 2: Motorista + Veículo */}
