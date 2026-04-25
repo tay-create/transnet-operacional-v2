@@ -1028,11 +1028,16 @@ export default function PainelOperacional({
                                                             disabled={!podeEditarNaUnidade('coleta_card')}
                                                         />
                                                     ) : (
-                                                        <TagInput
-                                                            value={origem === 'Recife' ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
-                                                            onChange={val => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'coletaRecife' : 'coletaMoreno', val)}
-                                                            disabled={!podeEditarNaUnidade('coleta_card')}
-                                                        />
+                                                        <div style={origem === 'Recife'
+                                                            ? { background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', padding: '8px' }
+                                                            : { background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '8px' }
+                                                        }>
+                                                            <TagInput
+                                                                value={origem === 'Recife' ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
+                                                                onChange={val => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'coletaRecife' : 'coletaMoreno', val)}
+                                                                disabled={!podeEditarNaUnidade('coleta_card')}
+                                                            />
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1073,7 +1078,9 @@ export default function PainelOperacional({
                                                                 disabled={!podeEditarNaUnidade('coleta_card')}
                                                             />
                                                         ) : (
-                                                            <TagInput value={item.coletaMoreno || ''} onChange={val => updateList(lista, setLista, realIndex, 'coletaMoreno', val)} disabled={!podeEditarNaUnidade('coleta_card')} />
+                                                            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                                                <TagInput value={item.coletaMoreno || ''} onChange={val => updateList(lista, setLista, realIndex, 'coletaMoreno', val)} disabled={!podeEditarNaUnidade('coleta_card')} />
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -1107,7 +1114,9 @@ export default function PainelOperacional({
 
                                                     {/* LINHA 2: TAGS RECIFE */}
                                                     <div>
-                                                        <TagInput value={item.coletaRecife || ''} onChange={val => updateList(lista, setLista, realIndex, 'coletaRecife', val)} disabled={!podeEditarNaUnidade('coleta_card')} />
+                                                        <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                                            <TagInput value={item.coletaRecife || ''} onChange={val => updateList(lista, setLista, realIndex, 'coletaRecife', val)} disabled={!podeEditarNaUnidade('coleta_card')} />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}

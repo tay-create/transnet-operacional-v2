@@ -197,7 +197,9 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                 <div style={{ borderLeft: '3px solid #3b82f6', paddingLeft: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     <div>
                                         <label className="label-tech-sm" style={{ color: '#60a5fa' }}>COLETAS RECIFE</label>
-                                        <TagInput value={formLanca.coletaRecife} onChange={val => setFormLanca({ ...formLanca, coletaRecife: val })} placeholder="Digite a nota..." />
+                                        <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                            <TagInput value={formLanca.coletaRecife} onChange={val => setFormLanca({ ...formLanca, coletaRecife: val })} placeholder="Digite a nota..." />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="label-tech-sm" style={{ color: '#93c5fd', fontSize: '10px' }}>ROTA RECIFE</label>
@@ -243,7 +245,9 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                     <div>
                                         {!split && (<>
                                             <label className="label-tech-sm" style={{ color: '#fbbf24' }}>COLETAS MORENO</label>
-                                            <TagInput value={formLanca.coletaMoreno} onChange={val => setFormLanca({ ...formLanca, coletaMoreno: val })} placeholder="Digite a nota..." />
+                                            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                                <TagInput value={formLanca.coletaMoreno} onChange={val => setFormLanca({ ...formLanca, coletaMoreno: val })} placeholder="Digite a nota..." />
+                                            </div>
                                         </>)}
                                         {split && (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
