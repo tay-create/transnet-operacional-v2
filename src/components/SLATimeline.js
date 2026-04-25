@@ -142,48 +142,66 @@ export default function SLATimeline({ item, unidade, pausas }) {
         index: i,
     }));
 
-    const ultimaIdx = etapasComAt.reduce((acc, e, i) => (e.at ? i : acc), -1);
     const cteAt = ts?.[`cte_${unidade}_at`] || null;
+    const carregadoAt = ts?.[`carregado_${unidade}_at`] || null;
 
     const algumBadge = dataInicioPatio || etapasComAt.some(e => e.at);
     if (!algumBadge) return null;
 
-    const cteEmitido = item?.status_cte === 'Emitido';
+    // data_emissao do CT-e por unidade (vem do JOIN com ctes_ativos no backend)
+    const dataEmissaoCte = unidade === 'recife' ? item?.data_emissao_cte_recife : item?.data_emissao_cte_moreno;
+    const cteEmitido = item?.status_cte === 'Emitido' && !!dataEmissaoCte;
+
+    // Última etapa real ainda em andamento (ao vivo) — descarta etapas que já têm "fim" conhecido
+    const etapasComFim = etapasComAt.map((etapa, i) => {
+        if (!etapa.at) return { ...etapa, fimAt: null };
+        const ehCte = etapa.label === 'CT-e';
+        const ehCarregado = etapa.label === 'CARREGADO';
+        let fimAt = null;
+        if (ehCte) {
+            fimAt = cteEmitido ? dataEmissaoCte : null;
+        } else if (ehCarregado) {
+            // CARREGADO continua ao vivo até o CT-e ser emitido
+            fimAt = cteEmitido ? dataEmissaoCte : null;
+        } else {
+            // Demais etapas param na próxima etapa cujo timestamp seja >= o atual
+            // (evita "fim negativo" quando próxima etapa foi marcada antes da atual — ex.: CT-e antecipado)
+            const inicioMs = new Date(etapa.at).getTime();
+            for (let j = i + 1; j < etapasComAt.length; j++) {
+                const prox = etapasComAt[j].at;
+                if (prox && new Date(prox).getTime() >= inicioMs) {
+                    fimAt = prox;
+                    break;
+                }
+            }
+        }
+        return { ...etapa, fimAt };
+    });
+
+    const ultimaIdx = etapasComFim.reduce((acc, e, i) => (e.at && !e.fimAt ? i : acc), -1);
     const agora = Date.now();
 
     return (
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            {etapasComAt.map((etapa, i) => {
+            {etapasComFim.map((etapa, i) => {
                 if (!etapa.at) return null;
-                const ehEtapaCte = etapa.label === 'CT-e';
-                const ehEtapaCarregado = etapa.label === 'CARREGADO';
-                // Para CT-e: para quando emitido
-                // Para CARREGADO: para quando existe cte_at (próxima etapa) ou quando não há próxima (não fica ao vivo)
-                // Para demais: para quando a próxima etapa começa
-                const proxAt = ehEtapaCte
-                    ? (cteEmitido ? (item?.datetime_cte || etapa.at) : null)
-                    : (etapasComAt[i + 1]?.at || null);
-                // Ao vivo: última etapa sem próxima etapa definida (exceto CT-e já emitido)
-                const aoVivo = (i === ultimaIdx) && !proxAt && !(ehEtapaCte && cteEmitido);
-
-                // Calcular tempo pausado para esta etapa
+                const aoVivo = i === ultimaIdx;
                 const inicioMs = new Date(etapa.at).getTime();
-                const fimMs = proxAt ? new Date(proxAt).getTime() : agora;
+                const fimMs = etapa.fimAt ? new Date(etapa.fimAt).getTime() : agora;
                 const pausaMs = calcularTempoPausa(pausas || [], unidade, inicioMs, fimMs);
-
                 return (
                     <EtapaCard
                         key={etapa.label}
                         label={etapa.label}
                         inicioAt={etapa.at}
-                        fimAt={proxAt}
+                        fimAt={etapa.fimAt}
                         aoVivo={aoVivo}
                         pausaMs={pausaMs}
                     />
                 );
             })}
             {dataInicioPatio && (
-                <TotalPatioCard dataInicioPatio={dataInicioPatio} cteAt={ts?.[`carregado_${unidade}_at`] || cteAt} />
+                <TotalPatioCard dataInicioPatio={dataInicioPatio} cteAt={carregadoAt || cteAt} />
             )}
         </div>
     );

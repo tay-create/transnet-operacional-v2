@@ -32,7 +32,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 SELECT v.*,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
                        (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
-                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count
+                       (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count,
+                       (SELECT c.data_emissao FROM ctes_ativos c WHERE c.motorista = v.motorista AND c.numero_liberacao = v.numero_liberacao AND c.origem = 'Recife' AND c.status = 'Emitido' ORDER BY c.data_emissao DESC LIMIT 1) as data_emissao_cte_recife,
+                       (SELECT c.data_emissao FROM ctes_ativos c WHERE c.motorista = v.motorista AND c.numero_liberacao = v.numero_liberacao AND c.origem = 'Moreno' AND c.status = 'Emitido' ORDER BY c.data_emissao DESC LIMIT 1) as data_emissao_cte_moreno
                 FROM veiculos v
                 ${whereClause}
                 ORDER BY v.id DESC LIMIT ? OFFSET ?
@@ -100,7 +102,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 dbGet(`
                     SELECT v.*,
                            (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
-                           (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                           (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
+                           (SELECT c.data_emissao FROM ctes_ativos c WHERE c.motorista = v.motorista AND c.numero_liberacao = v.numero_liberacao AND c.origem = 'Recife' AND c.status = 'Emitido' ORDER BY c.data_emissao DESC LIMIT 1) as data_emissao_cte_recife,
+                           (SELECT c.data_emissao FROM ctes_ativos c WHERE c.motorista = v.motorista AND c.numero_liberacao = v.numero_liberacao AND c.origem = 'Moreno' AND c.status = 'Emitido' ORDER BY c.data_emissao DESC LIMIT 1) as data_emissao_cte_moreno
                     FROM veiculos v WHERE v.id = ?
                 `, [req.params.id]),
                 dbAll(`SELECT placa, COALESCE(carreta,'') as carreta FROM prov_veiculos WHERE ativo = 1`, [])

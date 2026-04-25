@@ -313,23 +313,36 @@ function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, i
                                         NÚM. LIB: <strong style={{ color: '#e2e8f0' }}>{cte.numero_liberacao}</strong>
                                     </span>
                                     {(() => {
-                                        // Verificar expiração de 24h
-                                        let expirado = false;
+                                        // Calcular janela de 24h da liberação
                                         const dtLib = cte.data_liberacao || cte.data_liberacao_cad;
-                                        if (dtLib) {
-                                            const dataStr = dtLib.endsWith('Z') ? dtLib : dtLib + 'Z';
-                                            const diffMs = Date.now() - new Date(dataStr).getTime();
-                                            if (diffMs > 24 * 60 * 60 * 1000) {
-                                                expirado = true;
-                                            }
+                                        const dtLibMs = dtLib ? new Date(dtLib.endsWith('Z') ? dtLib : dtLib + 'Z').getTime() : null;
+                                        const limiteMs = dtLibMs ? dtLibMs + 24 * 60 * 60 * 1000 : null;
+
+                                        const emitido = cte.status === 'Emitido';
+                                        const dtEmissao = cte.data_emissao;
+                                        const dtEmissaoMs = dtEmissao ? new Date(dtEmissao.endsWith('Z') ? dtEmissao : dtEmissao + 'Z').getTime() : null;
+
+                                        // Emitido dentro de 24h da liberação → USADO (verde)
+                                        if (emitido && dtLibMs && dtEmissaoMs && dtEmissaoMs <= limiteMs) {
+                                            return (
+                                                <button
+                                                    disabled
+                                                    style={{ border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.1)', color: '#4ade80', borderRadius: '4px', padding: '4px 8px', cursor: 'default', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 'bold' }}
+                                                    title="Liberação utilizada dentro do prazo de 24h."
+                                                >
+                                                    USADO
+                                                </button>
+                                            );
                                         }
 
+                                        // Não emitido (ou emitido fora do prazo) e já passou de 24h → VENCIDA
+                                        const expirado = limiteMs && Date.now() > limiteMs;
                                         if (expirado) {
                                             return (
                                                 <button
                                                     disabled
                                                     style={{ border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', borderRadius: '4px', padding: '4px 8px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 'bold' }}
-                                                    title="Liberação vencida (>24h). Solicite renovação."
+                                                    title={emitido ? 'Liberação vencida — CT-e foi emitido após 24h.' : 'Liberação vencida (>24h). Solicite renovação.'}
                                                 >
                                                     VENCIDA
                                                 </button>
