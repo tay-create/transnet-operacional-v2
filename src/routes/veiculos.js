@@ -87,7 +87,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     placa2Motorista: dados_json.placa2Motorista || '',
                     telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                     telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || placasProvisao.has(normPlaca(dados_json.placa1Motorista)) || placasProvisao.has(normPlaca(row.placa)) || false,
+                    isFrotaMotorista: row.is_frota_bd === 1 || placasProvisao.has(normPlaca(dados_json.placa1Motorista)) || placasProvisao.has(normPlaca(row.placa)) || false,
                     checklistFeito: parseInt(row.checklist_count) > 0,
                     dados_json: row.dados_json || '{}'
                 };
@@ -146,7 +146,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 placa2Motorista: dados_json.placa2Motorista || '',
                 telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                 telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
-                isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || placasProvId.has(normPlacaId(dados_json.placa1Motorista)) || placasProvId.has(normPlacaId(row.placa)) || false,
+                isFrotaMotorista: row.is_frota_bd === 1 || placasProvId.has(normPlacaId(dados_json.placa1Motorista)) || placasProvId.has(normPlacaId(row.placa)) || false,
                 dados_json: row.dados_json || '{}'
             };
             res.json({ success: true, veiculo });
@@ -1071,7 +1071,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     placa2Motorista: dj.placa2Motorista || '',
                     telefoneMotorista: dj.telefoneMotorista || atualizado.telefone_bd || '',
                     telefone: atualizado.telefone_bd || dj.telefoneMotorista || '',
-                    isFrotaMotorista: dj.isFrotaMotorista || atualizado.is_frota_bd === 1 || false,
+                    isFrotaMotorista: atualizado.is_frota_bd === 1 || false,
                 };
                 io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), ...veiculoSocket });
             } else {
@@ -1312,7 +1312,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     timestamps_status: (() => { try { return JSON.parse(row.timestamps_status || '{}'); } catch { return {}; } })(),
                     pausas_status: row.pausas_status || '[]',
                     tipoVeiculo: dados_json.tipoVeiculo || '',
-                    isFrotaMotorista: dados_json.isFrotaMotorista || row.is_frota_bd === 1 || false,
+                    isFrotaMotorista: row.is_frota_bd === 1 || false,
                 };
             });
 
