@@ -159,10 +159,12 @@ export default function SLATimeline({ item, unidade, pausas }) {
         const ehCarregado = etapa.label === 'CARREGADO';
         let fimAt = null;
         if (ehCte) {
+            // CT-e para quando emitido
             fimAt = cteEmitido ? dataEmissaoCte : null;
         } else if (ehCarregado) {
-            // CARREGADO continua ao vivo até o CT-e ser emitido
-            fimAt = cteEmitido ? dataEmissaoCte : null;
+            // CARREGADO para apenas quando carregado_at existe (o card foi marcado fisicamente)
+            // — não para com o CT-e antecipado
+            fimAt = carregadoAt || null;
         } else {
             // Demais etapas param na próxima etapa cujo timestamp seja >= o atual
             // (evita "fim negativo" quando próxima etapa foi marcada antes da atual — ex.: CT-e antecipado)
