@@ -338,10 +338,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             const atrasados = ocorrencias.filter(o => verificarAtraso(o)).length;
             const em_andamento = ocorrencias.filter(o => o.situacao === 'Em Andamento').length;
 
-            // Agrupar por operacao para gráfico
+            // Agrupar por operacao para gráfico (normaliza "Delta" legado → "Consolidado")
             const por_operacao = {};
             ocorrencias.forEach(o => {
-                const op = o.operacao || 'Não especificada';
+                const op = (o.operacao || 'Não especificada').replace(/^Delta$/i, 'Consolidado');
                 por_operacao[op] = (por_operacao[op] || 0) + 1;
             });
 

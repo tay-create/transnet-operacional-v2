@@ -332,7 +332,8 @@ export const gerarPDFPaletes = async (registros, kpis) => {
 export const gerarPDFPosEmbarque = async (relatorio, filtros = {}, periodo = {}) => {
     try {
         const { jsPDF } = await import('jspdf');
-        await import('jspdf-autotable');
+        const { applyPlugin } = await import('jspdf-autotable');
+        applyPlugin(jsPDF);
 
         const ocorrencias = relatorio?.ocorrencias || [];
         const metricas = relatorio?.metricas || { total: 0, resolvidos: 0, atrasados: 0, em_andamento: 0 };
@@ -669,6 +670,6 @@ export const gerarPDFPosEmbarque = async (relatorio, filtros = {}, periodo = {})
         document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (e) {
         console.error('Erro ao gerar PDF pós-embarque:', e);
-        alert('Erro ao gerar PDF. Tente novamente.');
+        throw e;
     }
 };

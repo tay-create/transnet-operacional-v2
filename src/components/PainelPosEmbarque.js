@@ -684,6 +684,7 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
     const [relatorio, setRelatorio] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [gerandoPDF, setGerandoPDF] = useState(false);
+    const [modalConfirm, setModalConfirm] = useState(null);
 
     const [filtros, setFiltros] = useState({
         motorista: '',
@@ -720,6 +721,12 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
         setGerandoPDF(true);
         try {
             await gerarPDFPosEmbarque(relatorio, filtros, { de: dataInicio, ate: dataFim });
+        } catch (e) {
+            setModalConfirm({
+                titulo: 'Erro ao gerar PDF',
+                mensagem: 'Não foi possível gerar o PDF. Tente novamente.',
+                variante: 'perigo'
+            });
         } finally {
             setGerandoPDF(false);
         }
@@ -815,7 +822,7 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
                     <h4 style={{ marginBottom: '12px' }}>Embarques por Operação</h4>
                     <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
-                            <Pie dataKey="value" data={dadosPorOperacao} fill="#06b6d4" label>
+                            <Pie dataKey="value" data={dadosPorOperacao} fill="#06b6d4" label={({ name, value }) => `${value} — ${name}`} labelLine={true}>
                                 {dadosPorOperacao.map((_, i) => <Cell key={i} fill={['#06b6d4', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'][i % 5]} />)}
                             </Pie>
                             <Tooltip />
@@ -890,6 +897,14 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
                     </div>
                 )}
             </div>
+            {modalConfirm && (
+                <ModalConfirm
+                    titulo={modalConfirm.titulo}
+                    mensagem={modalConfirm.mensagem}
+                    variante={modalConfirm.variante || 'perigo'}
+                    onCancel={() => setModalConfirm(null)}
+                />
+            )}
         </div>
     );
 }
