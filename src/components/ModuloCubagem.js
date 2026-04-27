@@ -732,7 +732,7 @@ export default function ModuloCubagem() {
                 </div>
 
                 {/* Linhas */}
-                <div style={{ maxHeight: '520px', overflowY: 'auto' }}>
+                <div style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}>
                     {linhasFiltradas.length === 0 && (
                         <div style={{ padding: '40px', textAlign: 'center', color: '#475569', fontSize: '14px' }}>
                             {loading ? 'Carregando...' : 'Nenhum registro encontrado.'}
