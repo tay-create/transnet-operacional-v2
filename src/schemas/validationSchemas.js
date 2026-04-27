@@ -108,7 +108,14 @@ export const cubagemSchema = z.object({
                 z.number()
             ]).refine(val => val >= 0, {
                 message: 'Metragem deve ser um número positivo'
-            })
+            }),
+            uf: z.string().optional().transform(val => val || ''),
+            regiao: z.string().optional().transform(val => val || ''),
+            valor: z.number().optional().default(0),
+            volumes: z.number().optional().default(0),
+            peso_kg: z.number().optional().default(0),
+            redespacho_nome: z.string().nullable().optional().default(null),
+            redespacho_uf: z.string().nullable().optional().default(null),
         })
     ).optional().default([]),
     metragem_total: z.number()
