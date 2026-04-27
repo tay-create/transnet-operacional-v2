@@ -781,8 +781,8 @@ export default function ModuloCubagem() {
                                 <div style={{ color: '#4ade80', textAlign: 'right', fontSize: '11px' }}>
                                     {r.valor > 0 ? r.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
                                 </div>
-                                <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {r.nf || '—'}
+                                <div style={{ color: r.nf ? '#94a3b8' : '#475569', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: r.nf ? 'normal' : 'italic' }}>
+                                    {r.nf || 'Em faturamento'}
                                 </div>
                                 <div><BadgeStatus status={r.status} /></div>
                             </div>
