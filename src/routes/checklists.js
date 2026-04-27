@@ -280,7 +280,8 @@ module.exports = function createChecklistsRouter(io) {
                     checklistAprovado,
                     status_cte: v.status_cte || '',
                     status_recife: v.status_recife || '',
-                    status_moreno: v.status_moreno || ''
+                    status_moreno: v.status_moreno || '',
+                    entregaLocal: dados.entregaLocal || false
                 };
             }));
 

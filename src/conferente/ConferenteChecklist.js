@@ -136,8 +136,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const avancarStatus = async () => {
         const proximo = STATUS_CONFERENTE[idxAtual + 1];
         if (!proximo) return;
-        // Interceptar CARREGADO para exigir foto do lacre primeiro
-        if (proximo === 'CARREGADO') {
+        // Interceptar CARREGADO para exigir foto do lacre (exceto Entrega Local)
+        if (proximo === 'CARREGADO' && !v.entregaLocal) {
             setFotosLacre([]);
             setModalFotoLacre(true);
             return;
