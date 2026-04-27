@@ -91,7 +91,7 @@ export default function Sidebar({
 
     // Normaliza cargo para comparação case-insensitive
     const cargo = (user?.cargo || '').toUpperCase();
-    const ehCoordenador = cargo === 'COORDENADOR';
+    const ehCoordenador = cargo === 'COORDENADOR' || cargo === 'DESENVOLVEDOR';
     const ehViewer = cargo === 'DASHBOARD VIEWER';
 
     return (

@@ -578,7 +578,7 @@ function App({ socket }) {
 
     const temAcesso = (modulo) => {
         if (!user) return false;
-        if (user.cargo === 'Coordenador') return true;
+        if (user.cargo === 'Coordenador' || user.cargo === 'Desenvolvedor') return true;
         if (user.usaPermissaoIndividual) {
             return user.permissoesAcesso && user.permissoesAcesso.includes(modulo);
         }
@@ -587,7 +587,7 @@ function App({ socket }) {
 
     const podeEditar = (modulo) => {
         if (!user) return false;
-        if (user.cargo === 'Coordenador') return true;
+        if (user.cargo === 'Coordenador' || user.cargo === 'Desenvolvedor') return true;
         if (user.usaPermissaoIndividual) {
             if (user.permissoesEdicao && user.permissoesEdicao.length > 0) {
                 return user.permissoesEdicao.includes(modulo);
@@ -1196,6 +1196,7 @@ function App({ socket }) {
             ativarNotificacoes={ativarNotificacoes}
             handleUpdateAvatar={handleUpdateAvatar}
             handleRemoverNotificacao={handleRemoverNotificacao}
+            socket={socket}
         >
             {/* MODAL DE CONFIRMAÇÃO GLOBAL */}
             {confirmarRemover && <ModalConfirm titulo="Excluir veículo" mensagem={confirmarRemover.mensagem} textConfirm="Excluir" onConfirm={confirmarRemover.onConfirm} onCancel={() => setConfirmarRemover(null)} />}

@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import {
     Bell, User, Check, X,
     Calendar, LogOut, ClipboardList, FileText,
-    AlertTriangle, ShieldOff, MessageCircle
+    AlertTriangle, ShieldOff, MessageCircle, MessageSquare
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
 import api from '../services/apiService';
 import logoImg from '../assets/logo.png';
+import ModalChamados from './ModalChamados';
 
 function BotaoWhatsapp({ usuarioId, telefone, nome, onEnviado }) {
     const [enviado, setEnviado] = useState(false);
@@ -57,7 +58,8 @@ function BotaoWhatsapp({ usuarioId, telefone, nome, onEnviado }) {
 export default function Header({
     onLogout,
     aceitarCtePelaNotificacao,
-    handleRemoverNotificacao
+    handleRemoverNotificacao,
+    socket
 }) {
     const { user, temAcesso } = useAuthStore();
     const {
@@ -69,6 +71,7 @@ export default function Header({
     } = useUIStore();
 
     const [time, setTime] = useState(new Date());
+    const [modalChamadosAberto, setModalChamadosAberto] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 1000);
@@ -87,6 +90,7 @@ export default function Header({
     };
 
     return (
+        <>
         <header className="header-glass">
             {/* LOGOTIPO - USANDO NOVO ASSET logo.png */}
             <div style={{ padding: '2px 0', marginLeft: '10px' }}>
@@ -134,7 +138,7 @@ export default function Header({
                     </button>
                 )}
 
-                {(user.cargo === 'Coordenador' || user.cargo === 'Planejamento') && (
+                {(user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') && (
                     <button
                         onClick={() => openModal('logs')}
                         className="btn-menu-toggle"
@@ -144,6 +148,15 @@ export default function Header({
                         <FileText size={18} color="#a855f7" />
                     </button>
                 )}
+
+                <button
+                    onClick={() => setModalChamadosAberto(true)}
+                    className="btn-menu-toggle"
+                    title="Chamados e Melhorias"
+                    style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <MessageSquare size={18} color="#34d399" />
+                </button>
 
                 <div style={{ position: 'relative' }}>
                     <button className="notification-btn" onClick={toggleNotificacoes} style={{ position: 'relative' }}>
@@ -227,5 +240,14 @@ export default function Header({
                 </button>
             </div>
         </header>
+
+        {modalChamadosAberto && (
+            <ModalChamados
+                user={user}
+                socket={socket}
+                onClose={() => setModalChamadosAberto(false)}
+            />
+        )}
+        </>
     );
 }

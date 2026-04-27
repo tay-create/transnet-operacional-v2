@@ -106,7 +106,7 @@ const authorize = (cargosPermitidos) => {
             });
         }
 
-        const CARGOS_ADMIN = ['Coordenador', 'Direção', 'Adm Frota'];
+        const CARGOS_ADMIN = ['Coordenador', 'Direção', 'Adm Frota', 'Desenvolvedor'];
         const temAcesso = CARGOS_ADMIN.includes(req.user.cargo) || cargosPermitidos.includes(req.user.cargo);
         if (!temAcesso) {
             return res.status(403).json({

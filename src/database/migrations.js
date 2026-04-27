@@ -5,6 +5,7 @@ const { dbRun, dbGet } = require('./db');
 const PERMISSOES_PADRAO = JSON.stringify({
     'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
+    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
     'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
     'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes'],
@@ -20,6 +21,7 @@ const PERMISSOES_PADRAO = JSON.stringify({
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
     'Direção':          ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
+    'Desenvolvedor':    ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Adm Frota':        ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
     'Encarregado':      ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
@@ -538,6 +540,34 @@ const inicializarBanco = async () => {
 
         await dbRun(`CREATE TABLE IF NOT EXISTS posemb_motivos (
             nome TEXT PRIMARY KEY
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS chamados (
+            id SERIAL PRIMARY KEY,
+            titulo TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'ajuste',
+            status TEXT NOT NULL DEFAULT 'Analisando',
+            autor_nome TEXT NOT NULL,
+            autor_cargo TEXT NOT NULL,
+            criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS chamados_imagens (
+            id SERIAL PRIMARY KEY,
+            chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
+            imagem TEXT NOT NULL,
+            criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS chamados_historico (
+            id SERIAL PRIMARY KEY,
+            chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
+            status_anterior TEXT,
+            status_novo TEXT NOT NULL,
+            autor_nome TEXT NOT NULL,
+            criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`);
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR

@@ -14,7 +14,8 @@ export default function MainLayout({
     buscarRelatorioCte,
     ativarNotificacoes,
     handleUpdateAvatar,
-    handleRemoverNotificacao
+    handleRemoverNotificacao,
+    socket
 }) {
     const { user } = useAuthStore();
     const {
@@ -31,6 +32,7 @@ export default function MainLayout({
                 onLogout={onLogout}
                 aceitarCtePelaNotificacao={aceitarCtePelaNotificacao}
                 handleRemoverNotificacao={handleRemoverNotificacao}
+                socket={socket}
             />
 
             <ModalAvatar

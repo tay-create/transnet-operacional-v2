@@ -148,9 +148,9 @@ export const cadastroUsuarioSchema = z.object({
         .toLowerCase(),
     senha: z.string()
         .min(3, 'Senha deve ter no mínimo 3 caracteres'),
-    cidade: z.enum(['Recife', 'Moreno'], {
-        errorMap: () => ({ message: 'Cidade deve ser Recife ou Moreno' })
-    }),
+    cidade: z.enum(['Recife', 'Moreno', 'Ambas'], {
+        errorMap: () => ({ message: 'Cidade deve ser Recife, Moreno ou Ambas' })
+    }).optional().default('Recife'),
     cargo: z.string()
         .min(1, 'Cargo é obrigatório')
 });
