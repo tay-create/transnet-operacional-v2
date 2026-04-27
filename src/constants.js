@@ -7,7 +7,7 @@ export const MODULOS_SISTEMA = [
     { id: 'cubagem', label: 'Cálculo de Cubagem' },
     { id: 'relatorios', label: 'Relatórios Gerenciais' },
     { id: 'relatorio_op', label: 'Relatório Operacional' },
-    { id: 'dashboard_tv', label: 'Dashboard TV' },
+    { id: 'dashboard_tv', label: 'Dashboard Operação' },
     { id: 'fila', label: 'Fila de Espera' },
     { id: 'ver_unidade_recife', label: 'Ver Unidade: RECIFE' },
     { id: 'ver_unidade_moreno', label: 'Ver Unidade: MORENO' },

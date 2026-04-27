@@ -34,7 +34,7 @@ const CARDS = [
     {
         id: 'dashboard',
         Icon: Monitor,
-        titulo: 'Dashboard TV',
+        titulo: 'Dashboard Operação',
         descricao: 'Visão geral',
         cor: '#a78bfa',
         corFundo: 'rgba(167,139,250,0.08)',

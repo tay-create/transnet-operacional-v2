@@ -192,7 +192,7 @@ export default function Sidebar({
                         <MenuItem icon={<Clock size={20} />} label="Tempo Médio de Contratação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
                         <MenuItem icon={<FileText size={20} />} label="Relatório CT-e" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />
                         <MenuItem icon={<Warehouse size={20} />} label="Relatório de Cubagem" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cubagem'); }} />
-                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
+                        <MenuItem icon={<Monitor size={20} />} label="Dashboard Operação" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}
 
@@ -200,7 +200,7 @@ export default function Sidebar({
                 {(ehViewer || (temAcesso('dashboard_tv') && !temAcesso('relatorios'))) && (
                     <>
                         <Divider label="Dashboard" aberto={aberto} />
-                        <MenuItem icon={<Monitor size={20} />} label="Dashboard TV" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
+                        <MenuItem icon={<Monitor size={20} />} label="Dashboard Operação" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}
 
