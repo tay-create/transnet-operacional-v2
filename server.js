@@ -1742,7 +1742,7 @@ app.get('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento']),
     }
 });
 
-app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
+app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente', 'Adm Frota', 'Conhecimento']), async (req, res) => {
     try {
         const cubagem = await dbGet("SELECT * FROM cubagens WHERE numero_coleta = ?", [req.params.numero]);
         if (cubagem) {
