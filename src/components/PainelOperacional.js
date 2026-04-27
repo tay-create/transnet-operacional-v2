@@ -1221,8 +1221,18 @@ export default function PainelOperacional({
                                                             <FileText size={16} />
                                                         </a>
 
+                                                        {/* Badge Entrega Local */}
+                                                        {item.entregaLocal && (
+                                                            <span
+                                                                title="Entrega Local — sem lacre"
+                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', background: 'rgba(16,185,129,0.15)', borderRadius: '12px', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)', fontSize: '10px', fontWeight: '700' }}
+                                                            >
+                                                                <MapPin size={11} /> LOCAL
+                                                            </span>
+                                                        )}
+
                                                         {/* Badge Lacre */}
-                                                        {(() => {
+                                                        {!item.entregaLocal && (() => {
                                                             const campoLacre = origem === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
                                                             const raw = item[campoLacre];
                                                             if (!raw) return null;
@@ -1424,6 +1434,32 @@ export default function PainelOperacional({
                                                         <Circle size={8} fill={corStatus.border} color={corStatus.border} />
                                                         <span style={{ fontSize: '12px', fontWeight: 'bold', color: corStatus.text }}>{valorStatusAtual}</span>
                                                     </div>
+                                                </div>
+                                            )}
+
+                                            {/* Toggle Entrega Local */}
+                                            {podeEditarNaUnidade('operacao') && (
+                                                <div
+                                                    onClick={() => {
+                                                        const novaLista = [...lista];
+                                                        novaLista[realIndex] = { ...novaLista[realIndex], entregaLocal: !item.entregaLocal };
+                                                        setLista(novaLista);
+                                                        const payload = { ...novaLista[realIndex] };
+                                                        delete payload.imagens;
+                                                        delete payload.dados_json;
+                                                        api.put(`/veiculos/${item.id}`, payload).catch(() => {});
+                                                    }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '8px',
+                                                        padding: '7px 10px', borderRadius: '6px', cursor: 'pointer',
+                                                        background: item.entregaLocal ? 'rgba(16,185,129,0.12)' : 'rgba(30,41,59,0.5)',
+                                                        border: `1px solid ${item.entregaLocal ? 'rgba(16,185,129,0.4)' : 'rgba(71,85,105,0.3)'}`,
+                                                        userSelect: 'none'
+                                                    }}
+                                                >
+                                                    <input type="checkbox" checked={!!item.entregaLocal} onChange={() => {}} style={{ accentColor: '#10b981', width: '13px', height: '13px', cursor: 'pointer' }} />
+                                                    <span style={{ fontSize: '11px', fontWeight: 700, color: item.entregaLocal ? '#10b981' : '#64748b', letterSpacing: '0.04em' }}>ENTREGA LOCAL</span>
+                                                    <span style={{ fontSize: '10px', color: '#475569' }}>(sem lacre)</span>
                                                 </div>
                                             )}
 

@@ -88,6 +88,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                     telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
                     isFrotaMotorista: row.is_frota_bd === 1 || placasProvisao.has(normPlaca(dados_json.placa1Motorista)) || placasProvisao.has(normPlaca(row.placa)) || false,
+                    entregaLocal: dados_json.entregaLocal || false,
                     checklistFeito: parseInt(row.checklist_count) > 0,
                     dados_json: row.dados_json || '{}'
                 };
@@ -147,6 +148,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 telefoneMotorista: dados_json.telefoneMotorista || row.telefone_bd || '',
                 telefone: row.telefone_bd || dados_json.telefoneMotorista || '',
                 isFrotaMotorista: row.is_frota_bd === 1 || placasProvId.has(normPlacaId(dados_json.placa1Motorista)) || placasProvId.has(normPlacaId(row.placa)) || false,
+                entregaLocal: dados_json.entregaLocal || false,
                 dados_json: row.dados_json || '{}'
             };
             res.json({ success: true, veiculo });

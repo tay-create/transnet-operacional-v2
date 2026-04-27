@@ -41,6 +41,9 @@ export const novoLancamentoSchema = z.object({
     observacao: z.string()
         .optional()
         .transform(val => val || ''),
+    entregaLocal: z.boolean()
+        .optional()
+        .default(false),
     imagens: z.array(z.string())
         .optional()
         .default([])

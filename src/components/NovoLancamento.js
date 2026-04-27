@@ -451,6 +451,31 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                             )}
                         </div>
 
+                        {/* Entrega Local */}
+                        <div
+                            onClick={() => setFormLanca(prev => ({ ...prev, entregaLocal: !prev.entregaLocal }))}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '10px',
+                                padding: '10px 14px', borderRadius: '8px', cursor: 'pointer',
+                                background: formLanca.entregaLocal ? 'rgba(16,185,129,0.12)' : 'rgba(30,41,59,0.5)',
+                                border: `1px solid ${formLanca.entregaLocal ? 'rgba(16,185,129,0.4)' : 'rgba(71,85,105,0.4)'}`,
+                                userSelect: 'none'
+                            }}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={!!formLanca.entregaLocal}
+                                onChange={() => {}}
+                                style={{ accentColor: '#10b981', width: '15px', height: '15px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: formLanca.entregaLocal ? '#10b981' : '#94a3b8', letterSpacing: '0.05em' }}>
+                                ENTREGA LOCAL
+                            </span>
+                            <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>
+                                (sem lacre — motorista de frota)
+                            </span>
+                        </div>
+
                         {/* Campo de Observação */}
                         <div>
                             <label className="label-tech-sm"><FileText size={12} style={{ display: 'inline', marginRight: '4px' }} /> OBSERVAÇÃO</label>
