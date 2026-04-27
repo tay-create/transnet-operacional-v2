@@ -24,7 +24,7 @@ const ModalAdmin = ({ isOpen, onClose }) => {
     const [confirmar, setConfirmar] = useState(null);
 
     if (!isOpen) return null;
-    if (user?.cargo !== 'Coordenador') return null;
+    if (!['Coordenador', 'Direção', 'Desenvolvedor'].includes(user?.cargo)) return null;
 
     const handleAprovar = async (p) => {
         const cargo = cargosSelecionados[p.id] || 'Aux. Operacional';
