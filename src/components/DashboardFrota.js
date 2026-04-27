@@ -1599,6 +1599,11 @@ export default function DashboardFrota({ socket }) {
     const [pdfAte, setPdfAte] = useState(hoje);
     const [gerandoPdfProv, setGerandoPdfProv] = useState(false);
     const [pdfErro, setPdfErro] = useState('');
+    // Passo 2 do modal: seleção de veículos
+    const [pdfPassoSel, setPdfPassoSel] = useState(false); // true = mostra lista de seleção
+    const [pdfListaVeiculos, setPdfListaVeiculos] = useState([]); // veículos carregados para selecionar
+    const [pdfSelecionados, setPdfSelecionados] = useState(new Set()); // índices selecionados
+    const [pdfCarregandoLista, setPdfCarregandoLista] = useState(false);
     const [obsSalvandoCard, setObsSalvandoCard] = useState({});
 
     const salvarObsCard = async (veiculoId) => {
@@ -1706,16 +1711,13 @@ export default function DashboardFrota({ socket }) {
         return `${d}/${m}/${y}`;
     };
 
-    async function gerarPdfProvDiario() {
+    // Carrega lista de veículos para o modal de seleção
+    async function carregarListaParaSelecao() {
         if (!pdfDe || !pdfAte) return;
-        setGerandoPdfProv(true);
+        setPdfCarregandoLista(true);
         setPdfErro('');
         try {
             const fmtD = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
-            const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
-            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-
-            // Monta lista de datas no intervalo (UTC-safe via parsing manual)
             const datas = [];
             {
                 const [y1,m1,d1] = pdfDe.split('-').map(Number);
@@ -1727,22 +1729,39 @@ export default function DashboardFrota({ socket }) {
                     cur.setUTCDate(cur.getUTCDate() + 1);
                 }
             }
-
-            // Busca o snapshot de provisionamento de cada dia
             const snapshots = await Promise.all(
                 datas.map(async data => {
                     try {
                         const r = await api.get(`/api/provisionamento/dashboard?data=${data}`);
                         const lista = (r.data?.veiculos || []).map(v => ({ ...v, _data: data }));
-                        return { data, lista };
+                        return lista;
                     } catch (e) {
                         console.error('Erro ao buscar provisionamento de', data, e);
-                        return { data, lista: [] };
+                        return [];
                     }
                 })
             );
+            const lista = snapshots.flat();
+            setPdfListaVeiculos(lista);
+            setPdfSelecionados(new Set(lista.map((_, i) => i)));
+            setPdfPassoSel(true);
+        } catch (e) {
+            setPdfErro('Erro ao carregar veículos: ' + (e?.message || ''));
+        } finally {
+            setPdfCarregandoLista(false);
+        }
+    }
 
-            const vs = snapshots.flatMap(s => s.lista);
+    async function gerarPdfProvDiario(vsParam) {
+        if (!pdfDe || !pdfAte) return;
+        setGerandoPdfProv(true);
+        setPdfErro('');
+        try {
+            const fmtD = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
+            const periodoStr = pdfDe === pdfAte ? fmtD(pdfDe) : `${fmtD(pdfDe)} a ${fmtD(pdfAte)}`;
+            const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+            const vs = vsParam;
 
             const OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA','PROJETO_SUL','PROJETO_SP']);
             const MANUT    = new Set(['MANUTENCAO']);
@@ -2086,7 +2105,7 @@ export default function DashboardFrota({ socket }) {
                                     style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '8px', color: '#a5b4fc', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600', opacity: carregandoProg ? 0.6 : 1 }}>
                                     ↻
                                 </button>
-                                <button onClick={() => setModalPdfProv(true)}
+                                <button onClick={() => { setModalPdfProv(true); setPdfPassoSel(false); setPdfDe(dataProgDia); setPdfAte(dataProgDia); }}
                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', color: '#34d399', cursor: 'pointer', padding: '6px 12px', fontSize: '12px', fontWeight: '600' }}>
                                     <FileText size={13} /> Relatório PDF
                                 </button>
@@ -2268,7 +2287,8 @@ export default function DashboardFrota({ socket }) {
             })()}
 
             {/* Modal PDF Provisionamento */}
-            {modalPdfProv && createPortal(
+            {/* Modal PDF — Passo 1: selecionar período */}
+            {modalPdfProv && !pdfPassoSel && createPortal(
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2287,7 +2307,7 @@ export default function DashboardFrota({ socket }) {
                             </button>
                         </div>
                         <p style={{ color: '#64748b', fontSize: '12px', margin: '0 0 20px' }}>
-                            Gera um relatório PDF com uma página por dia, mostrando todos os veículos em operação, destinos e motoristas.
+                            Selecione o período. Na próxima tela você poderá escolher quais veículos entram no PDF.
                         </p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
                             <div>
@@ -2306,9 +2326,137 @@ export default function DashboardFrota({ socket }) {
                                 style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', cursor: 'pointer', padding: '8px 16px', fontSize: '13px', fontWeight: '600' }}>
                                 Cancelar
                             </button>
-                            <button onClick={gerarPdfProvDiario} disabled={gerandoPdfProv}
-                                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: gerandoPdfProv ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#34d399', cursor: gerandoPdfProv ? 'not-allowed' : 'pointer', padding: '8px 18px', fontSize: '13px', fontWeight: '700', opacity: gerandoPdfProv ? 0.7 : 1 }}>
-                                <FileText size={14} /> {gerandoPdfProv ? 'Gerando...' : 'Gerar PDF'}
+                            <button onClick={carregarListaParaSelecao} disabled={pdfCarregandoLista || !pdfDe || !pdfAte}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: pdfCarregandoLista ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#34d399', cursor: (pdfCarregandoLista || !pdfDe || !pdfAte) ? 'not-allowed' : 'pointer', padding: '8px 18px', fontSize: '13px', fontWeight: '700', opacity: (pdfCarregandoLista || !pdfDe || !pdfAte) ? 0.7 : 1 }}>
+                                {pdfCarregandoLista ? 'Carregando...' : 'Avançar →'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Modal PDF — Passo 2: selecionar veículos */}
+            {modalPdfProv && pdfPassoSel && createPortal(
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+                }} onClick={() => { setModalPdfProv(false); setPdfPassoSel(false); }}>
+                    <div style={{
+                        background: '#1e293b', border: '1px solid #334155', borderRadius: '16px',
+                        padding: '0', width: '700px', maxWidth: '95vw', maxHeight: '85vh',
+                        display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                    }} onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #334155' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <FileText size={18} color="#34d399" />
+                                <span style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: '700' }}>Selecionar Veículos</span>
+                                <span style={{ background: 'rgba(51,65,85,0.8)', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '10px' }}>
+                                    {pdfSelecionados.size}/{pdfListaVeiculos.length} selecionados
+                                </span>
+                            </div>
+                            <button onClick={() => { setModalPdfProv(false); setPdfPassoSel(false); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px' }}>
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Toolbar: selecionar todos / limpar */}
+                        <div style={{ padding: '12px 24px', borderBottom: '1px solid #1e293b', background: '#0f172a', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <button onClick={() => setPdfSelecionados(new Set(pdfListaVeiculos.map((_, i) => i)))}
+                                style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '6px', color: '#93c5fd', cursor: 'pointer', padding: '5px 12px', fontSize: '12px', fontWeight: '600' }}>
+                                Selecionar todos
+                            </button>
+                            <button onClick={() => setPdfSelecionados(new Set())}
+                                style={{ background: 'rgba(100,116,139,0.1)', border: '1px solid rgba(100,116,139,0.3)', borderRadius: '6px', color: '#64748b', cursor: 'pointer', padding: '5px 12px', fontSize: '12px', fontWeight: '600' }}>
+                                Limpar seleção
+                            </button>
+                        </div>
+
+                        {/* Lista de veículos com checkbox */}
+                        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
+                            {pdfListaVeiculos.length === 0 ? (
+                                <div style={{ padding: '32px', textAlign: 'center', color: '#475569', fontSize: '13px' }}>
+                                    Nenhum veículo no período selecionado.
+                                </div>
+                            ) : pdfListaVeiculos.map((v, idx) => {
+                                const sel = pdfSelecionados.has(idx);
+                                const fmtD2 = d => { const [y,m,dd] = (d||'').substring(0,10).split('-'); return `${dd}/${m}/${y}`; };
+                                const st = v.status || 'DISPONIVEL';
+                                const COR_ST2 = {
+                                    DISPONIVEL:  { bg:'#dcfce7', text:'#15803d', border:'#86efac' },
+                                    EM_OPERACAO: { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                                    CARREGADO:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                                    CARREGANDO:  { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                                    EM_VIAGEM:   { bg:'#fef9c3', text:'#854d0e', border:'#fde047' },
+                                    PUXADA:      { bg:'#dbeafe', text:'#1d4ed8', border:'#93c5fd' },
+                                    MANUTENCAO:  { bg:'#fee2e2', text:'#991b1b', border:'#fca5a5' },
+                                };
+                                const c2 = COR_ST2[st] || { bg:'#f1f5f9', text:'#475569', border:'#cbd5e1' };
+                                const tCor2 = (() => {
+                                    const u = String(v.tipo_veiculo || '').toUpperCase();
+                                    if (u === 'CONJUNTO') return '#fb923c';
+                                    if (u === 'TRUCK') return '#2563eb';
+                                    if (u === 'CARRETA') return '#059669';
+                                    if (u === '3/4' || u === 'TRES_QUARTOS') return '#0ea5e9';
+                                    if (u === 'TOCO') return '#a855f7';
+                                    if (u === 'BITRUCK') return '#ef4444';
+                                    return '#7c3aed';
+                                })();
+                                return (
+                                    <div key={idx} onClick={() => {
+                                        const s = new Set(pdfSelecionados);
+                                        if (s.has(idx)) s.delete(idx); else s.add(idx);
+                                        setPdfSelecionados(s);
+                                    }} style={{
+                                        display: 'flex', alignItems: 'center', gap: '14px',
+                                        padding: '9px 24px', cursor: 'pointer',
+                                        background: sel ? 'rgba(16,185,129,0.06)' : 'transparent',
+                                        borderBottom: '1px solid rgba(30,41,59,0.8)',
+                                        transition: 'background 0.15s',
+                                    }}>
+                                        {/* Checkbox */}
+                                        <div style={{
+                                            width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                                            border: sel ? '2px solid #34d399' : '2px solid #475569',
+                                            background: sel ? 'rgba(52,211,153,0.2)' : 'transparent',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            {sel && <div style={{ width: 8, height: 8, borderRadius: 2, background: '#34d399' }} />}
+                                        </div>
+                                        {/* Data */}
+                                        <span style={{ color: '#64748b', fontSize: '11px', width: '70px', flexShrink: 0 }}>{fmtD2(v._data)}</span>
+                                        {/* Placa */}
+                                        <span style={{ color: '#f1f5f9', fontSize: '13px', fontWeight: '700', width: '80px', flexShrink: 0 }}>{v.placa || '—'}</span>
+                                        {/* Tipo */}
+                                        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px', background: tCor2 + '22', color: tCor2, border: '1px solid ' + tCor2 + '44', flexShrink: 0, minWidth: '58px', textAlign: 'center' }}>
+                                            {String(v.tipo_veiculo || '').toUpperCase() === 'TRES_QUARTOS' ? '3/4' : (v.tipo_veiculo || '—')}
+                                        </span>
+                                        {/* Motorista */}
+                                        <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.motorista || '—'}</span>
+                                        {/* Status */}
+                                        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '5px', background: c2.bg, color: c2.text, border: '1px solid ' + c2.border, flexShrink: 0, minWidth: '80px', textAlign: 'center' }}>
+                                            {STATUS_LABEL_PROG[st] || st}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderTop: '1px solid #334155' }}>
+                            <button onClick={() => setPdfPassoSel(false)}
+                                style={{ background: 'transparent', border: '1px solid #334155', borderRadius: '8px', color: '#64748b', cursor: 'pointer', padding: '8px 16px', fontSize: '13px', fontWeight: '600' }}>
+                                ← Voltar
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const selecionados = pdfListaVeiculos.filter((_, i) => pdfSelecionados.has(i));
+                                    gerarPdfProvDiario(selecionados);
+                                }}
+                                disabled={gerandoPdfProv || pdfSelecionados.size === 0}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: (gerandoPdfProv || pdfSelecionados.size === 0) ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: '8px', color: '#34d399', cursor: (gerandoPdfProv || pdfSelecionados.size === 0) ? 'not-allowed' : 'pointer', padding: '8px 20px', fontSize: '13px', fontWeight: '700', opacity: (gerandoPdfProv || pdfSelecionados.size === 0) ? 0.6 : 1 }}>
+                                <FileText size={14} /> {gerandoPdfProv ? 'Gerando...' : `Gerar PDF (${pdfSelecionados.size})`}
                             </button>
                         </div>
                     </div>
