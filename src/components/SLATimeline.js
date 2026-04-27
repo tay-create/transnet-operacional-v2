@@ -168,9 +168,13 @@ export default function SLATimeline({ item, unidade, pausas }) {
         } else {
             // Demais etapas param na próxima etapa cujo timestamp seja >= o atual
             // (evita "fim negativo" quando próxima etapa foi marcada antes da atual — ex.: CT-e antecipado)
+            // Exceção: CT-e antecipado não encerra CARREGAM. — só carregado_at encerra
+            const ehCarregamento = etapa.label === 'CARREGAM.';
             const inicioMs = new Date(etapa.at).getTime();
             for (let j = i + 1; j < etapasComAt.length; j++) {
                 const prox = etapasComAt[j].at;
+                const proxEhCte = etapasComAt[j].label === 'CT-e';
+                if (ehCarregamento && proxEhCte && !carregadoAt) continue;
                 if (prox && new Date(prox).getTime() >= inicioMs) {
                     fimAt = prox;
                     break;
