@@ -1385,7 +1385,7 @@ function App({ socket }) {
                     <DashboardMarcacoes />
                 )}
 
-                {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado' || temAcesso('saldo_paletes')) && (
+                {abaAtiva === 'saldo_paletes' && (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Encarregado' || user.cargo === 'Desenvolvedor' || temAcesso('saldo_paletes')) && (
                     <PainelSaldoPaletes />
                 )}
 

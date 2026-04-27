@@ -7,7 +7,7 @@ import ModalConfirm from './ModalConfirm';
 
 export default function PainelChecklist() {
     const user = useAuthStore(state => state.user);
-    const podeAprovar = ['Coordenador', 'Planejamento'].includes(user?.cargo);
+    const podeAprovar = ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user?.cargo);
 
     const [checklists, setChecklists] = useState([]);
     const [aviso, setAviso] = useState(null);

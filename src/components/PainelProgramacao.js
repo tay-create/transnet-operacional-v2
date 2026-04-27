@@ -106,7 +106,7 @@ function gerarGraficoRosca(itens, titulo) {
 
 export default function PainelProgramacao() {
     const { user } = useAuthStore();
-    const podeGerar = ['Coordenador', 'Planejamento', 'Conhecimento'].includes(user?.cargo);
+    const podeGerar = ['Coordenador', 'Planejamento', 'Conhecimento', 'Desenvolvedor'].includes(user?.cargo);
     const [programacoes, setProgramacoes] = useState([]);
     const [carregando, setCarregando] = useState(false);
     const [gerando, setGerando] = useState(null); // 'Inicial' | 'Final' | null

@@ -186,7 +186,7 @@ router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção
         const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=$1", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
-        const ehCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
+        const ehCoordenador = ['Coordenador', 'Direção', 'Desenvolvedor'].includes(req.user.cargo);
         const cargoFinal = ehCoordenador ? (cargo ?? usuarioAtual.cargo) : usuarioAtual.cargo;
 
         // Campos de permissão individual só podem ser alterados por Coordenador

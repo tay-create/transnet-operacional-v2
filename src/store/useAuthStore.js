@@ -82,6 +82,9 @@ const useAuthStore = create(
                 const { user } = get();
                 if (!user) return false;
 
+                // Cargos com acesso total
+                if (['Coordenador', 'Direção', 'Desenvolvedor'].includes(user.cargo)) return true;
+
                 // Verificar permissões individuais
                 if (user.usaPermissaoIndividual && user.permissoesAcesso) {
                     return user.permissoesAcesso.includes(modulo);
@@ -101,6 +104,9 @@ const useAuthStore = create(
                 const { user } = get();
                 if (!user) return false;
 
+                // Cargos com edição total
+                if (['Coordenador', 'Direção', 'Desenvolvedor'].includes(user.cargo)) return true;
+
                 if (user.usaPermissaoIndividual && user.permissoesEdicao) {
                     return user.permissoesEdicao.includes(acao);
                 }
@@ -116,7 +122,7 @@ const useAuthStore = create(
              */
             isAdmin: () => {
                 const { user } = get();
-                return ['Coordenador', 'Direção', 'Adm Frota'].includes(user?.cargo);
+                return ['Coordenador', 'Direção', 'Adm Frota', 'Desenvolvedor'].includes(user?.cargo);
             },
 
             /**
@@ -127,7 +133,7 @@ const useAuthStore = create(
             podeVerUnidade: (cidadeAlvo) => {
                 const { user, temAcesso } = get();
                 if (!user) return false;
-                if (['Coordenador', 'Direção', 'Adm Frota'].includes(user.cargo)) return true;
+                if (['Coordenador', 'Direção', 'Adm Frota', 'Desenvolvedor'].includes(user.cargo)) return true;
 
                 if (user.usaPermissaoIndividual) {
                     if (cidadeAlvo === 'Recife' && temAcesso('ver_unidade_recife')) return true;

@@ -198,7 +198,7 @@ export default function PainelOperacional({
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
-        if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento') {
+        if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
             return podeEditar(permissao);
         }
         if (user.cidade !== origem) {
@@ -1307,7 +1307,7 @@ export default function PainelOperacional({
 
                                             {/* Linha de Placa — visível e editável para Aux. Operacional e Cadastro */}
                                             {(() => {
-                                                const podEditarPlaca = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento'].includes(user.cargo);
+                                                const podEditarPlaca = ['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Desenvolvedor'].includes(user.cargo);
                                                 const placaExibida = item.placa1Motorista || item.placa || '—';
                                                 const placa2Exibida = item.placa2Motorista || '';
                                                 if (editandoPlaca === item.id) {
@@ -1520,7 +1520,7 @@ export default function PainelOperacional({
                                             }
 
                                             {/* Botão Liberar Checklist — some quando CARREGADO (Coordenador/Planejamento) */}
-                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (
+                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (
                                                 <button
                                                     onClick={() => setConfirmarLiberarChecklist({ item })}
                                                     style={{

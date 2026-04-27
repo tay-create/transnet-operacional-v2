@@ -140,7 +140,7 @@ export default function Sidebar({
                 {temAcesso('operacao') && (
                     <>
                         <Divider label="Operação" aberto={aberto} />
-                        {['COORDENADOR', 'PLANEJAMENTO'].includes(cargo) && (
+                        {['COORDENADOR', 'PLANEJAMENTO', 'DESENVOLVEDOR'].includes(cargo) && (
                             <MenuItem icon={<PlusCircle size={20} />} label="Novo Lançamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('novo_lancamento'); }} />
                         )}
                         {podeVerUnidade('Recife') && (

@@ -145,7 +145,7 @@ export default function MobileHome({ onNavegar }) {
                         {user?.cargo}
                     </span>
                     {user?.cidade && (
-                        <span style={{ fontSize: '11px', color: '#475569' }}>· {['Coordenador', 'Direção'].includes(user.cargo) ? 'Recife & Moreno' : user.cidade}</span>
+                        <span style={{ fontSize: '11px', color: '#475569' }}>· {['Coordenador', 'Direção', 'Desenvolvedor'].includes(user.cargo) ? 'Recife & Moreno' : user.cidade}</span>
                     )}
                 </div>
             </div>
