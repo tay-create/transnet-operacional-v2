@@ -2433,11 +2433,17 @@ export default function DashboardFrota({ socket }) {
                                             {String(v.tipo_veiculo || '').toUpperCase() === 'TRES_QUARTOS' ? '3/4' : (v.tipo_veiculo || '—')}
                                         </span>
                                         {/* Motorista */}
-                                        <span style={{ color: '#cbd5e1', fontSize: '12px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.motorista || '—'}</span>
+                                        <span style={{ color: '#cbd5e1', fontSize: '12px', width: '160px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.motorista || '—'}</span>
                                         {/* Status */}
                                         <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '5px', background: c2.bg, color: c2.text, border: '1px solid ' + c2.border, flexShrink: 0, minWidth: '80px', textAlign: 'center' }}>
                                             {STATUS_LABEL_PROG[st] || st}
                                         </span>
+                                        {/* Observação */}
+                                        {v.observacao ? (
+                                            <span style={{ color: '#94a3b8', fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{v.observacao}</span>
+                                        ) : (
+                                            <span style={{ flex: 1 }} />
+                                        )}
                                     </div>
                                 );
                             })}
