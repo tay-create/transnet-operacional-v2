@@ -317,7 +317,8 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
     router.get('/api/posembarque/relatorio', authMiddleware, async (req, res) => {
         try {
             const { de, ate, motorista, cliente, cidade, motivo, operacao, situacao } = req.query;
-            let sql = 'SELECT * FROM posemb_ocorrencias WHERE arquivado = 0';
+            // Relatório é histórico: exclui ocorrências Em Andamento (a menos que filtro explícito)
+            let sql = "SELECT * FROM posemb_ocorrencias WHERE arquivado = 0 AND situacao = 'RESOLVIDO'";
             const params = [];
 
             if (de) { sql += ' AND data_ocorrencia >= ?'; params.push(de); }
