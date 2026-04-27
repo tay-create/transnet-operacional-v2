@@ -712,8 +712,8 @@ export default function ModuloCubagem() {
                                             cursor: 'pointer', width: '100%', textOverflow: 'ellipsis', overflow: 'hidden',
                                         }}
                                     >
-                                        <option value="">STATUS ▾</option>
-                                        {opcoesStatus.map(s => <option key={s} value={s}>{s}</option>)}
+                                        <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>STATUS ▾</option>
+                                        {opcoesStatus.map(s => <option key={s} value={s} style={{ background: '#1e293b', color: '#f1f5f9' }}>{s}</option>)}
                                     </select>
                                     <span onClick={() => ordenar(col)} style={{ cursor: 'pointer' }}><SortIcon col={col} /></span>
                                 </div>
