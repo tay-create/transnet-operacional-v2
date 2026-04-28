@@ -592,6 +592,9 @@ const inicializarBanco = async () => {
             atualizado_em TIMESTAMPTZ DEFAULT NOW()
         )`);
 
+        try { await dbRun(`ALTER TABLE frota_roteirizacoes ADD COLUMN IF NOT EXISTS data_entrada_operacao TIMESTAMPTZ`); } catch (_) {}
+        try { await dbRun(`ALTER TABLE frota_roteirizacoes ALTER COLUMN status SET DEFAULT 'EM_OPERACAO'`); } catch (_) {}
+
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");
         if (!perm) {

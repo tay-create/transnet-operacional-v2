@@ -174,6 +174,7 @@ const FORM_INICIAL = {
     placa_carreta: '',
     origem: '',
     quantidade_entregas: 1,
+    data_entrada_operacao: '',
     data_saida: '',
     data_retorno_prevista: '',
 };
@@ -222,6 +223,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                 placa_carreta: r.placa_carreta || '',
                 origem: r.origem || '',
                 quantidade_entregas: r.quantidade_entregas || 1,
+                data_entrada_operacao: r.data_entrada_operacao ? r.data_entrada_operacao.substring(0, 16) : '',
                 data_saida: r.data_saida ? r.data_saida.substring(0, 16) : '',
                 data_retorno_prevista: r.data_retorno_prevista || '',
             });
@@ -372,6 +374,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                 origem: form.origem,
                 quantidade_entregas: destinos.length,
                 destinos,
+                data_entrada_operacao: form.data_entrada_operacao || null,
                 data_saida: form.data_saida || null,
                 data_retorno_prevista: form.data_retorno_prevista || null,
             };
@@ -587,6 +590,15 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
             <div style={estilos.secao}>
                 <div style={estilos.secaoTitulo}>Datas</div>
                 <div style={estilos.grid2}>
+                    <div style={estilos.campo}>
+                        <label style={estilos.label}>Entrada em Operação</label>
+                        <input
+                            type="datetime-local"
+                            style={estilos.input}
+                            value={form.data_entrada_operacao}
+                            onChange={e => set('data_entrada_operacao', e.target.value)}
+                        />
+                    </div>
                     <div style={estilos.campo}>
                         <label style={estilos.label}>Saída (data e hora)</label>
                         <input

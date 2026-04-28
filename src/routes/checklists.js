@@ -455,8 +455,9 @@ module.exports = function createChecklistsRouter(io) {
             await dbRun(`UPDATE veiculos SET ${sets.join(', ')} WHERE id = ?`, vals);
             console.log(`✅ [Conferente/${cidade}] Veículo #${veiculoId} (${veiculo.motorista || 'S/motorista'}) atualizado para "${novoStatus}" por ${req.user?.nome || 'conferente'}`);
 
-            // ── Sync Provisionamento: EM CARREGAMENTO → CARREGANDO / CARREGADO → CARREGADO ──
-            if (novoStatus === 'EM CARREGAMENTO' || novoStatus === 'CARREGADO') {
+            // ── Sync Provisionamento: AGUARDANDO P/ SEPARAÇÃO → EM_OPERACAO / EM CARREGAMENTO → CARREGANDO / CARREGADO → CARREGADO ──
+            const STATUS_SYNC_PROV = { 'AGUARDANDO P/ SEPARAÇÃO': 'EM_OPERACAO', 'AGUARDANDO': 'EM_OPERACAO', 'EM CARREGAMENTO': 'CARREGANDO', 'CARREGADO': 'CARREGADO' };
+            if (STATUS_SYNC_PROV[novoStatus]) {
                 try {
                     const dataSync = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
                     const placas = [
@@ -467,18 +468,41 @@ module.exports = function createChecklistsRouter(io) {
                     ].filter(p => p && p !== '-' && p.trim() !== '');
                     if (placas.length > 0) {
                         const provV = await dbGet(
-                            `SELECT id FROM prov_veiculos WHERE ativo = 1 AND (placa = ANY($1) OR COALESCE(carreta,'') = ANY($1))`,
+                            `SELECT id, placa FROM prov_veiculos WHERE ativo = 1 AND (placa = ANY($1) OR COALESCE(carreta,'') = ANY($1))`,
                             [placas]
                         );
                         if (provV) {
-                            const statusProv = novoStatus === 'CARREGADO' ? 'CARREGADO' : 'CARREGANDO';
+                            const statusProv = STATUS_SYNC_PROV[novoStatus];
                             await dbRun(
                                 `INSERT INTO prov_programacao (veiculo_id, data, status)
                                  VALUES ($1, $2, $3)
                                  ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $3`,
                                 [provV.id, dataSync, statusProv]
                             );
-                            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataSync, status: statusProv });
+                            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provV.id, data: dataSync, status: statusProv, placa: provV.placa });
+
+                            // Propagar para frota_roteirizacoes
+                            try {
+                                const rot = await dbGet(
+                                    `SELECT id FROM frota_roteirizacoes
+                                     WHERE (LOWER(placa_cavalo) = LOWER($1) OR LOWER(placa_carreta) = LOWER($1))
+                                       AND status NOT IN ('CONCLUIDO')
+                                     ORDER BY id DESC LIMIT 1`,
+                                    [provV.placa]
+                                );
+                                if (rot) {
+                                    await dbRun(`UPDATE frota_roteirizacoes SET status=$1, atualizado_em=NOW() WHERE id=$2`, [statusProv, rot.id]);
+                                    const rotAtualizada = await dbGet('SELECT * FROM frota_roteirizacoes WHERE id = $1', [rot.id]);
+                                    let destinos = [];
+                                    try { destinos = JSON.parse(rotAtualizada.destinos_json || '[]'); } catch {}
+                                    io.emit('receber_atualizacao', {
+                                        tipo: 'roteirizacao_atualizada', acao: 'status',
+                                        roteirizacao: { ...rotAtualizada, destinos, status_manual: rotAtualizada.status }
+                                    });
+                                }
+                            } catch (syncFrota) {
+                                console.warn('⚠️ [Sync Frota] Erro ao propagar status conferente→frota:', syncFrota.message);
+                            }
                         }
                     }
                 } catch (syncErr) {

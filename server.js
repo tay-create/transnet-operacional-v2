@@ -3040,15 +3040,53 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
              ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $3, destino = $4`,
             [veiculo_id, data, status, destino || null]
         );
-        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data, status, destino: destino || null });
+
+        const veiculo = await dbGet(`SELECT placa FROM prov_veiculos WHERE id = $1`, [veiculo_id]);
+        const placa = veiculo?.placa || null;
+
+        io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data, status, destino: destino || null, placa });
+
+        // Sincronizar com frota_roteirizacoes se houver roteirização ativa com esta placa
+        if (placa) {
+            const PROV_PARA_FROTA = {
+                EM_OPERACAO: 'EM_OPERACAO', CARREGANDO: 'CARREGANDO', CARREGADO: 'CARREGADO',
+                EM_VIAGEM: 'EM_VIAGEM', RETORNANDO: 'RETORNANDO', MANUTENCAO: 'MANUTENCAO',
+            };
+            const statusFrota = PROV_PARA_FROTA[status];
+            if (statusFrota) {
+                try {
+                    const rot = await dbGet(
+                        `SELECT id FROM frota_roteirizacoes
+                         WHERE (LOWER(placa_cavalo) = LOWER($1) OR LOWER(placa_carreta) = LOWER($1))
+                           AND status NOT IN ('CONCLUIDO')
+                         ORDER BY id DESC LIMIT 1`,
+                        [placa]
+                    );
+                    if (rot) {
+                        await dbRun(
+                            `UPDATE frota_roteirizacoes SET status=$1, atualizado_em=NOW() WHERE id=$2`,
+                            [statusFrota, rot.id]
+                        );
+                        const rotAtualizada = await dbGet('SELECT * FROM frota_roteirizacoes WHERE id = $1', [rot.id]);
+                        let destinos = [];
+                        try { destinos = JSON.parse(rotAtualizada.destinos_json || '[]'); } catch {}
+                        io.emit('receber_atualizacao', {
+                            tipo: 'roteirizacao_atualizada', acao: 'status',
+                            roteirizacao: { ...rotAtualizada, destinos, status_manual: rotAtualizada.status }
+                        });
+                    }
+                } catch (syncErr) {
+                    console.warn('⚠️ [Sync Frota] Erro ao propagar status prov→frota:', syncErr.message);
+                }
+            }
+        }
 
         if (status === 'MANUTENCAO') {
-            const veiculo = await dbGet(`SELECT placa FROM prov_veiculos WHERE id = $1`, [veiculo_id]);
-            const placa = veiculo?.placa || `#${veiculo_id}`;
+            const placaNot = placa || `#${veiculo_id}`;
             await enviarNotificacao('receber_alerta', {
                 tipo: 'veiculo_manutencao',
-                mensagem: `Veículo ${placa} está em manutenção`,
-                placa,
+                mensagem: `Veículo ${placaNot} está em manutenção`,
+                placa: placaNot,
                 veiculo_id,
                 data,
                 data_criacao: new Date().toISOString(),
