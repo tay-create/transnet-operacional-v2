@@ -185,6 +185,8 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
     const [buscaMotorista, setBuscaMotorista] = useState('');
     const [mostrarDropMotorista, setMostrarDropMotorista] = useState(false);
     const [veiculos, setVeiculos] = useState([]);
+    const [buscaCavalo, setBuscaCavalo] = useState('');
+    const [mostrarDropCavalo, setMostrarDropCavalo] = useState(false);
     const [buscaCarreta, setBuscaCarreta] = useState('');
     const [mostrarDropCarreta, setMostrarDropCarreta] = useState(false);
     const [salvando, setSalvando] = useState(false);
@@ -221,6 +223,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                 data_retorno_prevista: r.data_retorno_prevista || '',
             });
             setBuscaMotorista(r.motorista_nome || '');
+            setBuscaCavalo(r.placa_cavalo || '');
             setBuscaCarreta(r.placa_carreta || '');
             setDestinos((r.destinos || []).length > 0 ? r.destinos : [destinoVazio()]);
         }
@@ -232,6 +235,10 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
         (m.nome_motorista || '').toLowerCase().includes(buscaMotorista.toLowerCase())
     );
 
+    const veiculosCavaloFiltrados = veiculos.filter(v =>
+        (v.placa || '').toLowerCase().includes(buscaCavalo.toLowerCase())
+    );
+
     const veiculosFiltrados = veiculos.filter(v =>
         (v.placa || '').toLowerCase().includes(buscaCarreta.toLowerCase())
     );
@@ -241,6 +248,12 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
         set('motorista_id', m.id);
         setBuscaMotorista(m.nome_motorista);
         setMostrarDropMotorista(false);
+    };
+
+    const selecionarCavalo = (v) => {
+        set('placa_cavalo', v.placa);
+        setBuscaCavalo(v.placa);
+        setMostrarDropCavalo(false);
     };
 
     const selecionarCarreta = (v) => {
@@ -293,6 +306,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
     const limpar = () => {
         setForm(FORM_INICIAL);
         setBuscaMotorista('');
+        setBuscaCavalo('');
         setBuscaCarreta('');
         setDestinos([destinoVazio()]);
         if (onCancelar) onCancelar();
@@ -469,12 +483,31 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                     </div>
                     <div style={estilos.campo}>
                         <label style={estilos.label}>Placa Cavalo</label>
-                        <input
-                            style={estilos.input}
-                            value={form.placa_cavalo}
-                            onChange={e => set('placa_cavalo', e.target.value.toUpperCase())}
-                            placeholder="Ex: ABC1D23"
-                        />
+                        <div style={estilos.autoCompleteWrap}>
+                            <input
+                                style={estilos.input}
+                                value={buscaCavalo}
+                                onChange={e => { setBuscaCavalo(e.target.value.toUpperCase()); set('placa_cavalo', e.target.value.toUpperCase()); setMostrarDropCavalo(true); }}
+                                onFocus={() => setMostrarDropCavalo(true)}
+                                onBlur={() => setTimeout(() => setMostrarDropCavalo(false), 150)}
+                                placeholder="Buscar ou digitar placa..."
+                            />
+                            {mostrarDropCavalo && veiculosCavaloFiltrados.length > 0 && (
+                                <div style={estilos.dropdown}>
+                                    {veiculosCavaloFiltrados.map(v => (
+                                        <div
+                                            key={v.id}
+                                            style={estilos.dropdownItem}
+                                            onMouseDown={() => selecionarCavalo(v)}
+                                            onMouseEnter={e => e.currentTarget.style.background = '#334155'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            {v.placa} {v.tipo ? `(${v.tipo})` : ''}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div style={estilos.campo}>
                         <label style={estilos.label}>Placa Carreta</label>
