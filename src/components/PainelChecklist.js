@@ -4,6 +4,7 @@ import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 import { obterDataBrasilia } from '../utils/helpers';
 import ModalConfirm from './ModalConfirm';
+import ModalImagem from './ModalImagem';
 
 export default function PainelChecklist() {
     const user = useAuthStore(state => state.user);
@@ -12,6 +13,7 @@ export default function PainelChecklist() {
     const [checklists, setChecklists] = useState([]);
     const [aviso, setAviso] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [imagemAmpliada, setImagemAmpliada] = useState(null);
 
     const dataHoje = obterDataBrasilia();
     const [dataInicio, setDataInicio] = useState(dataHoje);
@@ -76,6 +78,7 @@ export default function PainelChecklist() {
     return (
         <div style={{ padding: '20px', color: '#f1f5f9', height: '100%', display: 'flex', flexDirection: 'column' }}>
             {aviso && <ModalConfirm variante="aviso" mensagem={aviso} onCancel={() => setAviso(null)} />}
+            <ModalImagem imagemAmpliada={imagemAmpliada} setImagemAmpliada={setImagemAmpliada} />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: 'rgba(249,115,22,0.1)', padding: '10px', borderRadius: '10px' }}>
@@ -208,7 +211,12 @@ export default function PainelChecklist() {
                                         {chk.foto_vazamento && (
                                             <div style={{ marginTop: '4px' }}>
                                                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>FOTO DA AVARIA</span>
-                                                <img src={chk.foto_vazamento} alt="Avaria" style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.3)' }} />
+                                                <img
+                                                    src={chk.foto_vazamento}
+                                                    alt="Avaria"
+                                                    onClick={() => setImagemAmpliada(chk.foto_vazamento)}
+                                                    style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.3)', cursor: 'zoom-in' }}
+                                                />
                                             </div>
                                         )}
 
