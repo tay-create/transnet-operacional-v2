@@ -52,7 +52,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
 
     const UFS_FILTRO = ['PE', 'BA', 'SP', 'GO', 'MG', 'RJ', 'CE', 'MA', 'PI', 'PB', 'RN', 'AL', 'SE', 'ES', 'PR', 'SC', 'RS', 'MT', 'MS', 'DF', 'PA', 'AM', 'RO', 'TO', 'AP', 'RR', 'AC'];
 
-    const motoristasFiltered = motoristasDisponiveis.filter(m => {
+    const motoristasFiltered = motoristasDisponiveis.filter(m => !m.is_frota).filter(m => {
         const matchBusca = m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
             m.placa1.toLowerCase().includes(buscaMotorista.toLowerCase());
         const matchUF = !filtroUF

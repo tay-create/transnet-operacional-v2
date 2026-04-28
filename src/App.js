@@ -35,6 +35,8 @@ const PainelOcorrencias    = React.lazy(() => import('./components/PainelOcorren
 const PainelSaldoPaletes   = React.lazy(() => import('./components/PainelSaldoPaletes'));
 const ProvisionamentoFrota = React.lazy(() => import('./components/ProvisionamentoFrota'));
 const DashboardFrota       = React.lazy(() => import('./components/DashboardFrota'));
+const PainelFrota          = React.lazy(() => import('./components/PainelFrota'));
+const RoteirizacaoFrota    = React.lazy(() => import('./components/RoteirizacaoFrota'));
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
 const RelatorioContratacao = React.lazy(() => import('./components/RelatorioContratacao'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
@@ -1431,6 +1433,14 @@ function App({ socket }) {
 
                 {abaAtiva === 'frota_dashboard' && (
                     <DashboardFrota socket={socket} />
+                )}
+
+                {abaAtiva === 'painel_frota' && (
+                    <PainelFrota socket={socket} user={user} />
+                )}
+
+                {abaAtiva === 'roteirizacao_frota' && (
+                    <RoteirizacaoFrota socket={socket} user={user} />
                 )}
 
                 {abaAtiva === 'ocorrencias' && (temAcesso('operacao') || user?.cargo === 'Pos Embarque') && (
