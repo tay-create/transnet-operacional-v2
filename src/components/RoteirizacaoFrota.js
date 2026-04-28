@@ -229,7 +229,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
     const set = (campo, valor) => setForm(f => ({ ...f, [campo]: valor }));
 
     const motoristasFiltrados = motoristas.filter(m =>
-        m.nome?.toLowerCase().includes(buscaMotorista.toLowerCase())
+        (m.nome_motorista || '').toLowerCase().includes(buscaMotorista.toLowerCase())
     );
 
     const veiculosFiltrados = veiculos.filter(v =>
@@ -237,9 +237,9 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
     );
 
     const selecionarMotorista = (m) => {
-        set('motorista_nome', m.nome);
+        set('motorista_nome', m.nome_motorista);
         set('motorista_id', m.id);
-        setBuscaMotorista(m.nome);
+        setBuscaMotorista(m.nome_motorista);
         setMostrarDropMotorista(false);
     };
 
@@ -451,7 +451,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                                             onMouseEnter={e => e.currentTarget.style.background = '#334155'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                         >
-                                            {m.nome}
+                                            {m.nome_motorista}
                                         </div>
                                     ))}
                                 </div>

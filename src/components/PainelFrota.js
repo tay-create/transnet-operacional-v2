@@ -349,7 +349,7 @@ export default function PainelFrota({ socket, user }) {
     };
 
     const dupMotoristasFiltrados = motoristasFreota.filter(m =>
-        m.nome?.toLowerCase().includes(buscaDupMotorista.toLowerCase())
+        m.nome_motorista?.toLowerCase().includes(buscaDupMotorista.toLowerCase())
     );
 
     const inputStyle = {
@@ -504,12 +504,12 @@ export default function PainelFrota({ socket, user }) {
                                             {dupMotoristasFiltrados.map(m => (
                                                 <div
                                                     key={m.id}
-                                                    onMouseDown={() => { setFormDuplicar(f => ({ ...f, motorista_nome: m.nome, motorista_id: m.id })); setBuscaDupMotorista(m.nome); setMostrarDropDup(false); }}
+                                                    onMouseDown={() => { setFormDuplicar(f => ({ ...f, motorista_nome: m.nome_motorista, motorista_id: m.id })); setBuscaDupMotorista(m.nome_motorista); setMostrarDropDup(false); }}
                                                     style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '13px', color: '#cbd5e1' }}
                                                     onMouseEnter={e => e.currentTarget.style.background = '#334155'}
                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                                 >
-                                                    {m.nome}
+                                                    {m.nome_motorista}
                                                 </div>
                                             ))}
                                         </div>
