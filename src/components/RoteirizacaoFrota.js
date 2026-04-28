@@ -273,6 +273,8 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
         });
     }, [form.coleta_moreno_plastico, form.coleta_moreno_porcelana, form.coleta_moreno_eletrik]);
 
+    const temRecife = (op) => !!op && op.includes('PLÁSTICO(RECIFE)');
+
     const exibirCamposMoreno = (op) => {
         if (!op) return {};
         return {
@@ -384,9 +386,10 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                         <TagInput
                             value={form.coleta_recife}
                             onChange={v => set('coleta_recife', v)}
+                            disabled={!!form.operacao && !temRecife(form.operacao)}
                         />
                     </div>
-                    {!moreno.split ? (
+                    {!moreno.split && (moreno.plastico || moreno.porcelana || moreno.eletrik) ? (
                         <div style={estilos.campo}>
                             <label style={estilos.label}>Coleta Moreno</label>
                             <TagInput
@@ -396,10 +399,9 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                                     else if (moreno.porcelana) set('coleta_moreno_porcelana', v);
                                     else set('coleta_moreno_eletrik', v);
                                 }}
-                                disabled={!form.operacao}
                             />
                         </div>
-                    ) : (
+                    ) : moreno.split ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {moreno.plastico && (
                                 <div style={estilos.campo}>
@@ -420,7 +422,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                                 </div>
                             )}
                         </div>
-                    )}
+                    ) : null}
                 </div>
             </div>
 
