@@ -273,7 +273,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
         });
     }, [form.coleta_moreno_plastico, form.coleta_moreno_porcelana, form.coleta_moreno_eletrik]);
 
-    const temRecife = (op) => !!op && op.includes('PLÁSTICO(RECIFE)');
+    const temRecife = (op) => !!op && (op.includes('PLÁSTICO(RECIFE)') || op.includes('RECIFE X MORENO'));
 
     const exibirCamposMoreno = (op) => {
         if (!op) return {};
