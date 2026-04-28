@@ -191,6 +191,9 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
     const [mostrarDropCarreta, setMostrarDropCarreta] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [notif, setNotif] = useState(null);
+    const [modalCadastroPlaca, setModalCadastroPlaca] = useState(null); // { placa, tipo: 'cavalo'|'carreta' }
+    const [tipoProv, setTipoProv] = useState('TRUCK');
+    const [cadastrandoPlaca, setCadastrandoPlaca] = useState(false);
 
     useEffect(() => {
         api.get('/api/marcacoes/disponiveis').then(r => {
@@ -312,10 +315,49 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
         if (onCancelar) onCancelar();
     };
 
+    const placaNaoExiste = (placa) => {
+        if (!placa) return false;
+        return !veiculos.some(v => v.placa?.toUpperCase() === placa.toUpperCase());
+    };
+
+    const cadastrarPlacaNoProv = async () => {
+        if (!modalCadastroPlaca) return;
+        setCadastrandoPlaca(true);
+        try {
+            const r = await api.post('/api/provisionamento/veiculos', {
+                placa: modalCadastroPlaca.placa,
+                tipo_veiculo: tipoProv,
+            });
+            const novoId = r.data?.id;
+            setVeiculos(prev => [...prev, { id: novoId, placa: modalCadastroPlaca.placa, tipo: tipoProv }]);
+            setModalCadastroPlaca(null);
+            await executarSalvar();
+        } catch (e) {
+            mostrarNotif('Erro ao cadastrar placa no provisionamento.');
+        } finally {
+            setCadastrandoPlaca(false);
+        }
+    };
+
     const salvar = async () => {
         if (!form.operacao) return mostrarNotif('Operação é obrigatória.');
         if (!form.motorista_nome) return mostrarNotif('Motorista é obrigatório.');
 
+        if (form.placa_cavalo && placaNaoExiste(form.placa_cavalo)) {
+            setTipoProv('TRUCK');
+            setModalCadastroPlaca({ placa: form.placa_cavalo, tipo: 'cavalo' });
+            return;
+        }
+        if (form.placa_carreta && placaNaoExiste(form.placa_carreta)) {
+            setTipoProv('CARRETA');
+            setModalCadastroPlaca({ placa: form.placa_carreta, tipo: 'carreta' });
+            return;
+        }
+
+        await executarSalvar();
+    };
+
+    const executarSalvar = async () => {
         setSalvando(true);
         try {
             const payload = {
@@ -342,6 +384,7 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                 mostrarNotif('Roteirização criada!');
                 setForm(FORM_INICIAL);
                 setBuscaMotorista('');
+                setBuscaCavalo('');
                 setBuscaCarreta('');
                 setDestinos([destinoVazio()]);
             }
@@ -612,6 +655,48 @@ export default function RoteirizacaoFrota({ socket, user, roteirizacaoEditando, 
                     <Plus size={14} /> Adicionar Destino
                 </button>
             </div>
+
+            {/* Modal: Cadastrar placa no provisionamento */}
+            {modalCadastroPlaca && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#1e293b', border: '1px solid #f97316', borderRadius: '10px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+                        <div style={{ fontWeight: '700', color: '#fb923c', fontSize: '16px', marginBottom: '12px' }}>
+                            Placa não cadastrada
+                        </div>
+                        <p style={{ color: '#cbd5e1', fontSize: '13px', marginBottom: '16px' }}>
+                            A placa <strong style={{ color: '#f1f5f9' }}>{modalCadastroPlaca.placa}</strong> ({modalCadastroPlaca.tipo === 'cavalo' ? 'cavalo' : 'carreta'}) não está cadastrada no provisionamento. Deseja cadastrá-la agora?
+                        </p>
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Tipo de Veículo</label>
+                            <select
+                                style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: '#e2e8f0', padding: '8px 10px', fontSize: '14px', width: '100%' }}
+                                value={tipoProv}
+                                onChange={e => setTipoProv(e.target.value)}
+                            >
+                                <option value="TRUCK">TRUCK</option>
+                                <option value="3/4">3/4</option>
+                                <option value="CONJUNTO">CONJUNTO</option>
+                                <option value="CARRETA">CARRETA</option>
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => { setModalCadastroPlaca(null); set(modalCadastroPlaca.tipo === 'cavalo' ? 'placa_cavalo' : 'placa_carreta', ''); setBuscaCavalo(modalCadastroPlaca.tipo === 'cavalo' ? '' : buscaCavalo); setBuscaCarreta(modalCadastroPlaca.tipo === 'carreta' ? '' : buscaCarreta); }}
+                                style={{ background: '#334155', border: 'none', borderRadius: '6px', color: '#cbd5e1', cursor: 'pointer', padding: '8px 14px', fontSize: '13px' }}
+                            >
+                                Não, era um erro
+                            </button>
+                            <button
+                                onClick={cadastrarPlacaNoProv}
+                                disabled={cadastrandoPlaca}
+                                style={{ background: '#7c3aed', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer', padding: '8px 14px', fontSize: '13px', fontWeight: '600' }}
+                            >
+                                {cadastrandoPlaca ? 'Cadastrando...' : 'Sim, cadastrar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Rodapé */}
             <div style={estilos.rodape}>
