@@ -71,13 +71,15 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     // Quando a nova unidade exigida está sem coleta, oferecer copiar da outra unidade via modal
     const coletaRecifeAtual = (lista[realIndex].coletaRecife || '').trim();
     const coletaMorenoAtual = (lista[realIndex].coletaMoreno || '').trim();
+    const { pedirInputColeta } = funcoes;
     if (!coletaOverride && precisaRecife && !coletaRecifeAtual) {
         if (coletaMorenoAtual && pedirCopiaColeta) {
             pedirCopiaColeta({
                 unidadeDestino: 'Recife',
                 coletaOrigem: coletaMorenoAtual,
                 unidadeOrigem: 'Moreno',
-                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaRecife', valor: coletaMorenoAtual })
+                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaRecife', valor: coletaMorenoAtual }),
+                onRecusar: pedirInputColeta ? () => pedirInputColeta('Recife', (coleta) => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaRecife', valor: coleta })) : null
             });
             return;
         }
@@ -90,7 +92,8 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
                 unidadeDestino: 'Moreno',
                 coletaOrigem: coletaRecifeAtual,
                 unidadeOrigem: 'Recife',
-                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaMoreno', valor: coletaRecifeAtual })
+                onConfirm: () => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaMoreno', valor: coletaRecifeAtual }),
+                onRecusar: pedirInputColeta ? () => pedirInputColeta('Moreno', (coleta) => handleOperacaoChange(item, novaOperacao, funcoes, lista, setLista, realIndex, api, { campo: 'coletaMoreno', valor: coleta })) : null
             });
             return;
         }
@@ -237,7 +240,9 @@ export default function PainelOperacional({
     const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
-    const [confirmarCopiaColeta, setConfirmarCopiaColeta] = useState(null); // { unidadeDestino, coletaOrigem, unidadeOrigem, onConfirm }
+    const [confirmarCopiaColeta, setConfirmarCopiaColeta] = useState(null); // { unidadeDestino, coletaOrigem, unidadeOrigem, onConfirm, onRecusar }
+    const [inputColetaModal, setInputColetaModal] = useState(null); // { unidadeDestino, onConfirm }
+    const [inputColetaValor, setInputColetaValor] = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const [modalEntregasCard, setModalEntregasCard] = useState(null); // { veiculo, item }
     const [finalizando, setFinalizando] = useState(false);
@@ -876,7 +881,7 @@ export default function PainelOperacional({
                                         {/* Header do Card */}
                                         <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)', display: 'flex', justifyContent: 'space-between' }}>
                                             <div style={{ flex: 1 }}>
-                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, { ...funcoes, pedirCopiaColeta: setConfirmarCopiaColeta }, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
+                                                <select value={item.operacao} onChange={(e) => handleOperacaoChange(item, e.target.value, { ...funcoes, pedirCopiaColeta: setConfirmarCopiaColeta, pedirInputColeta: (unidadeDestino, onConfirmColeta) => { setInputColetaValor(''); setInputColetaModal({ unidadeDestino, onConfirm: onConfirmColeta }); } }, lista, setLista, realIndex, api)} disabled={!podeEditarNaUnidade('editar_operacao_card')} style={{ background: 'transparent', color: 'white', fontWeight: 'bold', border: 'none', width: '100%', outline: 'none', fontSize: '14px' }}>
                                                     {OPCOES_OPERACAO.map(op => <option key={op} style={{ color: 'black' }}>{op}</option>)}
                                                 </select>
                                                 {/* Exibicao sutil da 1a e 2a parada */}
@@ -1960,15 +1965,65 @@ export default function PainelOperacional({
                     titulo={`Coleta de ${confirmarCopiaColeta.unidadeDestino}`}
                     mensagem={`A nova operação exige coleta de ${confirmarCopiaColeta.unidadeDestino}, que está vazia. Deseja usar a mesma coleta de ${confirmarCopiaColeta.unidadeOrigem} (${confirmarCopiaColeta.coletaOrigem}) também em ${confirmarCopiaColeta.unidadeDestino}?`}
                     variante="aviso"
-                    textConfirm="Usar a mesma coleta"
-                    textCancel="Cancelar"
+                    textConfirm="Sim"
+                    textCancel="Não, digitar outra"
                     onConfirm={() => {
                         const fn = confirmarCopiaColeta.onConfirm;
                         setConfirmarCopiaColeta(null);
                         fn && fn();
                     }}
-                    onCancel={() => setConfirmarCopiaColeta(null)}
+                    onCancel={() => {
+                        const onRecusar = confirmarCopiaColeta.onRecusar;
+                        setConfirmarCopiaColeta(null);
+                        onRecusar && onRecusar();
+                    }}
                 />
+            )}
+
+            {/* Modal input de coleta para nova unidade */}
+            {inputColetaModal && (
+                <div className="modal-overlay" style={{ zIndex: 1100 }}>
+                    <div className="modal-neon-panel" style={{ width: '420px', maxWidth: '95%', padding: '24px' }}>
+                        <h3 style={{ color: 'white', margin: '0 0 8px 0', fontSize: '16px' }}>Coleta de {inputColetaModal.unidadeDestino}</h3>
+                        <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 16px 0' }}>Digite o número da coleta para {inputColetaModal.unidadeDestino}:</p>
+                        <input
+                            autoFocus
+                            type="text"
+                            value={inputColetaValor}
+                            onChange={e => setInputColetaValor(e.target.value)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && inputColetaValor.trim()) {
+                                    const fn = inputColetaModal.onConfirm;
+                                    const val = inputColetaValor.trim();
+                                    setInputColetaModal(null);
+                                    setInputColetaValor('');
+                                    fn && fn(val);
+                                }
+                                if (e.key === 'Escape') {
+                                    setInputColetaModal(null);
+                                    setInputColetaValor('');
+                                }
+                            }}
+                            placeholder="Ex: 1097"
+                            style={{ width: '100%', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', color: 'white', padding: '10px 12px', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+                        />
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                            <button className="btn-ghost" onClick={() => { setInputColetaModal(null); setInputColetaValor(''); }} style={{ padding: '8px 18px', fontSize: '13px' }}>Cancelar</button>
+                            <button
+                                className="btn-neon"
+                                disabled={!inputColetaValor.trim()}
+                                onClick={() => {
+                                    const fn = inputColetaModal.onConfirm;
+                                    const val = inputColetaValor.trim();
+                                    setInputColetaModal(null);
+                                    setInputColetaValor('');
+                                    fn && fn(val);
+                                }}
+                                style={{ padding: '8px 18px', fontSize: '13px' }}
+                            >Confirmar</button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Modal Liberar Checklist */}

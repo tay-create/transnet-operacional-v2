@@ -119,37 +119,54 @@ const ModalAdmin = ({ isOpen, onClose }) => {
                             </div>
                         )}
 
-                        {/* Lista de Usuários */}
+                        {/* Lista de Usuários agrupada por cargo */}
                         <h4 style={{ color: '#38bdf8', marginTop: '10px', marginBottom: '10px' }}>Usuários Ativos</h4>
-                        <div style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', overflow: 'hidden' }}>
-                            <table className="tabela-admin-users">
-                                <thead style={{ background: 'rgba(0,0,0,0.3)' }}>
-                                    <tr>
-                                        <th style={{ textAlign: 'left', padding: '12px' }}>NOME</th>
-                                        <th style={{ textAlign: 'left', padding: '12px' }}>UNIDADE</th>
-                                        <th style={{ textAlign: 'left', padding: '12px' }}>CARGO</th>
-                                        <th style={{ textAlign: 'right', padding: '12px' }}>AÇÕES</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {usuarios.map(u => (
-                                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <td style={{ padding: '12px' }}>{u.nome}</td>
-                                            <td style={{ padding: '12px', fontSize: '11px', color: '#94a3b8' }}>{u.unidade}</td>
-                                            <td style={{ padding: '12px' }}><span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>{u.cargo}</span></td>
-                                            <td style={{ textAlign: 'right', padding: '12px' }}>
-                                                <button onClick={() => handleResetSenha(u)} title="Resetar senha para 123" style={{ marginRight: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                                                    <RotateCcw size={14} /> SENHA
-                                                </button>
-                                                <button onClick={() => handleRemover(u.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'inline-flex', alignItems: 'center' }}>
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {(() => {
+                            const ordem = ['Desenvolvedor', 'Direção', 'Coordenador', 'Planejamento', 'Conhecimento', 'Adm Frota', 'Aux. Operacional', 'Motorista Frota', 'Dashboard Viewer'];
+                            const grupos = usuarios.reduce((acc, u) => {
+                                const c = u.cargo || 'Sem cargo';
+                                if (!acc[c]) acc[c] = [];
+                                acc[c].push(u);
+                                return acc;
+                            }, {});
+                            const cargosOrdenados = Object.keys(grupos).sort((a, b) => {
+                                const ia = ordem.indexOf(a);
+                                const ib = ordem.indexOf(b);
+                                if (ia === -1 && ib === -1) return a.localeCompare(b);
+                                if (ia === -1) return 1;
+                                if (ib === -1) return -1;
+                                return ia - ib;
+                            });
+                            return cargosOrdenados.map(cargo => (
+                                <div key={cargo} style={{ marginBottom: '16px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                        <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{cargo}</span>
+                                        <span style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8', borderRadius: '10px', fontSize: '10px', padding: '1px 7px', fontWeight: 'bold' }}>{grupos[cargo].length}</span>
+                                        <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+                                    </div>
+                                    <div style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <table className="tabela-admin-users">
+                                            <tbody>
+                                                {grupos[cargo].map(u => (
+                                                    <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <td style={{ padding: '10px 12px' }}>{u.nome}</td>
+                                                        <td style={{ padding: '10px 12px', fontSize: '11px', color: '#94a3b8' }}>{u.unidade || u.cidade}</td>
+                                                        <td style={{ textAlign: 'right', padding: '10px 12px' }}>
+                                                            <button onClick={() => handleResetSenha(u)} title="Resetar senha para 123" style={{ marginRight: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 'bold' }}>
+                                                                <RotateCcw size={14} /> SENHA
+                                                            </button>
+                                                            <button onClick={() => handleRemover(u.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', display: 'inline-flex', alignItems: 'center' }}>
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
                 </div>
             </div>
         </div>
