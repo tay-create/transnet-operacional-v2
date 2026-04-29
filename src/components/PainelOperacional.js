@@ -201,6 +201,9 @@ export default function PainelOperacional({
     funcoes, operacoesFixas = null
 }) {
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
+    // Painel Leão/Eletrik Sul usa status_recife (operação única sem unidade fixa)
+    const campoStatus = (origem === 'Recife' || operacoesFixas) ? 'status_recife' : 'status_moreno';
+    const getStatus = (item) => item[campoStatus] || 'AGUARDANDO';
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
@@ -571,7 +574,7 @@ export default function PainelOperacional({
 
         // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
         // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
-        const meuStatus = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
+        const meuStatus = getStatus(item);
 
         const buscaLower = termoBusca.toLowerCase();
         const bateuBusca = (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
@@ -591,7 +594,7 @@ export default function PainelOperacional({
 
     const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
-        const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+        const campo = campoStatus;
         return ORDEM_STATUS.indexOf(a[campo] || OPCOES_STATUS[0]) - ORDEM_STATUS.indexOf(b[campo] || OPCOES_STATUS[0]);
     }), [itensFiltrados, origem]); // eslint-disable-line
 
@@ -672,7 +675,7 @@ export default function PainelOperacional({
                                 )}
                                 {podeEditarNaUnidade('operacao') && (() => {
                                     const veiculosAtivos = itensFiltrados.filter(v => {
-                                        const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
+                                        const s = v[campoStatus];
                                         return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
                                     });
                                     const unidadeLower = origem.toLowerCase();
@@ -844,7 +847,7 @@ export default function PainelOperacional({
                             )}
 
                             {ORDEM_STATUS.map(status => {
-                                const campoGrupo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const campoGrupo = campoStatus;
                                 const grupo = itensOrdenados.filter(item => (item[campoGrupo] || OPCOES_STATUS[0]) === status);
                                 if (grupo.length === 0) return null;
                                 const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
@@ -859,7 +862,7 @@ export default function PainelOperacional({
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                                             {grupo.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
-                                const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const campoStatusAlvo = campoStatus;
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
                                 const corStatus = CORES_STATUS[valorStatusAtual] || { border: '#fff', text: '#fff' };
                                 const isMista = item.coletaRecife && item.coletaMoreno;
@@ -943,7 +946,7 @@ export default function PainelOperacional({
                                                     const proxStr = prox.toISOString().slice(0, 10);
                                                     const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
                                                     const dataCarregadoOutraUnidade = origem === 'Recife' ? item.data_carregado_moreno : item.data_carregado_recife;
-                                                    const statusAtualItem = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
+                                                    const statusAtualItem = getStatus(item);
                                                     const eHoje = item.data_prevista === hoje;
                                                     // Card misto: outra parada já carregou (ancorando nela), mas esta parada ainda não
                                                     // Nesse caso o data_prevista pode ser ontem — ainda assim pode avançar para amanhã
@@ -1429,7 +1432,7 @@ export default function PainelOperacional({
                                                                         novoStatus,
                                                                         novaDoca: item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'
                                                                     });
-                                                                    updateList(lista, setLista, realIndex, origem === 'Recife' ? 'status_recife' : 'status_moreno', novoStatus);
+                                                                    updateList(lista, setLista, realIndex, campoStatus, novoStatus);
                                                                     mostrarNotificacao?.(`✅ Status alterado para ${novoStatus}`);
                                                                 } catch (err) {
                                                                     const msg = err.response?.data?.message || 'Erro ao atualizar status.';
