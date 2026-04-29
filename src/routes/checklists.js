@@ -417,8 +417,8 @@ module.exports = function createChecklistsRouter(io) {
 
             // Bloquear CARREGADO sem foto do lacre
             // Em operação consolidada (ambas coletas preenchidas), a primeira unidade pode pular — lacre só vai na última
-            // Entrega Local dispensa foto do lacre
-            if (novoStatus === 'CARREGADO' && !dados.entregaLocal) {
+            // Entrega Local e operações interestaduais dispensam foto do lacre
+            if (novoStatus === 'CARREGADO' && !dados.entregaLocal && !ehInterestadual) {
                 const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
                 const ehConsolidada = !!(veiculo.coletarecife && veiculo.coletamoreno);
                 const statusOutraUnidade = prefix === 'moreno' ? veiculo.status_recife : veiculo.status_moreno;
