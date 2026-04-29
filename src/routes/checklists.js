@@ -316,6 +316,8 @@ module.exports = function createChecklistsRouter(io) {
             let dados = {};
             try { dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : (veiculo.dados_json || {}); } catch { }
 
+            const ehInterestadual = veiculo.operacao === 'LEÃO - SP' || veiculo.operacao === 'ELETRIK SUL';
+
             // ── Travas de segurança ao avançar para EM CARREGAMENTO ou além ──
             const STATUS_BLOQUEADOS = ['EM CARREGAMENTO', 'CARREGADO'];
             const avancoParaBloqueado = STATUS_BLOQUEADOS.includes(novoStatus) && !STATUS_BLOQUEADOS.includes(statusAtual);
@@ -346,8 +348,6 @@ module.exports = function createChecklistsRouter(io) {
                         if (provV) isFrota = true;
                     }
                 }
-
-                const ehInterestadual = veiculo.operacao === 'LEÃO - SP' || veiculo.operacao === 'ELETRIK SUL';
 
                 if (!isFrota) {
                     // Verificar Ger. Risco
