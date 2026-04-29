@@ -1317,6 +1317,7 @@ function App({ socket }) {
                     ctesRecife={ctesRecifeHoje}
                     ctesMoreno={ctesMorenoHoje}
                     socket={socket}
+                    onRefresh={() => recarregarDadosRef.current?.()}
                     onSair={() => {
                         if (temAcesso('operacao') && podeVerUnidade('Recife')) setAbaAtiva('op_recife');
                         else if (temAcesso('operacao') && podeVerUnidade('Moreno')) setAbaAtiva('op_moreno');

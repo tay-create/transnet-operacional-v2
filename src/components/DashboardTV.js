@@ -118,7 +118,7 @@ const PRIORIDADE_STATUS = {
     'EM CARREGAMENTO': 3, 'CARREGADO': 4, 'LIBERADO P/ CT-e': 5
 };
 
-export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
+export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket, onRefresh }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
     const totalTelas = 4;
@@ -181,10 +181,17 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         // Atualizar via socket em vez de polling
         const handleDocas = () => { if (!unmounted) fetchDocas(); };
         const handleOcorrencias = () => { if (!unmounted) fetchOcorrencias(); };
+        const handleReconnect = () => {
+            if (unmounted) return;
+            fetchDocas();
+            fetchOcorrencias();
+            onRefresh?.();
+        };
 
         if (socket) {
             socket.on('docas_interditadas_update', handleDocas);
             socket.on('ocorrencias_update', handleOcorrencias);
+            socket.on('connect', handleReconnect);
         }
 
         return () => {
@@ -192,9 +199,10 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
             if (socket) {
                 socket.off('docas_interditadas_update', handleDocas);
                 socket.off('ocorrencias_update', handleOcorrencias);
+                socket.off('connect', handleReconnect);
             }
         };
-    }, [socket]);
+    }, [socket, onRefresh]);
 
     useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });
