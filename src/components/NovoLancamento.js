@@ -451,7 +451,8 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                             )}
                         </div>
 
-                        {/* Entrega Local */}
+                        {/* Entrega Local — oculto para operações interestaduais */}
+                        {formLanca.operacao !== 'LEÃO - SP' && formLanca.operacao !== 'ELETRIK SUL' && (
                         <div
                             onClick={() => setFormLanca(prev => ({ ...prev, entregaLocal: !prev.entregaLocal }))}
                             style={{
@@ -475,6 +476,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                 (sem lacre — motorista de frota)
                             </span>
                         </div>
+                        )}
 
                         {/* Campo de Observação */}
                         <div>

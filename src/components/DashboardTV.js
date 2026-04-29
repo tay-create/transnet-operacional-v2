@@ -16,7 +16,9 @@ const CORES_KPI = {
     consolidado: '#3b82f6',
     deltaRxM: '#60a5fa',
     porcelana: '#93c5fd',
-    eletrik: '#bfdbfe'
+    eletrik: '#bfdbfe',
+    leao: '#f97316',
+    eletrikSul: '#a855f7'
 };
 
 const CORES_PIE_CTE = ['#f59e0b', '#3b82f6', '#22c55e'];
@@ -54,6 +56,8 @@ const glassCard = (t, extraBorder) => ({
 
 const classificarOperacao = (op) => {
     if (!op) return null;
+    if (op === 'LEÃO - SP') return 'leao';
+    if (op === 'ELETRIK SUL') return 'eletrikSul';
     if (op === 'DELTA(RECIFE)' || op === 'DELTA(MORENO)' || op === 'PLÁSTICO(RECIFE)' || op === 'PLÁSTICO(MORENO)') return 'delta';
     if (op === 'DELTA(RECIFE X MORENO)' || op === 'PLÁSTICO(RECIFE X MORENO)') return 'deltaRxM';
     if (op === 'PORCELANA') return 'porcelana';
@@ -64,6 +68,7 @@ const classificarOperacao = (op) => {
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
+const ehOperacaoLeaoEletrikSul = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
 
 // Agrega operações consolidadas (contém '/') por nome e contagem
 const agruparConsolidados = (veiculosList) => {
@@ -121,7 +126,6 @@ const PRIORIDADE_STATUS = {
 export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
-    const totalTelas = 4;
 
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
@@ -146,6 +150,9 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         const dataCard = v.data_prevista || v.data_carregado_recife || v.data_carregado_moreno || '';
         return dataCard.split('T')[0] === hoje;
     });
+
+    const temLeaoEletrikSul = veiculosHoje.some(v => ehOperacaoLeaoEletrikSul(v.operacao));
+    const totalTelas = temLeaoEletrikSul ? 5 : 4;
 
     useEffect(() => {
         if (pausado) return;
@@ -218,7 +225,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Fluxo Mensal'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Fluxo Mensal', 'Leão / Eletrik Sul'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -305,6 +312,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 4 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={[...ctesRecife, ...ctesMoreno]} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
 
@@ -320,7 +328,7 @@ const btnS = (t) => ({ padding: '4px 10px', borderRadius: '4px', border: `1px so
 function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, ocorrenciasHoje = [] }) {
     const [modalOcorrencias, setModalOcorrencias] = useState(false);
     const [imgExpandida, setImgExpandida] = useState(null);
-    const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
+    const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0, leao: 0, eletrikSul: 0 };
     veiculos.forEach(v => {
         const cat = classificarOperacao(v.operacao);
         if (cat && contadores[cat] !== undefined) contadores[cat]++;
@@ -347,7 +355,9 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
         { label: 'Consolidado', valor: contadores.consolidado, cor: CORES_KPI.consolidado },
         { label: 'Plástico Recife/Moreno', valor: contadores.deltaRxM, cor: CORES_KPI.deltaRxM },
         { label: '100% Porcelana', valor: contadores.porcelana, cor: CORES_KPI.porcelana },
-        { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik }
+        { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik },
+        { label: 'Leão - SP', valor: contadores.leao, cor: CORES_KPI.leao },
+        { label: 'Eletrik Sul', valor: contadores.eletrikSul, cor: CORES_KPI.eletrikSul }
     ];
 
     const dataPieCte = [
@@ -385,7 +395,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
             </div>
 
             {/* BENTO GRID principal */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr 1fr', gridTemplateRows: 'auto auto', gap: '14px', marginBottom: '20px' }}>
 
                 {/* KPI Cards — linha de cima (operação) */}
                 {kpis.map(kpi => kpi.label === 'Consolidado' ? (
@@ -400,7 +410,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                 {/* Ocorrências do dia — clicável para modal */}
                 <div
                     onClick={() => setModalOcorrencias(true)}
-                    style={{ ...glassCard(t, 'rgba(245,158,11,0.35)'), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: '4px solid #f59e0b', cursor: 'pointer' }}
+                    style={{ ...glassCard(t, 'rgba(245,158,11,0.35)'), padding: '14px 16px', gridColumn: '1 / 8', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: '4px solid #f59e0b', cursor: 'pointer' }}
                 >
                     <AlertTriangle size={18} color="#fbbf24" style={{ flexShrink: 0 }} />
                     <span style={{ fontSize: '10px', letterSpacing: '2px', color: '#fbbf24', textTransform: 'uppercase', whiteSpace: 'nowrap', fontWeight: '700' }}>Ocorrências Hoje</span>
@@ -419,7 +429,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                 </div>
 
                 {/* CT-e status */}
-                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 6', display: 'flex', alignItems: 'center', gap: '24px' }}>
+                <div style={{ ...glassCard(t), padding: '14px 16px', gridColumn: '1 / 8', display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <span style={{ fontSize: '10px', letterSpacing: '2px', color: t.textDim, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Status CT-e</span>
                     {[
                         { label: 'Aguardando P/ Emissão', valor: statusCte.aguardando, cor: '#f59e0b' },
@@ -897,7 +907,7 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
     const totalMes = veiculosMesAtual.length;
     const mesNome = dataBrasilia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-    const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };
+    const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0, leao: 0, eletrikSul: 0 };
     veiculosMesAtual.forEach(v => {
         const cat = classificarOperacao(v.operacao);
         if (cat && contadores[cat] !== undefined) contadores[cat]++;
@@ -912,7 +922,9 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
         { name: 'Consolidado', value: contadores.consolidado, fill: CORES_KPI.consolidado },
         { name: 'Plástico Recife/Moreno', value: contadores.deltaRxM, fill: CORES_KPI.deltaRxM },
         { name: 'Porcelana', value: contadores.porcelana, fill: CORES_KPI.porcelana },
-        { name: 'Eletrik', value: contadores.eletrik, fill: CORES_KPI.eletrik }
+        { name: 'Eletrik', value: contadores.eletrik, fill: CORES_KPI.eletrik },
+        { name: 'Leão - SP', value: contadores.leao, fill: CORES_KPI.leao },
+        { name: 'Eletrik Sul', value: contadores.eletrikSul, fill: CORES_KPI.eletrikSul }
     ].filter(d => d.value > 0);
 
     const dadosUnidades = [
@@ -946,6 +958,8 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
         { key: 'eletrik',     label: 'ELETRIK',                   cor: '#34d399', match: v => classificarOperacao(v.operacao) === 'eletrik' },
         { key: 'consolidado', label: 'CONSOLIDADO',               cor: '#60a5fa', match: v => classificarOperacao(v.operacao) === 'consolidado' },
         { key: 'deltaRxM',    label: 'PLÁSTICO RECIFE/MORENO',    cor: '#f472b6', match: v => classificarOperacao(v.operacao) === 'deltaRxM' },
+        { key: 'leao',        label: 'LEÃO - SP',                  cor: '#f97316', match: v => v.operacao === 'LEÃO - SP' },
+        { key: 'eletrikSul',  label: 'ELETRIK SUL',               cor: '#a855f7', match: v => v.operacao === 'ELETRIK SUL' },
     ];
 
     // Janela deslizante: D-2, D-1, hoje, D+1, D+2
@@ -1039,13 +1053,15 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
             </div>
 
             {/* SUB-CONTADORES POR OPERAÇÃO */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginBottom: '20px' }}>
                 {[
                     { label: 'Plástico', valor: contadores.delta, cor: CORES_KPI.delta },
                     { label: 'Consolidado', valor: contadores.consolidado, cor: CORES_KPI.consolidado },
                     { label: 'Plástico R/M', valor: contadores.deltaRxM, cor: CORES_KPI.deltaRxM },
                     { label: 'Porcelana', valor: contadores.porcelana, cor: CORES_KPI.porcelana },
-                    { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik }
+                    { label: 'Eletrik', valor: contadores.eletrik, cor: CORES_KPI.eletrik },
+                    { label: 'Leão - SP', valor: contadores.leao, cor: CORES_KPI.leao },
+                    { label: 'Eletrik Sul', valor: contadores.eletrikSul, cor: CORES_KPI.eletrikSul }
                 ].map(kpi => (
                     <div key={kpi.label} style={{ background: `${kpi.cor}0d`, borderTop: `2px solid ${kpi.cor}`, borderRadius: '10px', padding: '12px 8px', textAlign: 'center' }}>
                         <div style={{ fontSize: '32px', fontWeight: '900', color: kpi.cor, lineHeight: 1 }}>{kpi.valor}</div>
@@ -1369,6 +1385,95 @@ function StatusBars({ dados, t }) {
                     <span style={{ width: '28px', fontSize: '13px', fontWeight: '700', color: d.fill, filter: d.value > 0 ? `drop-shadow(0 0 4px ${d.fill}80)` : 'none' }}>{d.value}</span>
                 </div>
             ))}
+        </div>
+    );
+}
+
+// ================================================================
+// TELA 4: OPERACAO LEAO / ELETRIK SUL
+// ================================================================
+function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje = [] }) {
+    const veiculosLeao = veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao));
+    const totalLeao = veiculosLeao.length;
+
+    const contOp = { leao: 0, eletrikSul: 0 };
+    veiculosLeao.forEach(v => {
+        if (v.operacao === 'LEÃO - SP') contOp.leao++;
+        else if (v.operacao === 'ELETRIK SUL') contOp.eletrikSul++;
+    });
+
+    const normalizarStatus = (st) => {
+        if (st === 'AGUARDANDO') return 'AGUARDANDO P/ SEPARAÇÃO';
+        if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
+        return st;
+    };
+    const contStatus = {};
+    OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
+    veiculosLeao.forEach(v => {
+        const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
+        if (contStatus[st] !== undefined) contStatus[st]++;
+        if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
+    });
+    const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
+
+    const emEmissaoCte = ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
+    const emitidoCte = ctes.filter(c => c.status === 'Emitido').length;
+    const aguardandoCte = Math.max(0, totalLeao - emEmissaoCte - emitidoCte);
+    const pct = (v) => totalLeao > 0 ? `${Math.round((v / totalLeao) * 100)}%` : '0%';
+
+    return (
+        <div className="tv-card-anim">
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+                    Operação Leão / Eletrik Sul
+                </h2>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+                <div style={{ ...glassCard(t, '#f9731660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f97316', width: '100%', maxWidth: '400px' }}>
+                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#f97316', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f9731680)' }}>{totalLeao}</div>
+                    <div style={{ fontSize: '12px', color: '#fdba74', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Leão / Eletrik Sul</div>
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                {[
+                    { label: 'Leão - SP', valor: contOp.leao, cor: CORES_KPI.leao },
+                    { label: 'Eletrik Sul', valor: contOp.eletrikSul, cor: CORES_KPI.eletrikSul },
+                ].map(c => (
+                    <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}` }}>
+                        <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
+                        <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                    </div>
+                ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ ...glassCard(t), padding: '16px' }}>
+                    <h3 style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc', fontSize: '14px', fontWeight: '700' }}>Status de Embarque</h3>
+                    <StatusBars dados={dadosStatus} t={t} />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e</div>
+                    {[
+                        { label: 'Aguardando P/ Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'CT-es aguardando emissão' },
+                        { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
+                        { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
+                    ].map(item => (
+                        <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
+                            <div>
+                                <div style={{ fontSize: '16px', fontWeight: '700', color: t.text }}>{item.label}</div>
+                                <div style={{ fontSize: '14px', color: t.textDim }}>{item.desc}</div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <span style={{ fontSize: '40px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>
+                                <span style={{ fontSize: '12px', color: t.textMuted, marginLeft: '8px' }}>{pct(item.valor)}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }

@@ -193,10 +193,12 @@ const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostra
     }
 };
 
+const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
     termoBusca, setTermoBusca, user,
-    funcoes
+    funcoes, operacoesFixas = null
 }) {
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Verifica se o usuário pode editar baseado na unidade
@@ -564,10 +566,12 @@ export default function PainelOperacional({
             (meuStatus && meuStatus.toLowerCase().includes(buscaLower));
 
 
-        const bateuOperacao = !filtroOperacao || (item.operacao || '') === filtroOperacao;
+        const bateuOperacao = operacoesFixas
+            ? operacoesFixas.includes(item.operacao || '')
+            : (!filtroOperacao || (item.operacao || '') === filtroOperacao);
 
         return ehDataCerta && bateuBusca && bateuOperacao;
-    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, origem]); // eslint-disable-line
+    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, operacoesFixas, origem]); // eslint-disable-line
 
     const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
@@ -1227,7 +1231,7 @@ export default function PainelOperacional({
                                                         </a>
 
                                                         {/* Badge Entrega Local */}
-                                                        {item.entregaLocal && (
+                                                        {item.entregaLocal && !ehOperacaoInterestadual(item.operacao) && (
                                                             <span
                                                                 title="Entrega Local — sem lacre"
                                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', background: 'rgba(16,185,129,0.15)', borderRadius: '12px', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)', fontSize: '10px', fontWeight: '700' }}
@@ -1443,7 +1447,7 @@ export default function PainelOperacional({
                                             )}
 
                                             {/* Toggle Entrega Local */}
-                                            {podeEditarNaUnidade('operacao') && (
+                                            {podeEditarNaUnidade('operacao') && !ehOperacaoInterestadual(item.operacao) && (
                                                 <div
                                                     onClick={() => {
                                                         const novaLista = [...lista];

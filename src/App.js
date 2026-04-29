@@ -1364,6 +1364,20 @@ function App({ socket }) {
                     />
                 )}
 
+                {abaAtiva === 'painel_leao' && temAcesso('operacao') && (
+                    <PainelOperacional
+                        origem="Recife"
+                        lista={listaVeiculos}
+                        setLista={setListaVeiculos}
+                        opcoesDocas={[]}
+                        termoBusca={termoBusca}
+                        setTermoBusca={setTermoBusca}
+                        user={user}
+                        funcoes={{ podeEditar, updateList, liberarParaCte, removerVeiculo, socket, mostrarNotificacao }}
+                        operacoesFixas={['LEÃO - SP', 'ELETRIK SUL']}
+                    />
+                )}
+
                 {abaAtiva === 'novo_lancamento' && temAcesso('operacao') && !['Encarregado'].includes(user?.cargo) && (
                     <NovoLancamento
                         user={user}

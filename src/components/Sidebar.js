@@ -149,6 +149,7 @@ export default function Sidebar({
                         {podeVerUnidade('Moreno') && (
                             <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_moreno'); }} />
                         )}
+                        <MenuItem icon={<MapPin size={20} />} label="Painel Leão/Eletrik Sul" subItem aberto={aberto} onClick={() => { setAbaAtiva('painel_leao'); }} />
                         <MenuItem icon={<Calendar size={20} />} label="Programação Diária" subItem aberto={aberto} onClick={() => { setAbaAtiva('programacao_diaria'); }} />
                     </>
                 )}
