@@ -721,6 +721,7 @@ export default function PainelCadastro({ user, socket }) {
                                                         <option value="" style={{ color: 'black' }}>-- Selecione --</option>
                                                         <option value="Recife" style={{ color: 'black' }}>Recife</option>
                                                         <option value="Moreno" style={{ color: 'black' }}>Moreno</option>
+                                                        <option value="São Paulo" style={{ color: 'black' }}>São Paulo</option>
                                                     </select>
                                                 </div>
                                                 <div>
