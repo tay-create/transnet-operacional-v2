@@ -1550,7 +1550,7 @@ export default function PainelOperacional({
                                             }
 
                                             {/* Botão Liberar Checklist — some quando CARREGADO (Coordenador/Planejamento) */}
-                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (
+                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && !ehOperacaoInterestadual(item.operacao) && (
                                                 <button
                                                     onClick={() => setConfirmarLiberarChecklist({ item })}
                                                     style={{
