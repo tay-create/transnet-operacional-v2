@@ -164,8 +164,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const temColetaRecife = (v.coletaRecife || '').trim().length > 0;
             const temColetaMoreno = (v.coletaMoreno || '').trim().length > 0;
             const opVal = (v.operacao || '').toUpperCase();
-            const ehRecife = opVal.includes('RECIFE');
-            const ehMoreno = opVal.includes('MORENO') || opVal.includes('PORCELANA') || opVal.includes('ELETRIK');
+            const ehInterestadual = v.operacao === 'LEÃO - SP' || v.operacao === 'ELETRIK SUL';
+            const ehRecife = !ehInterestadual && opVal.includes('RECIFE');
+            const ehMoreno = !ehInterestadual && (opVal.includes('MORENO') || opVal.includes('PORCELANA') || opVal.includes('ELETRIK'));
             if (ehRecife && !temColetaRecife) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
             }
@@ -173,7 +174,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
             // Garantir que coleta não vaze para unidade errada — ex: PLÁSTICO(MORENO) não pode ter coletaRecife
-            if (!ehRecife) v.coletaRecife = '';
+            if (!ehRecife && !ehInterestadual) v.coletaRecife = '';
             if (!ehMoreno) v.coletaMoreno = '';
 
             // Herdar dados de checklist/liberação do cadastro do motorista do frontend como fallback, 
@@ -501,8 +502,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             // Lógica de visibilidade: limpar campos de unidades que não fazem mais parte da operação
             const op = v.operacao || '';
-            const precisaRecife = op.includes('RECIFE');
-            const precisaMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+            const ehInterestadualPut = op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+            const precisaRecife = !ehInterestadualPut && op.includes('RECIFE');
+            const precisaMoreno = !ehInterestadualPut && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
             // Trava: coleta obrigatória para a unidade exigida pela operação (backstop do POST)
             const temColetaRecifePut = (v.coletaRecife || '').trim().length > 0;
@@ -514,7 +516,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
 
-            if (!precisaRecife) {
+            if (!precisaRecife && !ehInterestadualPut) {
                 v.coletaRecife = '';
                 v.rotaRecife = '';
                 v.status_recife = 'AGUARDANDO P/ SEPARAÇÃO';
