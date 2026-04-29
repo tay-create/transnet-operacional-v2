@@ -323,7 +323,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                             <div style={{ borderLeft: '3px solid #f97316', paddingLeft: '12px' }}>
                                 <label className="label-tech-sm" style={{ color: '#fb923c' }}>COLETA</label>
                                 <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '6px', padding: '8px' }}>
-                                    <TagInput value={formLanca.coletaRecife} onChange={val => setFormLanca({ ...formLanca, coletaRecife: val })} placeholder="Digite o número da coleta..." />
+                                    <TagInput value={formLanca.coletaInterestadual} onChange={val => setFormLanca({ ...formLanca, coletaInterestadual: val })} placeholder="Digite o número da coleta..." />
                                 </div>
                             </div>
                         )}

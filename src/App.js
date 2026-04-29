@@ -108,6 +108,7 @@ function App({ socket }) {
         tipoVeiculo: 'TRUCK',
         coletaRecife: '',
         coletaMoreno: '',
+        coletaInterestadual: '',
         rotaRecife: '',
         rotaMoreno: '',
         inicio: 'Recife',
@@ -651,6 +652,7 @@ function App({ socket }) {
 
         if (precisaRecife && !formLanca.coletaRecife) return mostrarNotificacao("⚠️ Digite a coleta de Recife!");
         if (precisaMoreno && !formLanca.coletaMoreno) return mostrarNotificacao("⚠️ Digite a coleta de Moreno!");
+        if (ehOperacaoInterestadual(formLanca.operacao) && !formLanca.coletaInterestadual) return mostrarNotificacao("⚠️ Digite o número da coleta!");
 
         // Unidade determinada pela operação, não pela cidade do usuário
         const unidadeForcada = (!precisaRecife && precisaMoreno) ? 'Moreno'
@@ -678,8 +680,9 @@ function App({ socket }) {
             tempos_recife: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
             tempos_moreno: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
             status_coleta: { solicitado: '', liberado: '' },
-            coletaRecife: precisaRecife ? formLanca.coletaRecife : (ehOperacaoInterestadual(formLanca.operacao) ? formLanca.coletaRecife : ''),
+            coletaRecife: precisaRecife ? formLanca.coletaRecife : '',
             coletaMoreno: precisaMoreno ? formLanca.coletaMoreno : '',
+            coletaInterestadual: ehOperacaoInterestadual(formLanca.operacao) ? formLanca.coletaInterestadual : '',
             origem_criacao: unidadeForcada,
             inicio_rota: unidadeForcada,
             data_prevista: formLanca.data_prevista,
@@ -706,7 +709,7 @@ function App({ socket }) {
             }
 
             // Auto-adicionar à fila de separação
-            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coleta || '';
+            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coletaInterestadual || novoItem.coleta || '';
             if (coletaFila && !formLanca.idFilaOriginal) {
                 await api.post('/fila', {
                     coleta: coletaFila,
@@ -717,7 +720,7 @@ function App({ socket }) {
                 });
             }
 
-            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
+            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', coletaInterestadual: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
             mostrarNotificacao("✅ Veículo Lançado !");
         } catch (error) {
             console.error("Erro ao lançar:", error);
@@ -858,7 +861,8 @@ function App({ socket }) {
                 } catch (_) { }
 
                 const coletaValida = (dadosAlerta.coletaRecife && dadosAlerta.coletaRecife.trim()) ||
-                    (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim());
+                    (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim()) ||
+                    (dadosAlerta.coletaInterestadual && dadosAlerta.coletaInterestadual.trim());
                 const motoristaValido = dadosAlerta.motorista && dadosAlerta.motorista.trim();
 
                 if (motoristaValido) {
@@ -885,7 +889,7 @@ function App({ socket }) {
             if (campo.includes('status') && valor === 'LIBERADO P/ DOCA') {
                 const doca = origem === 'Recife' ? itemAtual.doca_recife : itemAtual.doca_moreno;
                 socket.emit('enviar_alerta', {
-                    coleta: origem === 'Recife' ? itemAtual.coletaRecife : itemAtual.coletaMoreno,
+                    coleta: itemAtual.coletaInterestadual || (origem === 'Recife' ? itemAtual.coletaRecife : itemAtual.coletaMoreno),
                     doca: doca || '?',
                     origem,
                     tipo: 'doca',
@@ -946,7 +950,8 @@ function App({ socket }) {
                 } catch (_) { /* usa dados locais como fallback */ }
 
                 const coletaValida = (dadosParaAlerta.coletaRecife && dadosParaAlerta.coletaRecife.trim()) ||
-                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim());
+                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim()) ||
+                    (dadosParaAlerta.coletaInterestadual && dadosParaAlerta.coletaInterestadual.trim());
                 const motorista = dadosParaAlerta.motorista?.trim();
 
                 if (motorista) {
@@ -1004,7 +1009,7 @@ function App({ socket }) {
                     statusAntigo: statusAnterior,
                     statusNovo: valor,
                     origem: origem,
-                    coleta: itemAtual.coletaRecife || itemAtual.coletaMoreno || 'N/A',
+                    coleta: itemAtual.coletaRecife || itemAtual.coletaMoreno || itemAtual.coletaInterestadual || 'N/A',
                     usuario: user.nome
                 });
             } catch (error) {
