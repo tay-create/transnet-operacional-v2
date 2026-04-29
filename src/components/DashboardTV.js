@@ -151,8 +151,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         return dataCard.split('T')[0] === hoje;
     });
 
-    const temLeaoEletrikSul = veiculosHoje.some(v => ehOperacaoLeaoEletrikSul(v.operacao));
-    const totalTelas = temLeaoEletrikSul ? 5 : 4;
+    const totalTelas = 5;
 
     useEffect(() => {
         if (pausado) return;
