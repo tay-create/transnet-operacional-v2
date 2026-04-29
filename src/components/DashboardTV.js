@@ -123,7 +123,7 @@ const PRIORIDADE_STATUS = {
     'EM CARREGAMENTO': 3, 'CARREGADO': 4, 'LIBERADO P/ CT-e': 5
 };
 
-export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket }) {
+export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket, onRefresh }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
 
@@ -187,10 +187,18 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
         // Atualizar via socket em vez de polling
         const handleDocas = () => { if (!unmounted) fetchDocas(); };
         const handleOcorrencias = () => { if (!unmounted) fetchOcorrencias(); };
+        // Reconexão após queda: recarrega docas/ocorrências e solicita refresh de veículos ao App
+        const handleReconnect = () => {
+            if (unmounted) return;
+            fetchDocas();
+            fetchOcorrencias();
+            onRefresh?.();
+        };
 
         if (socket) {
             socket.on('docas_interditadas_update', handleDocas);
             socket.on('ocorrencias_update', handleOcorrencias);
+            socket.on('connect', handleReconnect);
         }
 
         return () => {
@@ -198,9 +206,10 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
             if (socket) {
                 socket.off('docas_interditadas_update', handleDocas);
                 socket.off('ocorrencias_update', handleOcorrencias);
+                socket.off('connect', handleReconnect);
             }
         };
-    }, [socket]);
+    }, [socket, onRefresh]);
 
     useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });
@@ -224,7 +233,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Fluxo Mensal', 'Leão / Eletrik Sul'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Leão / Eletrik Sul', 'Fluxo Mensal'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -310,8 +319,8 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
                 {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 3 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 4 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={[...ctesRecife, ...ctesMoreno]} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 3 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={[...ctesRecife, ...ctesMoreno]} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
 
