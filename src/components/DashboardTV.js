@@ -1475,13 +1475,15 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
 
     return (
         <div className="tv-card-anim">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px 0' }}>
                     Operação Leão / Eletrik Sul
                 </h2>
-                <div style={{ ...glassCard(t, '#ffffff15'), padding: '8px 20px', textAlign: 'center', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '28px', fontWeight: '900', color: '#f8fafc' }}>{totalGeral}</span>
-                    <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total</span>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ ...glassCard(t, '#f9731660'), padding: '16px 40px', textAlign: 'center', borderLeft: '4px solid #f97316' }}>
+                        <div style={{ fontSize: '56px', fontWeight: '900', color: '#f97316', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f9731680)' }}>{totalGeral}</div>
+                        <div style={{ fontSize: '11px', color: '#fdba74', marginTop: '4px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Leão / Eletrik Sul</div>
+                    </div>
                 </div>
             </div>
 
