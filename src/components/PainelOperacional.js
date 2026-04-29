@@ -771,8 +771,11 @@ export default function PainelOperacional({
                             }}
                         >
                             <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>Todas as operações</option>
-                            {OPCOES_OPERACAO.filter(op =>
-                                origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
+                            {(operacoesFixas
+                                ? operacoesFixas
+                                : OPCOES_OPERACAO.filter(op =>
+                                    origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
+                                )
                             ).map(op => (
                                 <option key={op} value={op} style={{ background: '#1e293b', color: '#e2e8f0' }}>{op}</option>
                             ))}
