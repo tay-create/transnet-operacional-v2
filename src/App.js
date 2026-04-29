@@ -1366,7 +1366,7 @@ function App({ socket }) {
 
                 {abaAtiva === 'painel_leao' && temAcesso('operacao') && (
                     <PainelOperacional
-                        origem="Recife"
+                        origem="Leao"
                         lista={listaVeiculos}
                         setLista={setListaVeiculos}
                         opcoesDocas={[]}

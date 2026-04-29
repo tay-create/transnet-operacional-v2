@@ -206,6 +206,8 @@ export default function PainelOperacional({
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
             return podeEditar(permissao);
         }
+        // Painel com operações fixas (ex: Leão/Eletrik Sul) não tem restrição por cidade
+        if (operacoesFixas) return podeEditar(permissao);
         if (user.cidade !== origem) {
             return false;
         }
@@ -215,11 +217,24 @@ export default function PainelOperacional({
     const [dataInicio, setDataInicio] = useState(() => {
         const salvo = localStorage.getItem('filtro_data_inicio_' + origem);
         const hoje = obterDataBrasilia();
+        if (operacoesFixas) {
+            // Painel com operações fixas (ex: Leão/Eletrik Sul): padrão = 30 dias atrás, sem restrição de passado
+            if (salvo) return salvo;
+            const d = new Date(hoje + 'T00:00:00');
+            d.setDate(d.getDate() - 30);
+            return d.toISOString().substring(0, 10);
+        }
         return (salvo && salvo >= hoje) ? salvo : hoje;
     });
     const [dataFim, setDataFim] = useState(() => {
         const salvo = localStorage.getItem('filtro_data_fim_' + origem);
         const hoje = obterDataBrasilia();
+        if (operacoesFixas) {
+            if (salvo) return salvo;
+            const d = new Date(hoje + 'T00:00:00');
+            d.setDate(d.getDate() + 30);
+            return d.toISOString().substring(0, 10);
+        }
         return (salvo && salvo >= hoje) ? salvo : hoje;
     });
     const [filtroOperacao, setFiltroOperacao] = useState('');
@@ -541,7 +556,7 @@ export default function PainelOperacional({
 
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
-        const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+        const dataCarregadoUnidade = operacoesFixas ? null : (origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno);
         const itemData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
