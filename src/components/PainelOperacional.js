@@ -551,8 +551,8 @@ export default function PainelOperacional({
         const operacaoEnvolveMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
         const operacaoEnvolveOrigem = origem === 'Recife' ? operacaoEnvolveRecife : operacaoEnvolveMoreno;
 
-        // Se a operação não envolve esta origem, não exibir
-        if (!operacaoEnvolveOrigem) return false;
+        // Se a operação não envolve esta origem, não exibir (exceto quando há filtro fixo de operações)
+        if (!operacoesFixas && !operacaoEnvolveOrigem) return false;
 
         // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
         // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
