@@ -66,9 +66,9 @@ const classificarOperacao = (op) => {
     return null;
 };
 
-const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 const ehOperacaoLeaoEletrikSul = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+const ehOperacaoRecife = (op) => op && !ehOperacaoLeaoEletrikSul(op) && op.includes('RECIFE');
+const ehOperacaoMoreno = (op) => op && !ehOperacaoLeaoEletrikSul(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 // Agrega operações consolidadas (contém '/') por nome e contagem
 const agruparConsolidados = (veiculosList) => {
