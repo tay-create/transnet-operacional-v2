@@ -924,6 +924,7 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
     const recifeOnly = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao) && !ehOperacaoMoreno(v.operacao)).length;
     const morenoOnly = veiculosMesAtual.filter(v => !ehOperacaoRecife(v.operacao) && ehOperacaoMoreno(v.operacao)).length;
     const ambasMes = veiculosMesAtual.filter(v => ehOperacaoRecife(v.operacao) && ehOperacaoMoreno(v.operacao)).length;
+    const spMes = veiculosMesAtual.filter(v => ehOperacaoLeaoEletrikSul(v.operacao)).length;
 
     const dadosPieOp = [
         { name: 'Plástico', value: contadores.delta, fill: CORES_KPI.delta },
@@ -936,9 +937,10 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
     ].filter(d => d.value > 0);
 
     const dadosUnidades = [
-        { name: 'Só Recife', value: recifeOnly, fill: '#3b82f6' },
-        { name: 'Só Moreno', value: morenoOnly, fill: '#60a5fa' },
-        { name: 'Ambas', value: ambasMes, fill: '#818cf8' }
+        { name: 'Apenas Recife', value: recifeOnly, fill: '#3b82f6' },
+        { name: 'Moreno', value: morenoOnly, fill: '#60a5fa' },
+        { name: 'Recife c/ Moreno', value: ambasMes, fill: '#818cf8' },
+        { name: 'São Paulo', value: spMes, fill: '#f97316' }
     ].filter(d => d.value > 0);
 
     // Frota vs Terceiros — mensal
@@ -1028,7 +1030,8 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                         <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
                             <span style={{ fontSize: '11px', color: '#3b82f6' }}>{recifeOnly} Recife</span>
                             <span style={{ fontSize: '11px', color: '#60a5fa' }}>{morenoOnly} Moreno</span>
-                            {ambasMes > 0 && <span style={{ fontSize: '11px', color: '#818cf8' }}>{ambasMes} Ambas</span>}
+                            {ambasMes > 0 && <span style={{ fontSize: '11px', color: '#818cf8' }}>{ambasMes} R/M</span>}
+                            {spMes > 0 && <span style={{ fontSize: '11px', color: '#f97316' }}>{spMes} SP</span>}
                         </div>
                     </div>
                 </div>
