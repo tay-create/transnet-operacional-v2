@@ -1401,86 +1401,93 @@ function StatusBars({ dados, t }) {
 // TELA 4: OPERACAO LEAO / ELETRIK SUL
 // ================================================================
 function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje = [] }) {
-    const veiculosLeao = veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao));
+    const veiculosLeao = veiculos.filter(v => v.operacao === 'LEÃO - SP');
+    const veiculosEletrik = veiculos.filter(v => v.operacao === 'ELETRIK SUL');
     const totalLeao = veiculosLeao.length;
-
-    const contOp = { leao: 0, eletrikSul: 0 };
-    veiculosLeao.forEach(v => {
-        if (v.operacao === 'LEÃO - SP') contOp.leao++;
-        else if (v.operacao === 'ELETRIK SUL') contOp.eletrikSul++;
-    });
+    const totalEletrik = veiculosEletrik.length;
+    const totalGeral = totalLeao + totalEletrik;
 
     const normalizarStatus = (st) => {
         if (st === 'AGUARDANDO') return 'AGUARDANDO P/ SEPARAÇÃO';
         if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
         return st;
     };
-    const contStatus = {};
-    OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
-    veiculosLeao.forEach(v => {
-        const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
-        if (contStatus[st] !== undefined) contStatus[st]++;
-        if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
-    });
-    const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 
-    const emEmissaoCte = ctes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
-    const emitidoCte = ctes.filter(c => c.status === 'Emitido').length;
-    const aguardandoCte = Math.max(0, totalLeao - emEmissaoCte - emitidoCte);
-    const pct = (v) => totalLeao > 0 ? `${Math.round((v / totalLeao) * 100)}%` : '0%';
+    const calcStatus = (lista) => {
+        const cont = {};
+        OPCOES_STATUS.forEach(s => { cont[s] = 0; });
+        lista.forEach(v => {
+            const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
+            if (cont[st] !== undefined) cont[st]++;
+            if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
+        });
+        return OPCOES_STATUS.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
+    };
 
-    return (
-        <div className="tv-card-anim">
-            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
-                    Operação Leão / Eletrik Sul
-                </h2>
+    const calcFluxoCte = (lista) => {
+        const total = lista.length;
+        const liberados = lista.filter(v => v.status_recife === 'LIBERADO P/ CT-e' || v.cte_antecipado_recife).length;
+        const emitidos = lista.filter(v => {
+            const st = v.status_recife || '';
+            return st === 'LIBERADO P/ CT-e' && v.status_cte === 'Emitido';
+        }).length;
+        const emEmissao = Math.max(0, liberados - emitidos);
+        const aguardando = Math.max(0, total - liberados);
+        const pct = (v) => total > 0 ? `${Math.round((v / total) * 100)}%` : '0%';
+        return { aguardando, emEmissao, emitidos, pct, total };
+    };
+
+    const dadosStatusLeao = calcStatus(veiculosLeao);
+    const dadosStatusEletrik = calcStatus(veiculosEletrik);
+    const fluxoLeao = calcFluxoCte(veiculosLeao);
+    const fluxoEletrik = calcFluxoCte(veiculosEletrik);
+
+    const PainelOp = ({ label, cor, total, dadosStatus, fluxo }) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ ...glassCard(t, `${cor}40`), padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px', borderLeft: `4px solid ${cor}` }}>
+                <div style={{ fontSize: '48px', fontWeight: '900', color: cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${cor}60)` }}>{total}</div>
+                <div style={{ fontSize: '13px', color: cor, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{label}</div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-                <div style={{ ...glassCard(t, '#f9731660'), padding: '24px', textAlign: 'center', borderLeft: '4px solid #f97316', width: '100%', maxWidth: '400px' }}>
-                    <div style={{ fontSize: '72px', fontWeight: '900', color: '#f97316', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f9731680)' }}>{totalLeao}</div>
-                    <div style={{ fontSize: '12px', color: '#fdba74', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Leão / Eletrik Sul</div>
-                </div>
+            <div style={{ ...glassCard(t), padding: '14px' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Status de Embarque</div>
+                <StatusBars dados={dadosStatus} t={t} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '2px' }}>Fluxo CT-e</div>
                 {[
-                    { label: 'Leão - SP', valor: contOp.leao, cor: CORES_KPI.leao },
-                    { label: 'Eletrik Sul', valor: contOp.eletrikSul, cor: CORES_KPI.eletrikSul },
-                ].map(c => (
-                    <div key={c.label} style={{ ...glassCard(t, `${c.cor}40`), padding: '20px', textAlign: 'center', borderTop: `3px solid ${c.cor}` }}>
-                        <div style={{ fontSize: '44px', fontWeight: '900', color: c.cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${c.cor}60)` }}>{c.valor}</div>
-                        <div style={{ fontSize: '11px', color: t.textMuted, marginTop: '6px', textTransform: 'uppercase', letterSpacing: '1px' }}>{c.label}</div>
+                    { label: 'Aguardando', valor: fluxo.aguardando, cor: '#f59e0b' },
+                    { label: 'Em Emissão', valor: fluxo.emEmissao, cor: '#3b82f6' },
+                    { label: 'Emitido', valor: fluxo.emitidos, cor: '#34d399' },
+                ].map(item => (
+                    <div key={item.label} style={{ ...glassCard(t, `${item.cor}20`), padding: '10px 14px', borderLeft: `3px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: t.text }}>{item.label}</div>
+                        <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: '28px', fontWeight: '900', color: item.cor }}>{item.valor}</span>
+                            <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '6px' }}>{fluxo.pct(item.valor)}</span>
+                        </div>
                     </div>
                 ))}
             </div>
+        </div>
+    );
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div style={{ ...glassCard(t), padding: '16px' }}>
-                    <h3 style={{ marginBottom: '10px', color: tema === 'light' ? '#1e293b' : '#f8fafc', fontSize: '14px', fontWeight: '700' }}>Status de Embarque</h3>
-                    <StatusBars dados={dadosStatus} t={t} />
+    return (
+        <div className="tv-card-anim">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: 0 }}>
+                    Operação Leão / Eletrik Sul
+                </h2>
+                <div style={{ ...glassCard(t, '#ffffff15'), padding: '8px 20px', textAlign: 'center', borderRadius: '8px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: '900', color: '#f8fafc' }}>{totalGeral}</span>
+                    <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total</span>
                 </div>
+            </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '4px', marginBottom: '2px' }}>Fluxo CT-e</div>
-                    {[
-                        { label: 'Aguardando P/ Emissão', valor: aguardandoCte, cor: '#f59e0b', desc: 'CT-es aguardando emissão' },
-                        { label: 'Em Emissão', valor: emEmissaoCte, cor: '#3b82f6', desc: 'CT-es sendo emitidos' },
-                        { label: 'Emitido', valor: emitidoCte, cor: '#34d399', desc: 'CT-es finalizados' }
-                    ].map(item => (
-                        <div key={item.label} style={{ ...glassCard(t, `${item.cor}30`), padding: '14px 18px', borderLeft: `4px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flex: 1 }}>
-                            <div>
-                                <div style={{ fontSize: '16px', fontWeight: '700', color: t.text }}>{item.label}</div>
-                                <div style={{ fontSize: '14px', color: t.textDim }}>{item.desc}</div>
-                            </div>
-                            <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontSize: '40px', fontWeight: '900', color: item.cor, filter: `drop-shadow(0 0 6px ${item.cor}60)` }}>{item.valor}</span>
-                                <span style={{ fontSize: '12px', color: t.textMuted, marginLeft: '8px' }}>{pct(item.valor)}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <PainelOp label="Leão - SP" cor={CORES_KPI.leao} total={totalLeao} dadosStatus={dadosStatusLeao} fluxo={fluxoLeao} />
+                <PainelOp label="Eletrik Sul" cor={CORES_KPI.eletrikSul} total={totalEletrik} dadosStatus={dadosStatusEletrik} fluxo={fluxoEletrik} />
             </div>
         </div>
     );
