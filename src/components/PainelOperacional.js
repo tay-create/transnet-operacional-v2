@@ -1388,8 +1388,8 @@ export default function PainelOperacional({
                                             {/* Doca e Status */}
                                             {podeEditarNaUnidade('alterar_status_operacao') ? (
                                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                    {/* Select Doca */}
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {/* Select Doca — oculto quando não há docas (ex: Painel Leão) */}
+                                                    <div style={{ display: opcoesDocas.length === 0 ? 'none' : 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <Anchor size={11} color="#60a5fa" />
                                                         <select
                                                             value={item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'}

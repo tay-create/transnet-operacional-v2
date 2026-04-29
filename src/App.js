@@ -605,8 +605,9 @@ function App({ socket }) {
 
 
 
-    const ehOperacaoRecife = (op) => op.includes('RECIFE');
-    const ehOperacaoMoreno = (op) => op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+    const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+    const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
+    const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
     const ativarNotificacoes = () => {
         if (!("Notification" in window)) { mostrarNotificacao("❌ Este navegador não suporta notificações."); return; }
@@ -677,7 +678,7 @@ function App({ socket }) {
             tempos_recife: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
             tempos_moreno: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
             status_coleta: { solicitado: '', liberado: '' },
-            coletaRecife: precisaRecife ? formLanca.coletaRecife : '',
+            coletaRecife: precisaRecife ? formLanca.coletaRecife : (ehOperacaoInterestadual(formLanca.operacao) ? formLanca.coletaRecife : ''),
             coletaMoreno: precisaMoreno ? formLanca.coletaMoreno : '',
             origem_criacao: unidadeForcada,
             inicio_rota: unidadeForcada,
