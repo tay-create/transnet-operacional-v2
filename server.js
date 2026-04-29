@@ -1637,15 +1637,15 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
         }
 
         const status = dados.status || 'Aguardando Emissão';
+        const coletaFinal = dados.coletaInterestadual || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null;
         const result = await dbRun(
             `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT (motorista, numero_liberacao) WHERE status != 'Emitido' DO NOTHING`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 origem, status, JSON.stringify(dados),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
-                dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null,
+                coletaFinal,
                 dados.numero_liberacao || null,
                 dados.data_liberacao || null,
                 dados.origem_cad || null,
@@ -1655,7 +1655,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
             ]
         );
         const novo = { id: result.lastID, origem, status, ...dados };
-        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || '-'}`);
+        await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${coletaFinal || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
     } catch (e) {
