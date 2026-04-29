@@ -156,8 +156,8 @@ export default function LoginScreen({ onLoginSuccess }) {
                     <span onClick={abrirModalEsqueci} style={{ color: '#64748b', cursor: 'pointer' }}>ESQUECI A SENHA</span>
                 </div>
 
-                <div style={{ textAlign: 'center', marginTop: '20px', color: '#334155', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Created in 2026 • Will • Transnet
+                <div style={{ textAlign: 'center', marginTop: '20px', color: '#334155', fontSize: '10px', letterSpacing: '0.5px' }}>
+                    © 2026 Transnet Transportes. Todos os direitos reservados.
                 </div>
 
             </div>
