@@ -380,6 +380,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
         fullName: s,
         Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && (v.status_recife === s || (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') || (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife))).length,
         Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && (v.status_moreno === s || (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_moreno === 'AGUARDANDO') || (s === 'LIBERADO P/ CARREGAMENTO' && v.status_moreno === 'LIBERADO P/ DOCA') || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno))).length,
+        'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) && (v.status_recife === s || (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') || (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') || (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife))).length,
     }));
 
     return (
@@ -518,7 +519,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                             contentStyle={{ background: '#0f172a', border: `1px solid ${t.border}`, borderRadius: '8px', fontSize: '12px' }}
                             formatter={(value, name, props) => {
                                 const entry = props.payload;
-                                const total = (entry?.Recife || 0) + (entry?.Moreno || 0);
+                                const total = (entry?.Recife || 0) + (entry?.Moreno || 0) + (entry?.['São Paulo'] || 0);
                                 const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                                 return [`${value} veiculos (${pct}%)`, name];
                             }}
@@ -530,7 +531,7 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                         />
                         <Legend
                             wrapperStyle={{ fontSize: '11px', color: t.textMuted }}
-                            formatter={(value) => <span style={{ color: value === 'Recife' ? '#3b82f6' : '#f59e0b', fontWeight: '700' }}>{value}</span>}
+                            formatter={(value) => <span style={{ color: value === 'Recife' ? '#3b82f6' : value === 'Moreno' ? '#f59e0b' : '#f97316', fontWeight: '700' }}>{value}</span>}
                         />
                         <Bar dataKey="Recife" fill="#3b82f6" radius={[3, 3, 0, 0]}>
                             <LabelList dataKey="Recife" position="top" fill="#a5b4fc" fontSize={13} fontWeight="bold" content={(props) => {
@@ -544,6 +545,13 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                                 const { x, y, width, value } = props;
                                 if (!value || value <= 0) return null;
                                 return <text x={x + width / 2} y={y - 4} fill="#fde68a" textAnchor="middle" dominantBaseline="auto" fontSize={13} fontWeight="bold">{value}</text>;
+                            }} />
+                        </Bar>
+                        <Bar dataKey="São Paulo" fill="#f97316" radius={[3, 3, 0, 0]}>
+                            <LabelList dataKey="São Paulo" position="top" fill="#fdba74" fontSize={13} fontWeight="bold" content={(props) => {
+                                const { x, y, width, value } = props;
+                                if (!value || value <= 0) return null;
+                                return <text x={x + width / 2} y={y - 4} fill="#fdba74" textAnchor="middle" dominantBaseline="auto" fontSize={13} fontWeight="bold">{value}</text>;
                             }} />
                         </Bar>
                     </BarChart>

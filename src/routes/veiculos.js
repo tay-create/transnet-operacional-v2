@@ -492,7 +492,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 const avancoDuploRecife = STATUS_TRAVA_DUPLA.includes(v.status_recife) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_recife);
                 const avancoDuploMoreno = STATUS_TRAVA_DUPLA.includes(v.status_moreno) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_moreno);
 
-                if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota) {
+                const ehInterestadualTrava = v.operacao === 'LEÃO - SP' || v.operacao === 'ELETRIK SUL';
+                if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota && !ehInterestadualTrava) {
                     // Procura se existe ALGUM checklist aprovado para este veículo
                     const chk = await dbGet("SELECT id FROM checklists_carreta WHERE veiculo_id = ? AND status = 'APROVADO' LIMIT 1", [req.params.id]);
 
