@@ -234,6 +234,8 @@ export default function PainelOperacional({
     const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
     const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
+    const [reenviarCte, setReenviarCte] = useState(null); // { item, origem }
+    const [operadorReenvio, setOperadorReenvio] = useState(null);
     const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
     const [proximaDataFinalizar, setProximaDataFinalizar] = useState(null); // data escolhida (sexta → sáb ou seg)
     const [modalEscolhaDia, setModalEscolhaDia] = useState(false); // modal sexta-feira
@@ -1716,8 +1718,19 @@ export default function PainelOperacional({
                                                     )}
                                                     {/* Feedback: CT-e já liberado */}
                                                     {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
-                                                        <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <CheckCircle size={12} /> CT-e liberado
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                <CheckCircle size={12} /> CT-e liberado
+                                                            </span>
+                                                            {podeEditar && (
+                                                                <button
+                                                                    onClick={() => { setReenviarCte({ item, origem }); setOperadorReenvio(null); }}
+                                                                    title="Reenviar notificação de CT-e"
+                                                                    style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '5px', color: '#a855f7', fontSize: '10px', padding: '2px 6px', cursor: 'pointer', fontWeight: 600 }}
+                                                                >
+                                                                    Reenviar
+                                                                </button>
+                                                            )}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1853,6 +1866,48 @@ export default function PainelOperacional({
                                     opacity: operadorSelecionado ? 1 : 0.6,
                                 }}
                             >Liberar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Reenviar CT-e */}
+            {reenviarCte && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '0', width: '360px', maxWidth: '95vw' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                            <span style={{ color: '#a855f7', fontWeight: 700, fontSize: '14px' }}>Reenviar CT-e para...</span>
+                            <button onClick={() => { setReenviarCte(null); setOperadorReenvio(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={16} /></button>
+                        </div>
+                        <div style={{ padding: '12px 16px', maxHeight: '220px', overflowY: 'auto' }}>
+                            {operadoresConhecimento.map(op => (
+                                <button key={op.id} onClick={() => setOperadorReenvio(op)} style={{
+                                    width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: '8px', border: `1px solid ${operadorReenvio?.id === op.id ? '#a855f7' : 'transparent'}`,
+                                    background: operadorReenvio?.id === op.id ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
+                                    color: operadorReenvio?.id === op.id ? '#c084fc' : '#cbd5e1', cursor: 'pointer', marginBottom: '4px', fontSize: '13px'
+                                }}>{op.nome}</button>
+                            ))}
+                            {operadoresConhecimento.length === 0 && <p style={{ color: '#64748b', fontSize: '12px', textAlign: 'center' }}>Nenhum operador encontrado.</p>}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                            <button onClick={() => { setReenviarCte(null); setOperadorReenvio(null); }} style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: '#94a3b8' }}>Cancelar</button>
+                            <button
+                                disabled={!operadorReenvio}
+                                onClick={async () => {
+                                    const { item, origem } = reenviarCte;
+                                    const opId = operadorReenvio.id;
+                                    const opNome = operadorReenvio.nome;
+                                    setReenviarCte(null);
+                                    setOperadorReenvio(null);
+                                    try {
+                                        await api.post('/api/cte/reenviar-notificacao', { veiculoId: item.id, destinatarioId: opId, destinatarioNome: opNome, origem });
+                                        mostrarNotificacao(`✅ Notificação de CT-e reenviada para ${opNome}.`);
+                                    } catch (e) {
+                                        mostrarNotificacao('❌ Erro ao reenviar notificação.');
+                                    }
+                                }}
+                                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: operadorReenvio ? 'pointer' : 'not-allowed', background: operadorReenvio ? '#a855f7' : '#1e293b', border: 'none', color: operadorReenvio ? '#fff' : '#475569', opacity: operadorReenvio ? 1 : 0.6 }}
+                            >Reenviar</button>
                         </div>
                     </div>
                 </div>
