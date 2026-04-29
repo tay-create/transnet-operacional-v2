@@ -529,13 +529,13 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
 
-            if (!precisaRecife) {
+            if (!precisaRecife && !ehInterestadualPut) {
                 v.coletaRecife = '';
                 v.rotaRecife = '';
                 v.status_recife = 'AGUARDANDO P/ SEPARAÇÃO';
                 v.doca_recife = 'SELECIONE';
             }
-            if (!precisaMoreno) {
+            if (!precisaMoreno && !ehInterestadualPut) {
                 v.coletaMoreno = '';
                 v.rotaMoreno = '';
                 v.status_moreno = 'AGUARDANDO P/ SEPARAÇÃO';
