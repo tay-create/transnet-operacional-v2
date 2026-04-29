@@ -347,6 +347,8 @@ module.exports = function createChecklistsRouter(io) {
                     }
                 }
 
+                const ehInterestadual = veiculo.operacao === 'LEÃO - SP' || veiculo.operacao === 'ELETRIK SUL';
+
                 if (!isFrota) {
                     // Verificar Ger. Risco
                     if (situacao !== 'LIBERADO') {
@@ -354,8 +356,8 @@ module.exports = function createChecklistsRouter(io) {
                         return res.status(403).json({ success: false, message: 'Bloqueado: Gerenciamento de Risco não liberou este veículo.' });
                     }
 
-                    // Verificar checklist da carreta ao avançar para EM CARREGAMENTO
-                    if (novoStatus === 'EM CARREGAMENTO') {
+                    // Verificar checklist da carreta ao avançar para EM CARREGAMENTO (exceto interestaduais)
+                    if (novoStatus === 'EM CARREGAMENTO' && !ehInterestadual) {
                         const chk = await dbGet("SELECT id FROM checklists_carreta WHERE veiculo_id = ? AND status = 'APROVADO' LIMIT 1", [veiculoId]);
                         if (!chk) {
                             console.warn(`🔒 [Conferente/${cidade}] BLOQUEADO - Veículo #${veiculoId} (${veiculo.motorista}): Checklist da Carreta não aprovado`);
