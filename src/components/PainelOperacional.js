@@ -20,8 +20,9 @@ import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opT
 
 
 
-const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
+const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
+const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const SUB_STYLES_CARD = {
     plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO' },
@@ -192,8 +193,6 @@ const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostra
         setLista(prev => { const r = [...prev]; r[realIndex] = item; return r; });
     }
 };
-
-const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
 
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
@@ -565,8 +564,8 @@ export default function PainelOperacional({
 
         // Verificar se a operação do card envolve esta unidade
         const op = item.operacao || '';
-        const operacaoEnvolveRecife = op.includes('RECIFE');
-        const operacaoEnvolveMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+        const operacaoEnvolveRecife = ehOperacaoRecife(op);
+        const operacaoEnvolveMoreno = ehOperacaoMoreno(op);
         const operacaoEnvolveOrigem = origem === 'Recife' ? operacaoEnvolveRecife : operacaoEnvolveMoreno;
 
         // Se a operação não envolve esta origem, não exibir (exceto quando há filtro fixo de operações)
@@ -778,7 +777,7 @@ export default function PainelOperacional({
                             {(operacoesFixas
                                 ? operacoesFixas
                                 : OPCOES_OPERACAO.filter(op =>
-                                    origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
+                                    origem === 'Recife' ? ehOperacaoRecife(op) : ehOperacaoMoreno(op)
                                 )
                             ).map(op => (
                                 <option key={op} value={op} style={{ background: '#1e293b', color: '#e2e8f0' }}>{op}</option>
