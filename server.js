@@ -46,7 +46,7 @@ app.set('trust proxy', 1);
 
 // Mapeamento estático: tipo de notificação → cargos que a recebem
 const DESTINATARIOS_NOTIFICACAO = {
-    'aceite_cte_pendente': ['Conhecimento', 'Planejamento', 'Coordenador'],
+    'aceite_cte_pendente': ['Conhecimento', 'Planejamento', 'Coordenador', 'Desenvolvedor'],
     'veiculo_carregado':   ['Planejamento'],
     'admin_cadastro':      ['Coordenador', 'Direção'],
     'admin_senha':         ['Coordenador', 'Direção'],

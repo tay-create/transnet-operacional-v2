@@ -55,7 +55,7 @@ const hojeISO = obterDataBrasilia();
 const DESTINATARIOS_ALERTA = {
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
-    'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
+    'aceite_cte_pendente': ['Conhecimento', 'Planejamento', 'Desenvolvedor'],
     'veiculo_carregado':   ['Planejamento'],
     'checklist_pendente':  [],
     'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
