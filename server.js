@@ -1468,6 +1468,37 @@ app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', '
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
+// Reenviar notificação de CT-e pendente para um operador específico
+app.post('/api/cte/reenviar-notificacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Direção', 'Desenvolvedor']), async (req, res) => {
+    try {
+        const { veiculoId, destinatarioId, destinatarioNome, origem } = req.body;
+        if (!veiculoId || !destinatarioId) return res.status(400).json({ success: false, message: 'veiculoId e destinatarioId são obrigatórios.' });
+
+        const veiculo = await dbGet('SELECT * FROM veiculos WHERE id = $1', [veiculoId]);
+        if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+
+        let dados = {};
+        try { dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : (veiculo.dados_json || {}); } catch {}
+
+        const coletaValida = veiculo.coletarecife || veiculo.coletamoreno || veiculo.coletainterestadual || '';
+        const motorista = veiculo.motorista?.trim();
+        if (!motorista) return res.status(400).json({ success: false, message: 'Veículo sem motorista.' });
+
+        const notif = await enviarNotificacao('notificacao_direcionada', {
+            tipo: 'aceite_cte_pendente',
+            origem: origem || dados.origem || 'Recife',
+            destinatario_id: Number(destinatarioId),
+            destinatario_nome: destinatarioNome || null,
+            mensagem: `CT-e Liberado${coletaValida ? ` (${coletaValida})` : ` — ${motorista}`}`,
+            dadosVeiculo: { ...dados, id: veiculo.id, motorista: veiculo.motorista, coletaRecife: veiculo.coletarecife, coletaMoreno: veiculo.coletamoreno, coletaInterestadual: veiculo.coletainterestadual },
+            data_criacao: new Date().toISOString()
+        });
+
+        await registrarLog('CTE_REENVIO', req.user?.nome || '?', veiculoId, 'veiculos', null, null, `Reenvio para ${destinatarioNome || destinatarioId}`);
+        res.json({ success: true, notificacao: notif });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.get('/notificacoes', authMiddleware, async (req, res) => {
     try {
         const meuCargo = req.user?.cargo || '';
