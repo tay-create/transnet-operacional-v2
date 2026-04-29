@@ -131,8 +131,9 @@ const generateToken = (user, manterConectado = false) => {
         cargo: user.cargo,
         cidade: user.cidade
     };
-    // Dashboard Viewer fica sempre online (TV/painel sem interação humana) — JWT sem expiração
-    if (user.cargo === 'Dashboard Viewer') {
+    // Dashboard Viewer e TVs dedicadas ficam sempre online — JWT sem expiração
+    const EMAILS_PERMANENTES = ['tv3@tnetlog.com.br'];
+    if (user.cargo === 'Dashboard Viewer' || EMAILS_PERMANENTES.includes(user.email)) {
         return jwt.sign(payload, JWT_SECRET);
     }
     const expiresIn = manterConectado ? '7d' : '8h';

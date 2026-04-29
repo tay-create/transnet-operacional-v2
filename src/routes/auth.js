@@ -98,8 +98,9 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         const token = generateToken(usuario, manterConectado);
 
         // Registrar sessão no banco
-        // Dashboard Viewer nunca expira (fica sempre na TV sem interação humana)
-        const ehViewer = usuario.cargo === 'Dashboard Viewer';
+        // Dashboard Viewer e TVs dedicadas nunca expiram (painel sem interação humana)
+        const EMAILS_PERMANENTES = ['tv3@tnetlog.com.br'];
+        const ehViewer = usuario.cargo === 'Dashboard Viewer' || EMAILS_PERMANENTES.includes(usuario.email);
         const expiresAt = ehViewer
             ? null
             : manterConectado

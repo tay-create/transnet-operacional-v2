@@ -39,9 +39,10 @@ axiosApi.interceptors.response.use(
             const isConferente = pathname.startsWith('/conferente');
             const isMobile = pathname.startsWith('/mobile');
             const url = error.config?.url || '';
-            // Dashboard Viewer nunca é deslogado por 401 (sessão permanente, TV/painel)
-            const cargo = useAuthStore.getState().user?.cargo;
-            if (cargo === 'Dashboard Viewer') {
+            // Dashboard Viewer e TVs dedicadas nunca são deslogadas por 401 (sessão permanente)
+            const { cargo, email } = useAuthStore.getState().user || {};
+            const EMAILS_PERMANENTES = ['tv3@tnetlog.com.br'];
+            if (cargo === 'Dashboard Viewer' || EMAILS_PERMANENTES.includes(email)) {
                 // Apenas ignorar — sessão permanente, o servidor pode ter reiniciado
             } else if (isConferente || isMobile) {
                 if (!url.includes('/login')) {
