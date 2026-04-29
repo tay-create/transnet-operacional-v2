@@ -284,7 +284,10 @@ function App({ socket }) {
         }
 
         // Filtrar por destinatário específico (ex: operador Conhecimento selecionado no modal CT-e)
-        if (dados.destinatario_id && dados.destinatario_id !== userRef.current?.id) {
+        // Desenvolvedor no staging recebe tudo independente do destinatário (modo debug)
+        const ehDesenvolvedor = meuCargo === 'Desenvolvedor';
+        const ehStaging = window.location.hostname.includes('homolog');
+        if (dados.destinatario_id && dados.destinatario_id !== userRef.current?.id && !(ehDesenvolvedor && ehStaging)) {
             console.log(`🚫 Alerta ignorado: destinatário ${dados.destinatario_id} não sou eu (${userRef.current?.id}).`);
             return;
         }
