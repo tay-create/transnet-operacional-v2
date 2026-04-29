@@ -1017,8 +1017,8 @@ export default function PainelOperacional({
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <span style={{ fontSize: '9px', color: '#64748b' }}>ROTA:</span>
                                                         <input
-                                                            value={(origem === 'Recife' || operacoesFixas ? item.rotaRecife : item.rotaMoreno) || ''}
-                                                            onChange={e => updateList(lista, setLista, realIndex, origem === 'Recife' || operacoesFixas ? 'rotaRecife' : 'rotaMoreno', e.target.value)}
+                                                            value={(origem === 'Recife' ? item.rotaRecife : item.rotaMoreno) || ''}
+                                                            onChange={e => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'rotaRecife' : 'rotaMoreno', e.target.value)}
                                                             placeholder="..."
                                                             style={getEstiloRota(origem === 'Recife' ? item.rotaRecife : item.rotaMoreno)}
                                                         />
@@ -1040,8 +1040,8 @@ export default function PainelOperacional({
                                                             : { background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '8px' }
                                                         }>
                                                             <TagInput
-                                                                value={origem === 'Recife' || operacoesFixas ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
-                                                                onChange={val => updateList(lista, setLista, realIndex, origem === 'Recife' || operacoesFixas ? 'coletaRecife' : 'coletaMoreno', val)}
+                                                                value={origem === 'Recife' ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
+                                                                onChange={val => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'coletaRecife' : 'coletaMoreno', val)}
                                                                 disabled={!podeEditarNaUnidade('coleta_card')}
                                                             />
                                                         </div>
