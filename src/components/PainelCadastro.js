@@ -534,15 +534,19 @@ export default function PainelCadastro({ user, socket }) {
 
                                                 {/* Footer — Botão Salvar */}
                                                 <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                                    {podeEditar ? (
+                                                    {situacao === 'LIBERADO' ? (
+                                                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                            <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                        </div>
+                                                    ) : podeEditar ? (
                                                         <button
                                                             onClick={() => salvar(m.id)}
                                                             disabled={estaSalvando}
                                                             style={{
                                                                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                                 padding: '8px', borderRadius: '7px', border: 'none',
-                                                                background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                                color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                                background: 'rgba(251,191,36,0.15)',
+                                                                color: '#fbbf24',
                                                                 fontWeight: 'bold', fontSize: '12px',
                                                                 cursor: estaSalvando ? 'default' : 'pointer',
                                                                 opacity: estaSalvando ? 0.6 : 1,
@@ -819,15 +823,19 @@ export default function PainelCadastro({ user, socket }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {situacao === 'LIBERADO' ? (
+                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                </div>
+                                            ) : podeEditar ? (
                                                 <button
                                                     onClick={() => salvarOperacao(m.id)}
                                                     disabled={estaSalvando}
                                                     style={{
                                                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                         padding: '8px', borderRadius: '7px', border: 'none',
-                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        background: 'rgba(251,191,36,0.15)',
+                                                        color: '#fbbf24',
                                                         fontWeight: 'bold', fontSize: '12px',
                                                         cursor: estaSalvando ? 'default' : 'pointer',
                                                         opacity: estaSalvando ? 0.6 : 1,
@@ -965,15 +973,19 @@ export default function PainelCadastro({ user, socket }) {
                                         </div>
 
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {situacao === 'LIBERADO' ? (
+                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                </div>
+                                            ) : podeEditar ? (
                                                 <button
                                                     onClick={() => salvarFrota(m.id)}
                                                     disabled={estaSalvando}
                                                     style={{
                                                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                         padding: '8px', borderRadius: '7px', border: 'none',
-                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        background: 'rgba(251,191,36,0.15)',
+                                                        color: '#fbbf24',
                                                         fontWeight: 'bold', fontSize: '12px',
                                                         cursor: estaSalvando ? 'default' : 'pointer',
                                                         opacity: estaSalvando ? 0.6 : 1,
