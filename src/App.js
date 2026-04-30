@@ -562,12 +562,12 @@ function App({ socket }) {
             const response = await api.get(`/ctes${params}`);
             if (response.data.success) {
                 const todos = response.data.ctes || [];
-                setCtesRecife(todos.filter(c => c.origem === 'Recife'));
-                setCtesMoreno(todos.filter(c => c.origem !== 'Recife'));
+                setCtesRecife(todos.filter(c => c.origem !== 'Moreno'));
+                setCtesMoreno(todos.filter(c => c.origem === 'Moreno'));
                 // Sem params = carga inicial (hoje) → também atualiza o estado do dashboard
                 if (!params) {
-                    setCtesRecifeHoje(todos.filter(c => c.origem === 'Recife'));
-                    setCtesMorenoHoje(todos.filter(c => c.origem !== 'Recife'));
+                    setCtesRecifeHoje(todos.filter(c => c.origem !== 'Moreno'));
+                    setCtesMorenoHoje(todos.filter(c => c.origem === 'Moreno'));
                 }
             }
         } catch (error) {
