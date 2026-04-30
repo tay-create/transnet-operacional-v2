@@ -237,7 +237,8 @@ export default function PainelOperacional({
             d.setDate(d.getDate() + 30);
             return d.toISOString().substring(0, 10);
         }
-        return (salvo && salvo >= hoje) ? salvo : hoje;
+        // Para Recife/Moreno: dataFim nunca ultrapassa hoje (evita ver cards de dias futuros)
+        return (salvo && salvo === hoje) ? salvo : hoje;
     });
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
