@@ -621,6 +621,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (v.cte_antecipado_moreno && !ts.cte_moreno_at) {
                     ts.cte_moreno_at = typeof v.cte_antecipado_moreno === 'string' ? v.cte_antecipado_moreno : agora;
                 }
+                if (v.cte_antecipado_interestadual && !ts.cte_recife_at) {
+                    ts.cte_recife_at = typeof v.cte_antecipado_interestadual === 'string' ? v.cte_antecipado_interestadual : agora;
+                }
 
                 v.timestamps_status = ts;
             }
@@ -716,7 +719,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?,
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
             data_liberacao=?, timestamps_status=?,
-            cte_antecipado_recife=?, cte_antecipado_moreno=?,
+            cte_antecipado_recife=?, cte_antecipado_moreno=?, cte_antecipado_interestadual=?,
             data_carregado_recife=?, data_carregado_moreno=?,
             dados_json=?, data_inicio_patio=?
             WHERE id = ?`;
@@ -751,6 +754,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify(v.timestamps_status || {}),
                 v.cte_antecipado_recife || null,
                 v.cte_antecipado_moreno || null,
+                v.cte_antecipado_interestadual || null,
                 v.data_carregado_recife ?? veiculoAntigo?.data_carregado_recife ?? null,
                 v.data_carregado_moreno ?? veiculoAntigo?.data_carregado_moreno ?? null,
                 JSON.stringify((() => {

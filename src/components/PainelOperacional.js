@@ -1721,7 +1721,7 @@ export default function PainelOperacional({
                                                     )}
 
                                                     {/* Botão Liberado p/ CTE */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <button
                                                             onClick={() => item.motorista?.trim() && setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
                                                             style={{
@@ -1743,7 +1743,7 @@ export default function PainelOperacional({
                                                         </button>
                                                     )}
                                                     {/* Feedback: CT-e já liberado */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                             <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                 <CheckCircle size={12} /> CT-e liberado

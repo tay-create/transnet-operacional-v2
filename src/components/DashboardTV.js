@@ -400,8 +400,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
         'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) && (
             (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
             (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
-            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_moreno) ||
+            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_interestadual) ||
+            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_interestadual) ||
             (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
         )).length,
     }));
@@ -1455,7 +1455,7 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
         lista.forEach(v => {
             const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
             if (cont[st] !== undefined) cont[st]++;
-            if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
+            if (v.cte_antecipado_interestadual && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
         });
         return OPCOES_STATUS.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
     };

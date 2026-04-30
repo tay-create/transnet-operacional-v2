@@ -929,7 +929,7 @@ function App({ socket }) {
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[index] };
         const agora = new Date().toISOString();
-        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
+        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : origem === 'Moreno' ? 'cte_antecipado_moreno' : 'cte_antecipado_interestadual';
         const valorAnterior = itemAtual[campo];
 
         itemAtual[campo] = agora;
