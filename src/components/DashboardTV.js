@@ -355,8 +355,9 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const todosCtes = [...ctesRecifeVG, ...ctesMorenoVG];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const _emitido = todosCtes.filter(c => c.status === 'Emitido').length;
+    const veiculosRecifeMoreno = veiculos.filter(v => !ehOperacaoLeaoEletrikSul(v.operacao));
     const statusCte = {
-        aguardando: Math.max(0, veiculos.length - _emEmissao - _emitido),
+        aguardando: Math.max(0, veiculosRecifeMoreno.length - _emEmissao - _emitido),
         emEmissao: _emEmissao,
         emitido: _emitido
     };
@@ -1457,23 +1458,21 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
         return OPCOES_STATUS.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
     };
 
-    const calcFluxoCte = (lista) => {
-        const total = lista.length;
-        const liberados = lista.filter(v => v.status_recife === 'LIBERADO P/ CT-e' || v.cte_antecipado_recife).length;
-        const emitidos = lista.filter(v => {
-            const st = v.status_recife || '';
-            return st === 'LIBERADO P/ CT-e' && v.status_cte === 'Emitido';
-        }).length;
-        const emEmissao = Math.max(0, liberados - emitidos);
-        const aguardando = Math.max(0, total - liberados);
+    const calcFluxoCte = (listaVeiculos, ctesList) => {
+        const total = listaVeiculos.length;
+        const motoristas = new Set(listaVeiculos.map(v => (v.motorista || '').trim().toUpperCase()));
+        const ctesOp = ctesList.filter(c => motoristas.has((c.motorista || '').trim().toUpperCase()));
+        const emitidos = ctesOp.filter(c => c.status === 'Emitido').length;
+        const emEmissao = ctesOp.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
+        const aguardando = Math.max(0, total - emitidos - emEmissao);
         const pct = (v) => total > 0 ? `${Math.round((v / total) * 100)}%` : '0%';
         return { aguardando, emEmissao, emitidos, pct, total };
     };
 
     const dadosStatusLeao = calcStatus(veiculosLeao);
     const dadosStatusEletrik = calcStatus(veiculosEletrik);
-    const fluxoLeao = calcFluxoCte(veiculosLeao);
-    const fluxoEletrik = calcFluxoCte(veiculosEletrik);
+    const fluxoLeao = calcFluxoCte(veiculosLeao, ctes);
+    const fluxoEletrik = calcFluxoCte(veiculosEletrik, ctes);
 
     const PainelOp = ({ label, cor, total, dadosStatus, fluxo }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
