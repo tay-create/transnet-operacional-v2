@@ -88,9 +88,11 @@ function App({ socket }) {
     const [listaVeiculos, setListaVeiculos] = useState([]);
     const [ctesRecife, setCtesRecife] = useState([]);
     const [ctesMoreno, setCtesMoreno] = useState([]);
+    const [ctesSP, setCtesSP] = useState([]);
     // Estado exclusivo para o dashboard (sempre = hoje, nunca afetado pelo filtro do PainelCte)
     const [ctesRecifeHoje, setCtesRecifeHoje] = useState([]);
     const [ctesMorenoHoje, setCtesMorenoHoje] = useState([]);
+    const [ctesSPHoje, setCtesSPHoje] = useState([]);
     const [termoBusca, setTermoBusca] = useState('');
     const [fila, setFila] = useState([]);
     const [relatorioDados, setRelatorioDados] = useState([]);
@@ -365,7 +367,11 @@ function App({ socket }) {
 
         // --- Sincronização de CT-e ---
         else if (data.tipo === 'novo_cte') {
-            if (data.dados.origem === 'Moreno') {
+            if (ehOperacaoInterestadual(data.dados.operacao)) {
+                const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
+                setCtesSP(adder);
+                setCtesSPHoje(adder);
+            } else if (data.dados.origem === 'Moreno') {
                 const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
                 setCtesMoreno(adder);
                 setCtesMorenoHoje(adder);
@@ -379,15 +385,19 @@ function App({ socket }) {
             const updater = prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c);
             setCtesRecife(updater);
             setCtesMoreno(updater);
+            setCtesSP(updater);
             setCtesRecifeHoje(updater);
             setCtesMorenoHoje(updater);
+            setCtesSPHoje(updater);
         }
         else if (data.tipo === 'remove_cte') {
             const filter = prev => prev.filter(c => c.id !== data.id);
             setCtesRecife(filter);
             setCtesMoreno(filter);
+            setCtesSP(filter);
             setCtesRecifeHoje(filter);
             setCtesMorenoHoje(filter);
+            setCtesSPHoje(filter);
         }
 
         // CORREÇÃO DO PISCAR NA FILA (Verifica se já existe)
@@ -427,8 +437,10 @@ function App({ socket }) {
         // Limpar CT-es antes de recarregar para não exibir dados de sessões anteriores
         setCtesRecife([]);
         setCtesMoreno([]);
+        setCtesSP([]);
         setCtesRecifeHoje([]);
         setCtesMorenoHoje([]);
+        setCtesSPHoje([]);
         carregarCtes();
         // Verificar e-mail pessoal (cobre tanto login novo quanto sessão restaurada do localStorage)
         if (!user?.email_pessoal) {
@@ -562,12 +574,15 @@ function App({ socket }) {
             const response = await api.get(`/ctes${params}`);
             if (response.data.success) {
                 const todos = response.data.ctes || [];
-                setCtesRecife(todos.filter(c => c.origem !== 'Moreno'));
-                setCtesMoreno(todos.filter(c => c.origem === 'Moreno'));
+                const isSP = c => ehOperacaoInterestadual(c.operacao);
+                setCtesRecife(todos.filter(c => c.origem !== 'Moreno' && !isSP(c)));
+                setCtesMoreno(todos.filter(c => c.origem === 'Moreno' && !isSP(c)));
+                setCtesSP(todos.filter(isSP));
                 // Sem params = carga inicial (hoje) → também atualiza o estado do dashboard
                 if (!params) {
-                    setCtesRecifeHoje(todos.filter(c => c.origem !== 'Moreno'));
-                    setCtesMorenoHoje(todos.filter(c => c.origem === 'Moreno'));
+                    setCtesRecifeHoje(todos.filter(c => c.origem !== 'Moreno' && !isSP(c)));
+                    setCtesMorenoHoje(todos.filter(c => c.origem === 'Moreno' && !isSP(c)));
+                    setCtesSPHoje(todos.filter(isSP));
                 }
             }
         } catch (error) {
@@ -1327,6 +1342,7 @@ function App({ socket }) {
                     listaVeiculos={listaVeiculos}
                     ctesRecife={ctesRecifeHoje}
                     ctesMoreno={ctesMorenoHoje}
+                    ctesSP={ctesSPHoje}
                     socket={socket}
                     onRefresh={() => recarregarDadosRef.current?.()}
                     onSair={() => {
@@ -1484,8 +1500,10 @@ function App({ socket }) {
                         abaAtiva={abaAtiva}
                         ctesRecife={ctesRecife}
                         ctesMoreno={ctesMoreno}
+                        ctesSP={ctesSP}
                         setCtesRecife={setCtesRecife}
                         setCtesMoreno={setCtesMoreno}
+                        setCtesSP={setCtesSP}
                         filtroDataInicioCte={filtroDataInicioCte}
                         filtroDataFimCte={filtroDataFimCte}
                         setFiltroDataInicioCte={setFiltroDataInicioCte}

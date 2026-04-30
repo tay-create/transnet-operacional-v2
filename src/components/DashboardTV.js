@@ -123,9 +123,10 @@ const PRIORIDADE_STATUS = {
     'EM CARREGAMENTO': 3, 'CARREGADO': 4, 'LIBERADO P/ CT-e': 5
 };
 
-export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onSair, socket, onRefresh }) {
+export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, ctesSP: ctesSPProp, onSair, socket, onRefresh }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
+    const ctesSP = ctesSPProp || [];
 
     const [telaAtiva, setTelaAtiva] = useState(0);
     const [pausado, setPausado] = useState(false);
@@ -316,10 +317,10 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, onS
 
             {/* Conteudo */}
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-                {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 0 && <TelaVisaoGeral veiculos={veiculosHoje} ctesRecife={ctesRecife} ctesMoreno={ctesMoreno} ctesSP={ctesSP} t={t} tema={tema} dataHoje={dataHoje} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 1 && <TelaOperacaoRecife veiculos={veiculosHoje} ctesRecife={ctesRecife} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
-                {telaAtiva === 3 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={[...ctesRecife, ...ctesMoreno]} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 3 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={ctesSP} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
             </div>
 
@@ -333,7 +334,7 @@ const btnS = (t) => ({ padding: '4px 10px', borderRadius: '4px', border: `1px so
 // ================================================================
 // TELA 1: VISAO GERAL
 // ================================================================
-function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, ocorrenciasHoje = [] }) {
+function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema, dataHoje, ocorrenciasHoje = [] }) {
     const [modalOcorrencias, setModalOcorrencias] = useState(false);
     const [imgExpandida, setImgExpandida] = useState(null);
     const contadores = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0, leao: 0, eletrikSul: 0 };
@@ -349,10 +350,9 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const pctFrotaDia = totalDia > 0 ? Math.round((frotaDia / totalDia) * 100) : 0;
     const pctTercDia = totalDia > 0 ? 100 - pctFrotaDia : 0;
 
-    // Visão geral: separa interestaduais dos painéis Recife/Moreno
-    const ctesRecifeVG = ctesRecife.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
-    const ctesMorenoVG = ctesMoreno.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
-    const ctesSP = [...ctesRecife, ...ctesMoreno].filter(c => ehOperacaoLeaoEletrikSul(c.operacao));
+    // Visão geral: já separados pelo App.js; ctesRecife/ctesMoreno não incluem interestaduais
+    const ctesRecifeVG = ctesRecife;
+    const ctesMorenoVG = ctesMoreno;
     const todosCtes = [...ctesRecifeVG, ...ctesMorenoVG];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const _emitido = todosCtes.filter(c => c.status === 'Emitido').length;

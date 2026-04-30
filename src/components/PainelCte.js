@@ -14,8 +14,10 @@ export default function PainelCte({
     abaAtiva,
     ctesRecife,
     ctesMoreno,
+    ctesSP,
     setCtesRecife,
     setCtesMoreno,
+    setCtesSP,
     filtroDataInicioCte,
     filtroDataFimCte,
     setFiltroDataInicioCte,
@@ -49,15 +51,17 @@ export default function PainelCte({
             );
             setCtesRecife(atualizarLista);
             setCtesMoreno(atualizarLista);
+            if (setCtesSP) setCtesSP(atualizarLista);
         };
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
-    }, [socket, setCtesRecife, setCtesMoreno]);
+    }, [socket, setCtesRecife, setCtesMoreno, setCtesSP]);
     const isRecife = abaAtiva === 'cte_recife';
-    const listaCtes = isRecife ? ctesRecife : ctesMoreno;
-    const setListaAtual = isRecife ? setCtesRecife : setCtesMoreno;
-    const corTema = isRecife ? '#3b82f6' : '#f59e0b';
-    const bgBadge = isRecife ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)';
+    const isSaoPaulo = abaAtiva === 'cte_sp';
+    const listaCtes = isSaoPaulo ? (ctesSP || []) : isRecife ? ctesRecife : ctesMoreno;
+    const setListaAtual = isSaoPaulo ? setCtesSP : isRecife ? setCtesRecife : setCtesMoreno;
+    const corTema = isSaoPaulo ? '#f97316' : isRecife ? '#3b82f6' : '#f59e0b';
+    const bgBadge = isSaoPaulo ? 'rgba(249, 115, 22, 0.2)' : isRecife ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)';
     const ctesFiltrados = listaCtes.filter(cte => {
         const dataEmissao = cte.data_entrada_cte;
         if (!dataEmissao) return true;
@@ -83,7 +87,7 @@ export default function PainelCte({
             {/* TÍTULO COM SOMBRA NEON EVIDENTE */}
             <div className="neon-tab-title" style={{ borderColor: corTema }}>
                 <span className="neon-text" style={{ textShadow: `0 0 10px ${corTema}` }}>
-                    GERENCIAMENTO DE CT-E — <span style={{ color: isRecife ? '#60a5fa' : '#fbbf24' }}>{isRecife ? 'RECIFE' : 'MORENO'}</span>
+                    GERENCIAMENTO DE CT-E — <span style={{ color: isSaoPaulo ? '#fb923c' : isRecife ? '#60a5fa' : '#fbbf24' }}>{isSaoPaulo ? 'SÃO PAULO' : isRecife ? 'RECIFE' : 'MORENO'}</span>
                 </span>
                 <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'normal' }}>
                     {listaCtes.length} Pendentes
@@ -127,6 +131,7 @@ export default function PainelCte({
                         corTema={corTema}
                         bgBadge={bgBadge}
                         isRecife={isRecife}
+                        origemCte={isSaoPaulo ? 'Leao' : isRecife ? 'Recife' : 'Moreno'}
                         podeEditar={podeEditar}
                         updateListCte={updateListCte}
                         setToastCopiaMsg={setToastCopiaMsg}
@@ -138,7 +143,7 @@ export default function PainelCte({
     );
 }
 
-function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, isRecife, podeEditar, updateListCte, setToastCopiaMsg }) {
+function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, isRecife, origemCte, podeEditar, updateListCte, setToastCopiaMsg }) {
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState('');
 
@@ -152,7 +157,7 @@ function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, i
         setSalvando(true);
         setErro('');
         try {
-            await updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, isRecife ? 'Recife' : 'Moreno');
+            await updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, origemCte || (isRecife ? 'Recife' : 'Moreno'));
         } catch (e) {
             setErro(e.response?.data?.message || 'Erro ao atualizar status.');
         } finally {

@@ -179,6 +179,7 @@ export default function Sidebar({
                         {podeVerUnidade('Moreno') && (
                             <MenuItem icon={<FileText size={20} />} label="CT-e Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('cte_moreno'); }} />
                         )}
+                        <MenuItem icon={<FileText size={20} />} label="CT-e São Paulo" subItem aberto={aberto} onClick={() => { setAbaAtiva('cte_sp'); }} />
                     </>
                 )}
 
