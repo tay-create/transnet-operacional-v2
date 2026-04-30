@@ -349,7 +349,10 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const pctFrotaDia = totalDia > 0 ? Math.round((frotaDia / totalDia) * 100) : 0;
     const pctTercDia = totalDia > 0 ? 100 - pctFrotaDia : 0;
 
-    const todosCtes = [...ctesRecife, ...ctesMoreno];
+    // Visão geral: exclui interestaduais dos painéis Recife/Moreno
+    const ctesRecifeVG = ctesRecife.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
+    const ctesMorenoVG = ctesMoreno.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
+    const todosCtes = [...ctesRecifeVG, ...ctesMorenoVG];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const _emitido = todosCtes.filter(c => c.status === 'Emitido').length;
     const statusCte = {
@@ -470,8 +473,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     ))}
                     <div style={{ flex: 1 }} />
                     {[
-                        { label: 'Recife', count: [...ctesRecife].filter(c => c.status === 'Emitido').length, cor: '#60a5fa' },
-                        { label: 'Moreno', count: [...ctesMoreno].filter(c => c.status === 'Emitido').length, cor: '#fb923c' }
+                        { label: 'Recife', count: ctesRecifeVG.filter(c => c.status === 'Emitido').length, cor: '#60a5fa' },
+                        { label: 'Moreno', count: ctesMorenoVG.filter(c => c.status === 'Emitido').length, cor: '#fb923c' }
                     ].map(u => (
                         <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                             <span style={{ fontSize: '22px', fontWeight: '800', color: u.cor }}>{u.count}</span>
@@ -700,9 +703,10 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
         docaVeiculoMapR[doca].push({ motorista: v.motorista, coleta: v.coletaRecife || v.coleta || '' });
     });
 
-    // Fluxo CT-e para Recife
-    const emEmissaoCte = ctesRecife.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
-    const emitidoCte = ctesRecife.filter(c => c.status === 'Emitido').length;
+    // Fluxo CT-e para Recife — exclui operações interestaduais (Leão/Eletrik Sul)
+    const ctesRecifeUnidade = ctesRecife.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
+    const emEmissaoCte = ctesRecifeUnidade.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
+    const emitidoCte = ctesRecifeUnidade.filter(c => c.status === 'Emitido').length;
     const aguardandoCte = Math.max(0, veiculosRecife.length - emEmissaoCte - emitidoCte);
     const totalFluxoCte = veiculosRecife.length;
     const pct = (v) => totalFluxoCte > 0 ? `${Math.round((v / totalFluxoCte) * 100)}%` : '0%';
@@ -1068,8 +1072,8 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                         <div style={{ fontSize: '11px', fontWeight: '800', color: '#67e8f9', textTransform: 'uppercase', letterSpacing: '1.5px' }}>CT-es Emitidos</div>
                         <div style={{ fontSize: '10px', color: t.textDim, marginTop: '2px' }}>No mês</div>
                         <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                            <span style={{ fontSize: '11px', color: '#22d3ee' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem === 'Recife').length} Recife</span>
-                            <span style={{ fontSize: '11px', color: '#a5f3fc' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem !== 'Recife').length} Moreno</span>
+                            <span style={{ fontSize: '11px', color: '#22d3ee' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem === 'Recife' && !ehOperacaoLeaoEletrikSul(c.operacao)).length} Recife</span>
+                            <span style={{ fontSize: '11px', color: '#a5f3fc' }}>{ctesMes.filter(c => c.status === 'Emitido' && c.origem === 'Moreno' && !ehOperacaoLeaoEletrikSul(c.operacao)).length} Moreno</span>
                         </div>
                     </div>
                 </div>
