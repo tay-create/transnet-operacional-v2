@@ -20,7 +20,7 @@ import ModalConfirm from './components/ModalConfirm';
 // Lazy imports — carregam sob demanda na primeira navegação
 const PainelOperacional    = React.lazy(() => import('./components/PainelOperacional'));
 const PainelCte            = React.lazy(() => import('./components/PainelCte'));
-const ModuloCubagem        = React.lazy(() => import('./components/ModuloCubagem'));
+// const ModuloCubagem     = React.lazy(() => import('./components/ModuloCubagem')); // oculto em prod
 const NovoLancamento       = React.lazy(() => import('./components/NovoLancamento'));
 const LogsAuditoria        = React.lazy(() => import('./components/LogsAuditoria'));
 const DashboardTV          = React.lazy(() => import('./components/DashboardTV'));
@@ -38,7 +38,7 @@ const DashboardFrota       = React.lazy(() => import('./components/DashboardFrot
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
 const RelatorioContratacao = React.lazy(() => import('./components/RelatorioContratacao'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
-const RelatorioCubagem     = React.lazy(() => import('./components/RelatorioCubagem'));
+// const RelatorioCubagem  = React.lazy(() => import('./components/RelatorioCubagem')); // oculto em prod
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
 
@@ -1374,9 +1374,7 @@ function App({ socket }) {
                     />
                 )}
 
-                {abaAtiva === 'cubagem' && temAcesso('cubagem') && (
-                    <ModuloCubagem />
-                )}
+                {/* cubagem oculto em prod */}
 
                 {abaAtiva === 'marcacao_placas' && temAcesso('marcacao_placas') && (
                     <GestaoMarcacoes socket={socket} />
@@ -1406,9 +1404,7 @@ function App({ socket }) {
                     <RelatorioCte />
                 )}
 
-                {abaAtiva === 'relatorio_cubagem' && temAcesso('relatorios') && (
-                    <RelatorioCubagem />
-                )}
+                {/* relatorio_cubagem oculto em prod */}
 
                 {abaAtiva === 'cadastro' && temAcesso('cadastro') && (
                     <PainelCadastro user={user} socket={socket} />

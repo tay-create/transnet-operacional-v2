@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Bell,
-    FileText, Calculator, PlusCircle, Monitor,
+    FileText, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
-    Clock, CheckCircle, Warehouse
+    Clock, CheckCircle
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -175,13 +175,7 @@ export default function Sidebar({
                     </>
                 )}
 
-                {/* CUBAGEM */}
-                {temAcesso('cubagem') && (
-                    <>
-                        <Divider label="Cubagem" aberto={aberto} />
-                        <MenuItem icon={<Calculator size={20} />} label="Cálculo de Cubagem" subItem aberto={aberto} onClick={() => { setAbaAtiva('cubagem'); }} />
-                    </>
-                )}
+                {/* CUBAGEM — oculto em prod */}
 
                 {/* RELATÓRIOS (para quem tem acesso, exceto Viewer puro) */}
                 {temAcesso('relatorios') && !ehViewer && (
@@ -191,7 +185,7 @@ export default function Sidebar({
                         <MenuItem icon={<BarChart3 size={20} />} label="Performance de Embarque" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_performance'); }} />
                         <MenuItem icon={<Clock size={20} />} label="Tempo Médio de Contratação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
                         <MenuItem icon={<FileText size={20} />} label="Relatório CT-e" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />
-                        <MenuItem icon={<Warehouse size={20} />} label="Relatório de Cubagem" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cubagem'); }} />
+                        {/* Relatório de Cubagem oculto em prod */}
                         <MenuItem icon={<Monitor size={20} />} label="Dashboard Operação" subItem aberto={aberto} onClick={() => { setAbaAtiva('dashboard_tv'); }} />
                     </>
                 )}

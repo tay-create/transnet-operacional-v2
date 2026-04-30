@@ -2,20 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import TagInput from './TagInput';
 import {
-    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone, Download
+    Truck, Calendar, Layers, User, Route, FileText, Image, X, ChevronDown, Phone
 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
-import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 
 const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVeiculoInteligente, podeEditar, mostrarNotificacao }) {
-    const [cubagensCache, setCubagensCache] = useState({});
-    const [cubagemFormulario, setCubagemFormulario] = useState(null);
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [buscaMotorista, setBuscaMotorista] = useState('');
     const [dropdownAberto, setDropdownAberto] = useState(false);
@@ -100,35 +97,6 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
         }
     }, [formLanca.idFilaOriginal, formLanca.motorista, motoristasDisponiveis, selecionarMotorista]); // Roda quando a fila promove ou quando a lista carrega
 
-    const buscarCubagemPorColeta = useCallback(async (numeroColeta) => {
-        if (!numeroColeta) return null;
-        try {
-            const response = await api.get(`/cubagens/coleta/${numeroColeta}`);
-            if (response.data.success && response.data.cubagem) {
-                setCubagensCache(prev => ({ ...prev, [numeroColeta]: response.data.cubagem }));
-                return response.data.cubagem;
-            }
-        } catch (error) {
-            console.error("Erro ao buscar cubagem:", error);
-        }
-        return null;
-    }, []);
-
-    useEffect(() => {
-        if (formLanca.operacao?.includes('PORCELANA') && formLanca.coletaMoreno) {
-            const { porcelana } = parseColetaMoreno(formLanca.coletaMoreno, formLanca.operacao);
-            const primeiraColeta = (porcelana || '').split(',')[0].trim();
-            if (primeiraColeta && !cubagensCache[primeiraColeta]) {
-                buscarCubagemPorColeta(primeiraColeta).then(cubagem => {
-                    if (cubagem) setCubagemFormulario(cubagem);
-                });
-            } else if (cubagensCache[primeiraColeta]) {
-                setCubagemFormulario(cubagensCache[primeiraColeta]);
-            }
-        } else {
-            setCubagemFormulario(null);
-        }
-    }, [formLanca.operacao, formLanca.coletaMoreno, cubagensCache, buscarCubagemPorColeta]);
 
     const mostraRecifeNoInput = ehOperacaoRecife(formLanca.operacao);
     const mostraMorenoNoInput = ehOperacaoMoreno(formLanca.operacao);
@@ -257,53 +225,6 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                             </div>
                                         )}
 
-                                        {/* Card de cubagem encontrada */}
-                                        {cubagemFormulario && formLanca.operacao?.includes('PORCELANA') && (
-                                            <div style={{
-                                                marginTop: '8px',
-                                                padding: '10px',
-                                                background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)',
-                                                border: '1px solid rgba(168, 85, 247, 0.4)',
-                                                borderRadius: '6px'
-                                            }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Package size={10} color="#a855f7" />
-                                                        <span style={{ fontSize: '9px', color: '#a855f7', fontWeight: 'bold' }}>CUBAGEM ENCONTRADA</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => gerarPdfCubagem(cubagemFormulario)}
-                                                        style={{
-                                                            background: 'rgba(168,85,247,0.15)',
-                                                            border: '1px solid rgba(168,85,247,0.4)',
-                                                            borderRadius: '4px', color: '#a855f7',
-                                                            cursor: 'pointer', padding: '2px 6px',
-                                                            fontSize: '8px', fontWeight: '600',
-                                                            display: 'flex', alignItems: 'center', gap: '3px'
-                                                        }}
-                                                    >
-                                                        <Download size={8} /> PDF
-                                                    </button>
-                                                </div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '4px' }}>
-                                                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '4px', textAlign: 'center' }}>
-                                                        <div style={{ fontSize: '7px', color: '#94a3b8' }}>MIX</div>
-                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_mix_total != null ? parseFloat(cubagemFormulario.valor_mix_total).toFixed(2) : '0.00'}</div>
-                                                    </div>
-                                                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '4px', textAlign: 'center' }}>
-                                                        <div style={{ fontSize: '7px', color: '#94a3b8' }}>KIT</div>
-                                                        <div style={{ fontSize: '12px', color: '#a855f7', fontWeight: 'bold' }}>{cubagemFormulario.valor_kit_total != null ? parseFloat(cubagemFormulario.valor_kit_total).toFixed(2) : '0.00'}</div>
-                                                    </div>
-                                                </div>
-                                                {cubagemFormulario.itens && cubagemFormulario.itens.length > 0 && (
-                                                    <div style={{ fontSize: '7px', color: '#94a3b8', marginBottom: '4px' }}>{cubagemFormulario.itens.length} NF(s) vinculada(s)</div>
-                                                )}
-                                                <div style={{ fontSize: '8px', color: '#cbd5e1' }}>
-                                                    <div><strong>Cliente:</strong> {cubagemFormulario.cliente}</div>
-                                                    <div><strong>Destino:</strong> {cubagemFormulario.destino}</div>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                     <div>
                                         <label className="label-tech-sm" style={{ color: '#fcd34d', fontSize: '10px' }}>ROTA MORENO</label>
