@@ -349,9 +349,10 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
     const pctFrotaDia = totalDia > 0 ? Math.round((frotaDia / totalDia) * 100) : 0;
     const pctTercDia = totalDia > 0 ? 100 - pctFrotaDia : 0;
 
-    // Visão geral: exclui interestaduais dos painéis Recife/Moreno
+    // Visão geral: separa interestaduais dos painéis Recife/Moreno
     const ctesRecifeVG = ctesRecife.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
     const ctesMorenoVG = ctesMoreno.filter(c => !ehOperacaoLeaoEletrikSul(c.operacao));
+    const ctesSP = [...ctesRecife, ...ctesMoreno].filter(c => ehOperacaoLeaoEletrikSul(c.operacao));
     const todosCtes = [...ctesRecifeVG, ...ctesMorenoVG];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const _emitido = todosCtes.filter(c => c.status === 'Emitido').length;
@@ -399,8 +400,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
         'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) && (
             (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
             (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
-            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_recife) ||
+            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno) ||
+            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_moreno) ||
             (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
         )).length,
     }));
@@ -475,7 +476,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, t, tema, dataHoje, o
                     <div style={{ flex: 1 }} />
                     {[
                         { label: 'Recife', count: ctesRecifeVG.filter(c => c.status === 'Emitido').length, cor: '#60a5fa' },
-                        { label: 'Moreno', count: ctesMorenoVG.filter(c => c.status === 'Emitido').length, cor: '#fb923c' }
+                        { label: 'Moreno', count: ctesMorenoVG.filter(c => c.status === 'Emitido').length, cor: '#fb923c' },
+                        { label: 'São Paulo', count: ctesSP.filter(c => c.status === 'Emitido').length, cor: '#f97316' }
                     ].map(u => (
                         <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                             <span style={{ fontSize: '22px', fontWeight: '800', color: u.cor }}>{u.count}</span>
@@ -1453,7 +1455,7 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
         lista.forEach(v => {
             const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
             if (cont[st] !== undefined) cont[st]++;
-            if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
+            if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
         });
         return OPCOES_STATUS.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
     };
