@@ -747,6 +747,64 @@ function App({ socket }) {
         }
     };
 
+    // Lança payload já montado diretamente (usado pela importação em lote)
+    const lancarPayloadDireto = async (payload) => {
+        const precisaRecife = ehOperacaoRecife(payload.operacao);
+        const precisaMoreno = ehOperacaoMoreno(payload.operacao);
+        const unidadeForcada = (!precisaRecife && precisaMoreno) ? 'Moreno'
+            : (!precisaMoreno && precisaRecife) ? 'Recife'
+            : 'Recife';
+        const novoItem = {
+            placa: payload.placa1 || '',
+            modelo: payload.tipoVeiculo || 'TRUCK',
+            tipoVeiculo: payload.tipoVeiculo || 'TRUCK',
+            status: 'AGUARDANDO P/ SEPARAÇÃO',
+            motorista: payload.motorista || '',
+            telefoneMotorista: '',
+            placa1Motorista: payload.placa1 || '',
+            placa2Motorista: payload.placa2 || '',
+            isFrotaMotorista: false,
+            unidade: unidadeForcada,
+            rotaRecife: payload.rotaRecife || '',
+            rotaMoreno: payload.rotaMoreno || '',
+            operacao: payload.operacao,
+            status_recife: precisaRecife ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
+            status_moreno: precisaMoreno ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
+            doca_recife: 'SELECIONE',
+            doca_moreno: 'SELECIONE',
+            tempos_recife: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
+            tempos_moreno: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
+            status_coleta: { solicitado: '', liberado: '' },
+            coletaRecife: precisaRecife ? (payload.coletaRecife || '') : '',
+            coletaMoreno: precisaMoreno ? (payload.coletaMoreno || '') : '',
+            coletaInterestadual: ehOperacaoInterestadual(payload.operacao) ? (payload.coletaInterestadual || '') : '',
+            origem_criacao: unidadeForcada,
+            inicio_rota: unidadeForcada,
+            data_prevista: payload.data_prevista,
+            data_prevista_original: payload.data_prevista,
+            observacao: payload.observacao || '',
+            imagens: [],
+            id_marcacao: null,
+            chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0,
+            situacao_cadastro: 'NÃO CONFERIDO',
+            numero_liberacao: '', data_liberacao: null
+        };
+        const respLanca = await api.post('/veiculos', novoItem);
+        if (respLanca.data?.success && respLanca.data?.id) {
+            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coletaInterestadual || '';
+            if (coletaFila) {
+                await api.post('/fila', {
+                    coleta: coletaFila,
+                    motorista: novoItem.motorista,
+                    unidade: novoItem.unidade,
+                    pendente: false,
+                    veiculo_id: respLanca.data.id
+                });
+            }
+        }
+        return respLanca.data;
+    };
+
     const aceitarCtePelaNotificacao = async (notificacao) => {
         const { dadosVeiculo, idInterno, origem } = notificacao;
         if (aceitandoCteIds.current.has(idInterno)) return;
@@ -1410,6 +1468,7 @@ function App({ socket }) {
                         formLanca={formLanca}
                         setFormLanca={setFormLanca}
                         lancarVeiculoInteligente={lancarVeiculoInteligente}
+                        lancarPayloadDireto={lancarPayloadDireto}
                         podeEditar={podeEditar}
                         mostrarNotificacao={mostrarNotificacao}
                     />

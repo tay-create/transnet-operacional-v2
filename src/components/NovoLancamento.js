@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import TagInput from './TagInput';
 import {
-    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone, Download
+    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone, Download, Upload
 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
+import ModalImportacaoLotes from './ModalImportacaoLotes';
 import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 
@@ -14,7 +15,8 @@ const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK S
 const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
 const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
-export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVeiculoInteligente, podeEditar, mostrarNotificacao }) {
+export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVeiculoInteligente, lancarPayloadDireto, podeEditar, mostrarNotificacao }) {
+    const [modalImportacao, setModalImportacao] = useState(false);
     const [cubagensCache, setCubagensCache] = useState({});
     const [cubagemFormulario, setCubagemFormulario] = useState(null);
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
@@ -150,11 +152,22 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
             }}>
                 {/* Cabeçalho */}
                 <div style={{ marginBottom: '25px' }}>
-                    <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '12px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '12px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <h3 className="title-neon-blue" style={{ margin: 0, fontSize: '20px' }}>
                             <Truck size={24} color="#60a5fa" style={{ marginRight: 12 }} />
                             NOVO LANÇAMENTO
                         </h3>
+                        <button
+                            onClick={() => setModalImportacao(true)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)',
+                                color: '#93c5fd', borderRadius: '8px', padding: '7px 13px',
+                                fontSize: '12px', fontWeight: '700', cursor: 'pointer', letterSpacing: '0.03em'
+                            }}
+                        >
+                            <Upload size={13} /> Importar Coletas
+                        </button>
                     </div>
                 </div>
 
@@ -618,6 +631,14 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                     }}
                 />
             )}
+
+            {/* Modal de importação em lote */}
+            <ModalImportacaoLotes
+                isOpen={modalImportacao}
+                onClose={() => setModalImportacao(false)}
+                lancarPayloadDireto={lancarPayloadDireto}
+                mostrarNotificacao={mostrarNotificacao}
+            />
         </div>
     );
 }
