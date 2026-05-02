@@ -180,28 +180,56 @@ function consolidarPorPlaca(linhasBrutas) {
     return lotes;
 }
 
+function normalizarChave(k) {
+    return k.toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove acentos
+        .replace(/[^a-z0-9]/g, ''); // remove tudo que não é letra/número
+}
+
 function processarPlanilha(linhas) {
+    if (!linhas.length) return [];
+
+    // Indexa as chaves normalizadas da primeira linha para encontrar colunas independente de acento/espaço
+    const chavesMapa = Object.keys(linhas[0]).reduce((acc, k) => {
+        acc[normalizarChave(k)] = k;
+        return acc;
+    }, {});
+
+    console.log('[ImportarLotes] Colunas encontradas:', Object.keys(linhas[0]));
+    console.log('[ImportarLotes] Mapa normalizado:', chavesMapa);
+
+    const buscarChave = (...candidatos) => {
+        for (const c of candidatos) {
+            const norm = normalizarChave(c);
+            if (chavesMapa[norm]) return chavesMapa[norm];
+        }
+        return null;
+    };
+
+    const colNumeroColeta = buscarChave('N° Coleta', 'N Coleta', 'Nº Coleta', 'N°Coleta', 'NColeta', 'Numero Coleta', 'NumeroColeta');
+    const colOperacao    = buscarChave('Operação', 'Operacao');
+    const colObservacao  = buscarChave('Observação', 'Observacao');
+    const colPlacaV      = buscarChave('Placa Veículo', 'Placa Veiculo', 'Placa do Veículo', 'PlacaVeiculo');
+    const colPlacaC      = buscarChave('Placa Carreta', 'Placa da Carreta', 'PlacaCarreta');
+    const colMotorista   = buscarChave('Motorista');
+    const colTipo        = buscarChave('Tipo de Veículo', 'Tipo Veiculo', 'Tipo Veículo', 'TipoVeiculo');
+
+    console.log('[ImportarLotes] Colunas mapeadas:', { colNumeroColeta, colOperacao, colObservacao, colPlacaV, colPlacaC, colMotorista, colTipo });
+
     const linhasBrutas = [];
 
     for (const linha of linhas) {
-        // Suporta chaves com e sem acentos/espaços variados
-        const get = (...keys) => {
-            for (const k of keys) {
-                const val = linha[k];
-                if (val !== undefined && val !== null && val !== '') return String(val).trim();
-            }
-            return '';
-        };
+        const get = (col) => col ? String(linha[col] ?? '').trim() : '';
 
-        const numeroColeta = get('N° Coleta', 'N Coleta', 'N° Coleta', 'Nº Coleta', 'N°Coleta', 'NColeta');
-        const operacaoCSV = get('Operação', 'Operacao', 'Operação');
-        const observacaoCSV = get('Observação', 'Observacao', 'Observação');
-        const placaVeiculo = get('Placa Veículo', 'Placa Veiculo', 'Placa Veículo', 'Placa do Veículo').toUpperCase();
-        const placaCarreta = get('Placa Carreta', 'Placa da Carreta', 'Placa Carreta').toUpperCase();
-        const motorista = get('Motorista');
-        const tipoVeiculo = get('Tipo de Veículo', 'Tipo Veiculo', 'Tipo de Veiculo', 'Tipo Veículo');
+        const numeroColeta = get(colNumeroColeta);
+        const operacaoCSV  = get(colOperacao);
+        const observacaoCSV = get(colObservacao);
+        const placaVeiculo = get(colPlacaV).toUpperCase();
+        const placaCarreta = get(colPlacaC).toUpperCase();
+        const motorista    = get(colMotorista);
+        const tipoVeiculo  = get(colTipo);
 
-        if (!numeroColeta && !motorista) continue; // linha vazia
+        if (!motorista && !placaVeiculo) continue; // linha realmente vazia
 
         const operacaoBase = mapearOperacao(operacaoCSV);
         const { rota, obsRestante } = extrairRota(observacaoCSV);
