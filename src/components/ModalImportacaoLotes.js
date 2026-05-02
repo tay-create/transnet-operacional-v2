@@ -271,7 +271,28 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             try {
                 const wb = XLSX.read(ev.target.result, { type: 'array' });
                 const ws = wb.Sheets[wb.SheetNames[0]];
-                const linhas = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                // Lê sem header para encontrar a linha que contém os cabeçalhos reais
+                const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                console.log('[ImportarLotes] Primeiras 5 linhas brutas:', raw.slice(0, 5));
+
+                // Encontra a linha-header: aquela que contém "Motorista" ou "Placa"
+                const palavrasChave = ['motorista', 'placa', 'operacao', 'operação', 'coleta'];
+                const headerRowIdx = raw.findIndex(row =>
+                    row.some(cell => palavrasChave.some(p =>
+                        normalizarChave(String(cell)).includes(normalizarChave(p))
+                    ))
+                );
+
+                if (headerRowIdx === -1) {
+                    mostrarNotificacao('⚠️ Não foi possível encontrar os cabeçalhos na planilha.');
+                    return;
+                }
+
+                console.log('[ImportarLotes] Linha de cabeçalho encontrada no índice:', headerRowIdx, raw[headerRowIdx]);
+
+                // Reconstrói como JSON usando a linha correta como header
+                const linhas = XLSX.utils.sheet_to_json(ws, { defval: '', range: headerRowIdx });
                 const processados = processarPlanilha(linhas);
                 if (processados.length === 0) {
                     mostrarNotificacao('⚠️ Nenhuma linha válida encontrada na planilha.');
