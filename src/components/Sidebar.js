@@ -3,7 +3,7 @@ import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
-    Clock, CheckCircle, Warehouse, Map, Route
+    Clock, CheckCircle, Warehouse
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -155,17 +155,11 @@ export default function Sidebar({
                 )}
 
                 {/* OPERAÇÃO FROTA */}
-                {(temAcesso('operacao') || temAcesso('provisionamento') || temAcesso('painel_frota')) && (
+                {(temAcesso('operacao') || temAcesso('provisionamento')) && (
                     <>
                         <Divider label="Operação Frota" aberto={aberto} />
                         <MenuItem icon={<LayoutGrid size={20} />} label="Provisionamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('provisionamento'); }} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Dashboard" subItem aberto={aberto} onClick={() => { setAbaAtiva('frota_dashboard'); }} />
-                        {temAcesso('painel_frota') && (
-                            <MenuItem icon={<Map size={20} />} label="Painel de Provisionamento" subItem aberto={aberto} onClick={() => { setAbaAtiva('painel_frota'); }} />
-                        )}
-                        {temAcesso('roteirizacao_frota') && (
-                            <MenuItem icon={<Route size={20} />} label="Roteirização da Frota" subItem aberto={aberto} onClick={() => { setAbaAtiva('roteirizacao_frota'); }} />
-                        )}
                     </>
                 )}
 
