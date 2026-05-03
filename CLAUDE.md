@@ -3,7 +3,9 @@
 ## Sistema de Memoria
 
 No inicio de cada sessao, leia os arquivos de memoria em:
-C:/Users/Servdor/.claude/projects/--wsl-localhost-Ubuntu-home-transnet-projects-transnet-operacional-v2/memory/
+C:/transnet memory/
+
+Esse diretorio e um vault Obsidian — os arquivos sao markdown normais com frontmatter YAML. Pode conter links [[wiki]] do Obsidian que devem ser preservados ao editar.
 
 Arquivos: MEMORY.md (indice), user.md, preferences.md, decisions.md, people.md, deploy.md
 
@@ -24,3 +26,17 @@ Build local (para testar): npm run build
 - Usar apenas icones lucide-react, nunca emojis Unicode no codigo
 - Respostas curtas e diretas, sem recapitulacoes ao final
 - Build React antes de testar qualquer mudanca frontend
+
+## Obsidian — Vault de Memória
+
+Vault em: C:/transnet memory/
+
+Em todo planejamento (plan mode ou resposta com lista de passos), incluir explicitamente:
+"Ao final, atualizar os arquivos .md do Obsidian pertinentes — novos e existentes — em C:/transnet memory/"
+
+Ao concluir qualquer implementacao, atualizar ou criar os arquivos .md correspondentes:
+- Novos modulos: criar arquivo em C:/transnet memory/modulos/<NomeComponente>.md
+- Modulos alterados: atualizar o .md existente
+- Decisoes arquiteturais: adicionar em C:/transnet memory/decisions.md
+- Deploy, infra, banco: atualizar C:/transnet memory/deploy.md
+- Pessoas/usuarios: atualizar C:/transnet memory/people.md

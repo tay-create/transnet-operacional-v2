@@ -63,6 +63,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     rotaMoreno: row.rota_moreno,
                     coletaRecife: row.coletarecife || row.coletaRecife || '',
                     coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
+                    coletaInterestadual: row.coletainterestadual || '',
                     // Campos JSON que precisam de parse
                     tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
                     tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
@@ -123,6 +124,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 rotaMoreno: row.rota_moreno,
                 coletaRecife: row.coletarecife || row.coletaRecife || '',
                 coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
+                coletaInterestadual: row.coletainterestadual || '',
                 // JSON fields
                 tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
                 tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
@@ -163,18 +165,24 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Validar coleta obrigatória conforme unidade da operação
             const temColetaRecife = (v.coletaRecife || '').trim().length > 0;
             const temColetaMoreno = (v.coletaMoreno || '').trim().length > 0;
+            const temColetaInterestadual = (v.coletaInterestadual || '').trim().length > 0;
             const opVal = (v.operacao || '').toUpperCase();
-            const ehRecife = opVal.includes('RECIFE');
-            const ehMoreno = opVal.includes('MORENO') || opVal.includes('PORCELANA') || opVal.includes('ELETRIK');
+            const ehInterestadual = v.operacao === 'LEÃO - SP' || v.operacao === 'ELETRIK SUL';
+            const ehRecife = !ehInterestadual && opVal.includes('RECIFE');
+            const ehMoreno = !ehInterestadual && (opVal.includes('MORENO') || opVal.includes('PORCELANA') || opVal.includes('ELETRIK'));
             if (ehRecife && !temColetaRecife) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
             }
             if (ehMoreno && !temColetaMoreno) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
-            // Garantir que coleta não vaze para unidade errada — ex: PLÁSTICO(MORENO) não pode ter coletaRecife
+            if (ehInterestadual && !temColetaInterestadual) {
+                return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta não pode estar vazia.' });
+            }
+            // Garantir que coleta não vaze para unidade errada
             if (!ehRecife) v.coletaRecife = '';
             if (!ehMoreno) v.coletaMoreno = '';
+            if (!ehInterestadual) v.coletaInterestadual = '';
 
             // Herdar dados de checklist/liberação do cadastro do motorista do frontend como fallback, 
             // mas tentar buscar o mais atualizado pelo telefone, se existir
@@ -221,6 +229,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Garantir consistência: se coleta genérica existe mas o campo específico não, copiar
             if (ehMoreno && !temColetaMoreno && v.coleta) { v.coletaMoreno = v.coleta; }
             if (ehRecife && !temColetaRecife && v.coleta) { v.coletaRecife = v.coleta; }
+            if (ehInterestadual && !temColetaInterestadual && v.coleta) { v.coletaInterestadual = v.coleta; }
 
             // Auto-extrair numero_coleta na criação
             const primeiroTagIns = (tags) => {
@@ -229,27 +238,31 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             };
             const tagRecIns = primeiroTagIns(v.coletaRecife);
             const tagMorIns = primeiroTagIns(v.coletaMoreno);
+            const tagIntIns = primeiroTagIns(v.coletaInterestadual);
             if (tagRecIns && tagMorIns) {
                 v.numero_coleta = `REC: ${tagRecIns} | MOR: ${tagMorIns}`;
             } else if (tagRecIns) {
                 v.numero_coleta = tagRecIns;
             } else if (tagMorIns) {
                 v.numero_coleta = tagMorIns;
+            } else if (tagIntIns) {
+                v.numero_coleta = tagIntIns;
             }
 
             // Verificar coletas duplicadas em operações ativas
             const tagsRec = (v.coletaRecife || '').split(',').map(t => t.trim()).filter(Boolean);
             const tagsMor = (v.coletaMoreno || '').split(',').map(t => t.trim()).filter(Boolean);
+            const tagsInt = (v.coletaInterestadual || '').split(',').map(t => t.trim()).filter(Boolean);
             const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
             const placeholders = STATUS_FINAIS.map(() => '?').join(',');
-            for (const tag of [...tagsRec, ...tagsMor]) {
+            for (const tag of [...tagsRec, ...tagsMor, ...tagsInt]) {
                 const existente = await dbGet(
                     `SELECT id, motorista FROM veiculos
-                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ?)
+                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coletainterestadual LIKE ?)
                        AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
                        AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
                      LIMIT 1`,
-                    [`%${tag}%`, `%${tag}%`, ...STATUS_FINAIS, ...STATUS_FINAIS]
+                    [`%${tag}%`, `%${tag}%`, `%${tag}%`, ...STATUS_FINAIS, ...STATUS_FINAIS]
                 );
                 if (existente) {
                     return res.status(409).json({
@@ -283,7 +296,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const query = `INSERT INTO veiculos (
             placa, modelo, motorista, status_recife, status_moreno,
-            doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno,
+            doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno, coletainterestadual,
             rota_recife, rota_moreno, numero_coleta,
             unidade, operacao, inicio_rota, origem_criacao, data_prevista,
             data_criacao, tempos_recife, tempos_moreno, status_coleta,
@@ -291,11 +304,11 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             chk_cnh, chk_antt, chk_tacografo, chk_crlv,
             situacao_cadastro, numero_liberacao, data_liberacao,
             dados_json, data_prevista_original, data_inicio_patio
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
             const values = [
                 v.placa || 'NÃO INFORMADA', v.modelo, v.motorista, v.status_recife, v.status_moreno,
-                v.doca_recife, v.doca_moreno, v.coleta, v.coletaRecife, v.coletaMoreno,
+                v.doca_recife, v.doca_moreno, v.coleta, v.coletaRecife, v.coletaMoreno, v.coletaInterestadual || '',
                 v.rotaRecife || '', v.rotaMoreno || '', v.numero_coleta || '',
                 v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista,
                 data_criacao,
@@ -388,7 +401,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 'veiculo',
                 null,
                 null,
-                `Coleta: ${v.coleta || v.coletaRecife || v.coletaMoreno || 'N/A'} | Operação: ${v.operacao} | Motorista: ${v.motorista || 'A definir'}`
+                `Coleta: ${v.coleta || v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || 'N/A'} | Operação: ${v.operacao} | Motorista: ${v.motorista || 'A definir'}`
             );
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
@@ -479,7 +492,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 const avancoDuploRecife = STATUS_TRAVA_DUPLA.includes(v.status_recife) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_recife);
                 const avancoDuploMoreno = STATUS_TRAVA_DUPLA.includes(v.status_moreno) && !STATUS_TRAVA_DUPLA.includes(veiculoAntigo.status_moreno);
 
-                if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota) {
+                const ehInterestadualTrava = v.operacao === 'LEÃO - SP' || v.operacao === 'ELETRIK SUL';
+                if ((avancoDuploRecife || avancoDuploMoreno) && !isFrota && !ehInterestadualTrava) {
                     // Procura se existe ALGUM checklist aprovado para este veículo
                     const chk = await dbGet("SELECT id FROM checklists_carreta WHERE veiculo_id = ? AND status = 'APROVADO' LIMIT 1", [req.params.id]);
 
@@ -501,12 +515,14 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             // Lógica de visibilidade: limpar campos de unidades que não fazem mais parte da operação
             const op = v.operacao || '';
-            const precisaRecife = op.includes('RECIFE');
-            const precisaMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+            const ehInterestadualPut = op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+            const precisaRecife = !ehInterestadualPut && op.includes('RECIFE');
+            const precisaMoreno = !ehInterestadualPut && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
             // Trava: coleta obrigatória para a unidade exigida pela operação (backstop do POST)
             const temColetaRecifePut = (v.coletaRecife || '').trim().length > 0;
             const temColetaMorenoPut = (v.coletaMoreno || '').trim().length > 0;
+            const temColetaInterestadualPut = (v.coletaInterestadual || '').trim().length > 0;
             if (precisaRecife && !temColetaRecifePut) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Recife não pode estar vazio.' });
             }
@@ -514,18 +530,19 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 return res.status(400).json({ success: false, message: 'Campo obrigatório: Coleta Moreno não pode estar vazio.' });
             }
 
-            if (!precisaRecife) {
+            if (!precisaRecife && !ehInterestadualPut) {
                 v.coletaRecife = '';
                 v.rotaRecife = '';
                 v.status_recife = 'AGUARDANDO P/ SEPARAÇÃO';
                 v.doca_recife = 'SELECIONE';
             }
-            if (!precisaMoreno) {
+            if (!precisaMoreno && !ehInterestadualPut) {
                 v.coletaMoreno = '';
                 v.rotaMoreno = '';
                 v.status_moreno = 'AGUARDANDO P/ SEPARAÇÃO';
                 v.doca_moreno = 'SELECIONE';
             }
+            if (!ehInterestadualPut) v.coletaInterestadual = '';
 
             // ── Gatilhos automáticos de tempo (HH:MM — mantidos para compatibilidade) ──
             {
@@ -604,6 +621,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 if (v.cte_antecipado_moreno && !ts.cte_moreno_at) {
                     ts.cte_moreno_at = typeof v.cte_antecipado_moreno === 'string' ? v.cte_antecipado_moreno : agora;
                 }
+                if (v.cte_antecipado_interestadual && !ts.cte_recife_at) {
+                    ts.cte_recife_at = typeof v.cte_antecipado_interestadual === 'string' ? v.cte_antecipado_interestadual : agora;
+                }
 
                 v.timestamps_status = ts;
             }
@@ -630,9 +650,17 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Respeitar a lógica de visibilidade: se a operação não precisa da unidade, não restaurar o campo
             if (!v.coletaRecife && veiculoAntigo?.coletarecife && precisaRecife) v.coletaRecife = veiculoAntigo.coletarecife;
             if (!v.coletaMoreno && veiculoAntigo?.coletamoreno && precisaMoreno) v.coletaMoreno = veiculoAntigo.coletamoreno;
+            if (!v.coletaInterestadual && veiculoAntigo?.coletainterestadual && ehInterestadualPut) v.coletaInterestadual = veiculoAntigo.coletainterestadual;
+
+            // Auto-extrair numero_coleta também para interestaduais
+            const primeiroTagPut = (tags) => (!tags || !tags.trim()) ? '' : (tags.split(',').map(t => t.trim()).filter(Boolean)[0] || '');
+            if (ehInterestadualPut) {
+                const tagInt = primeiroTagPut(v.coletaInterestadual);
+                if (tagInt) v.numero_coleta = tagInt;
+            }
 
             // Manter campo genérico 'coleta' sincronizado (sempre sobrescrever com valor atual)
-            v.coleta = v.coletaRecife || v.coletaMoreno || v.coleta || '';
+            v.coleta = v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || v.coleta || '';
 
             // Se motorista mudou, zerar campos de risco para nova conferência
             const motoristaNovo = (v.motorista || '').trim();
@@ -683,7 +711,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const query = `UPDATE veiculos SET
             placa=?, modelo=?, motorista=?, status_recife=?, status_moreno=?,
-            doca_recife=?, doca_moreno=?, coleta=?, coletaRecife=?, coletaMoreno=?, numero_coleta=?,
+            doca_recife=?, doca_moreno=?, coleta=?, coletaRecife=?, coletaMoreno=?, coletainterestadual=?, numero_coleta=?,
             rota_recife=?, rota_moreno=?,
             operacao=?, inicio_rota=?, origem_criacao=?,
             data_prevista=?, tempos_recife=?, tempos_moreno=?, status_coleta=?,
@@ -691,14 +719,14 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?,
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
             data_liberacao=?, timestamps_status=?,
-            cte_antecipado_recife=?, cte_antecipado_moreno=?,
+            cte_antecipado_recife=?, cte_antecipado_moreno=?, cte_antecipado_interestadual=?,
             data_carregado_recife=?, data_carregado_moreno=?,
             dados_json=?, data_inicio_patio=?
             WHERE id = ?`;
 
             const values = [
                 v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno,
-                v.doca_recife, v.doca_moreno, v.coleta || '', v.coletaRecife || '', v.coletaMoreno || '', v.numero_coleta || '',
+                v.doca_recife, v.doca_moreno, v.coleta || '', v.coletaRecife || '', v.coletaMoreno || '', v.coletaInterestadual || '', v.numero_coleta || '',
                 v.rotaRecife || '', v.rotaMoreno || '',
                 v.operacao || '', v.inicio_rota || '', v.origem_criacao || '',
                 v.data_prevista,
@@ -726,6 +754,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 JSON.stringify(v.timestamps_status || {}),
                 v.cte_antecipado_recife || null,
                 v.cte_antecipado_moreno || null,
+                v.cte_antecipado_interestadual || null,
                 v.data_carregado_recife ?? veiculoAntigo?.data_carregado_recife ?? null,
                 v.data_carregado_moreno ?? veiculoAntigo?.data_carregado_moreno ?? null,
                 JSON.stringify((() => {
@@ -871,7 +900,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     try {
                         const motoristaNome = (v.motorista || '').trim().toUpperCase();
                         const primeiraLetra = motoristaNome[0] || '#';
-                        const numColeta = v.coletaRecife || v.coletaMoreno || v.coleta || '';
+                        const numColeta = v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || v.coleta || '';
 
                         // Buscar dados de origem/destino do cadastro do motorista
                         let origem = '', destino_uf = '', destino_cidade = '';
@@ -1151,7 +1180,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 'veiculo',
                 JSON.stringify(veiculoExcluido),
                 null,
-                `Placa: ${veiculoExcluido.placa} | Coleta: ${veiculoExcluido.coleta || veiculoExcluido.coletaRecife || veiculoExcluido.coletaMoreno || 'N/A'} | Operação: ${veiculoExcluido.operacao}`
+                `Placa: ${veiculoExcluido.placa} | Coleta: ${veiculoExcluido.coleta || veiculoExcluido.coletaRecife || veiculoExcluido.coletaMoreno || veiculoExcluido.coletainterestadual || 'N/A'} | Operação: ${veiculoExcluido.operacao}`
             );
             console.log(`✅ Log de exclusão registrado com sucesso`);
 
@@ -1309,6 +1338,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     rotaMoreno: row.rota_moreno || '',
                     coletaRecife: row.coletarecife || row.coletaRecife || '',
                     coletaMoreno: row.coletamoreno || row.coletaMoreno || '',
+                    coletaInterestadual: row.coletainterestadual || '',
                     tempos_recife: (() => { try { return JSON.parse(row.tempos_recife || '{}'); } catch { return {}; } })(),
                     tempos_moreno: (() => { try { return JSON.parse(row.tempos_moreno || '{}'); } catch { return {}; } })(),
                     timestamps_status: (() => { try { return JSON.parse(row.timestamps_status || '{}'); } catch { return {}; } })(),

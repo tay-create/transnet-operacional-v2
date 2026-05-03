@@ -316,6 +316,8 @@ module.exports = function createChecklistsRouter(io) {
             let dados = {};
             try { dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : (veiculo.dados_json || {}); } catch { }
 
+            const ehInterestadual = veiculo.operacao === 'LEÃO - SP' || veiculo.operacao === 'ELETRIK SUL';
+
             // ── Travas de segurança ao avançar para EM CARREGAMENTO ou além ──
             const STATUS_BLOQUEADOS = ['EM CARREGAMENTO', 'CARREGADO'];
             const avancoParaBloqueado = STATUS_BLOQUEADOS.includes(novoStatus) && !STATUS_BLOQUEADOS.includes(statusAtual);
@@ -354,8 +356,8 @@ module.exports = function createChecklistsRouter(io) {
                         return res.status(403).json({ success: false, message: 'Bloqueado: Gerenciamento de Risco não liberou este veículo.' });
                     }
 
-                    // Verificar checklist da carreta ao avançar para EM CARREGAMENTO
-                    if (novoStatus === 'EM CARREGAMENTO') {
+                    // Verificar checklist da carreta ao avançar para EM CARREGAMENTO (exceto interestaduais)
+                    if (novoStatus === 'EM CARREGAMENTO' && !ehInterestadual) {
                         const chk = await dbGet("SELECT id FROM checklists_carreta WHERE veiculo_id = ? AND status = 'APROVADO' LIMIT 1", [veiculoId]);
                         if (!chk) {
                             console.warn(`🔒 [Conferente/${cidade}] BLOQUEADO - Veículo #${veiculoId} (${veiculo.motorista}): Checklist da Carreta não aprovado`);
@@ -415,8 +417,8 @@ module.exports = function createChecklistsRouter(io) {
 
             // Bloquear CARREGADO sem foto do lacre
             // Em operação consolidada (ambas coletas preenchidas), a primeira unidade pode pular — lacre só vai na última
-            // Entrega Local dispensa foto do lacre
-            if (novoStatus === 'CARREGADO' && !dados.entregaLocal) {
+            // Entrega Local e operações interestaduais dispensam foto do lacre
+            if (novoStatus === 'CARREGADO' && !dados.entregaLocal && !ehInterestadual) {
                 const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
                 const ehConsolidada = !!(veiculo.coletarecife && veiculo.coletamoreno);
                 const statusOutraUnidade = prefix === 'moreno' ? veiculo.status_recife : veiculo.status_moreno;

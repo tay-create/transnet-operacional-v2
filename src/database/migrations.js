@@ -194,6 +194,7 @@ const inicializarBanco = async () => {
             // CT-e liberado antecipadamente (ainda em EM CARREGAMENTO)
             { tabela: 'veiculos', coluna: 'cte_antecipado_recife', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'cte_antecipado_interestadual', tipo: 'TEXT' },
             // Programação Diária v3 — data original para classificar Programado vs Reprogramado
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
             // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
@@ -569,6 +570,10 @@ const inicializarBanco = async () => {
             autor_nome TEXT NOT NULL,
             criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`);
+
+        // ── Coleta para operações interestaduais (Leão - SP / Eletrik Sul) ─────
+        try { await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS coletainterestadual TEXT DEFAULT ''`); } catch (_) {}
+
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");

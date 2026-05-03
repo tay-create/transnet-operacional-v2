@@ -3,7 +3,7 @@ import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
-    Clock, CheckCircle
+    Clock, CheckCircle, Warehouse
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -149,6 +149,7 @@ export default function Sidebar({
                         {podeVerUnidade('Moreno') && (
                             <MenuItem icon={<Truck size={20} />} label="Painel Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('op_moreno'); }} />
                         )}
+                        <MenuItem icon={<Truck size={20} />} label="Painel Leão/Eletrik Sul" subItem aberto={aberto} onClick={() => { setAbaAtiva('painel_leao'); }} />
                         <MenuItem icon={<Calendar size={20} />} label="Programação Diária" subItem aberto={aberto} onClick={() => { setAbaAtiva('programacao_diaria'); }} />
                     </>
                 )}
@@ -172,6 +173,7 @@ export default function Sidebar({
                         {podeVerUnidade('Moreno') && (
                             <MenuItem icon={<FileText size={20} />} label="CT-e Moreno" subItem aberto={aberto} onClick={() => { setAbaAtiva('cte_moreno'); }} />
                         )}
+                        <MenuItem icon={<FileText size={20} />} label="CT-e São Paulo" subItem aberto={aberto} onClick={() => { setAbaAtiva('cte_sp'); }} />
                     </>
                 )}
 

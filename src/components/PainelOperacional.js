@@ -20,8 +20,9 @@ import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opT
 
 
 
-const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
+const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
+const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const SUB_STYLES_CARD = {
     plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO' },
@@ -196,14 +197,19 @@ const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostra
 export default function PainelOperacional({
     origem, lista, setLista, opcoesDocas,
     termoBusca, setTermoBusca, user,
-    funcoes
+    funcoes, operacoesFixas = null
 }) {
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
+    // Painel Leão/Eletrik Sul usa status_recife (operação única sem unidade fixa)
+    const campoStatus = (origem === 'Recife' || operacoesFixas) ? 'status_recife' : 'status_moreno';
+    const getStatus = (item) => item[campoStatus] || 'AGUARDANDO';
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
             return podeEditar(permissao);
         }
+        // Painel com operações fixas (ex: Leão/Eletrik Sul) não tem restrição por cidade
+        if (operacoesFixas) return podeEditar(permissao);
         if (user.cidade !== origem) {
             return false;
         }
@@ -213,12 +219,26 @@ export default function PainelOperacional({
     const [dataInicio, setDataInicio] = useState(() => {
         const salvo = localStorage.getItem('filtro_data_inicio_' + origem);
         const hoje = obterDataBrasilia();
+        if (operacoesFixas) {
+            // Painel com operações fixas (ex: Leão/Eletrik Sul): padrão = 30 dias atrás, sem restrição de passado
+            if (salvo) return salvo;
+            const d = new Date(hoje + 'T00:00:00');
+            d.setDate(d.getDate() - 30);
+            return d.toISOString().substring(0, 10);
+        }
         return (salvo && salvo >= hoje) ? salvo : hoje;
     });
     const [dataFim, setDataFim] = useState(() => {
         const salvo = localStorage.getItem('filtro_data_fim_' + origem);
         const hoje = obterDataBrasilia();
-        return (salvo && salvo >= hoje) ? salvo : hoje;
+        if (operacoesFixas) {
+            if (salvo) return salvo;
+            const d = new Date(hoje + 'T00:00:00');
+            d.setDate(d.getDate() + 30);
+            return d.toISOString().substring(0, 10);
+        }
+        // Para Recife/Moreno: dataFim nunca ultrapassa hoje (evita ver cards de dias futuros)
+        return (salvo && salvo === hoje) ? salvo : hoje;
     });
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
@@ -541,39 +561,42 @@ export default function PainelOperacional({
 
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
-        const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+        const dataCarregadoUnidade = operacoesFixas ? null : (origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno);
         const itemData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
         // Verificar se a operação do card envolve esta unidade
         const op = item.operacao || '';
-        const operacaoEnvolveRecife = op.includes('RECIFE');
-        const operacaoEnvolveMoreno = op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+        const operacaoEnvolveRecife = ehOperacaoRecife(op);
+        const operacaoEnvolveMoreno = ehOperacaoMoreno(op);
         const operacaoEnvolveOrigem = origem === 'Recife' ? operacaoEnvolveRecife : operacaoEnvolveMoreno;
 
-        // Se a operação não envolve esta origem, não exibir
-        if (!operacaoEnvolveOrigem) return false;
+        // Se a operação não envolve esta origem, não exibir (exceto quando há filtro fixo de operações)
+        if (!operacoesFixas && !operacaoEnvolveOrigem) return false;
 
         // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
         // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
-        const meuStatus = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
+        const meuStatus = getStatus(item);
 
         const buscaLower = termoBusca.toLowerCase();
         const bateuBusca = (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
             (item.coletaMoreno && item.coletaMoreno.toLowerCase().includes(buscaLower)) ||
+            (item.coletaInterestadual && item.coletaInterestadual.toLowerCase().includes(buscaLower)) ||
             (item.motorista && item.motorista.toLowerCase().includes(buscaLower)) ||
             (item.placa && item.placa.toLowerCase().includes(buscaLower)) ||
             (meuStatus && meuStatus.toLowerCase().includes(buscaLower));
 
 
-        const bateuOperacao = !filtroOperacao || (item.operacao || '') === filtroOperacao;
+        const bateuOperacao = operacoesFixas
+            ? operacoesFixas.includes(item.operacao || '')
+            : (!filtroOperacao || (item.operacao || '') === filtroOperacao);
 
         return ehDataCerta && bateuBusca && bateuOperacao;
-    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, origem]); // eslint-disable-line
+    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, operacoesFixas, origem]); // eslint-disable-line
 
     const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
-        const campo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+        const campo = campoStatus;
         return ORDEM_STATUS.indexOf(a[campo] || OPCOES_STATUS[0]) - ORDEM_STATUS.indexOf(b[campo] || OPCOES_STATUS[0]);
     }), [itensFiltrados, origem]); // eslint-disable-line
 
@@ -654,7 +677,7 @@ export default function PainelOperacional({
                                 )}
                                 {podeEditarNaUnidade('operacao') && (() => {
                                     const veiculosAtivos = itensFiltrados.filter(v => {
-                                        const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
+                                        const s = v[campoStatus];
                                         return s && s !== 'AGUARDANDO' && s !== 'FINALIZADO';
                                     });
                                     const unidadeLower = origem.toLowerCase();
@@ -754,8 +777,11 @@ export default function PainelOperacional({
                             }}
                         >
                             <option value="" style={{ background: '#1e293b', color: '#94a3b8' }}>Todas as operações</option>
-                            {OPCOES_OPERACAO.filter(op =>
-                                origem === 'Recife' ? op.includes('RECIFE') : (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'))
+                            {(operacoesFixas
+                                ? operacoesFixas
+                                : OPCOES_OPERACAO.filter(op =>
+                                    origem === 'Recife' ? ehOperacaoRecife(op) : ehOperacaoMoreno(op)
+                                )
                             ).map(op => (
                                 <option key={op} value={op} style={{ background: '#1e293b', color: '#e2e8f0' }}>{op}</option>
                             ))}
@@ -823,7 +849,7 @@ export default function PainelOperacional({
                             )}
 
                             {ORDEM_STATUS.map(status => {
-                                const campoGrupo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const campoGrupo = campoStatus;
                                 const grupo = itensOrdenados.filter(item => (item[campoGrupo] || OPCOES_STATUS[0]) === status);
                                 if (grupo.length === 0) return null;
                                 const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
@@ -838,7 +864,7 @@ export default function PainelOperacional({
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                                             {grupo.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
-                                const campoStatusAlvo = origem === 'Recife' ? 'status_recife' : 'status_moreno';
+                                const campoStatusAlvo = campoStatus;
                                 const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
                                 const corStatus = CORES_STATUS[valorStatusAtual] || { border: '#fff', text: '#fff' };
                                 const isMista = item.coletaRecife && item.coletaMoreno;
@@ -922,7 +948,7 @@ export default function PainelOperacional({
                                                     const proxStr = prox.toISOString().slice(0, 10);
                                                     const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
                                                     const dataCarregadoOutraUnidade = origem === 'Recife' ? item.data_carregado_moreno : item.data_carregado_recife;
-                                                    const statusAtualItem = origem === 'Recife' ? (item.status_recife || 'AGUARDANDO') : (item.status_moreno || 'AGUARDANDO');
+                                                    const statusAtualItem = getStatus(item);
                                                     const eHoje = item.data_prevista === hoje;
                                                     // Card misto: outra parada já carregou (ancorando nela), mas esta parada ainda não
                                                     // Nesse caso o data_prevista pode ser ontem — ainda assim pode avançar para amanhã
@@ -1017,8 +1043,8 @@ export default function PainelOperacional({
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <span style={{ fontSize: '9px', color: '#64748b' }}>ROTA:</span>
                                                         <input
-                                                            value={(origem === 'Recife' ? item.rotaRecife : item.rotaMoreno) || ''}
-                                                            onChange={e => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'rotaRecife' : 'rotaMoreno', e.target.value)}
+                                                            value={(operacoesFixas ? item.rotaRecife : origem === 'Recife' ? item.rotaRecife : item.rotaMoreno) || ''}
+                                                            onChange={e => updateList(lista, setLista, realIndex, origem === 'Recife' || operacoesFixas ? 'rotaRecife' : 'rotaMoreno', e.target.value)}
                                                             placeholder="..."
                                                             style={getEstiloRota(origem === 'Recife' ? item.rotaRecife : item.rotaMoreno)}
                                                         />
@@ -1040,8 +1066,8 @@ export default function PainelOperacional({
                                                             : { background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '6px', padding: '8px' }
                                                         }>
                                                             <TagInput
-                                                                value={origem === 'Recife' ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
-                                                                onChange={val => updateList(lista, setLista, realIndex, origem === 'Recife' ? 'coletaRecife' : 'coletaMoreno', val)}
+                                                                value={operacoesFixas ? (item.coletaInterestadual || '') : origem === 'Recife' ? (item.coletaRecife || '') : (item.coletaMoreno || '')}
+                                                                onChange={val => updateList(lista, setLista, realIndex, operacoesFixas ? 'coletaInterestadual' : origem === 'Recife' ? 'coletaRecife' : 'coletaMoreno', val)}
                                                                 disabled={!podeEditarNaUnidade('coleta_card')}
                                                             />
                                                         </div>
@@ -1229,7 +1255,7 @@ export default function PainelOperacional({
                                                         </a>
 
                                                         {/* Badge Entrega Local */}
-                                                        {item.entregaLocal && (
+                                                        {item.entregaLocal && !ehOperacaoInterestadual(item.operacao) && (
                                                             <span
                                                                 title="Entrega Local — sem lacre"
                                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 7px', background: 'rgba(16,185,129,0.15)', borderRadius: '12px', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)', fontSize: '10px', fontWeight: '700' }}
@@ -1368,8 +1394,8 @@ export default function PainelOperacional({
                                             {/* Doca e Status */}
                                             {podeEditarNaUnidade('alterar_status_operacao') ? (
                                                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                    {/* Select Doca */}
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    {/* Select Doca — oculto quando não há docas (ex: Painel Leão) */}
+                                                    <div style={{ display: opcoesDocas.length === 0 ? 'none' : 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <Anchor size={11} color="#60a5fa" />
                                                         <select
                                                             value={item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'}
@@ -1408,7 +1434,7 @@ export default function PainelOperacional({
                                                                         novoStatus,
                                                                         novaDoca: item[origem === 'Recife' ? 'doca_recife' : 'doca_moreno'] || 'SELECIONE'
                                                                     });
-                                                                    updateList(lista, setLista, realIndex, origem === 'Recife' ? 'status_recife' : 'status_moreno', novoStatus);
+                                                                    updateList(lista, setLista, realIndex, campoStatus, novoStatus);
                                                                     mostrarNotificacao?.(`✅ Status alterado para ${novoStatus}`);
                                                                 } catch (err) {
                                                                     const msg = err.response?.data?.message || 'Erro ao atualizar status.';
@@ -1445,7 +1471,7 @@ export default function PainelOperacional({
                                             )}
 
                                             {/* Toggle Entrega Local */}
-                                            {podeEditarNaUnidade('operacao') && (
+                                            {podeEditarNaUnidade('operacao') && !ehOperacaoInterestadual(item.operacao) && (
                                                 <div
                                                     onClick={() => {
                                                         const novaLista = [...lista];
@@ -1527,7 +1553,7 @@ export default function PainelOperacional({
                                             }
 
                                             {/* Botão Liberar Checklist — some quando CARREGADO (Coordenador/Planejamento) */}
-                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && (
+                                            {valorStatusAtual !== 'CARREGADO' && ['Coordenador', 'Planejamento', 'Desenvolvedor'].includes(user.cargo) && !item.isFrotaMotorista && !itemTemPlacaNoProvisionamento(item) && !ehOperacaoInterestadual(item.operacao) && (
                                                 <button
                                                     onClick={() => setConfirmarLiberarChecklist({ item })}
                                                     style={{
@@ -1695,7 +1721,7 @@ export default function PainelOperacional({
                                                     )}
 
                                                     {/* Botão Liberado p/ CTE */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <button
                                                             onClick={() => item.motorista?.trim() && setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
                                                             style={{
@@ -1717,7 +1743,7 @@ export default function PainelOperacional({
                                                         </button>
                                                     )}
                                                     {/* Feedback: CT-e já liberado */}
-                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : item.cte_antecipado_moreno) && (
+                                                    {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !!(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                             <span style={{ color: '#a855f7', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                 <CheckCircle size={12} /> CT-e liberado

@@ -53,7 +53,7 @@ const hojeISO = obterDataBrasilia();
 const DESTINATARIOS_ALERTA = {
     'admin_cadastro':      ['Coordenador'],
     'admin_senha':         ['Coordenador'],
-    'aceite_cte_pendente': ['Conhecimento', 'Planejamento'],
+    'aceite_cte_pendente': ['Conhecimento', 'Planejamento', 'Desenvolvedor'],
     'veiculo_carregado':   ['Planejamento'],
     'checklist_pendente':  [],
     'aviso':               ['Planejamento', 'Encarregado', 'Aux. Operacional'],
@@ -86,9 +86,11 @@ function App({ socket }) {
     const [listaVeiculos, setListaVeiculos] = useState([]);
     const [ctesRecife, setCtesRecife] = useState([]);
     const [ctesMoreno, setCtesMoreno] = useState([]);
+    const [ctesSP, setCtesSP] = useState([]);
     // Estado exclusivo para o dashboard (sempre = hoje, nunca afetado pelo filtro do PainelCte)
     const [ctesRecifeHoje, setCtesRecifeHoje] = useState([]);
     const [ctesMorenoHoje, setCtesMorenoHoje] = useState([]);
+    const [ctesSPHoje, setCtesSPHoje] = useState([]);
     const [termoBusca, setTermoBusca] = useState('');
     const [fila, setFila] = useState([]);
     const [relatorioDados, setRelatorioDados] = useState([]);
@@ -106,6 +108,7 @@ function App({ socket }) {
         tipoVeiculo: 'TRUCK',
         coletaRecife: '',
         coletaMoreno: '',
+        coletaInterestadual: '',
         rotaRecife: '',
         rotaMoreno: '',
         inicio: 'Recife',
@@ -281,7 +284,10 @@ function App({ socket }) {
         }
 
         // Filtrar por destinatário específico (ex: operador Conhecimento selecionado no modal CT-e)
-        if (dados.destinatario_id && dados.destinatario_id !== userRef.current?.id) {
+        // Desenvolvedor no staging recebe tudo independente do destinatário (modo debug)
+        const ehDesenvolvedor = meuCargo === 'Desenvolvedor';
+        const ehStaging = window.location.hostname.includes('homolog');
+        if (dados.destinatario_id && dados.destinatario_id !== userRef.current?.id && !(ehDesenvolvedor && ehStaging)) {
             console.log(`🚫 Alerta ignorado: destinatário ${dados.destinatario_id} não sou eu (${userRef.current?.id}).`);
             return;
         }
@@ -359,7 +365,11 @@ function App({ socket }) {
 
         // --- Sincronização de CT-e ---
         else if (data.tipo === 'novo_cte') {
-            if (data.dados.origem === 'Moreno') {
+            if (ehOperacaoInterestadual(data.dados.operacao)) {
+                const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
+                setCtesSP(adder);
+                setCtesSPHoje(adder);
+            } else if (data.dados.origem === 'Moreno') {
                 const adder = prev => prev.find(c => c.id === data.dados.id) ? prev : [...prev, data.dados];
                 setCtesMoreno(adder);
                 setCtesMorenoHoje(adder);
@@ -373,15 +383,19 @@ function App({ socket }) {
             const updater = prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c);
             setCtesRecife(updater);
             setCtesMoreno(updater);
+            setCtesSP(updater);
             setCtesRecifeHoje(updater);
             setCtesMorenoHoje(updater);
+            setCtesSPHoje(updater);
         }
         else if (data.tipo === 'remove_cte') {
             const filter = prev => prev.filter(c => c.id !== data.id);
             setCtesRecife(filter);
             setCtesMoreno(filter);
+            setCtesSP(filter);
             setCtesRecifeHoje(filter);
             setCtesMorenoHoje(filter);
+            setCtesSPHoje(filter);
         }
 
         // CORREÇÃO DO PISCAR NA FILA (Verifica se já existe)
@@ -421,8 +435,10 @@ function App({ socket }) {
         // Limpar CT-es antes de recarregar para não exibir dados de sessões anteriores
         setCtesRecife([]);
         setCtesMoreno([]);
+        setCtesSP([]);
         setCtesRecifeHoje([]);
         setCtesMorenoHoje([]);
+        setCtesSPHoje([]);
         carregarCtes();
         // Verificar e-mail pessoal (cobre tanto login novo quanto sessão restaurada do localStorage)
         if (!user?.email_pessoal) {
@@ -556,12 +572,15 @@ function App({ socket }) {
             const response = await api.get(`/ctes${params}`);
             if (response.data.success) {
                 const todos = response.data.ctes || [];
-                setCtesRecife(todos.filter(c => c.origem === 'Recife'));
-                setCtesMoreno(todos.filter(c => c.origem !== 'Recife'));
+                const isSP = c => ehOperacaoInterestadual(c.operacao);
+                setCtesRecife(todos.filter(c => c.origem !== 'Moreno' && !isSP(c)));
+                setCtesMoreno(todos.filter(c => c.origem === 'Moreno' && !isSP(c)));
+                setCtesSP(todos.filter(isSP));
                 // Sem params = carga inicial (hoje) → também atualiza o estado do dashboard
                 if (!params) {
-                    setCtesRecifeHoje(todos.filter(c => c.origem === 'Recife'));
-                    setCtesMorenoHoje(todos.filter(c => c.origem !== 'Recife'));
+                    setCtesRecifeHoje(todos.filter(c => c.origem !== 'Moreno' && !isSP(c)));
+                    setCtesMorenoHoje(todos.filter(c => c.origem === 'Moreno' && !isSP(c)));
+                    setCtesSPHoje(todos.filter(isSP));
                 }
             }
         } catch (error) {
@@ -603,8 +622,9 @@ function App({ socket }) {
 
 
 
-    const ehOperacaoRecife = (op) => op.includes('RECIFE');
-    const ehOperacaoMoreno = (op) => op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK');
+    const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+    const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
+    const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
     const ativarNotificacoes = () => {
         if (!("Notification" in window)) { mostrarNotificacao("❌ Este navegador não suporta notificações."); return; }
@@ -648,6 +668,7 @@ function App({ socket }) {
 
         if (precisaRecife && !formLanca.coletaRecife) return mostrarNotificacao("⚠️ Digite a coleta de Recife!");
         if (precisaMoreno && !formLanca.coletaMoreno) return mostrarNotificacao("⚠️ Digite a coleta de Moreno!");
+        if (ehOperacaoInterestadual(formLanca.operacao) && !formLanca.coletaInterestadual) return mostrarNotificacao("⚠️ Digite o número da coleta!");
 
         // Unidade determinada pela operação, não pela cidade do usuário
         const unidadeForcada = (!precisaRecife && precisaMoreno) ? 'Moreno'
@@ -677,6 +698,7 @@ function App({ socket }) {
             status_coleta: { solicitado: '', liberado: '' },
             coletaRecife: precisaRecife ? formLanca.coletaRecife : '',
             coletaMoreno: precisaMoreno ? formLanca.coletaMoreno : '',
+            coletaInterestadual: ehOperacaoInterestadual(formLanca.operacao) ? formLanca.coletaInterestadual : '',
             origem_criacao: unidadeForcada,
             inicio_rota: unidadeForcada,
             data_prevista: formLanca.data_prevista,
@@ -703,7 +725,7 @@ function App({ socket }) {
             }
 
             // Auto-adicionar à fila de separação
-            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coleta || '';
+            const coletaFila = novoItem.coletaRecife || novoItem.coletaMoreno || novoItem.coletaInterestadual || novoItem.coleta || '';
             if (coletaFila && !formLanca.idFilaOriginal) {
                 await api.post('/fila', {
                     coleta: coletaFila,
@@ -714,7 +736,7 @@ function App({ socket }) {
                 });
             }
 
-            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
+            setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', coletaInterestadual: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
             mostrarNotificacao("✅ Veículo Lançado !");
         } catch (error) {
             console.error("Erro ao lançar:", error);
@@ -855,7 +877,8 @@ function App({ socket }) {
                 } catch (_) { }
 
                 const coletaValida = (dadosAlerta.coletaRecife && dadosAlerta.coletaRecife.trim()) ||
-                    (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim());
+                    (dadosAlerta.coletaMoreno && dadosAlerta.coletaMoreno.trim()) ||
+                    (dadosAlerta.coletaInterestadual && dadosAlerta.coletaInterestadual.trim());
                 const motoristaValido = dadosAlerta.motorista && dadosAlerta.motorista.trim();
 
                 if (motoristaValido) {
@@ -882,7 +905,7 @@ function App({ socket }) {
             if (campo.includes('status') && valor === 'LIBERADO P/ DOCA') {
                 const doca = origem === 'Recife' ? itemAtual.doca_recife : itemAtual.doca_moreno;
                 socket.emit('enviar_alerta', {
-                    coleta: origem === 'Recife' ? itemAtual.coletaRecife : itemAtual.coletaMoreno,
+                    coleta: itemAtual.coletaInterestadual || (origem === 'Recife' ? itemAtual.coletaRecife : itemAtual.coletaMoreno),
                     doca: doca || '?',
                     origem,
                     tipo: 'doca',
@@ -919,7 +942,7 @@ function App({ socket }) {
         const novaLista = [...lista];
         const itemAtual = { ...novaLista[index] };
         const agora = new Date().toISOString();
-        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : 'cte_antecipado_moreno';
+        const campo = origem === 'Recife' ? 'cte_antecipado_recife' : origem === 'Moreno' ? 'cte_antecipado_moreno' : 'cte_antecipado_interestadual';
         const valorAnterior = itemAtual[campo];
 
         itemAtual[campo] = agora;
@@ -943,7 +966,8 @@ function App({ socket }) {
                 } catch (_) { /* usa dados locais como fallback */ }
 
                 const coletaValida = (dadosParaAlerta.coletaRecife && dadosParaAlerta.coletaRecife.trim()) ||
-                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim());
+                    (dadosParaAlerta.coletaMoreno && dadosParaAlerta.coletaMoreno.trim()) ||
+                    (dadosParaAlerta.coletaInterestadual && dadosParaAlerta.coletaInterestadual.trim());
                 const motorista = dadosParaAlerta.motorista?.trim();
 
                 if (motorista) {
@@ -1001,7 +1025,7 @@ function App({ socket }) {
                     statusAntigo: statusAnterior,
                     statusNovo: valor,
                     origem: origem,
-                    coleta: itemAtual.coletaRecife || itemAtual.coletaMoreno || 'N/A',
+                    coleta: itemAtual.coletaRecife || itemAtual.coletaMoreno || itemAtual.coletaInterestadual || 'N/A',
                     usuario: user.nome
                 });
             } catch (error) {
@@ -1316,6 +1340,7 @@ function App({ socket }) {
                     listaVeiculos={listaVeiculos}
                     ctesRecife={ctesRecifeHoje}
                     ctesMoreno={ctesMorenoHoje}
+                    ctesSP={ctesSPHoje}
                     socket={socket}
                     onRefresh={() => recarregarDadosRef.current?.()}
                     onSair={() => {
@@ -1360,6 +1385,20 @@ function App({ socket }) {
                         setTermoBusca={setTermoBusca}
                         user={user}
                         funcoes={{ podeEditar, updateList, liberarParaCte, removerVeiculo, socket, mostrarNotificacao }}
+                    />
+                )}
+
+                {abaAtiva === 'painel_leao' && temAcesso('operacao') && (
+                    <PainelOperacional
+                        origem="Leao"
+                        lista={listaVeiculos}
+                        setLista={setListaVeiculos}
+                        opcoesDocas={[]}
+                        termoBusca={termoBusca}
+                        setTermoBusca={setTermoBusca}
+                        user={user}
+                        funcoes={{ podeEditar, updateList, liberarParaCte, removerVeiculo, socket, mostrarNotificacao }}
+                        operacoesFixas={['LEÃO - SP', 'ELETRIK SUL']}
                     />
                 )}
 
@@ -1447,8 +1486,10 @@ function App({ socket }) {
                         abaAtiva={abaAtiva}
                         ctesRecife={ctesRecife}
                         ctesMoreno={ctesMoreno}
+                        ctesSP={ctesSP}
                         setCtesRecife={setCtesRecife}
                         setCtesMoreno={setCtesMoreno}
+                        setCtesSP={setCtesSP}
                         filtroDataInicioCte={filtroDataInicioCte}
                         filtroDataFimCte={filtroDataFimCte}
                         setFiltroDataInicioCte={setFiltroDataInicioCte}
