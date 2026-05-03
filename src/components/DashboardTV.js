@@ -350,15 +350,12 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema
     const pctFrotaDia = totalDia > 0 ? Math.round((frotaDia / totalDia) * 100) : 0;
     const pctTercDia = totalDia > 0 ? 100 - pctFrotaDia : 0;
 
-    // Visão geral: já separados pelo App.js; ctesRecife/ctesMoreno não incluem interestaduais
-    const ctesRecifeVG = ctesRecife;
-    const ctesMorenoVG = ctesMoreno;
-    const todosCtes = [...ctesRecifeVG, ...ctesMorenoVG];
+    // Visão geral: todos os CT-es (Recife + Moreno + SP/interestaduais)
+    const todosCtes = [...ctesRecife, ...ctesMoreno, ...ctesSP];
     const _emEmissao = todosCtes.filter(c => c.status === 'Em Emissão' || c.status === 'Em Emissao').length;
     const _emitido = todosCtes.filter(c => c.status === 'Emitido').length;
-    const veiculosRecifeMoreno = veiculos.filter(v => !ehOperacaoLeaoEletrikSul(v.operacao));
     const statusCte = {
-        aguardando: Math.max(0, veiculosRecifeMoreno.length - _emEmissao - _emitido),
+        aguardando: Math.max(0, veiculos.length - _emEmissao - _emitido),
         emEmissao: _emEmissao,
         emitido: _emitido
     };
@@ -475,8 +472,8 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema
                     ))}
                     <div style={{ flex: 1 }} />
                     {[
-                        { label: 'Recife', count: ctesRecifeVG.filter(c => c.status === 'Emitido').length, cor: '#60a5fa' },
-                        { label: 'Moreno', count: ctesMorenoVG.filter(c => c.status === 'Emitido').length, cor: '#fb923c' },
+                        { label: 'Recife', count: ctesRecife.filter(c => c.status === 'Emitido').length, cor: '#60a5fa' },
+                        { label: 'Moreno', count: ctesMoreno.filter(c => c.status === 'Emitido').length, cor: '#fb923c' },
                         { label: 'São Paulo', count: ctesSP.filter(c => c.status === 'Emitido').length, cor: '#f97316' }
                     ].map(u => (
                         <div key={u.label} style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
