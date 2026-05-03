@@ -387,21 +387,21 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema
             (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
             (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
             (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_recife) ||
+            (s === 'CARREGADO' && v.status_recife === 'CARREGADO') ||
             (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
         )).length,
         Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && (
             (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_moreno === 'AGUARDANDO') ||
             (s === 'LIBERADO P/ CARREGAMENTO' && v.status_moreno === 'LIBERADO P/ DOCA') ||
             (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno) ||
-            (s === 'CARREGADO' && v.status_moreno === 'CARREGADO' && !v.cte_antecipado_moreno) ||
+            (s === 'CARREGADO' && v.status_moreno === 'CARREGADO') ||
             (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_moreno === s)
         )).length,
         'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) && (
             (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
             (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
             (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_interestadual) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO' && !v.cte_antecipado_interestadual) ||
+            (s === 'CARREGADO' && v.status_recife === 'CARREGADO') ||
             (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
         )).length,
     }));
