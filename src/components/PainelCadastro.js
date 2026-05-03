@@ -46,7 +46,7 @@ function corSituacao(sit) {
 export default function PainelCadastro({ user, socket }) {
     // ── Blindagem de Acesso ──
     const cargo = (user?.cargo || '').toUpperCase();
-    const podeEditar = ['COORDENADOR', 'PLANEJAMENTO', 'CADASTRO', 'CONHECIMENTO'].includes(cargo);
+    const podeEditar = ['COORDENADOR', 'PLANEJAMENTO', 'CADASTRO', 'CONHECIMENTO', 'DESENVOLVEDOR'].includes(cargo);
 
     const [motoristas, setMotoristas] = useState([]);
     const [edicoes, setEdicoes] = useState({}); // { [id]: { chk_cnh_cad, ... } }
@@ -64,6 +64,9 @@ export default function PainelCadastro({ user, socket }) {
     const [motoristasFrota, setMotoristasFrota] = useState([]);
     const [edicoesFrota, setEdicoesFrota] = useState({});
     const [salvandoFrota, setSalvandoFrota] = useState(null);
+
+    // Modal aviso duplicata de número de liberação
+    const [avisoDuplicata, setAvisoDuplicata] = useState(null); // string com a mensagem
 
     // Em Espera: expandir/colapsar e filtro
     const [expandidoEspera, setExpandidoEspera] = useState(null);
@@ -213,21 +216,38 @@ export default function PainelCadastro({ user, socket }) {
         setEdicoes(prev => {
             const atual = prev[id] || {};
             const novo = { ...atual, [campo]: valor };
-            // Recalcular situacao_cad localmente para feedback imediato
+            // Nunca setar LIBERADO localmente — só o backend confirma liberação
             const todosChk = !!(novo.chk_cnh_cad && novo.chk_antt_cad && novo.chk_tacografo_cad && novo.chk_crlv_cad);
-            const liberado = todosChk && !!novo.seguradora_cad && !!novo.num_liberacao_cad;
-            novo.situacao_cad = liberado ? 'LIBERADO'
-                : (todosChk || novo.seguradora_cad || novo.num_liberacao_cad) ? 'PENDENTE'
-                    : 'NÃO CONFERIDO';
+            novo.situacao_cad = (todosChk || novo.seguradora_cad || novo.num_liberacao_cad) ? 'PENDENTE' : 'NÃO CONFERIDO';
             return { ...prev, [id]: novo };
         });
     }
 
+    function verificarDuplicataLiberacao(numLiberacao, idAtual, listaA, edicoesA, listaB, edicoesB) {
+        if (!numLiberacao || !numLiberacao.trim()) return null;
+        const num = numLiberacao.trim();
+        for (const m of (listaA || [])) {
+            if (m.id === idAtual) continue;
+            const ed = (edicoesA || {})[m.id] || {};
+            const numEd = (ed.num_liberacao_cad || m.num_liberacao_cad || '').trim();
+            if (numEd && numEd === num) return m.nome_motorista || m.motorista || `ID ${m.id}`;
+        }
+        for (const m of (listaB || [])) {
+            if (m.id === idAtual) continue;
+            const ed = (edicoesB || {})[m.id] || {};
+            const numEd = (ed.num_liberacao_cad || m.num_liberacao_cad || '').trim();
+            if (numEd && numEd === num) return m.nome_motorista || m.motorista || `ID ${m.id}`;
+        }
+        return null;
+    }
+
     async function salvar(id) {
         if (salvando === id) return;
+        const dados = edicoes[id] || {};
+        const duplicata = verificarDuplicataLiberacao(dados.num_liberacao_cad, id, motoristas, edicoes, motoristasOperacao, edicoesOp);
+        if (duplicata) { setAvisoDuplicata(`Número de liberação já está em uso por: ${duplicata}`); return; }
         setSalvando(id);
         try {
-            const dados = edicoes[id] || {};
             const r = await api.put(`/api/cadastro/motoristas/${id}`, {
                 ...dados,
                 origem_cad: dados.origem_cad || '',
@@ -262,17 +282,18 @@ export default function PainelCadastro({ user, socket }) {
         setEdicoesOp(prev => {
             const atual = prev[id] || {};
             const novo = { ...atual, [campo]: valor };
+            // Nunca setar LIBERADO localmente — só o backend confirma liberação
             const todosChk = !!(novo.chk_cnh_cad && novo.chk_antt_cad && novo.chk_tacografo_cad && novo.chk_crlv_cad);
-            const liberado = todosChk && !!novo.num_liberacao_cad;
-            novo.situacao_cad = liberado ? 'LIBERADO'
-                : (todosChk || novo.num_liberacao_cad) ? 'PENDENTE'
-                    : 'NÃO CONFERIDO';
+            novo.situacao_cad = (todosChk || novo.num_liberacao_cad) ? 'PENDENTE' : 'NÃO CONFERIDO';
             return { ...prev, [id]: novo };
         });
     }
 
     async function salvarOperacao(id) {
         if (salvandoOp === id) return;
+        const dadosCheck = edicoesOp[id] || {};
+        const duplicata = verificarDuplicataLiberacao(dadosCheck.num_liberacao_cad, id, motoristas, edicoes, motoristasOperacao, edicoesOp);
+        if (duplicata) { setAvisoDuplicata(`Número de liberação já está em uso por: ${duplicata}`); return; }
         setSalvandoOp(id);
         try {
             const dados = edicoesOp[id] || {};
@@ -534,15 +555,19 @@ export default function PainelCadastro({ user, socket }) {
 
                                                 {/* Footer — Botão Salvar */}
                                                 <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                                    {podeEditar ? (
+                                                    {situacao === 'LIBERADO' ? (
+                                                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                            <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                        </div>
+                                                    ) : podeEditar ? (
                                                         <button
                                                             onClick={() => salvar(m.id)}
                                                             disabled={estaSalvando}
                                                             style={{
                                                                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                                 padding: '8px', borderRadius: '7px', border: 'none',
-                                                                background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                                color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                                background: 'rgba(251,191,36,0.15)',
+                                                                color: '#fbbf24',
                                                                 fontWeight: 'bold', fontSize: '12px',
                                                                 cursor: estaSalvando ? 'default' : 'pointer',
                                                                 opacity: estaSalvando ? 0.6 : 1,
@@ -721,6 +746,7 @@ export default function PainelCadastro({ user, socket }) {
                                                         <option value="" style={{ color: 'black' }}>-- Selecione --</option>
                                                         <option value="Recife" style={{ color: 'black' }}>Recife</option>
                                                         <option value="Moreno" style={{ color: 'black' }}>Moreno</option>
+                                                        <option value="São Paulo" style={{ color: 'black' }}>São Paulo</option>
                                                     </select>
                                                 </div>
                                                 <div>
@@ -818,15 +844,19 @@ export default function PainelCadastro({ user, socket }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {situacao === 'LIBERADO' ? (
+                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                </div>
+                                            ) : podeEditar ? (
                                                 <button
                                                     onClick={() => salvarOperacao(m.id)}
                                                     disabled={estaSalvando}
                                                     style={{
                                                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                         padding: '8px', borderRadius: '7px', border: 'none',
-                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        background: 'rgba(251,191,36,0.15)',
+                                                        color: '#fbbf24',
                                                         fontWeight: 'bold', fontSize: '12px',
                                                         cursor: estaSalvando ? 'default' : 'pointer',
                                                         opacity: estaSalvando ? 0.6 : 1,
@@ -964,15 +994,19 @@ export default function PainelCadastro({ user, socket }) {
                                         </div>
 
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {situacao === 'LIBERADO' ? (
+                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
+                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
+                                                </div>
+                                            ) : podeEditar ? (
                                                 <button
                                                     onClick={() => salvarFrota(m.id)}
                                                     disabled={estaSalvando}
                                                     style={{
                                                         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                                         padding: '8px', borderRadius: '7px', border: 'none',
-                                                        background: situacao === 'LIBERADO' ? 'rgba(34,197,94,0.2)' : 'rgba(251,191,36,0.15)',
-                                                        color: situacao === 'LIBERADO' ? '#4ade80' : '#fbbf24',
+                                                        background: 'rgba(251,191,36,0.15)',
+                                                        color: '#fbbf24',
                                                         fontWeight: 'bold', fontSize: '12px',
                                                         cursor: estaSalvando ? 'default' : 'pointer',
                                                         opacity: estaSalvando ? 0.6 : 1,
@@ -992,6 +1026,20 @@ export default function PainelCadastro({ user, socket }) {
                         </div>
                     )}
                 </>
+            )}
+            {/* Modal aviso duplicata de liberação */}
+            {avisoDuplicata && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '12px', padding: '28px 32px', maxWidth: '380px', width: '90vw', textAlign: 'center' }}>
+                        <AlertTriangle size={32} color="#f87171" style={{ marginBottom: '12px' }} />
+                        <div style={{ color: '#f87171', fontWeight: 700, fontSize: '15px', marginBottom: '8px' }}>Liberação duplicada</div>
+                        <div style={{ color: '#cbd5e1', fontSize: '13px', marginBottom: '20px' }}>{avisoDuplicata}</div>
+                        <button
+                            onClick={() => setAvisoDuplicata(null)}
+                            style={{ padding: '9px 28px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                        >OK</button>
+                    </div>
+                </div>
             )}
         </div>
     );

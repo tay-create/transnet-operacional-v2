@@ -2,17 +2,23 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import TagInput from './TagInput';
 import {
-    Truck, Calendar, Layers, User, Route, FileText, Image, X, ChevronDown, Phone
+    Truck, Calendar, Layers, User, Route, Package, FileText, Image, X, ChevronDown, Phone, Download, Upload
 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
+import ModalImportacaoLotes from './ModalImportacaoLotes';
+import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 
-const ehOperacaoRecife = (op) => op && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
+const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
+const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
-export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVeiculoInteligente, podeEditar, mostrarNotificacao }) {
+export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVeiculoInteligente, lancarPayloadDireto, podeEditar, mostrarNotificacao }) {
+    const [modalImportacao, setModalImportacao] = useState(false);
+    const [cubagensCache, setCubagensCache] = useState({});
+    const [cubagemFormulario, setCubagemFormulario] = useState(null);
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [buscaMotorista, setBuscaMotorista] = useState('');
     const [dropdownAberto, setDropdownAberto] = useState(false);
@@ -49,7 +55,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
 
     const UFS_FILTRO = ['PE', 'BA', 'SP', 'GO', 'MG', 'RJ', 'CE', 'MA', 'PI', 'PB', 'RN', 'AL', 'SE', 'ES', 'PR', 'SC', 'RS', 'MT', 'MS', 'DF', 'PA', 'AM', 'RO', 'TO', 'AP', 'RR', 'AC'];
 
-    const motoristasFiltered = motoristasDisponiveis.filter(m => {
+    const motoristasFiltered = motoristasDisponiveis.filter(m => !m.is_frota).filter(m => {
         const matchBusca = m.nome_motorista.toLowerCase().includes(buscaMotorista.toLowerCase()) ||
             m.placa1.toLowerCase().includes(buscaMotorista.toLowerCase());
         const matchUF = !filtroUF
@@ -117,11 +123,22 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
             }}>
                 {/* Cabeçalho */}
                 <div style={{ marginBottom: '25px' }}>
-                    <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '12px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '12px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <h3 className="title-neon-blue" style={{ margin: 0, fontSize: '20px' }}>
                             <Truck size={24} color="#60a5fa" style={{ marginRight: 12 }} />
                             NOVO LANÇAMENTO
                         </h3>
+                        <button
+                            onClick={() => setModalImportacao(true)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.4)',
+                                color: '#93c5fd', borderRadius: '8px', padding: '7px 13px',
+                                fontSize: '12px', fontWeight: '700', cursor: 'pointer', letterSpacing: '0.03em'
+                            }}
+                        >
+                            <Upload size={13} /> Importar Coletas
+                        </button>
                     </div>
                 </div>
 
@@ -237,6 +254,16 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                 );
                             })()}
                         </div>
+
+                        {/* Coleta para operações interestaduais (Leão / Eletrik Sul) */}
+                        {(formLanca.operacao === 'LEÃO - SP' || formLanca.operacao === 'ELETRIK SUL') && (
+                            <div style={{ borderLeft: '3px solid #f97316', paddingLeft: '12px' }}>
+                                <label className="label-tech-sm" style={{ color: '#fb923c' }}>COLETA</label>
+                                <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '6px', padding: '8px' }}>
+                                    <TagInput value={formLanca.coletaInterestadual} onChange={val => setFormLanca({ ...formLanca, coletaInterestadual: val })} placeholder="Digite o número da coleta..." />
+                                </div>
+                            </div>
+                        )}
 
                         {/* Linha 2: Motorista + Veículo */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -372,7 +399,8 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                             )}
                         </div>
 
-                        {/* Entrega Local */}
+                        {/* Entrega Local — oculto para operações interestaduais */}
+                        {formLanca.operacao !== 'LEÃO - SP' && formLanca.operacao !== 'ELETRIK SUL' && (
                         <div
                             onClick={() => setFormLanca(prev => ({ ...prev, entregaLocal: !prev.entregaLocal }))}
                             style={{
@@ -396,6 +424,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                                 (sem lacre — motorista de frota)
                             </span>
                         </div>
+                        )}
 
                         {/* Campo de Observação */}
                         <div>
@@ -526,6 +555,14 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                     }}
                 />
             )}
+
+            {/* Modal de importação em lote */}
+            <ModalImportacaoLotes
+                isOpen={modalImportacao}
+                onClose={() => setModalImportacao(false)}
+                lancarPayloadDireto={lancarPayloadDireto}
+                mostrarNotificacao={mostrarNotificacao}
+            />
         </div>
     );
 }

@@ -3,19 +3,19 @@ const { dbRun, dbGet } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
-    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
-    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento'],
-    'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes'],
-    'Aux. Operacional': ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila'],
-    'Conhecimento':     ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
-    'Cadastro':         ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas'],
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota'],
+    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota'],
+    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota'],
+    'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes', 'painel_frota'],
+    'Aux. Operacional': ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila', 'painel_frota'],
+    'Conhecimento':     ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
+    'Cadastro':         ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
     'Dashboard Viewer': ['dashboard_tv'],
     'Conferente':       ['dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno'],
     'Pos Embarque':     ['dashboard_tv', 'marcacao_placas', 'ver_unidade_recife', 'ver_unidade_moreno'],
-    'Manutenção':       ['provisionamento', 'dashboard_tv']
+    'Manutenção':       ['provisionamento', 'dashboard_tv', 'painel_frota']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
@@ -194,6 +194,7 @@ const inicializarBanco = async () => {
             // CT-e liberado antecipadamente (ainda em EM CARREGAMENTO)
             { tabela: 'veiculos', coluna: 'cte_antecipado_recife', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'cte_antecipado_moreno', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'cte_antecipado_interestadual', tipo: 'TEXT' },
             // Programação Diária v3 — data original para classificar Programado vs Reprogramado
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
             // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
@@ -569,6 +570,34 @@ const inicializarBanco = async () => {
             autor_nome TEXT NOT NULL,
             criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS frota_roteirizacoes (
+            id SERIAL PRIMARY KEY,
+            nome_cliente TEXT,
+            coleta_recife TEXT DEFAULT '',
+            coleta_moreno TEXT DEFAULT '',
+            operacao TEXT NOT NULL DEFAULT '',
+            motorista_nome TEXT NOT NULL DEFAULT '',
+            motorista_id INTEGER,
+            placa_cavalo TEXT DEFAULT '',
+            placa_carreta TEXT DEFAULT '',
+            origem TEXT DEFAULT '',
+            quantidade_entregas INTEGER DEFAULT 1,
+            destinos_json TEXT DEFAULT '[]',
+            data_saida TIMESTAMPTZ,
+            data_retorno_prevista DATE,
+            status TEXT DEFAULT 'PREPARANDO',
+            observacao_manutencao TEXT,
+            criado_por INTEGER,
+            criado_em TIMESTAMPTZ DEFAULT NOW(),
+            atualizado_em TIMESTAMPTZ DEFAULT NOW()
+        )`);
+
+        try { await dbRun(`ALTER TABLE frota_roteirizacoes ADD COLUMN IF NOT EXISTS data_entrada_operacao TIMESTAMPTZ`); } catch (_) {}
+        try { await dbRun(`ALTER TABLE frota_roteirizacoes ALTER COLUMN status SET DEFAULT 'EM_OPERACAO'`); } catch (_) {}
+
+        // ── Coleta para operações interestaduais (Leão - SP / Eletrik Sul) ─────
+        try { await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS coletainterestadual TEXT DEFAULT ''`); } catch (_) {}
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");

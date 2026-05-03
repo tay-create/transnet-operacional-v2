@@ -1,4 +1,4 @@
-export const opTemPlastico = (op) => !!op && op.includes('PLÁSTICO(MORENO)');
+export const opTemPlastico = (op) => !!op && (op.includes('PLÁSTICO(MORENO)') || op.includes('RECIFE X MORENO'));
 export const opTemPorcelana = (op) => !!op && op.includes('PORCELANA');
 export const opTemEletrik = (op) => !!op && op.includes('ELETRIK');
 
