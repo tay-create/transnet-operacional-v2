@@ -8,6 +8,8 @@ import api from '../services/apiService';
 
 const classificarOperacao = (op) => {
     if (!op) return null;
+    if (op === 'LEÃO - SP') return 'leaoSP';
+    if (op === 'ELETRIK SUL') return 'eletrikSul';
     if (op.includes('/')) return 'consolidado';
     if (op === 'DELTA(RECIFE)' || op === 'PLÁSTICO(RECIFE)') return 'plasticoRec';
     if (op === 'DELTA(MORENO)' || op === 'PLÁSTICO(MORENO)') return 'plasticoMor';
@@ -17,8 +19,9 @@ const classificarOperacao = (op) => {
     return null;
 };
 
-const ehOperacaoRecife = (op) => op && (op.includes('RECIFE') || (op.includes('/') && op.includes('RECIFE')));
-const ehOperacaoMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK') || (op.includes('/') && !op.includes('RECIFE')));
+const ehInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+const ehOperacaoRecife = (op) => op && (ehInterestadual(op) || op.includes('RECIFE') || (op.includes('/') && op.includes('RECIFE')));
+const ehOperacaoMoreno = (op) => op && !ehInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK') || (op.includes('/') && !op.includes('RECIFE')));
 
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +50,8 @@ const KPIS = [
     { id: 'porcelana',   label: 'Porcelana' },
     { id: 'eletrik',     label: 'Eletrik' },
     { id: 'consolidado', label: 'Consolidado' },
+    { id: 'leaoSP',      label: 'Leão - SP' },
+    { id: 'eletrikSul',  label: 'Eletrik Sul' },
 ];
 
 // Cor por operação no gráfico horizontal
@@ -57,6 +62,8 @@ const COR_OP = {
     porcelana:   '#ec4899',
     eletrik:     '#10b981',
     consolidado: '#06b6d4',
+    leaoSP:      '#f97316',
+    eletrikSul:  '#a855f7',
 };
 
 // ── Tooltips ──────────────────────────────────────────────────────────────────
@@ -126,7 +133,7 @@ export default function RelatorioOperacional() {
 
     // ── Contadores KPI (ignoram filtroTipo) ───────────────────────────────────
     const contadores = useMemo(() => {
-        const cnt = { plasticoRec: 0, plasticoMor: 0, plasticoRxM: 0, porcelana: 0, eletrik: 0, consolidado: 0 };
+        const cnt = { plasticoRec: 0, plasticoMor: 0, plasticoRxM: 0, porcelana: 0, eletrik: 0, consolidado: 0, leaoSP: 0, eletrikSul: 0 };
         veiculosPorUnidade.forEach(v => {
             const cat = classificarOperacao(v.operacao);
             if (cat && cnt[cat] !== undefined) cnt[cat]++;

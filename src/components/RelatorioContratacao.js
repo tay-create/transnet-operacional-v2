@@ -25,6 +25,8 @@ const OP_CORES = {
     Porcelana: '#f59e0b',
     Eletrik: '#a78bfa',
     Consolidados: '#34d399',
+    'LEÃO - SP': '#f97316',
+    'ELETRIK SUL': '#a855f7',
     Outros: '#6b7280',
 };
 
