@@ -31,47 +31,78 @@ function parseInteiro(v) {
     return isNaN(n) ? null : n;
 }
 
+// Converte texto bruto da planilha em código de agendamento padrão (AG / SOL / S_AG)
+function normalizarAgendamento(raw) {
+    const s = String(raw || '').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z]/g, '');
+    if (!s) return null;
+    if (s === 'AG' || s.startsWith('AG')) return 'AG';
+    if (s === 'SOL' || s.startsWith('SOL')) return 'SOL';
+    if (s === 'SAG' || s === 'SEMAG' || s.startsWith('S')) return 'S_AG';
+    return s;
+}
+
 // Procura linha-cabeçalho por palavras-chave e retorna estrutura agrupada (rotas + entregas-filhas)
 function parseTramontinaXLSX(arrayBuffer) {
     const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
 
-    const palavrasChave = ['rota', 'motorista', 'placa', 'operacao', 'coleta'];
-    const headerRowIdx = raw.findIndex(row =>
-        Array.isArray(row) && row.some(cell => palavrasChave.some(p => normalizarChave(cell).includes(p)))
-    );
-    if (headerRowIdx < 0) throw new Error('Cabeçalho não encontrado na planilha (procuro por "rota", "motorista", "placa", "operacao" ou "coleta").');
+    // Procura linha-cabeçalho: precisa ter pelo menos uma coluna ROTA (exata) E uma CIDADE ou UF
+    const headerRowIdx = raw.findIndex(row => {
+        if (!Array.isArray(row)) return false;
+        const norm = row.map(c => normalizarChave(c));
+        const temRota = norm.includes('rota');
+        const temCidadeOuUf = norm.includes('cidade') || norm.includes('uf');
+        return temRota && temCidadeOuUf;
+    });
+    if (headerRowIdx < 0) throw new Error('Cabeçalho não encontrado. A planilha precisa ter colunas "ROTA" e "CIDADE" (ou "UF") na mesma linha.');
 
     const headers = raw[headerRowIdx].map(h => normalizarChave(h));
     const linhas = raw.slice(headerRowIdx + 1).filter(l => Array.isArray(l) && l.some(c => String(c || '').trim()));
 
+    // idx(...alvos): primeiro tenta match EXATO (string igual), só depois substring.
+    // Cada alvo pode ser uma string (exato) ou objeto { eq } / { contains }.
     const idx = (...alvos) => {
+        // 1) Match exato pelo array de alvos (em ordem)
         for (const a of alvos) {
-            const i = headers.findIndex(h => h.includes(a));
-            if (i >= 0) return i;
+            const exato = typeof a === 'string' ? a : a.eq;
+            if (exato) {
+                const i = headers.findIndex(h => h === exato);
+                if (i >= 0) return i;
+            }
+        }
+        // 2) Match por substring (em ordem)
+        for (const a of alvos) {
+            const sub = typeof a === 'string' ? a : a.contains;
+            if (sub) {
+                const i = headers.findIndex(h => h.includes(sub));
+                if (i >= 0) return i;
+            }
         }
         return -1;
     };
+
     const cols = {
-        rota: idx('rota', 'numerorota'),
+        rota: idx('rota'),
         coleta: idx('coleta'),
-        op: idx('operacao', 'op'),
-        tipo: idx('tipoveic', 'veiculo', 'tipo'),
+        op: idx('op', 'operacao'),
+        tipo: idx('veiculo', 'tipoveiculo', 'tipo'),
         motorista: idx('motorista'),
-        cavalo: idx('placacavalo', 'placa1', 'cavalo'),
-        carreta: idx('placacarreta', 'placa2', 'carreta'),
-        dataPrev: idx('dataprev', 'previsao', 'previsto'),
-        dataEmb: idx('dataembarque', 'embarque'),
-        cidade: idx('cidade', 'destinocidade'),
-        uf: idx('uf', 'destinouf'),
+        cavalo: idx('placacavalo', { contains: 'cavalo' }),
+        carreta: idx('placacarreta', { contains: 'carreta' }),
+        dataPrev: idx('datadeprevisao', { contains: 'previsao' }, { contains: 'previsto' }),
+        dataEmb: idx('datadeembarque', { contains: 'embarque' }),
+        cidade: idx('cidade'),
+        uf: idx('uf'),
         cliente: idx('cliente'),
-        nfs: idx('notafiscal', 'nf', 'nfs'),
-        agendamento: idx('agendamento', 'agend'),
-        dataEnt: idx('dataentrega', 'entregacliente'),
+        nfs: idx('notasfiscais', 'notafiscal', { contains: 'nota' }, 'nfs'),
+        agendamento: idx('agenda', 'agendamento', { contains: 'agend' }),
+        dataEnt: idx('data', 'dataentrega', { contains: 'entregacliente' }),
         redespacho: idx('redespacho'),
-        obs: idx('observacao', 'obs'),
+        obs: idx('observacoes', 'observacao', { contains: 'obs' }),
     };
+    console.log('[Tramontina] Cabeçalhos detectados:', headers);
+    console.log('[Tramontina] Mapeamento de colunas:', cols);
 
     const get = (linha, i) => i >= 0 ? String(linha[i] ?? '').trim() : '';
     const rotas = [];
@@ -79,30 +110,53 @@ function parseTramontinaXLSX(arrayBuffer) {
 
     for (const linha of linhas) {
         const numRota = parseInteiro(get(linha, cols.rota));
+        const cidadeLinha = get(linha, cols.cidade);
+        const ufLinha = get(linha, cols.uf).toUpperCase().slice(0, 2);
+        const clienteLinha = get(linha, cols.cliente);
+
         if (numRota) {
+            // Inicia uma rota nova SOMENTE se a linha tem dados úteis
+            // (cidade/uf/cliente/operação) — descarta rotas-fantasma
+            const opLinha = get(linha, cols.op).toUpperCase();
+            const motoristaLinha = get(linha, cols.motorista);
+            const dataEmbLinha = get(linha, cols.dataEmb);
+            const temDadosUteis = !!(cidadeLinha || ufLinha || clienteLinha || opLinha || motoristaLinha || dataEmbLinha);
+            if (!temDadosUteis) {
+                rotaAtual = null; // pula para próxima
+                continue;
+            }
             rotaAtual = {
                 numero_rota: numRota,
                 coleta: get(linha, cols.coleta) || null,
-                operacao_codigo: get(linha, cols.op).toUpperCase() || null,
+                operacao_codigo: opLinha || null,
                 tipo_veiculo: get(linha, cols.tipo).toUpperCase() || null,
-                motorista_nome: get(linha, cols.motorista) || null,
+                motorista_nome: motoristaLinha || null,
                 placa_cavalo: get(linha, cols.cavalo).toUpperCase() || null,
                 placa_carreta: get(linha, cols.carreta).toUpperCase() || null,
                 data_prevista: parseDataXLSX(get(linha, cols.dataPrev)),
-                data_embarque: parseDataXLSX(get(linha, cols.dataEmb)),
+                data_embarque: parseDataXLSX(dataEmbLinha),
                 redespacho: get(linha, cols.redespacho) || null,
                 observacao: get(linha, cols.obs) || null,
                 entregas: [],
             };
             rotas.push(rotaAtual);
-        }
-        const cidade = get(linha, cols.cidade);
-        const uf = get(linha, cols.uf).toUpperCase().slice(0, 2);
-        if ((cidade || uf) && rotaAtual) {
+            // A linha-cabeçalho da rota já é a primeira entrega (cidade/cliente/etc)
+            if (cidadeLinha || ufLinha || clienteLinha) {
+                rotaAtual.entregas.push({
+                    cidade: cidadeLinha || null,
+                    uf: ufLinha || null,
+                    cliente: clienteLinha || null,
+                    notas_fiscais: get(linha, cols.nfs) || null,
+                    status_agendamento: normalizarAgendamento(get(linha, cols.agendamento)),
+                    data_entrega_cliente: parseDataXLSX(get(linha, cols.dataEnt)),
+                });
+            }
+        } else if (rotaAtual && (cidadeLinha || ufLinha || clienteLinha)) {
+            // Linha-filha: entrega adicional da rota atual
             rotaAtual.entregas.push({
-                cidade: cidade || null,
-                uf: uf || null,
-                cliente: get(linha, cols.cliente) || null,
+                cidade: cidadeLinha || null,
+                uf: ufLinha || null,
+                cliente: clienteLinha || null,
                 notas_fiscais: get(linha, cols.nfs) || null,
                 status_agendamento: get(linha, cols.agendamento).toUpperCase().replace(/[^A-Z]/g, '_') || null,
                 data_entrega_cliente: parseDataXLSX(get(linha, cols.dataEnt)),
