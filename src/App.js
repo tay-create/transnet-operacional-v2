@@ -43,6 +43,7 @@ const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'
 const RelatorioCubagem     = React.lazy(() => import('./components/RelatorioCubagem'));
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
+const PlanejamentoTramontina = React.lazy(() => import('./components/PlanejamentoTramontina'));
 
 // Modals lazy — só carregam quando abertos
 const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
@@ -1552,6 +1553,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'pos_embarque_dashboard' && (
                     <DashboardPosEmbarque socket={socket} />
+                )}
+
+                {abaAtiva === 'tramontina_planejamento' && temAcesso('tramontina_planejamento') && (
+                    <PlanejamentoTramontina socket={socket} />
                 )}
 
                 {abaAtiva.startsWith('cte_') && temAcesso('cte') && (
