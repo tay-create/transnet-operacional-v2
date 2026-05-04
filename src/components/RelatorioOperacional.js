@@ -332,36 +332,79 @@ export default function RelatorioOperacional() {
                 </div>
             </div>
 
-            {/* ── KPIs ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-                <div style={{ ...s.card, borderLeft: `4px solid ${COR}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Total de Embarques</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
-                        <span style={{ fontSize: '52px', fontWeight: '900', color: COR, lineHeight: 1 }}>{contadores.total}</span>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>
-                            <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
-                            <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
+            {/* ── KPIs — Operações locais ── */}
+            {(() => {
+                const KPIS_LOCAL = KPIS.filter(k => k.id !== 'leaoSP' && k.id !== 'eletrikSul');
+                const totalLocal = KPIS_LOCAL.reduce((a, k) => a + (contadores[k.id] || 0), 0);
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                        <div style={{ ...s.card, borderLeft: `4px solid ${COR}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Total de Embarques</div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
+                                <span style={{ fontSize: '52px', fontWeight: '900', color: COR, lineHeight: 1 }}>{contadores.total}</span>
+                                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                    <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
+                                    <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
+                                </div>
+                            </div>
                         </div>
+                        {KPIS_LOCAL.map(kpi => {
+                            const valor = contadores[kpi.id] || 0;
+                            const pct = totalLocal > 0 ? ((valor / totalLocal) * 100).toFixed(1) : '0.0';
+                            const ativo = filtroTipo === kpi.id;
+                            return (
+                                <div
+                                    key={kpi.id}
+                                    onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
+                                    style={{ ...s.card, borderTop: `3px solid ${COR_OP[kpi.id] || COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR_OP[kpi.id] || COR}` : 'none', transition: 'outline 0.1s' }}
+                                    title={`Filtrar por ${kpi.label}`}
+                                >
+                                    <div style={{ fontSize: '32px', fontWeight: '900', color: COR_OP[kpi.id] || COR, lineHeight: 1 }}>{valor}</div>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? (COR_OP[kpi.id] || COR) : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
+                                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
+                                </div>
+                            );
+                        })}
                     </div>
-                </div>
-                {KPIS.map(kpi => {
-                    const valor = contadores[kpi.id] || 0;
-                    const pct = contadores.total > 0 ? ((valor / contadores.total) * 100).toFixed(1) : '0.0';
-                    const ativo = filtroTipo === kpi.id;
-                    return (
-                        <div
-                            key={kpi.id}
-                            onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
-                            style={{ ...s.card, borderTop: `3px solid ${COR_OP[kpi.id] || COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR_OP[kpi.id] || COR}` : 'none', transition: 'outline 0.1s' }}
-                            title={`Filtrar por ${kpi.label}`}
-                        >
-                            <div style={{ fontSize: '32px', fontWeight: '900', color: COR_OP[kpi.id] || COR, lineHeight: 1 }}>{valor}</div>
-                            <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? (COR_OP[kpi.id] || COR) : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
-                            <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
+                );
+            })()}
+
+            {/* ── KPIs — São Paulo (interestaduais) ── */}
+            {(() => {
+                const KPIS_SP = KPIS.filter(k => k.id === 'leaoSP' || k.id === 'eletrikSul');
+                const totalSP = KPIS_SP.reduce((a, k) => a + (contadores[k.id] || 0), 0);
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                        <div style={{ ...s.card, borderLeft: '4px solid #f97316', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Embarques São Paulo</div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
+                                <span style={{ fontSize: '52px', fontWeight: '900', color: '#f97316', lineHeight: 1 }}>{totalSP}</span>
+                                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                                    <div><span style={{ color: '#f97316', fontWeight: '700' }}>{contadores.leaoSP || 0}</span> Leão - SP</div>
+                                    <div><span style={{ color: '#a855f7', fontWeight: '700' }}>{contadores.eletrikSul || 0}</span> Eletrik Sul</div>
+                                </div>
+                            </div>
                         </div>
-                    );
-                })}
-            </div>
+                        {KPIS_SP.map(kpi => {
+                            const valor = contadores[kpi.id] || 0;
+                            const pct = totalSP > 0 ? ((valor / totalSP) * 100).toFixed(1) : '0.0';
+                            const ativo = filtroTipo === kpi.id;
+                            return (
+                                <div
+                                    key={kpi.id}
+                                    onClick={() => setFiltroTipo(prev => prev === kpi.id ? 'Todas' : kpi.id)}
+                                    style={{ ...s.card, borderTop: `3px solid ${COR_OP[kpi.id] || COR}`, textAlign: 'center', padding: '14px 10px', cursor: 'pointer', outline: ativo ? `2px solid ${COR_OP[kpi.id] || COR}` : 'none', transition: 'outline 0.1s' }}
+                                    title={`Filtrar por ${kpi.label}`}
+                                >
+                                    <div style={{ fontSize: '32px', fontWeight: '900', color: COR_OP[kpi.id] || COR, lineHeight: 1 }}>{valor}</div>
+                                    <div style={{ fontSize: '11px', fontWeight: '700', color: ativo ? (COR_OP[kpi.id] || COR) : '#94a3b8', marginTop: '4px' }}>{pct}%</div>
+                                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{kpi.label}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
 
             {/* ── Gráfico barras verticais por dia ── */}
             {dadosDia.length > 0 && (
