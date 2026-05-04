@@ -317,6 +317,7 @@ module.exports = function createChecklistsRouter(io) {
             try { dados = typeof veiculo.dados_json === 'string' ? JSON.parse(veiculo.dados_json) : (veiculo.dados_json || {}); } catch { }
 
             const ehInterestadual = veiculo.operacao === 'LEÃO - SP' || veiculo.operacao === 'ELETRIK SUL';
+            const ehSider = dados.tipoVeiculo === 'SIDER';
 
             // ── Travas de segurança ao avançar para EM CARREGAMENTO ou além ──
             const STATUS_BLOQUEADOS = ['EM CARREGAMENTO', 'CARREGADO'];
@@ -418,7 +419,7 @@ module.exports = function createChecklistsRouter(io) {
             // Bloquear CARREGADO sem foto do lacre
             // Em operação consolidada (ambas coletas preenchidas), a primeira unidade pode pular — lacre só vai na última
             // Entrega Local e operações interestaduais dispensam foto do lacre
-            if (novoStatus === 'CARREGADO' && !dados.entregaLocal && !ehInterestadual) {
+            if (novoStatus === 'CARREGADO' && !dados.entregaLocal && !ehInterestadual && !ehSider) {
                 const campoLacre = prefix === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
                 const ehConsolidada = !!(veiculo.coletarecife && veiculo.coletamoreno);
                 const statusOutraUnidade = prefix === 'moreno' ? veiculo.status_recife : veiculo.status_moreno;

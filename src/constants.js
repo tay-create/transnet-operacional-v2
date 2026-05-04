@@ -45,7 +45,7 @@ export const OPCOES_OPERACAO = [
 
 export const OPCOES_STATUS = ["AGUARDANDO P/ SEPARAÇÃO", "EM SEPARAÇÃO", "LIBERADO P/ CARREGAMENTO", "EM CARREGAMENTO", "CARREGADO", "LIBERADO P/ CT-e"];
 export const OPCOES_STATUS_CTE = ["Aguardando Emissão", "Em Emissão", "Emitido"];
-export const OPCOES_VEICULO = ["TRUCK", "3/4", "CARRETA"];
+export const OPCOES_VEICULO = ["TRUCK", "3/4", "CARRETA", "SIDER"];
 
 export const UFS_BRASIL = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
     'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO','EX'];
