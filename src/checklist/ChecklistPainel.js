@@ -16,7 +16,6 @@ export default function ChecklistPainel({ socket, addToast }) {
     const [carregando, setCarregando] = useState(false);
     const [abaAtiva, setAbaAtiva] = useState('checklists');
     const [fotoAmpliada, setFotoAmpliada] = useState(null);
-    const [cordasExtras, setCordasExtras] = useState({});
 
     const carregar = useCallback(async () => {
         setCarregando(true);
@@ -52,11 +51,8 @@ export default function ChecklistPainel({ socket, addToast }) {
 
     const acao = async (id, status) => {
         try {
-            const payload = { status };
-            if (status === 'APROVADO') payload.cordas_adicionais = parseInt(cordasExtras[id]) || 0;
-            await api.put(`/api/checklists/${id}/status`, payload);
+            await api.put(`/api/checklists/${id}/status`, { status });
             setChecklists(prev => prev.filter(c => c.id !== id));
-            setCordasExtras(prev => { const n = { ...prev }; delete n[id]; return n; });
             addToast({ tipo: status === 'APROVADO' ? 'success' : 'error', mensagem: `Checklist ${status}` });
         } catch (e) {
             addToast({ tipo: 'error', mensagem: e.response?.data?.message || 'Erro ao atualizar checklist.' });
@@ -146,16 +142,6 @@ export default function ChecklistPainel({ socket, addToast }) {
                                                     />
                                                 </div>
                                             )}
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                                <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', whiteSpace: 'nowrap' }}>Cordas adicionais entregues:</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={cordasExtras[c.id] ?? 0}
-                                                    onChange={e => setCordasExtras(prev => ({ ...prev, [c.id]: e.target.value }))}
-                                                    style={{ width: '60px', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#f1f5f9', fontSize: '13px', textAlign: 'center' }}
-                                                />
-                                            </div>
                                             <div style={{ display: 'flex', gap: '8px' }}>
                                                 <button
                                                     onClick={() => acao(c.id, 'RECUSADO')}
