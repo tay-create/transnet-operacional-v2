@@ -62,7 +62,7 @@ module.exports = function createChecklistsRouter(io) {
         try {
             const {
                 veiculo_id, motorista_nome, placa_carreta, placa_confere,
-                condicao_bau, cordas, foto_vazamento, midias_json, assinatura, conferente_nome,
+                condicao_bau, cordas, cordas_adicionais, foto_vazamento, midias_json, assinatura, conferente_nome,
                 is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
             } = req.body;
 
@@ -79,12 +79,12 @@ module.exports = function createChecklistsRouter(io) {
             const result = await dbRun(
                 `INSERT INTO checklists_carreta (
                     veiculo_id, motorista_nome, placa_carreta, placa_confere,
-                    condicao_bau, cordas, foto_vazamento, midias_json, assinatura, conferente_nome,
+                    condicao_bau, cordas, cordas_adicionais, foto_vazamento, midias_json, assinatura, conferente_nome,
                     created_at, status, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0,
-                    condicao_bau, cordas, foto_vazamento, midiasStr, assinatura, conferente_nome,
+                    condicao_bau, cordas, parseInt(cordas_adicionais) || 0, foto_vazamento, midiasStr, assinatura, conferente_nome,
                     created_at, statusChecklist, is_paletizado, tipo_palete, qtd_paletes,
                     fornecedor_pbr || null
                 ]
@@ -115,12 +115,11 @@ module.exports = function createChecklistsRouter(io) {
 
     router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
-            const { status, cordas_adicionais } = req.body; // 'APROVADO' ou 'RECUSADO'
+            const { status } = req.body; // 'APROVADO' ou 'RECUSADO'
             if (!['APROVADO', 'RECUSADO'].includes(status)) {
                 return res.status(400).json({ success: false, message: 'Status inválido.' });
             }
-            const qtdCordas = status === 'APROVADO' ? (parseInt(cordas_adicionais) || 0) : 0;
-            await dbRun("UPDATE checklists_carreta SET status = $1, cordas_adicionais = $2 WHERE id = $3", [status, qtdCordas, req.params.id]);
+            await dbRun("UPDATE checklists_carreta SET status = $1 WHERE id = $2", [status, req.params.id]);
 
             // Notificar conferente sobre resultado do checklist
             const checklist = await dbGet(
