@@ -186,7 +186,7 @@ export default function PainelChecklist() {
                                             <div>
                                                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>CORDAS EXTRAS</span>
                                                 <div style={{ fontSize: '13px', color: chk.cordas_adicionais > 0 ? '#fb923c' : '#cbd5e1', fontWeight: chk.cordas_adicionais > 0 ? '700' : '400' }}>
-                                                    {chk.cordas_adicionais > 0 ? `${chk.cordas_adicionais} un. (devolver)` : '—'}
+                                                    {chk.cordas_adicionais > 0 ? `${chk.cordas_adicionais} un.` : '—'}
                                                 </div>
                                             </div>
                                         </div>

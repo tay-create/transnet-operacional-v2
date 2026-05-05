@@ -360,11 +360,6 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                             type="number" min="0" placeholder="0" value={qtdCordasAdicionais} onChange={(e) => setQtdCordasAdicionais(parseInt(e.target.value) || 0)}
                             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
                         />
-                        {qtdCordasAdicionais > 0 && (
-                            <p style={{ fontSize: '11px', color: '#fb923c', marginTop: '6px', margin: '6px 0 0' }}>
-                                {qtdCordasAdicionais} corda{qtdCordasAdicionais > 1 ? 's' : ''} extra{qtdCordasAdicionais > 1 ? 's' : ''} — lembrar de solicitar devolução
-                            </p>
-                        )}
                     </div>
                 </div>
 
