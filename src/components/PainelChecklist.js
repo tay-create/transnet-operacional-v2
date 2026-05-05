@@ -183,6 +183,12 @@ export default function PainelChecklist() {
                                                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>CORDAS</span>
                                                 <div style={{ fontSize: '13px', color: '#cbd5e1' }}>{chk.cordas > 0 ? `${chk.cordas} un.` : 'NÃO'}</div>
                                             </div>
+                                            <div>
+                                                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>CORDAS EXTRAS</span>
+                                                <div style={{ fontSize: '13px', color: chk.cordas_adicionais > 0 ? '#fb923c' : '#cbd5e1', fontWeight: chk.cordas_adicionais > 0 ? '700' : '400' }}>
+                                                    {chk.cordas_adicionais > 0 ? `${chk.cordas_adicionais} un. (devolver)` : '—'}
+                                                </div>
+                                            </div>
                                         </div>
 
                                         {/* Detalhes de Paletização (NOVO) */}

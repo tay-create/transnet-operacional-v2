@@ -86,6 +86,7 @@ const inicializarBanco = async () => {
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS tipo_palete TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS qtd_paletes INTEGER`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS fornecedor_pbr TEXT`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS cordas_adicionais INTEGER DEFAULT 0`); } catch (_) { }
 
         await dbRun(`CREATE TABLE IF NOT EXISTS logs (
             id SERIAL PRIMARY KEY,
