@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Truck, UserPlus, KeyRound, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+    User, Lock, ArrowRight, Truck, UserPlus, KeyRound, Mail,
+    Eye, EyeOff, Package, MapPin, FileText, Zap
+} from 'lucide-react';
 import { loginSchema } from '../schemas/validationSchemas';
 import { useValidation } from '../hooks/useValidation';
 import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
-import '../App.css';
+import '../styles/LoginScreen.css';
 
 export default function LoginScreen({ onLoginSuccess }) {
     const login = useAuthStore((state) => state.login);
@@ -13,17 +16,23 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [loading, setLoading] = useState(false);
     const [aviso, setAviso] = useState('');
     const [manterConectado, setManterConectado] = useState(false);
+    const [senhaVisivel, setSenhaVisivel] = useState(false);
     const { validate, errors } = useValidation(loginSchema);
 
-    // Modais
     const [modalCadastro, setModalCadastro] = useState(false);
     const [modalEsqueci, setModalEsqueci] = useState(false);
     const [formCadastro, setFormCadastro] = useState({ nome: '', emailPrefix: '', senha: '', unidade: 'Recife' });
 
-    // Fluxo esqueci a senha (novo — via e-mail automático)
     const [emailEsqueci, setEmailEsqueci] = useState('');
-    const [etapaEsqueci, setEtapaEsqueci] = useState('input'); // 'input' | 'enviado'
+    const [etapaEsqueci, setEtapaEsqueci] = useState('input');
     const [loadingEsqueci, setLoadingEsqueci] = useState(false);
+
+    const [kpiTime, setKpiTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setKpiTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -69,7 +78,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         try {
             await api.post('/solicitacoes', formCadastro);
             setModalCadastro(false);
-            mostrarNotificacao("✅ Cadastro solicitado! Aguarde aprovação do administrador.");
+            mostrarNotificacao("Cadastro solicitado! Aguarde aprovação do administrador.");
         } catch (e) { mostrarNotificacao(e.response?.data?.message || "Erro ao enviar solicitação. Tente novamente."); }
     };
 
@@ -80,7 +89,6 @@ export default function LoginScreen({ onLoginSuccess }) {
             await api.post('/solicitar-reset-senha', { email: emailEsqueci.trim() });
             setEtapaEsqueci('enviado');
         } catch {
-            // Sempre mostra "enviado" para não revelar se e-mail existe
             setEtapaEsqueci('enviado');
         } finally {
             setLoadingEsqueci(false);
@@ -108,109 +116,248 @@ export default function LoginScreen({ onLoginSuccess }) {
         return null;
     };
 
+    const timeStr = kpiTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = kpiTime.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+
     return (
-        <div className="login-wrapper">
-            <div className="login-card-compact">
-
-                {/* LOGO */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', marginBottom: '15px' }}>
-                        <Truck size={28} color="white" />
-                    </div>
-                    <h1 className="brand-title">TRANSNET</h1>
-                    <span className="brand-subtitle">LOGISTICA INTEGRADA</span>
+        <div className="tn-login-root">
+            {/* PAINEL ESQUERDO — CENA */}
+            <div className="tn-scene-pane">
+                <div className="tn-scene-bg" />
+                <div className="tn-grid-overlay" />
+                <div className="tn-speed-lines">
+                    {[...Array(8)].map((_, i) => (
+                        <div key={i} className="tn-speed-line" style={{ '--delay': `${i * 0.4}s`, '--top': `${10 + i * 11}%` }} />
+                    ))}
                 </div>
 
-                {aviso && !modalCadastro && !modalEsqueci && (
-                    <div style={{ background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)', color: aviso.startsWith('✅') ? '#86efac' : '#fde047', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}` }}>
-                        {aviso}
+                {/* Truck 3D */}
+                <div className="tn-truck-scene">
+                    <div className="tn-truck-shadow" />
+                    <div className="tn-truck-body">
+                        <div className="tn-truck-cab">
+                            <Truck size={64} color="#22d3ee" strokeWidth={1.5} />
+                        </div>
+                        <div className="tn-truck-glow" />
                     </div>
-                )}
-                {erro && (
-                    <div style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: '1px solid rgba(239,68,68,0.3)' }}>
-                        {erro}
+                    <div className="tn-crates-row">
+                        {[Package, Package, Package].map((Icon, i) => (
+                            <div key={i} className="tn-crate" style={{ '--crate-delay': `${i * 0.6}s` }}>
+                                <Icon size={28} color="#818cf8" strokeWidth={1.5} />
+                            </div>
+                        ))}
                     </div>
-                )}
-
-                <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ position: 'relative' }}>
-                        <User size={18} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                        <input className="input-dark" placeholder="usuario@tnetlog.com.br" value={loginDados.nome} onChange={(e) => setLoginDados({ ...loginDados, nome: e.target.value })} />
-                    </div>
-                    <div style={{ position: 'relative' }}>
-                        <Lock size={18} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                        <input type="password" className="input-dark" placeholder="Senha..." value={loginDados.senha} onChange={(e) => setLoginDados({ ...loginDados, senha: e.target.value })} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '-5px' }}>
-                        <input type="checkbox" id="manter" style={{ accentColor: '#3b82f6' }} checked={manterConectado} onChange={e => setManterConectado(e.target.checked)} />
-                        <label htmlFor="manter" style={{ color: '#94a3b8', fontSize: '12px' }}>Manter conectado</label>
-                    </div>
-                    <button type="submit" className="btn-primary-glow" disabled={loading}>
-                        {loading ? 'CARREGANDO...' : 'ENTRAR NO SISTEMA'}
-                        {!loading && <ArrowRight size={16} />}
-                    </button>
-                </form>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '11px' }}>
-                    <span onClick={() => setModalCadastro(true)} style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 'bold' }}>CRIAR CONTA</span>
-                    <span onClick={abrirModalEsqueci} style={{ color: '#64748b', cursor: 'pointer' }}>ESQUECI A SENHA</span>
                 </div>
 
-                <div style={{ textAlign: 'center', marginTop: '20px', color: '#334155', fontSize: '10px', letterSpacing: '0.5px' }}>
-                    © 2026 Transnet Transportes. Todos os direitos reservados.
+                {/* Headline */}
+                <div className="tn-scene-headline">
+                    <div className="tn-headline-badge">
+                        <Zap size={12} />
+                        Plataforma Logística
+                    </div>
+                    <h2 className="tn-headline-title">
+                        Controle total<br />
+                        <span className="tn-headline-accent">da operação</span>
+                    </h2>
+                    <p className="tn-headline-desc">
+                        Embarques, CT-e e frota unificados em tempo real.
+                    </p>
                 </div>
 
+                {/* Feature pills */}
+                <div className="tn-feature-pills">
+                    {[
+                        { icon: MapPin, label: 'Rastreamento ao vivo' },
+                        { icon: FileText, label: 'CT-e integrado' },
+                        { icon: Truck, label: 'Gestão de frota' },
+                    ].map(({ icon: Icon, label }) => (
+                        <div key={label} className="tn-pill">
+                            <Icon size={13} />
+                            {label}
+                        </div>
+                    ))}
+                </div>
+
+                {/* KPI strip */}
+                <div className="tn-kpi-strip">
+                    <div className="tn-kpi-item">
+                        <span className="tn-kpi-label">Sistema</span>
+                        <span className="tn-kpi-value tn-kpi-online">Online</span>
+                    </div>
+                    <div className="tn-kpi-divider" />
+                    <div className="tn-kpi-item">
+                        <span className="tn-kpi-label">Hora</span>
+                        <span className="tn-kpi-value">{timeStr}</span>
+                    </div>
+                    <div className="tn-kpi-divider" />
+                    <div className="tn-kpi-item">
+                        <span className="tn-kpi-label">Data</span>
+                        <span className="tn-kpi-value">{dateStr}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* PAINEL DIREITO — FORMULÁRIO */}
+            <div className="tn-form-pane">
+                <div className="tn-form-card">
+                    {/* Brand */}
+                    <div className="tn-brand">
+                        <div className="tn-brand-icon">
+                            <Truck size={26} color="#22d3ee" strokeWidth={1.5} />
+                        </div>
+                        <div>
+                            <div className="tn-brand-name">TRANSNET</div>
+                            <div className="tn-brand-sub">LOGÍSTICA INTEGRADA</div>
+                        </div>
+                    </div>
+
+                    <div className="tn-form-intro">
+                        <h3 className="tn-form-title">Acesso ao Sistema</h3>
+                        <p className="tn-form-desc">Entre com suas credenciais corporativas</p>
+                    </div>
+
+                    {/* Feedback */}
+                    {aviso && !modalCadastro && !modalEsqueci && (
+                        <div className={`tn-alert ${aviso.startsWith('Cadastro') ? 'tn-alert-success' : 'tn-alert-warn'}`}>
+                            {aviso}
+                        </div>
+                    )}
+                    {erro && (
+                        <div className="tn-alert tn-alert-error">{erro}</div>
+                    )}
+
+                    {/* Form */}
+                    <form onSubmit={handleLogin} className="tn-form">
+                        <div className="tn-field">
+                            <label className="tn-label">E-mail corporativo</label>
+                            <div className="tn-input-wrap">
+                                <User size={16} className="tn-input-icon" />
+                                <input
+                                    className="tn-input"
+                                    placeholder="usuario@tnetlog.com.br"
+                                    value={loginDados.nome}
+                                    onChange={(e) => setLoginDados({ ...loginDados, nome: e.target.value })}
+                                    autoComplete="username"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="tn-field">
+                            <label className="tn-label">Senha</label>
+                            <div className="tn-input-wrap">
+                                <Lock size={16} className="tn-input-icon" />
+                                <input
+                                    type={senhaVisivel ? 'text' : 'password'}
+                                    className="tn-input tn-input-password"
+                                    placeholder="••••••••"
+                                    value={loginDados.senha}
+                                    onChange={(e) => setLoginDados({ ...loginDados, senha: e.target.value })}
+                                    autoComplete="current-password"
+                                />
+                                <button
+                                    type="button"
+                                    className="tn-eye-btn"
+                                    onClick={() => setSenhaVisivel(!senhaVisivel)}
+                                    tabIndex={-1}
+                                >
+                                    {senhaVisivel ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="tn-row-options">
+                            <label className="tn-remember">
+                                <input
+                                    type="checkbox"
+                                    className="tn-checkbox"
+                                    checked={manterConectado}
+                                    onChange={e => setManterConectado(e.target.checked)}
+                                />
+                                Manter conectado
+                            </label>
+                            <button type="button" className="tn-link" onClick={abrirModalEsqueci}>
+                                Esqueci a senha
+                            </button>
+                        </div>
+
+                        <button type="submit" className="tn-btn-primary" disabled={loading}>
+                            {loading ? (
+                                <span className="tn-btn-loading">
+                                    <span className="tn-spinner" />
+                                    Autenticando...
+                                </span>
+                            ) : (
+                                <>
+                                    ENTRAR NO SISTEMA
+                                    <ArrowRight size={16} />
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="tn-form-footer">
+                        <button className="tn-link-register" onClick={() => setModalCadastro(true)}>
+                            <UserPlus size={14} />
+                            Solicitar acesso
+                        </button>
+                    </div>
+
+                    <div className="tn-copyright">
+                        © 2026 Transnet Transportes. Todos os direitos reservados.
+                    </div>
+                </div>
             </div>
 
             {/* MODAL CADASTRO */}
             {modalCadastro && (
-                <div className="modal-overlay">
-                    <div className="modal-glass">
-                        <h3 className="modal-title" style={{ color: '#3b82f6' }}>
-                            <div style={{ background: 'rgba(59,130,246,0.2)', padding: '8px', borderRadius: '10px' }}>
+                <div className="tn-modal-overlay">
+                    <div className="tn-modal">
+                        <h3 className="tn-modal-title">
+                            <div className="tn-modal-icon" style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)' }}>
                                 <UserPlus size={20} color="#3b82f6" />
                             </div>
-                            Novo Registro
+                            Solicitar Acesso
                         </h3>
-                        <p className="modal-desc">Preencha seus dados para solicitar acesso ao sistema.</p>
+                        <p className="tn-modal-desc">Preencha seus dados para solicitar acesso ao sistema.</p>
 
                         {aviso && (
-                            <div style={{ background: aviso.startsWith('✅') ? 'rgba(34,197,94,0.15)' : 'rgba(234,179,8,0.15)', color: aviso.startsWith('✅') ? '#86efac' : '#fde047', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${aviso.startsWith('✅') ? 'rgba(34,197,94,0.3)' : 'rgba(234,179,8,0.3)'}`, marginBottom: '15px' }}>
+                            <div className={`tn-alert ${aviso.startsWith('Cadastro') ? 'tn-alert-success' : 'tn-alert-warn'}`} style={{ marginBottom: '15px' }}>
                                 {aviso}
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Nome Completo</label>
-                                <input className="input-dark" placeholder="Ex: Carlos Silva" value={formCadastro.nome} onChange={e => setFormCadastro({ ...formCadastro, nome: e.target.value })} />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Email Corporativo</label>
-                                <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', overflow: 'hidden' }}>
-                                    <input className="input-dark" placeholder="seu.usuario" value={formCadastro.emailPrefix} onChange={e => setFormCadastro({ ...formCadastro, emailPrefix: e.target.value })} style={{ border: 'none', background: 'transparent', borderRadius: '0', flex: 1, minWidth: '0' }} />
-                                    <span style={{ color: '#64748b', fontSize: '14px', paddingRight: '16px', whiteSpace: 'nowrap', userSelect: 'none', fontWeight: '500' }}>@tnetlog.com.br</span>
+                        <div className="tn-form">
+                            <div className="tn-field">
+                                <label className="tn-label">Nome Completo</label>
+                                <div className="tn-input-wrap">
+                                    <User size={16} className="tn-input-icon" />
+                                    <input className="tn-input" placeholder="Ex: Carlos Silva" value={formCadastro.nome} onChange={e => setFormCadastro({ ...formCadastro, nome: e.target.value })} />
                                 </div>
-                                {formCadastro.emailPrefix && (
-                                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <span>✓</span> Seu email: <strong>{formCadastro.emailPrefix}@tnetlog.com.br</strong>
-                                    </div>
-                                )}
                             </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Unidade de Trabalho</label>
-                                <select className="input-dark" value={formCadastro.unidade} onChange={e => setFormCadastro({ ...formCadastro, unidade: e.target.value })} style={{ height: '48px', cursor: 'pointer' }}>
+                            <div className="tn-field">
+                                <label className="tn-label">E-mail Corporativo</label>
+                                <div className="tn-input-email-row">
+                                    <input className="tn-input" placeholder="seu.usuario" value={formCadastro.emailPrefix} onChange={e => setFormCadastro({ ...formCadastro, emailPrefix: e.target.value })} style={{ borderRadius: '12px 0 0 12px', borderRight: 'none' }} />
+                                    <span className="tn-email-domain">@tnetlog.com.br</span>
+                                </div>
+                            </div>
+                            <div className="tn-field">
+                                <label className="tn-label">Unidade</label>
+                                <select className="tn-input" style={{ paddingLeft: '16px', cursor: 'pointer' }} value={formCadastro.unidade} onChange={e => setFormCadastro({ ...formCadastro, unidade: e.target.value })}>
                                     <option style={{ color: 'black' }}>Recife</option>
                                     <option style={{ color: 'black' }}>Moreno</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">Crie uma Senha</label>
-                                <input type="password" className="input-dark" placeholder="Mínimo 8 caracteres" value={formCadastro.senha} onChange={e => setFormCadastro({ ...formCadastro, senha: e.target.value })} />
+                            <div className="tn-field">
+                                <label className="tn-label">Senha</label>
+                                <div className="tn-input-wrap">
+                                    <Lock size={16} className="tn-input-icon" />
+                                    <input type="password" className="tn-input" placeholder="Mínimo 8 caracteres" value={formCadastro.senha} onChange={e => setFormCadastro({ ...formCadastro, senha: e.target.value })} />
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                <button onClick={solicitarCadastro} className="btn-primary-glow" style={{ background: '#3b82f6', color: 'white', flex: 1 }}>SOLICITAR</button>
-                                <button onClick={() => setModalCadastro(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>VOLTAR</button>
+                            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                                <button onClick={solicitarCadastro} className="tn-btn-primary" style={{ flex: 1 }}>SOLICITAR</button>
+                                <button onClick={() => setModalCadastro(false)} className="tn-btn-ghost" style={{ flex: 0.5 }}>VOLTAR</button>
                             </div>
                         </div>
                     </div>
@@ -219,62 +366,60 @@ export default function LoginScreen({ onLoginSuccess }) {
 
             {/* MODAL ESQUECI A SENHA */}
             {modalEsqueci && (
-                <div className="modal-overlay">
-                    <div className="modal-glass" style={{ maxWidth: '380px', textAlign: 'center' }}>
-
-                        <div style={{ width: '60px', height: '60px', background: 'rgba(239,68,68,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px auto', border: '1px solid rgba(239,68,68,0.3)' }}>
-                            <KeyRound size={28} color="#ef4444" />
+                <div className="tn-modal-overlay">
+                    <div className="tn-modal" style={{ textAlign: 'center' }}>
+                        <div className="tn-modal-icon" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', margin: '0 auto 16px auto' }}>
+                            <KeyRound size={24} color="#ef4444" />
                         </div>
-
-                        <h3 className="modal-title" style={{ justifyContent: 'center', color: 'white' }}>Recuperar Acesso</h3>
+                        <h3 className="tn-modal-title" style={{ justifyContent: 'center' }}>Recuperar Acesso</h3>
 
                         {aviso && (
-                            <div style={{ background: 'rgba(234,179,8,0.15)', color: '#fde047', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: '1px solid rgba(234,179,8,0.3)', marginBottom: '15px' }}>
-                                {aviso}
-                            </div>
+                            <div className="tn-alert tn-alert-warn" style={{ marginBottom: '15px' }}>{aviso}</div>
                         )}
 
                         {etapaEsqueci === 'input' && (
                             <>
-                                <p className="modal-desc">
-                                    Informe seu e-mail corporativo (<strong>@tnetlog.com.br</strong>). Enviaremos um link de redefinição para o seu e-mail pessoal cadastrado.
+                                <p className="tn-modal-desc">
+                                    Informe seu e-mail corporativo <strong>@tnetlog.com.br</strong>. Enviaremos um link de redefinição para o seu e-mail pessoal cadastrado.
                                 </p>
-                                <div style={{ textAlign: 'left', marginBottom: '20px' }}>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div className="tn-field" style={{ textAlign: 'left', marginBottom: '20px' }}>
+                                    <label className="tn-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <Mail size={12} /> E-mail Corporativo
                                     </label>
-                                    <input
-                                        className="input-dark"
-                                        placeholder="usuario@tnetlog.com.br"
-                                        value={emailEsqueci}
-                                        onChange={e => setEmailEsqueci(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && solicitarResetSenha()}
-                                    />
+                                    <div className="tn-input-wrap">
+                                        <Mail size={16} className="tn-input-icon" />
+                                        <input
+                                            className="tn-input"
+                                            placeholder="usuario@tnetlog.com.br"
+                                            value={emailEsqueci}
+                                            onChange={e => setEmailEsqueci(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && solicitarResetSenha()}
+                                        />
+                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '10px' }}>
-                                    <button onClick={solicitarResetSenha} disabled={loadingEsqueci} className="btn-primary-glow" style={{ background: '#ef4444', color: 'white', flex: 1 }}>
+                                    <button onClick={solicitarResetSenha} disabled={loadingEsqueci} className="tn-btn-primary" style={{ flex: 1, background: 'linear-gradient(135deg, #ef4444, #b91c1c)' }}>
                                         {loadingEsqueci ? 'ENVIANDO...' : 'ENVIAR LINK'}
                                     </button>
-                                    <button onClick={() => setModalEsqueci(false)} className="btn-primary-glow" style={{ background: 'transparent', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', flex: 0.5 }}>
-                                        CANCELAR
-                                    </button>
+                                    <button onClick={() => setModalEsqueci(false)} className="tn-btn-ghost" style={{ flex: 0.5 }}>CANCELAR</button>
                                 </div>
                             </>
                         )}
 
                         {etapaEsqueci === 'enviado' && (
                             <>
-                                <div style={{ fontSize: '48px', marginBottom: '8px' }}>📧</div>
-                                <p className="modal-desc">
+                                <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                                    <Mail size={48} color="#22d3ee" style={{ display: 'block', margin: '0 auto' }} />
+                                </div>
+                                <p className="tn-modal-desc">
                                     Se o e-mail estiver cadastrado e verificado, você receberá um link de redefinição em breve.<br /><br />
-                                    Verifique sua caixa de entrada (e a pasta spam).
+                                    Verifique sua caixa de entrada e a pasta spam.
                                 </p>
-                                <button onClick={() => setModalEsqueci(false)} className="btn-primary-glow" style={{ background: '#22c55e', color: 'white', width: '100%' }}>
+                                <button onClick={() => setModalEsqueci(false)} className="tn-btn-primary" style={{ background: 'linear-gradient(135deg, #22c55e, #15803d)' }}>
                                     FECHAR
                                 </button>
                             </>
                         )}
-
                     </div>
                 </div>
             )}

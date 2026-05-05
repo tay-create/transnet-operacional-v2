@@ -3,7 +3,7 @@ import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PlusCircle, Monitor,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
-    Clock, CheckCircle, Warehouse
+    Clock, CheckCircle, Warehouse, QrCode
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -119,9 +119,14 @@ export default function Sidebar({
                         <MenuItem
                             icon={<Users size={20} />}
                             label="Gestão de Usuários"
-
                             aberto={aberto}
                             onClick={() => { openModal('admin'); carregarSolicitacoes(); carregarUsuarios(); }}
+                        />
+                        <MenuItem
+                            icon={<QrCode size={20} />}
+                            label="QR Code Motoristas"
+                            aberto={aberto}
+                            onClick={() => setAbaAtiva('qrcode_caminhao')}
                         />
                     </>
                 )}

@@ -320,6 +320,43 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// Auto-registro via QR Code — sem autenticação, rate limit por IP
+const autoTokenLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 3,
+    message: { success: false, message: 'Muitas tentativas. Aguarde alguns minutos.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.post('/api/tokens/auto', autoTokenLimiter, async (req, res) => {
+    try {
+        let telefone = (req.body.telefone || '').replace(/\D/g, '');
+        if (telefone.length < 10 || telefone.length > 11) {
+            return res.status(400).json({ success: false, message: 'Telefone inválido.' });
+        }
+        if (telefone.length <= 11) telefone = '55' + telefone;
+
+        const ultimos8 = telefone.slice(-8);
+        const existente = await dbGet(
+            "SELECT token, status, data_expiracao FROM tokens_motoristas WHERE RIGHT(telefone, 8) = $1 AND status = 'ativo' AND data_expiracao > NOW() LIMIT 1",
+            [ultimos8]
+        );
+        if (existente) {
+            return res.json({ success: true, token: existente.token });
+        }
+
+        const token = require('crypto').randomUUID();
+        const expiracao = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await dbRun(
+            "INSERT INTO tokens_motoristas (telefone, token, data_expiracao) VALUES (?, ?, ?)",
+            [telefone, token, expiracao]
+        );
+        await registrarLog('TOKEN_AUTO', 'QR Code', null, 'token', null, null, `Auto-token para tel ${telefone}`);
+        io.emit('marcacao_atualizada', { tipo: 'token_criado' });
+        res.json({ success: true, token });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);

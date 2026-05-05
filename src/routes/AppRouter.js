@@ -4,6 +4,7 @@ import App from '../App';
 import MarcacaoForm from '../components/MarcacaoForm';
 import LoginScreen from '../components/LoginScreen';
 import RedefinirSenha from '../components/RedefinirSenha';
+import EntrarMotorista from '../components/EntrarMotorista';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
 import NotFound from '../components/NotFound';
@@ -30,6 +31,11 @@ function AppRouter() {
     // 2. Rota de Redefinição de Senha (link do e-mail — pública)
     if (path.startsWith('/redefinir-senha')) {
         return <RedefinirSenha />;
+    }
+
+    // Auto-registro de motoristas via QR Code (pública)
+    if (path === '/entrar') {
+        return <EntrarMotorista />;
     }
 
     // 2. Rota do Conferente (Login separado + App dedicado)
@@ -60,7 +66,7 @@ function AppRouter() {
     }
 
     // 3. Rotas desconhecidas → 404
-    const rotasValidas = ['/', '/cadastro', '/redefinir-senha', '/conferente', '/mobile', '/checklist'];
+    const rotasValidas = ['/', '/cadastro', '/redefinir-senha', '/entrar', '/conferente', '/mobile', '/checklist', '/qrcode-caminhao'];
     const isRotaValida = rotasValidas.some(r => path === r || path.startsWith(r + '/'));
     if (!isRotaValida) {
         return <NotFound />;
