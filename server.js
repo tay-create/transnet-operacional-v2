@@ -218,9 +218,6 @@ app.use('/', chamadosRouter);
 const tramontinaRouter = require('./src/routes/tramontina')(io);
 app.use('/', tramontinaRouter);
 
-const roteirizacaoRouter = require('./src/routes/roteirizacao')(io);
-app.use('/', roteirizacaoRouter);
-
 // Reset de senha por Coordenador (gera senha padrão "123" e força troca)
 app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
     try {
