@@ -286,6 +286,20 @@ export default function Sidebar({
                 </>
             )}
 
+            {/* PLANEJAMENTO TRAMONTINA */}
+            {temAcesso('tramontina_planejamento') && (
+                <>
+                    <Divider label="Planejamento Tramontina" aberto={aberto} />
+                    <MenuItem
+                        icon={<Calendar size={20} />}
+                        label="Planejamento de Rotas"
+                        subItem
+                        aberto={aberto}
+                        onClick={() => setAbaAtiva('tramontina_planejamento')}
+                    />
+                </>
+            )}
+
             {/* Rodapé (Sair) */}
             <div style={{ padding: '15px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                 <button

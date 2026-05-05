@@ -548,6 +548,8 @@ export default function RelatorioPerformance() {
                         <option value="PLÁSTICO">Plástico</option>
                         <option value="PORCELANA">Porcelana</option>
                         <option value="ELETRIK">Eletrik</option>
+                        <option value="LEÃO - SP">Leão - SP</option>
+                        <option value="ELETRIK SUL">Eletrik Sul</option>
                     </select>
                 </div>
                 <button

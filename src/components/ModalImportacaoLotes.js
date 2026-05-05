@@ -14,9 +14,11 @@ function obterDataBrasiliaISO() {
 
 function mapearOperacao(textoCSV) {
     const t = (textoCSV || '').toUpperCase().trim();
+    // LEÃO ALIMENTOS E BEBIDAS → operação interestadual Leão - SP
+    if (t.includes('LEAO') || t.includes('LEÃO')) return 'LEÃO - SP';
     if (t.includes('PORCELANA') && t.includes('ELETRIK')) return 'PORCELANA/ELETRIK';
     if (t.includes('PORCELANA')) return 'PORCELANA';
-    if (t.includes('ELETRIK')) return 'ELETRIK';
+    if (t.includes('ELETRIK')) return 'ELETRIK'; // ambiguidade — modal vai resolver
     // "TRAMONTINA DELTA S/A" sem sufixo → PLÁSTICO(RECIFE)
     return 'PLÁSTICO(RECIFE)';
 }
@@ -260,6 +262,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [erros, setErros] = useState({});
     const [sucessos, setSucessos] = useState({});
     const [duplicatas, setDuplicatas] = useState({});
+    const [eletrikPendente, setEletrikPendente] = useState(null); // lotes processados aguardando resolução Eletrik
     const fileRef = useRef();
 
     const verificarDuplicatas = useCallback(async (lotesParaVerificar) => {
@@ -330,12 +333,21 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                     mostrarNotificacao('⚠️ Nenhuma linha válida encontrada na planilha.');
                     return;
                 }
-                setLotes(processados);
                 setErros({});
                 setSucessos({});
                 setDuplicatas({});
-                setPasso(2);
-                verificarDuplicatas(processados);
+
+                const temEletrikAmbiguo = processados.some(l =>
+                    (l.operacao === 'ELETRIK' || l.operacao === 'PORCELANA/ELETRIK')
+                );
+
+                if (temEletrikAmbiguo) {
+                    setEletrikPendente(processados);
+                } else {
+                    setLotes(processados);
+                    setPasso(2);
+                    verificarDuplicatas(processados);
+                }
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
                 console.error(err);
@@ -388,8 +400,31 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setErros({});
         setSucessos({});
         setDuplicatas({});
+        setEletrikPendente(null);
         setDataPrevista(obterDataBrasiliaISO());
         onClose();
+    };
+
+    const resolverEletrik = (tipoEletrik) => {
+        const resolvidos = eletrikPendente.map(lote => {
+            if (lote.operacao === 'ELETRIK') {
+                if (tipoEletrik === 'SUL') {
+                    // coletaMoreno é "ELET:123" — extrair o número e mover para interestadual
+                    const m = (lote.coletaMoreno || '').match(/ELET:([^|]+)/i);
+                    const coletaElet = m ? m[1].trim() : lote.coletaMoreno || '';
+                    return { ...lote, operacao: 'ELETRIK SUL', coletaMoreno: '', coletaInterestadual: coletaElet };
+                }
+                return lote; // Moreno: mantém operacao ELETRIK, coleta já está no coletaMoreno
+            }
+            if (lote.operacao === 'PORCELANA/ELETRIK') {
+                return { ...lote, operacao: tipoEletrik === 'SUL' ? 'PORCELANA/ELETRIK SUL' : 'PORCELANA/ELETRIK' };
+            }
+            return lote;
+        });
+        setEletrikPendente(null);
+        setLotes(resolvidos);
+        setPasso(2);
+        verificarDuplicatas(resolvidos);
     };
 
     const ehRecife = (op) => op && (op.includes('RECIFE') || op === 'PLÁSTICO(RECIFE X MORENO)');
@@ -430,7 +465,53 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 </div>
 
                 {/* Conteúdo */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '24px', position: 'relative' }}>
+
+                    {/* Modal Eletrik — sobrepõe o conteúdo quando há ambiguidade */}
+                    {eletrikPendente && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <AlertCircle size={36} color="#f59e0b" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '8px' }}>
+                                Operação Eletrik detectada
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '28px', maxWidth: '320px', lineHeight: 1.6 }}>
+                                {eletrikPendente.filter(l => l.operacao === 'ELETRIK' || l.operacao === 'PORCELANA/ELETRIK').length} lote(s) com Eletrik identificados.
+                                Qual unidade?
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={() => resolverEletrik('SUL')}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Eletrik Sul
+                                </button>
+                                <button
+                                    onClick={() => resolverEletrik('MORENO')}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: 'linear-gradient(135deg,#d97706,#f59e0b)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Eletrik Moreno
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => { setEletrikPendente(null); if (fileRef.current) fileRef.current.value = ''; }}
+                                style={{ marginTop: '20px', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}
+                            >
+                                Cancelar importação
+                            </button>
+                        </div>
+                    )}
 
                     {/* PASSO 1: Upload */}
                     {passo === 1 && (

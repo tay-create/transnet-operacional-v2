@@ -77,6 +77,27 @@ export const CARGOS_DISPONIVEIS = ['Direção', 'Desenvolvedor', 'Coordenador', 
 
 // Taxa de Usabilidade da Frota
 export const META_USABILIDADE = 85;
+
+// ── Planejamento Tramontina ──────────────────────────────────────────────
+export const TRAMONTINA_OPERACAO_CODIGOS = [
+    { codigo: 'D',  label: 'Delta' },
+    { codigo: 'P',  label: 'Porcelana' },
+    { codigo: 'DC', label: 'Delta + Consolidado' },
+    { codigo: 'PC', label: 'Porcelana + Consolidado' },
+];
+export const TRAMONTINA_TIPO_VEICULO = ['CARRETA', 'TRUCK', '3/4'];
+export const TRAMONTINA_STATUS_AGENDAMENTO = ['AG', 'SOL', 'S_AG'];
+export const TRAMONTINA_STATUS_EMBARQUE = ['PROGRAMADA', 'EMBARCADA', 'PENDENTE'];
+export const TRAMONTINA_LEAD_STATUS = ['ANTECIPADO', 'DENTRO', 'FORA', 'AGUARDANDO'];
+export const TRAMONTINA_REGIOES = ['N', 'NE', 'CO', 'SE', 'S'];
+export const TRAMONTINA_REGIAO_NOMES = { N: 'Norte', NE: 'Nordeste', CO: 'Centro-Oeste', SE: 'Sudeste', S: 'Sul' };
+export const REGIOES_BR = {
+    AC:'N', AP:'N', AM:'N', PA:'N', RO:'N', RR:'N', TO:'N',
+    AL:'NE', BA:'NE', CE:'NE', MA:'NE', PB:'NE', PE:'NE', PI:'NE', RN:'NE', SE:'NE',
+    DF:'CO', GO:'CO', MT:'CO', MS:'CO',
+    ES:'SE', MG:'SE', RJ:'SE', SP:'SE',
+    PR:'S',  RS:'S',  SC:'S',
+};
 export const ALERTA_USABILIDADE = 80;
 export const TIPOS_USABILIDADE = ['TRUCK', '3/4', 'CONJUNTO'];
 export const STATUS_USABILIDADE_OPERANDO = [
