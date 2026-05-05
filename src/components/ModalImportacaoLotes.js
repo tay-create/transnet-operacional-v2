@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2 } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import { joinColetaMoreno } from '../utils/coletaMoreno';
+import api from '../services/apiService';
 
 // ── Helpers de mapeamento ──────────────────────────────────────────────────
 
@@ -258,7 +259,38 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [lancando, setLancando] = useState(false);
     const [erros, setErros] = useState({});
     const [sucessos, setSucessos] = useState({});
+    const [duplicatas, setDuplicatas] = useState({});
     const fileRef = useRef();
+
+    const verificarDuplicatas = useCallback(async (lotesParaVerificar) => {
+        try {
+            const r = await api.get('/api/veiculos');
+            const veiculos = r.data.veiculos || [];
+            const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
+            const ativos = veiculos.filter(v =>
+                (!v.status_recife || !STATUS_FINAIS.includes(v.status_recife)) &&
+                (!v.status_moreno || !STATUS_FINAIS.includes(v.status_moreno))
+            );
+            const tagsAtivas = new Set();
+            for (const v of ativos) {
+                for (const campo of [v.coletaRecife, v.coletaMoreno, v.coletainterestadual]) {
+                    (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => tagsAtivas.add(t));
+                }
+            }
+            const novasDuplicatas = {};
+            for (const lote of lotesParaVerificar) {
+                const tags = [
+                    ...(lote.coletaRecife || '').split(','),
+                    ...(lote.coletaMoreno || '').split(','),
+                ].map(t => t.trim()).filter(Boolean);
+                const dup = tags.filter(t => tagsAtivas.has(t));
+                if (dup.length > 0) novasDuplicatas[lote._id] = dup;
+            }
+            setDuplicatas(novasDuplicatas);
+        } catch (_) {
+            setDuplicatas({});
+        }
+    }, []);
 
     if (!isOpen) return null;
 
@@ -301,7 +333,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 setLotes(processados);
                 setErros({});
                 setSucessos({});
+                setDuplicatas({});
                 setPasso(2);
+                verificarDuplicatas(processados);
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
                 console.error(err);
@@ -353,6 +387,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setLotes([]);
         setErros({});
         setSucessos({});
+        setDuplicatas({});
         setDataPrevista(obterDataBrasiliaISO());
         onClose();
     };
@@ -463,6 +498,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                     lote={lote}
                                     erro={erros[lote._id]}
                                     sucesso={!!sucessos[lote._id]}
+                                    duplicata={duplicatas[lote._id]}
                                     onChange={atualizarLote}
                                     onRemover={removerLote}
                                     ehRecife={ehRecife}
@@ -482,10 +518,14 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
                 {/* Footer */}
                 {passo === 2 && (
-                    <div style={{
-                        padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)',
-                        display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center'
-                    }}>
+                    <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                        {Object.keys(duplicatas).length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)', color: '#fbbf24', fontSize: '12px', fontWeight: '600' }}>
+                                <AlertCircle size={14} />
+                                {Object.keys(duplicatas).length} lote(s) com coleta já ativa — serão barrados ao confirmar. Remova-os ou corrija os números.
+                            </div>
+                        )}
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center' }}>
                         <button
                             onClick={() => { setPasso(1); setLotes([]); setErros({}); setSucessos({}); }}
                             disabled={lancando}
@@ -512,6 +552,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                             {lancando ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Lançando...</> : <>Confirmar e Lançar {lotes.length}</>}
                         </button>
                     </div>
+                    </div>
                 )}
             </div>
         </div>
@@ -520,12 +561,12 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
 // ── Card individual de lote ────────────────────────────────────────────────
 
-function CardLote({ lote, erro, sucesso, onChange, onRemover, ehRecife, ehMoreno, lancando }) {
+function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecife, ehMoreno, lancando }) {
     const [expandido, setExpandido] = useState(true);
     const temRecife = ehRecife(lote.operacao);
     const temMoreno = ehMoreno(lote.operacao);
 
-    const borderColor = sucesso ? '#22c55e' : erro ? '#ef4444' : 'rgba(255,255,255,0.08)';
+    const borderColor = sucesso ? '#22c55e' : erro ? '#ef4444' : duplicata?.length ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.08)';
 
     return (
         <div style={{
@@ -553,6 +594,7 @@ function CardLote({ lote, erro, sucesso, onChange, onRemover, ehRecife, ehMoreno
                 </div>
                 {sucesso && <CheckCircle size={15} color="#22c55e" />}
                 {erro && <AlertCircle size={15} color="#ef4444" />}
+                {!sucesso && !erro && duplicata?.length > 0 && <AlertCircle size={15} color="#fbbf24" />}
                 {!sucesso && (
                     <button
                         onClick={e => { e.stopPropagation(); onRemover(lote._id); }}
@@ -564,6 +606,14 @@ function CardLote({ lote, erro, sucesso, onChange, onRemover, ehRecife, ehMoreno
                     </button>
                 )}
             </div>
+
+            {/* Aviso de coleta duplicada */}
+            {duplicata?.length > 0 && !sucesso && !erro && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: 'rgba(251,191,36,0.08)', borderBottom: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24', fontSize: '11px', fontWeight: '600' }}>
+                    <AlertCircle size={12} style={{ flexShrink: 0 }} />
+                    Coleta já ativa: {duplicata.join(', ')}
+                </div>
+            )}
 
             {/* Corpo expansível */}
             {expandido && !sucesso && (
