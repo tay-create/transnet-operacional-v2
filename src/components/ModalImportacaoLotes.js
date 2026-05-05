@@ -337,9 +337,8 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 setSucessos({});
                 setDuplicatas({});
 
-                const temEletrikAmbiguo = processados.some(l =>
-                    (l.operacao === 'ELETRIK' || l.operacao === 'PORCELANA/ELETRIK')
-                );
+                // PORCELANA/ELETRIK é sempre Moreno — só ELETRIK puro é ambíguo
+                const temEletrikAmbiguo = processados.some(l => l.operacao === 'ELETRIK');
 
                 if (temEletrikAmbiguo) {
                     setEletrikPendente(processados);
@@ -416,10 +415,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 }
                 return lote; // Moreno: mantém operacao ELETRIK, coleta já está no coletaMoreno
             }
-            if (lote.operacao === 'PORCELANA/ELETRIK') {
-                return { ...lote, operacao: tipoEletrik === 'SUL' ? 'PORCELANA/ELETRIK SUL' : 'PORCELANA/ELETRIK' };
-            }
-            return lote;
+            return lote; // demais operações (PORCELANA/ELETRIK etc.) são sempre Moreno
         });
         setEletrikPendente(null);
         setLotes(resolvidos);
