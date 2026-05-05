@@ -555,11 +555,7 @@ export default function PainelCadastro({ user, socket }) {
 
                                                 {/* Footer — Botão Salvar */}
                                                 <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                                    {situacao === 'LIBERADO' ? (
-                                                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
-                                                            <CheckCircle size={14} /> Liberado — não é possível reclassificar
-                                                        </div>
-                                                    ) : podeEditar ? (
+                                                    {podeEditar ? (
                                                         <button
                                                             onClick={() => salvar(m.id)}
                                                             disabled={estaSalvando}
@@ -844,11 +840,7 @@ export default function PainelCadastro({ user, socket }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {situacao === 'LIBERADO' ? (
-                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
-                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
-                                                </div>
-                                            ) : podeEditar ? (
+                                            {podeEditar ? (
                                                 <button
                                                     onClick={() => salvarOperacao(m.id)}
                                                     disabled={estaSalvando}
@@ -994,11 +986,7 @@ export default function PainelCadastro({ user, socket }) {
                                         </div>
 
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {situacao === 'LIBERADO' ? (
-                                                <div style={{ textAlign: 'center', fontSize: '12px', color: '#4ade80', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
-                                                    <CheckCircle size={14} /> Liberado — não é possível reclassificar
-                                                </div>
-                                            ) : podeEditar ? (
+                                            {podeEditar ? (
                                                 <button
                                                     onClick={() => salvarFrota(m.id)}
                                                     disabled={estaSalvando}

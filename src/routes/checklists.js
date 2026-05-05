@@ -115,11 +115,12 @@ module.exports = function createChecklistsRouter(io) {
 
     router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), async (req, res) => {
         try {
-            const { status } = req.body; // 'APROVADO' ou 'RECUSADO'
+            const { status, cordas_adicionais } = req.body; // 'APROVADO' ou 'RECUSADO'
             if (!['APROVADO', 'RECUSADO'].includes(status)) {
                 return res.status(400).json({ success: false, message: 'Status inválido.' });
             }
-            await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
+            const qtdCordas = status === 'APROVADO' ? (parseInt(cordas_adicionais) || 0) : 0;
+            await dbRun("UPDATE checklists_carreta SET status = $1, cordas_adicionais = $2 WHERE id = $3", [status, qtdCordas, req.params.id]);
 
             // Notificar conferente sobre resultado do checklist
             const checklist = await dbGet(

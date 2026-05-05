@@ -223,6 +223,24 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     situacao_cadastro = cad.situacao_cad || 'NÃO CONFERIDO';
                     numero_liberacao = cad.num_liberacao_cad || null;
                     data_liberacao = cad.data_liberacao_cad || null;
+
+                    // Nova viagem = nova conferência obrigatória: reset se estava LIBERADO
+                    if (cad.situacao_cad === 'LIBERADO') {
+                        const telReset = cad.telefone || telefoneMotorista;
+                        if (telReset) {
+                            await dbRun(
+                                `UPDATE marcacoes_placas
+                                 SET chk_cnh_cad=0, chk_antt_cad=0, chk_tacografo_cad=0, chk_crlv_cad=0,
+                                     situacao_cad='PENDENTE', num_liberacao_cad=NULL, data_liberacao_cad=NULL
+                                 WHERE REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'+','') = $1`,
+                                [telReset.replace(/\D/g, '')]
+                            );
+                        }
+                        chk_cnh = 0; chk_antt = 0; chk_tacografo = 0; chk_crlv = 0;
+                        situacao_cadastro = 'PENDENTE';
+                        numero_liberacao = null;
+                        data_liberacao = null;
+                    }
                 }
             }
 
