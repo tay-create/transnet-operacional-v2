@@ -123,6 +123,114 @@ const PRIORIDADE_STATUS = {
     'EM CARREGAMENTO': 3, 'CARREGADO': 4, 'LIBERADO P/ CT-e': 5
 };
 
+function TelaMonitoramentoTramontina({ dados, t, tema }) {
+    const dp = dados?.deltaPorcelana || {};
+    const el = dados?.eletrik || {};
+
+    const badges = [
+        { label: 'TOTAL ROTAS', valor: dp.totalRotas ?? '—', cor: '#38bdf8', sub: null },
+        { label: 'EMBARCADAS', valor: dp.embarcadas ?? '—', cor: '#4ade80', sub: null },
+        { label: 'PROG. HOJE', valor: dp.programadasHoje ?? '—', cor: '#facc15', sub: null },
+        { label: 'REPROGRAMADAS', valor: dp.reprogramadas ?? '—', cor: '#fb923c', sub: null },
+        { label: 'ELETRIK (EMBARC.)', valor: el.embarcado ?? '—', cor: '#a78bfa', sub: `TOTAL CRIADAS: ${el.criado ?? '—'}` },
+        { label: 'PENDENTES', valor: dp.pendentes ?? '—', cor: '#f87171', sub: null },
+    ];
+
+    const operacoes = [
+        { label: 'DELTA PLÁSTICO', valor: dp.plastico ?? 0, total: dp.totalRotas || 1, cor: '#38bdf8' },
+        { label: 'DELTA PORCELANA', valor: dp.porcelana ?? 0, total: dp.totalRotas || 1, cor: '#a78bfa' },
+        { label: 'CONSOLIDADAS', valor: dp.consolidado ?? 0, total: dp.totalRotas || 1, cor: '#818cf8' },
+    ];
+
+    const cardBg = tema === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.7)';
+    const borderColor = tema === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '8px 0', animation: 'fadeSlide 0.4s ease-out' }}>
+            {/* Título */}
+            <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: t.textMuted, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>Monitoramento</div>
+                <div style={{ fontSize: 26, fontWeight: 900, color: t.text, letterSpacing: 2 }}>TRAMONTINA</div>
+                <div style={{ width: 60, height: 3, background: '#38bdf8', borderRadius: 2, margin: '8px auto 0' }} />
+            </div>
+
+            {/* Badges superiores */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+                {badges.map((b, i) => (
+                    <div key={i} style={{
+                        background: cardBg, border: `1px solid ${borderColor}`,
+                        borderTop: `3px solid ${b.cor}`, borderRadius: 16,
+                        padding: '18px 12px', textAlign: 'center',
+                        boxShadow: tema === 'dark' ? `0 0 20px ${b.cor}22` : '0 2px 12px rgba(0,0,0,0.06)',
+                    }}>
+                        <div style={{ fontSize: 42, fontWeight: 900, color: b.cor, lineHeight: 1, filter: tema === 'dark' ? `drop-shadow(0 0 8px ${b.cor}80)` : 'none' }}>
+                            {b.valor}
+                        </div>
+                        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>
+                            {b.label}
+                        </div>
+                        {b.sub && (
+                            <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, letterSpacing: 0.5 }}>{b.sub}</div>
+                        )}
+                        {b.label === 'ELETRIK (EMBARC.)' && (
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 6, fontSize: 9, color: t.textDim }}>
+                                <span>PROG: <b style={{ color: b.cor }}>{el.programado ?? '—'}</b></span>
+                                <span>PEND: <b style={{ color: '#f87171' }}>{el.pendente ?? '—'}</b></span>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Contadores de operação */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+                {operacoes.map((op, i) => {
+                    const pct = op.total > 0 ? Math.round((op.valor / op.total) * 100) : 0;
+                    const faltam = op.total - op.valor;
+                    const circunf = 2 * Math.PI * 54;
+                    const offset = circunf - (pct / 100) * circunf;
+                    return (
+                        <div key={i} style={{
+                            background: cardBg, border: `1px solid ${borderColor}`,
+                            borderRadius: 20, padding: '28px 24px', textAlign: 'center',
+                            boxShadow: tema === 'dark' ? `0 0 30px ${op.cor}18` : '0 2px 16px rgba(0,0,0,0.06)',
+                        }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>
+                                {op.label}
+                            </div>
+                            {/* Gauge circular SVG */}
+                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                                <svg width={130} height={130} viewBox="0 0 130 130">
+                                    <circle cx={65} cy={65} r={54} fill="none" stroke={tema === 'dark' ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} strokeWidth={10} />
+                                    <circle cx={65} cy={65} r={54} fill="none" stroke={op.cor} strokeWidth={10}
+                                        strokeDasharray={circunf} strokeDashoffset={offset}
+                                        strokeLinecap="round" transform="rotate(-90 65 65)"
+                                        style={{ transition: 'stroke-dashoffset 1s ease' }}
+                                    />
+                                </svg>
+                                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 32, fontWeight: 900, color: op.cor, lineHeight: 1 }}>{op.valor}</span>
+                                    <span style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{pct}%</span>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 16, fontSize: 12 }}>
+                                <span style={{ color: t.textMuted }}>Total: <b style={{ color: t.text }}>{op.total}</b></span>
+                                <span style={{ color: t.textMuted }}>Faltam: <b style={{ color: '#f87171' }}>{faltam}</b></span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {!dados && (
+                <div style={{ textAlign: 'center', color: t.textDim, fontSize: 13, marginTop: 8 }}>
+                    Carregando dados da planilha...
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, ctesSP: ctesSPProp, onSair, socket, onRefresh }) {
     const { user } = useAuthStore();
     const ehViewer = user?.cargo === 'Dashboard Viewer';
@@ -136,6 +244,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
     const [ocorrenciasHoje, setOcorrenciasHoje] = useState([]);
     const [barraVisivel, setBarraVisivel] = useState(false);
     const esconderBarraTimer = useRef(null);
+    const [tramontina, setTramontina] = useState(null);
     const t = TEMAS[tema];
 
     const mostrarBarra = () => {
@@ -152,7 +261,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
         return dataCard.split('T')[0] === hoje;
     });
 
-    const totalTelas = 5;
+    const totalTelas = 6;
 
     useEffect(() => {
         if (pausado) return;
@@ -213,6 +322,18 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
     }, [socket, onRefresh]);
 
     useEffect(() => {
+        let unmounted = false;
+        const fetchTramontina = () => {
+            api.get('/api/tramontina-dashboard').then(r => {
+                if (!unmounted && r.data?.success) setTramontina(r.data);
+            }).catch(() => { });
+        };
+        fetchTramontina();
+        const interval = setInterval(fetchTramontina, 60000);
+        return () => { unmounted = true; clearInterval(interval); };
+    }, []);
+
+    useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });
         return () => {
             if (document.fullscreenElement) {
@@ -234,7 +355,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Leão / Eletrik Sul', 'Fluxo Mensal'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Leão / Eletrik Sul', 'Fluxo Mensal', 'Tramontina'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -322,6 +443,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
                 {telaAtiva === 2 && <TelaOperacaoMoreno veiculos={veiculosHoje} ctesMoreno={ctesMoreno} docasInterditadas={docasInterditadas} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 3 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={ctesSP} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 4 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 5 && <TelaMonitoramentoTramontina dados={tramontina} t={t} tema={tema} />}
             </div>
 
 

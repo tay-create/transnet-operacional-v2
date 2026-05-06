@@ -33,6 +33,9 @@ actions-runner/
 cloudflared.deb
 1
 
+# Credenciais Google Service Account
+google-credentials.json
+
 # Scripts locais com credenciais hardcoded
 upd.js
 update_paulo.js

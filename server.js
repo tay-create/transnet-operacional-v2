@@ -2970,6 +2970,107 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
 });
 // ────────────────────────────────────────────────────────────
 
+// ── Tramontina Dashboard ─────────────────────────────────────────────────────
+const { google } = require('googleapis');
+const TRAMONTINA_SHEET_ID = '1zhC6UdzEbOoX9CQOa4_HusEOvw2QudMEBWqwIHTsw8I';
+let tramontinaCache = { data: null, ts: 0 };
+
+async function lerRangeTramontina(sheets, range, aba) {
+    const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: TRAMONTINA_SHEET_ID,
+        range: aba ? `${aba}!${range}` : range,
+    });
+    return resp.data.values || [];
+}
+
+app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
+    try {
+        if (tramontinaCache.data && Date.now() - tramontinaCache.ts < 60000)
+            return res.json(tramontinaCache.data);
+
+        const auth = new google.auth.GoogleAuth({
+            keyFile: path.join(__dirname, 'google-credentials.json'),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        // Buscar aba Delta-Porcelana: resumo (H6, J6, J7) + dados linha a linha
+        const [resumoDP, dadosDP] = await Promise.all([
+            lerRangeTramontina(sheets, 'H6:J7', 'TRAMONTINA DELTA-PORCELANA'),
+            lerRangeTramontina(sheets, 'A10:R500', 'TRAMONTINA DELTA-PORCELANA'),
+        ]);
+
+        // Resumo: H6 = total rotas, J6 = embarcadas, J7 = pendentes
+        const totalRotas = parseInt((resumoDP[0] && resumoDP[0][0]) || 0) || 0;
+        const embarcadas = parseInt((resumoDP[0] && resumoDP[0][2]) || 0) || 0;
+        const pendentes  = parseInt((resumoDP[1] && resumoDP[1][2]) || 0) || 0;
+
+        // Processar linha a linha (índice 0=A, 6=G DATA PREVISÃO, 12=M D, 13=N P, 14=O DC, 15=P PC, 16=Q DL, 17=R PL)
+        const hojeStr = new Date().toLocaleDateString('pt-BR'); // dd/mm/yyyy
+        let reprogramadas = 0, programadasHoje = 0, plastico = 0, porcelana = 0, consolidado = 0;
+
+        for (const row of dadosDP) {
+            const colA = (row[0] || '').trim();
+            if (!colA || isNaN(Number(colA))) continue; // só linhas-rota
+
+            // Coluna R física = índice 17 (PL), mas "coluna R" do cabeçalho é a 2ª coluna (índice 1)
+            // Usuário confirmou: coluna R = letra física da planilha = índice 17
+            if ((row[17] || '').trim()) reprogramadas++;
+
+            const dataPrevisao = (row[6] || '').trim();
+            if (dataPrevisao === hojeStr) programadasHoje++;
+
+            // Plástico: M (índice 12) ou Q (índice 16) preenchida
+            if ((row[12] || '').trim() || (row[16] || '').trim()) plastico++;
+            // Porcelana: N (índice 13) preenchida
+            if ((row[13] || '').trim()) porcelana++;
+            // Consolidado: O (índice 14) ou P (índice 15) preenchida
+            if ((row[14] || '').trim() || (row[15] || '').trim()) consolidado++;
+        }
+
+        // Aba Eletrik
+        let eletrikTotal = 0, eletrikCriado = 0, eletrikEmbarcado = 0, eletrikPendente = 0, eletrikProgramado = 0;
+        try {
+            // Descobrir nome exato da aba Eletrik
+            const metaResp = await sheets.spreadsheets.get({ spreadsheetId: TRAMONTINA_SHEET_ID });
+            const abaEletrik = (metaResp.data.sheets || []).find(s =>
+                s.properties.title.toUpperCase().includes('ELETRIK')
+            );
+            if (abaEletrik) {
+                const nomeAba = abaEletrik.properties.title;
+                const [resumoEl, dadosElB] = await Promise.all([
+                    lerRangeTramontina(sheets, 'H7:J8', nomeAba),
+                    lerRangeTramontina(sheets, 'A11:B500', nomeAba),
+                ]);
+                eletrikTotal = parseInt((resumoEl[0] && resumoEl[0][0]) || 0) || 0;
+                eletrikEmbarcado = parseInt((resumoEl[0] && resumoEl[0][2]) || 0) || 0;
+                eletrikPendente  = parseInt((resumoEl[1] && resumoEl[1][2]) || 0) || 0;
+
+                for (const row of dadosElB) {
+                    const colA = (row[0] || '').trim();
+                    if (!colA) continue;
+                    eletrikCriado++;
+                    const colB = (row[1] || '').trim().toLowerCase();
+                    if (colB.startsWith('n')) eletrikProgramado++;
+                }
+            }
+        } catch (e) {
+            console.warn('Aba Eletrik não encontrada:', e.message);
+        }
+
+        const resultado = {
+            success: true,
+            deltaPorcelana: { totalRotas, embarcadas, pendentes, reprogramadas, programadasHoje, plastico, porcelana, consolidado },
+            eletrik: { total: eletrikTotal, criado: eletrikCriado, embarcado: eletrikEmbarcado, pendente: eletrikPendente, programado: eletrikProgramado },
+        };
+        tramontinaCache = { data: resultado, ts: Date.now() };
+        res.json(resultado);
+    } catch (e) {
+        console.error('Erro tramontina-dashboard:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
 const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Manutenção'];
