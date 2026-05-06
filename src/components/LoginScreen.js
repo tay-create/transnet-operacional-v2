@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     Mail, Lock, ArrowRight, Truck, Eye, EyeOff,
     UserPlus, KeyRound, LayoutDashboard, ClipboardCheck, FileText, Shield
@@ -31,18 +31,6 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [etapaEsqueci, setEtapaEsqueci] = useState('input');
     const [loadingEsqueci, setLoadingEsqueci] = useState(false);
 
-    const [hora, setHora] = useState('');
-    const [embarques, setEmbarques] = useState(147);
-
-    useEffect(() => {
-        const tick = () => {
-            const now = new Date();
-            setHora(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-        };
-        tick();
-        const t = setInterval(tick, 1000);
-        return () => clearInterval(t);
-    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -141,7 +129,7 @@ export default function LoginScreen({ onLoginSuccess }) {
                 <div className="tn-scene-headline">
                     <span className="tn-scene-eyebrow">
                         <span className="tn-live-dot" />
-                        Sistema online · {hora}
+                        Sistema online
                     </span>
                     <h1 className="tn-scene-title">
                         Sua operação <em>sob controle</em>,<br />
@@ -198,17 +186,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                     </div>
                 </div>
 
-                {/* Live KPI top-right */}
-                <div className="tn-live-kpi">
-                    <div className="tn-lk">
-                        <div className="tn-lk-label">Embarques</div>
-                        <div className="tn-lk-value">{embarques}</div>
-                    </div>
-                    <div className="tn-lk">
-                        <div className="tn-lk-label">Hora</div>
-                        <div className="tn-lk-value">{hora}</div>
-                    </div>
-                </div>
             </section>
 
             {/* ══ RIGHT — LOGIN FORM ══ */}
