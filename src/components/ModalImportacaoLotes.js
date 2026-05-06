@@ -1,9 +1,10 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2 } from 'lucide-react';
+import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2, MapPin } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import { joinColetaMoreno } from '../utils/coletaMoreno';
 import api from '../services/apiService';
+import ModalEntregasProvisao from './ModalEntregasProvisao';
 
 // ── Helpers de mapeamento ──────────────────────────────────────────────────
 
@@ -262,8 +263,18 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [erros, setErros] = useState({});
     const [sucessos, setSucessos] = useState({});
     const [duplicatas, setDuplicatas] = useState({});
-    const [eletrikPendente, setEletrikPendente] = useState(null); // lotes processados aguardando resolução Eletrik
+    const [eletrikPendente, setEletrikPendente] = useState(null);
+    const [rotaNovaPendente, setRotaNovaPendente] = useState(null); // lotes com "ROTA NOVA" aguardando confirmação
+    const [veiculosProvisao, setVeiculosProvisao] = useState([]);
+    const [provisaoFila, setProvisaoFila] = useState([]);
+    const [provisaoAtual, setProvisaoAtual] = useState(null);
     const fileRef = useRef();
+
+    useEffect(() => {
+        api.get('/api/provisionamento/veiculos').then(r => {
+            if (r.data?.success) setVeiculosProvisao(r.data.veiculos || []);
+        }).catch(() => {});
+    }, []);
 
     const verificarDuplicatas = useCallback(async (lotesParaVerificar) => {
         try {
@@ -294,6 +305,20 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             setDuplicatas({});
         }
     }, []);
+
+    const avancarParaPasso2 = (lotesResolvidos) => {
+        const comRotaNova = lotesResolvidos.filter(l =>
+            /rota\s*nova/i.test(l.observacao || '')
+        );
+        if (comRotaNova.length > 0) {
+            setLotes(lotesResolvidos);
+            setRotaNovaPendente(comRotaNova);
+        } else {
+            setLotes(lotesResolvidos);
+            setPasso(2);
+            verificarDuplicatas(lotesResolvidos);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -343,9 +368,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 if (temEletrikAmbiguo) {
                     setEletrikPendente(processados);
                 } else {
-                    setLotes(processados);
-                    setPasso(2);
-                    verificarDuplicatas(processados);
+                    avancarParaPasso2(processados);
                 }
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
@@ -386,8 +409,28 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setLancando(false);
 
         if (Object.keys(novosErros).length === 0) {
-            mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)!`);
-            fechar();
+            // Verificar se há veículos de frota nos lotes lançados com sucesso
+            const placasProvisao = new Set(veiculosProvisao.flatMap(v => [v.placa, v.carreta].filter(Boolean).map(p => p.toUpperCase())));
+            const lotesFreota = lotes.filter(l =>
+                placasProvisao.has((l.placa1 || '').toUpperCase()) ||
+                placasProvisao.has((l.placa2 || '').toUpperCase())
+            ).map(l => {
+                const veiculo = veiculosProvisao.find(v =>
+                    (v.placa || '').toUpperCase() === (l.placa1 || '').toUpperCase() ||
+                    (v.carreta || '').toUpperCase() === (l.placa1 || '').toUpperCase() ||
+                    (v.placa || '').toUpperCase() === (l.placa2 || '').toUpperCase()
+                );
+                return { lote: l, veiculo };
+            }).filter(x => x.veiculo);
+
+            if (lotesFreota.length > 0) {
+                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)! Registrando viagens da frota...`);
+                setProvisaoFila(lotesFreota.slice(1));
+                setProvisaoAtual(lotesFreota[0]);
+            } else {
+                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)!`);
+                fechar();
+            }
         } else {
             mostrarNotificacao(`⚠️ ${ok} ok, ${Object.keys(novosErros).length} com erro. Verifique e tente novamente.`);
         }
@@ -400,6 +443,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setSucessos({});
         setDuplicatas({});
         setEletrikPendente(null);
+        setRotaNovaPendente(null);
+        setProvisaoFila([]);
+        setProvisaoAtual(null);
         setDataPrevista(obterDataBrasiliaISO());
         onClose();
     };
@@ -418,15 +464,14 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             return lote; // demais operações (PORCELANA/ELETRIK etc.) são sempre Moreno
         });
         setEletrikPendente(null);
-        setLotes(resolvidos);
-        setPasso(2);
-        verificarDuplicatas(resolvidos);
+        avancarParaPasso2(resolvidos);
     };
 
     const ehRecife = (op) => op && (op.includes('RECIFE') || op === 'PLÁSTICO(RECIFE X MORENO)');
     const ehMoreno = (op) => op && (op.includes('MORENO') || op.includes('PORCELANA') || (op.includes('ELETRIK') && !op.includes('ELETRIK SUL')));
 
     return (
+        <>
         <div style={{
             position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
@@ -462,6 +507,57 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
                 {/* Conteúdo */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '24px', position: 'relative' }}>
+
+                    {/* Modal ROTA NOVA — questiona se já existe rota */}
+                    {rotaNovaPendente && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <MapPin size={36} color="#f59e0b" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '8px' }}>
+                                Coleta(s) sem rota cadastrada
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '16px', maxWidth: '340px', lineHeight: 1.6 }}>
+                                {rotaNovaPendente.length} lote(s) com "ROTA NOVA" na observação. Já existe uma rota para esta(s) coleta(s)?
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '24px', width: '100%', maxWidth: '320px' }}>
+                                {rotaNovaPendente.map(l => (
+                                    <div key={l._id} style={{
+                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                        background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                                        borderRadius: '8px', padding: '8px 12px', fontSize: '12px',
+                                    }}>
+                                        <span style={{ color: '#f1f5f9', fontWeight: '600' }}>{l.motorista || '—'}</span>
+                                        <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>{l.placa1}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={() => { setRotaNovaPendente(null); setPasso(2); verificarDuplicatas(lotes); }}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: 'linear-gradient(135deg,#d97706,#f59e0b)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Sim, tenho a rota
+                                </button>
+                                <button
+                                    onClick={() => { setRotaNovaPendente(null); setPasso(2); verificarDuplicatas(lotes); }}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: '#94a3b8', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Ainda não
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Modal Eletrik — sobrepõe o conteúdo quando há ambiguidade */}
                     {eletrikPendente && (
@@ -633,6 +729,34 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 )}
             </div>
         </div>
+
+        {/* Modal de Registrar Viagem para veículos de frota */}
+        {provisaoAtual && (
+            <ModalEntregasProvisao
+                veiculo={provisaoAtual.veiculo}
+                motorista={provisaoAtual.lote.motorista}
+                dataSaida={dataPrevista}
+                onConfirmar={() => {
+                    if (provisaoFila.length > 0) {
+                        setProvisaoAtual(provisaoFila[0]);
+                        setProvisaoFila(prev => prev.slice(1));
+                    } else {
+                        setProvisaoAtual(null);
+                        fechar();
+                    }
+                }}
+                onCancelar={() => {
+                    if (provisaoFila.length > 0) {
+                        setProvisaoAtual(provisaoFila[0]);
+                        setProvisaoFila(prev => prev.slice(1));
+                    } else {
+                        setProvisaoAtual(null);
+                        fechar();
+                    }
+                }}
+            />
+        )}
+        </>
     );
 }
 
