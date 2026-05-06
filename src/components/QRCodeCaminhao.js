@@ -43,12 +43,6 @@ export default function QRCodeCaminhao() {
                             fgColor="#020617"
                             level="H"
                         />
-                        {/* Ícone caminhão sobreposto no centro */}
-                        <div style={styles.qrCenter}>
-                            <div style={styles.qrCenterIcon}>
-                                <Truck size={22} color="#020617" strokeWidth={2} />
-                            </div>
-                        </div>
                     </div>
 
                     <p style={styles.qrInstr}>Aponte a câmera do celular para acessar</p>
@@ -78,9 +72,6 @@ export default function QRCodeCaminhao() {
                         box-shadow: none !important;
                         padding: 40px !important;
                     }
-                    #qr-print-area svg path,
-                    #qr-print-area svg rect { fill: #020617 !important; }
-                    #qr-print-area .qr-center-icon { background: white !important; }
                 }
             `}</style>
         </div>
@@ -160,22 +151,6 @@ const styles = {
         background: '#ffffff',
         padding: 12,
         borderRadius: 12,
-    },
-    qrCenter: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-    },
-    qrCenterIcon: {
-        width: 38,
-        height: 38,
-        background: '#22d3ee',
-        borderRadius: 8,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 2px 12px rgba(34,211,238,0.4)',
     },
     qrInstr: {
         fontSize: 13,
