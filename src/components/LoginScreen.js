@@ -30,18 +30,6 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [etapaEsqueci, setEtapaEsqueci] = useState('input');
     const [loadingEsqueci, setLoadingEsqueci] = useState(false);
 
-    const [hora, setHora] = useState('');
-    const [embarques, setEmbarques] = useState(147);
-
-    useEffect(() => {
-        const tick = () => {
-            const now = new Date();
-            setHora(now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-        };
-        tick();
-        const t = setInterval(tick, 1000);
-        return () => clearInterval(t);
-    }, []);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -128,19 +116,19 @@ export default function LoginScreen({ onLoginSuccess }) {
     return (
         <div className="tn-login-root">
 
-            {/* ══ LEFT — 3D LOGISTICS SCENE ══ */}
+            {/* ══ LEFT — GIF BACKGROUND SCENE ══ */}
             <section className="tn-scene-pane">
-                <div className="tn-ground" />
-                <div className="tn-speed-line tn-sl-1" />
-                <div className="tn-speed-line tn-sl-2" />
-                <div className="tn-speed-line tn-sl-3" />
-                <div className="tn-speed-line tn-sl-4" />
+                <img
+                    src="/clideo_editor_2b1f0da9405c4da69d695f0e66f1a8fa-1.gif"
+                    alt=""
+                    className="tn-scene-gif"
+                />
 
                 {/* Headline top-left */}
                 <div className="tn-scene-headline">
                     <span className="tn-scene-eyebrow">
                         <span className="tn-live-dot" />
-                        Sistema online · {hora}
+                        Sistema online
                     </span>
                     <h1 className="tn-scene-title">
                         Sua operação <em>sob controle</em>,<br />
@@ -149,36 +137,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                     <p className="tn-scene-sub">
                         Gerencie rotas, motoristas e embarques em tempo real. Acompanhe cada CT-e, doca e fila de placas em uma única central.
                     </p>
-                </div>
-
-                {/* 3D stage with truck + crates */}
-                <div className="tn-stage">
-                    <div className="tn-truck-wrap">
-                        <div className="tn-truck-icon">
-                            <Truck size={120} strokeWidth={1} />
-                        </div>
-                    </div>
-
-                    <div className="tn-crate tn-crate-1">
-                        <div className="tn-crate-face tn-f-front" /><div className="tn-crate-face tn-f-back" />
-                        <div className="tn-crate-face tn-f-right" /><div className="tn-crate-face tn-f-left" />
-                        <div className="tn-crate-face tn-f-top" /><div className="tn-crate-face tn-f-bottom" />
-                    </div>
-                    <div className="tn-crate tn-crate-2">
-                        <div className="tn-crate-face tn-f-front" /><div className="tn-crate-face tn-f-back" />
-                        <div className="tn-crate-face tn-f-right" /><div className="tn-crate-face tn-f-left" />
-                        <div className="tn-crate-face tn-f-top" /><div className="tn-crate-face tn-f-bottom" />
-                    </div>
-                    <div className="tn-crate tn-crate-3">
-                        <div className="tn-crate-face tn-f-front" /><div className="tn-crate-face tn-f-back" />
-                        <div className="tn-crate-face tn-f-right" /><div className="tn-crate-face tn-f-left" />
-                        <div className="tn-crate-face tn-f-top" /><div className="tn-crate-face tn-f-bottom" />
-                    </div>
-                    <div className="tn-crate tn-crate-4">
-                        <div className="tn-crate-face tn-f-front" /><div className="tn-crate-face tn-f-back" />
-                        <div className="tn-crate-face tn-f-right" /><div className="tn-crate-face tn-f-left" />
-                        <div className="tn-crate-face tn-f-top" /><div className="tn-crate-face tn-f-bottom" />
-                    </div>
                 </div>
 
                 {/* Features bottom-left */}
@@ -197,17 +155,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                     </div>
                 </div>
 
-                {/* Live KPI top-right */}
-                <div className="tn-live-kpi">
-                    <div className="tn-lk">
-                        <div className="tn-lk-label">Embarques</div>
-                        <div className="tn-lk-value">{embarques}</div>
-                    </div>
-                    <div className="tn-lk">
-                        <div className="tn-lk-label">Hora</div>
-                        <div className="tn-lk-value">{hora}</div>
-                    </div>
-                </div>
             </section>
 
             {/* ══ RIGHT — LOGIN FORM ══ */}
