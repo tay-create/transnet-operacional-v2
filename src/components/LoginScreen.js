@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Mail, Lock, ArrowRight, Truck, Eye, EyeOff,
-    UserPlus, KeyRound, LayoutDashboard, ClipboardCheck
+    UserPlus, KeyRound, LayoutDashboard, ClipboardCheck, FileText, Shield
 } from 'lucide-react';
 import { loginSchema } from '../schemas/validationSchemas';
 import { useValidation } from '../hooks/useValidation';
@@ -23,8 +23,9 @@ export default function LoginScreen({ onLoginSuccess }) {
     const [abaAtiva, setAbaAtiva] = useState('login');
     const { validate, errors } = useValidation(loginSchema);
 
-    const [modalCadastro, setModalCadastro] = useState(false);
     const [modalEsqueci, setModalEsqueci] = useState(false);
+    const [modalTermos, setModalTermos] = useState(false);
+    const [modalPrivacidade, setModalPrivacidade] = useState(false);
     const [formCadastro, setFormCadastro] = useState({ nome: '', emailPrefix: '', senha: '', unidade: 'Recife' });
     const [emailEsqueci, setEmailEsqueci] = useState('');
     const [etapaEsqueci, setEtapaEsqueci] = useState('input');
@@ -87,7 +88,7 @@ export default function LoginScreen({ onLoginSuccess }) {
         if (erroSenha) return mostrarNotificacao(erroSenha);
         try {
             await api.post('/solicitacoes', formCadastro);
-            setModalCadastro(false);
+            setAbaAtiva('login');
             mostrarNotificacao('Cadastro solicitado! Aguarde aprovação do administrador.');
         } catch (e) {
             mostrarNotificacao(e.response?.data?.message || 'Erro ao enviar solicitação. Tente novamente.');
@@ -235,101 +236,88 @@ export default function LoginScreen({ onLoginSuccess }) {
                     </button>
                     <button
                         className={`tn-tab${abaAtiva === 'cadastro' ? ' active' : ''}`}
-                        onClick={() => { setAbaAtiva('cadastro'); setModalCadastro(true); }}
+                        onClick={() => setAbaAtiva('cadastro')}
                     >
                         Cadastro
                     </button>
                 </div>
 
                 {/* Alerts */}
-                {aviso && !modalCadastro && !modalEsqueci && (
+                {aviso && !modalEsqueci && (
                     <div className={`tn-alert ${aviso.startsWith('Cadastro') ? 'tn-alert-success' : 'tn-alert-warn'}`}>
                         {aviso}
                     </div>
                 )}
-                {erro && <div className="tn-alert tn-alert-error">{erro}</div>}
+                {erro && abaAtiva === 'login' && <div className="tn-alert tn-alert-error">{erro}</div>}
 
-                <form onSubmit={handleLogin}>
-                    <label className="tn-field-label">E-mail</label>
-                    <div className="tn-field">
-                        <Mail size={16} className="tn-field-icon" />
-                        <input
-                            type="text"
-                            placeholder="usuario@tnetlog.com.br"
-                            value={loginDados.nome}
-                            onChange={(e) => setLoginDados({ ...loginDados, nome: e.target.value })}
-                            autoComplete="username"
-                        />
-                    </div>
-
-                    <label className="tn-field-label">Senha</label>
-                    <div className="tn-field">
-                        <Lock size={16} className="tn-field-icon" />
-                        <input
-                            type={senhaVisivel ? 'text' : 'password'}
-                            placeholder="••••••••"
-                            value={loginDados.senha}
-                            onChange={(e) => setLoginDados({ ...loginDados, senha: e.target.value })}
-                            autoComplete="current-password"
-                        />
-                        <button
-                            type="button"
-                            className="tn-eye-toggle"
-                            onClick={() => setSenhaVisivel(!senhaVisivel)}
-                            tabIndex={-1}
-                        >
-                            {senhaVisivel ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                    </div>
-
-                    <div className="tn-row-between">
-                        <label className="tn-remember">
+                {/* ── ABA LOGIN ── */}
+                {abaAtiva === 'login' && (
+                    <form onSubmit={handleLogin}>
+                        <label className="tn-field-label">E-mail</label>
+                        <div className="tn-field">
+                            <Mail size={16} className="tn-field-icon" />
                             <input
-                                type="checkbox"
-                                checked={manterConectado}
-                                onChange={e => setManterConectado(e.target.checked)}
+                                type="text"
+                                placeholder="usuario@tnetlog.com.br"
+                                value={loginDados.nome}
+                                onChange={(e) => setLoginDados({ ...loginDados, nome: e.target.value })}
+                                autoComplete="username"
                             />
-                            Lembrar-me
-                        </label>
-                    </div>
+                        </div>
 
-                    <button type="submit" className="tn-btn-enter" disabled={loading}>
-                        {loading
-                            ? <><span className="tn-spinner" /> Autenticando...</>
-                            : <>ENTRAR NO SISTEMA <ArrowRight size={16} /></>
-                        }
-                    </button>
+                        <label className="tn-field-label">Senha</label>
+                        <div className="tn-field">
+                            <Lock size={16} className="tn-field-icon" />
+                            <input
+                                type={senhaVisivel ? 'text' : 'password'}
+                                placeholder="••••••••"
+                                value={loginDados.senha}
+                                onChange={(e) => setLoginDados({ ...loginDados, senha: e.target.value })}
+                                autoComplete="current-password"
+                            />
+                            <button
+                                type="button"
+                                className="tn-eye-toggle"
+                                onClick={() => setSenhaVisivel(!senhaVisivel)}
+                                tabIndex={-1}
+                            >
+                                {senhaVisivel ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
 
-                    <button type="button" className="tn-forgot" onClick={abrirModalEsqueci}>
-                        Esqueci minha senha
-                    </button>
-                </form>
+                        <div className="tn-row-between">
+                            <label className="tn-remember">
+                                <input
+                                    type="checkbox"
+                                    checked={manterConectado}
+                                    onChange={e => setManterConectado(e.target.checked)}
+                                />
+                                Lembrar-me
+                            </label>
+                        </div>
 
-                <div className="tn-form-footer">
-                    © 2026 Transnet Transportes · Todos os direitos reservados.<br />
-                    <button onClick={() => setModalCadastro(true)}>Solicitar Acesso</button>
-                    {' · '}
-                    <button onClick={abrirModalEsqueci}>Recuperar Senha</button>
-                </div>
-            </section>
+                        <button type="submit" className="tn-btn-enter" disabled={loading}>
+                            {loading
+                                ? <><span className="tn-spinner" /> Autenticando...</>
+                                : <>ENTRAR NO SISTEMA <ArrowRight size={16} /></>
+                            }
+                        </button>
 
-            {/* ══ MODAL CADASTRO ══ */}
-            {modalCadastro && (
-                <div className="tn-modal-overlay">
-                    <div className="tn-modal">
-                        <h3 className="tn-modal-title">
-                            <div className="tn-modal-icon" style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)' }}>
-                                <UserPlus size={22} color="#3b82f6" />
+                        <button type="button" className="tn-forgot" onClick={abrirModalEsqueci}>
+                            Esqueci minha senha
+                        </button>
+                    </form>
+                )}
+
+                {/* ── ABA CADASTRO inline ── */}
+                {abaAtiva === 'cadastro' && (
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                            <div style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 8, padding: '6px 8px', display: 'flex' }}>
+                                <UserPlus size={18} color="#3b82f6" />
                             </div>
-                            Novo Registro
-                        </h3>
-                        <p className="tn-modal-desc">Preencha seus dados para solicitar acesso ao sistema.</p>
-
-                        {aviso && (
-                            <div className={`tn-alert ${aviso.startsWith('Cadastro') ? 'tn-alert-success' : 'tn-alert-warn'}`}>
-                                {aviso}
-                            </div>
-                        )}
+                            <p className="tn-modal-desc" style={{ margin: 0 }}>Preencha seus dados para solicitar acesso ao sistema.</p>
+                        </div>
 
                         <label className="tn-field-label">Nome Completo</label>
                         <div className="tn-field">
@@ -359,9 +347,80 @@ export default function LoginScreen({ onLoginSuccess }) {
                         </div>
 
                         <div className="tn-modal-btns" style={{ marginTop: 20 }}>
-                            <button onClick={solicitarCadastro} className="tn-btn-primary">SOLICITAR</button>
-                            <button onClick={() => { setModalCadastro(false); setAbaAtiva('login'); }} className="tn-btn-ghost">VOLTAR</button>
+                            <button onClick={solicitarCadastro} className="tn-btn-primary">SOLICITAR ACESSO</button>
+                            <button onClick={() => setAbaAtiva('login')} className="tn-btn-ghost">VOLTAR</button>
                         </div>
+                    </div>
+                )}
+
+                <div className="tn-form-footer">
+                    © 2026 Transnet Transportes · Todos os direitos reservados.<br />
+                    <button onClick={() => setModalTermos(true)}>Termos de Uso</button>
+                    {' · '}
+                    <button onClick={() => setModalPrivacidade(true)}>Privacidade</button>
+                </div>
+            </section>
+
+            {/* ══ MODAL TERMOS DE USO ══ */}
+            {modalTermos && (
+                <div className="tn-modal-overlay" onClick={() => setModalTermos(false)}>
+                    <div className="tn-modal" style={{ maxWidth: 560, maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                        <h3 className="tn-modal-title">
+                            <div className="tn-modal-icon" style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)' }}>
+                                <FileText size={20} color="#3b82f6" />
+                            </div>
+                            Termos de Uso
+                        </h3>
+                        <div style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>
+                            <p><strong style={{ color: '#f1f5f9' }}>1. Aceitação</strong><br />
+                            Ao acessar o sistema Transnet Operacional, o usuário declara ter lido, compreendido e concordado com estes Termos de Uso.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>2. Uso Autorizado</strong><br />
+                            O sistema é de uso exclusivo de colaboradores e parceiros autorizados pela Transnet Transportes. O acesso é pessoal e intransferível. É vedado compartilhar credenciais com terceiros.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>3. Responsabilidades do Usuário</strong><br />
+                            O usuário é responsável por todas as ações realizadas com suas credenciais, incluindo lançamento de embarques, edição de dados de motoristas, emissão de CT-e e demais operações logísticas.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>4. Dados Inseridos</strong><br />
+                            As informações inseridas no sistema (dados de motoristas, veículos, cargas, CT-e) têm validade operacional e fiscal. O usuário deve garantir a veracidade e precisão dos dados lançados.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>5. Confidencialidade</strong><br />
+                            As informações operacionais acessadas por meio do sistema são confidenciais. É proibida a divulgação a terceiros não autorizados.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>6. Suspensão de Acesso</strong><br />
+                            A Transnet Transportes reserva-se o direito de suspender ou cancelar o acesso de qualquer usuário que viole estes termos ou cause danos ao sistema ou à operação.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>7. Foro</strong><br />
+                            Fica eleito o foro da Comarca de Recife — PE para dirimir quaisquer controvérsias decorrentes do uso deste sistema.</p>
+                            <p style={{ color: '#475569', fontSize: 11 }}>Última atualização: maio de 2026 · Transnet Transportes LTDA</p>
+                        </div>
+                        <button onClick={() => setModalTermos(false)} className="tn-btn-primary" style={{ marginTop: 20, width: '100%' }}>FECHAR</button>
+                    </div>
+                </div>
+            )}
+
+            {/* ══ MODAL PRIVACIDADE ══ */}
+            {modalPrivacidade && (
+                <div className="tn-modal-overlay" onClick={() => setModalPrivacidade(false)}>
+                    <div className="tn-modal" style={{ maxWidth: 560, maxHeight: '80vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                        <h3 className="tn-modal-title">
+                            <div className="tn-modal-icon" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                                <Shield size={20} color="#10b981" />
+                            </div>
+                            Política de Privacidade
+                        </h3>
+                        <div style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>
+                            <p><strong style={{ color: '#f1f5f9' }}>1. Dados Coletados</strong><br />
+                            O sistema coleta dados de acesso (e-mail, horário de login) e dados operacionais inseridos pelo usuário (motoristas, veículos, embarques, CT-e). Não coletamos dados pessoais além do necessário para a operação logística.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>2. Finalidade</strong><br />
+                            Os dados são utilizados exclusivamente para gestão logística interna, emissão de documentos fiscais (CT-e) e controle de frota da Transnet Transportes.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>3. Armazenamento</strong><br />
+                            Os dados são armazenados em servidores seguros com acesso restrito. Backups são realizados periodicamente para garantir a integridade das informações operacionais e fiscais.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>4. Compartilhamento</strong><br />
+                            Não compartilhamos dados com terceiros, exceto quando exigido por obrigação legal (ex.: SEFAZ, auditorias fiscais) ou por determinação judicial.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>5. Retenção</strong><br />
+                            Dados fiscais são retidos pelo prazo mínimo exigido pela legislação brasileira (5 anos). Dados operacionais podem ser arquivados conforme necessidade da empresa.</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>6. Direitos do Usuário</strong><br />
+                            O usuário pode solicitar a correção ou exclusão de seus dados de acesso através do administrador do sistema, conforme a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018).</p>
+                            <p><strong style={{ color: '#f1f5f9' }}>7. Contato</strong><br />
+                            Dúvidas sobre privacidade: <span style={{ color: '#60a5fa' }}>ti@tnetlog.com.br</span></p>
+                            <p style={{ color: '#475569', fontSize: 11 }}>Última atualização: maio de 2026 · Transnet Transportes LTDA</p>
+                        </div>
+                        <button onClick={() => setModalPrivacidade(false)} className="tn-btn-primary" style={{ marginTop: 20, width: '100%', background: 'linear-gradient(135deg, #10b981, #059669)' }}>FECHAR</button>
                     </div>
                 </div>
             )}

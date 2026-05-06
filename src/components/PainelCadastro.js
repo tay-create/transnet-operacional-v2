@@ -132,18 +132,18 @@ export default function PainelCadastro({ user, socket }) {
                 const inicial = {};
                 veiculosFiltrados.forEach(m => {
                     inicial[m.id] = {
-                        chk_cnh_cad: !!m.chk_cnh_cad,
-                        chk_antt_cad: !!m.chk_antt_cad,
-                        chk_tacografo_cad: !!m.chk_tacografo_cad,
-                        chk_crlv_cad: !!m.chk_crlv_cad,
-                        num_liberacao_cad: m.num_liberacao_cad || '',
-                        situacao_cad: m.situacao_cad || 'NÃO CONFERIDO',
-                        data_liberacao_cad: m.data_liberacao_cad || null,
+                        chk_cnh_cad: false,
+                        chk_antt_cad: false,
+                        chk_tacografo_cad: false,
+                        chk_crlv_cad: false,
+                        num_liberacao_cad: '',
+                        situacao_cad: 'NÃO CONFERIDO',
+                        data_liberacao_cad: null,
                         data_liberacao_manual: '',
-                        seguradora_cad: m.seguradora_cad || '',
-                        origem_cad: m.origem_cad || '',
-                        destino_uf_cad: m.destino_uf_cad || '',
-                        destino_cidade_cad: m.destino_cidade_cad || '',
+                        seguradora_cad: '',
+                        origem_cad: '',
+                        destino_uf_cad: '',
+                        destino_cidade_cad: '',
                     };
                 });
                 setEdicoesOp(inicial);

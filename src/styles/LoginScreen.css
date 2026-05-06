@@ -461,6 +461,14 @@
   font-family: var(--font-sans);
 }
 
+.tn-field input:-webkit-autofill,
+.tn-field input:-webkit-autofill:hover,
+.tn-field input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4) inset !important;
+  -webkit-text-fill-color: #fff !important;
+  caret-color: #fff;
+}
+
 .tn-field input::placeholder {
   color: var(--text-tertiary);
 }
