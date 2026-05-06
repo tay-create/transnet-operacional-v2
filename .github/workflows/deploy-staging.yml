@@ -58,6 +58,13 @@ jobs:
             '${{ secrets.SHEETS_PORCELANA_ID }}' \
             > /opt/transnet/staging/.env.staging
 
+      - name: Escrever google-credentials.json
+        run: |
+          cat > /opt/transnet/staging/google-credentials.json <<'EOF'
+          ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          EOF
+          chmod 644 /opt/transnet/staging/google-credentials.json
+
       - name: Copiar docker-compose.staging.yml
         run: cp ${{ github.workspace }}/docker-compose.staging.yml /opt/transnet/staging/
 
