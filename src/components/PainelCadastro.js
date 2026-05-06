@@ -141,9 +141,9 @@ export default function PainelCadastro({ user, socket }) {
                         data_liberacao_cad: m.data_liberacao_cad || null,
                         data_liberacao_manual: '',
                         seguradora_cad: m.seguradora_cad || '',
-                        origem_cad: '',
-                        destino_uf_cad: '',
-                        destino_cidade_cad: '',
+                        origem_cad: m.origem_cad || '',
+                        destino_uf_cad: m.destino_uf_cad || '',
+                        destino_cidade_cad: m.destino_cidade_cad || '',
                     };
                 });
                 setEdicoesOp(inicial);
