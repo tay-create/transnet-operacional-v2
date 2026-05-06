@@ -29,7 +29,7 @@ export default function EntrarMotorista() {
         setLoading(true);
         setErro('');
         try {
-            const { data } = await api.post('/tokens/auto', { telefone: nums });
+            const { data } = await api.post('/api/tokens/auto', { telefone: nums });
             window.location.href = `/cadastro/${data.token}`;
         } catch (err) {
             if (err.response?.status === 429) {

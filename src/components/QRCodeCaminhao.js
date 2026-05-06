@@ -39,17 +39,9 @@ export default function QRCodeCaminhao() {
                         <QRCodeSVG
                             value={QR_URL}
                             size={220}
-                            bgColor="transparent"
-                            fgColor="#f1f5f9"
-                            level="M"
-                            imageSettings={{
-                                src: '',
-                                x: undefined,
-                                y: undefined,
-                                height: 0,
-                                width: 0,
-                                excavate: false,
-                            }}
+                            bgColor="#ffffff"
+                            fgColor="#020617"
+                            level="H"
                         />
                         {/* Ícone caminhão sobreposto no centro */}
                         <div style={styles.qrCenter}>
@@ -165,6 +157,9 @@ const styles = {
     qrWrap: {
         position: 'relative',
         display: 'inline-flex',
+        background: '#ffffff',
+        padding: 12,
+        borderRadius: 12,
     },
     qrCenter: {
         position: 'absolute',
