@@ -2996,8 +2996,8 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
 
         // Buscar aba Delta-Porcelana: resumo (H6, J6, J7) + dados linha a linha
         const [resumoDP, dadosDP] = await Promise.all([
-            lerRangeTramontina(sheets, 'H6:J7', 'TRAMONTINA DELTA-PORCELANA'),
-            lerRangeTramontina(sheets, 'A10:R500', 'TRAMONTINA DELTA-PORCELANA'),
+            lerRangeTramontina(sheets, 'H6:J7', 'DELTA-PORCELANA'),
+            lerRangeTramontina(sheets, 'A10:R500', 'DELTA-PORCELANA'),
         ]);
 
         // Resumo: H6 = total rotas, J6 = embarcadas, J7 = pendentes
