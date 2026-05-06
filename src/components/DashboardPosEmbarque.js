@@ -2,8 +2,45 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/apiService';
 import {
     Clock, MapPin, Truck, User, AlertTriangle, AlertCircle,
-    CheckCircle, RefreshCw
+    CheckCircle, RefreshCw, Sun, Moon
 } from 'lucide-react';
+
+const TEMA = {
+    escuro: {
+        bg: 'transparent',
+        cardBg: 'rgba(10,15,30,0.85)',
+        cardBorder: (cor) => `1px solid ${cor}44`,
+        textPrimary: '#f1f5f9',
+        textSecondary: '#64748b',
+        textMuted: '#546e7a',
+        textCliente: '#e0f7fa',
+        textMotorista: '#b0bec5',
+        docBg: 'rgba(0,0,0,0.4)',
+        docBorder: '1px solid rgba(0,229,255,0.08)',
+        headerBg: (cor) => `linear-gradient(135deg, ${cor}11, transparent)`,
+        kpiBg: 'rgba(10,15,30,0.8)',
+        kpiBorder: (cor) => `1px solid ${cor}44`,
+        titleColor: '#00e5ff',
+        neonPulse: true,
+    },
+    claro: {
+        bg: '#f1f5f9',
+        cardBg: '#ffffff',
+        cardBorder: (cor) => `1px solid ${cor}88`,
+        textPrimary: '#0f172a',
+        textSecondary: '#475569',
+        textMuted: '#64748b',
+        textCliente: '#0f172a',
+        textMotorista: '#334155',
+        docBg: '#f8fafc',
+        docBorder: '1px solid #e2e8f0',
+        headerBg: (cor) => `linear-gradient(135deg, ${cor}22, ${cor}08)`,
+        kpiBg: '#ffffff',
+        kpiBorder: (cor) => `1px solid ${cor}88`,
+        titleColor: '#0f172a',
+        neonPulse: false,
+    },
+};
 
 // ──────────── Helpers ────────────────────────────────────
 const formatData = (d) => {
@@ -123,6 +160,8 @@ const neonCSS = `
 export default function DashboardPosEmbarque({ socket }) {
     const [ocorrencias, setOcorrencias] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [modoClaro, setModoClaro] = useState(false);
+    const tema = modoClaro ? TEMA.claro : TEMA.escuro;
 
     const carregar = useCallback(async () => {
         try {
@@ -168,26 +207,26 @@ export default function DashboardPosEmbarque({ socket }) {
     }
 
     return (
-        <div style={{ padding: '20px', color: '#f1f5f9', minHeight: '100vh' }}>
+        <div style={{ padding: '20px', color: tema.textPrimary, minHeight: '100vh', background: tema.bg, transition: 'background 0.3s, color 0.3s' }}>
             <style>{neonCSS}</style>
 
             {/* ── KPI BAR ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '28px' }}>
                 {kpis.map((k, i) => (
                     <div key={i} style={{
-                        background: 'rgba(10,15,30,0.8)',
+                        background: tema.kpiBg,
                         backdropFilter: 'blur(16px)',
-                        border: `1px solid ${k.cor}44`,
+                        border: tema.kpiBorder(k.cor),
                         borderBottom: `3px solid ${k.cor}`,
                         borderRadius: '16px',
                         padding: '22px 16px',
                         textAlign: 'center',
-                        boxShadow: `0 0 20px ${k.corGlow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
+                        boxShadow: modoClaro ? `0 2px 12px ${k.corGlow}` : `0 0 20px ${k.corGlow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
                         animation: `slideIn 0.5s ease ${i * 0.1}s both, kpiGlow 3s ease-in-out infinite`,
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8, color: k.cor, filter: `drop-shadow(0 0 6px ${k.corGlow})` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8, color: k.cor, filter: modoClaro ? 'none' : `drop-shadow(0 0 6px ${k.corGlow})` }}>
                             {k.icon}
-                            <span style={{ fontSize: 38, fontWeight: 'bold', textShadow: `0 0 15px ${k.corGlow}` }}>{k.valor}</span>
+                            <span style={{ fontSize: 38, fontWeight: 'bold', textShadow: modoClaro ? 'none' : `0 0 15px ${k.corGlow}` }}>{k.valor}</span>
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: k.cor, letterSpacing: 2, opacity: 0.85 }}>{k.label}</div>
                     </div>
@@ -195,10 +234,28 @@ export default function DashboardPosEmbarque({ socket }) {
             </div>
 
             {/* ── HEADER ── */}
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '24px', position: 'relative' }}>
+                {/* Botão claro/escuro */}
+                <button
+                    onClick={() => setModoClaro(v => !v)}
+                    title={modoClaro ? 'Modo escuro' : 'Modo claro'}
+                    style={{
+                        position: 'absolute', right: 0, top: 0,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: modoClaro ? '#0f172a' : '#f1f5f9',
+                        color: modoClaro ? '#f1f5f9' : '#0f172a',
+                        border: 'none', borderRadius: 10, padding: '7px 14px',
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    {modoClaro ? <Moon size={15} /> : <Sun size={15} />}
+                    {modoClaro ? 'Escuro' : 'Claro'}
+                </button>
+
                 <h1 style={{
-                    fontSize: '26px', fontWeight: 'bold', margin: 0, letterSpacing: 4, color: '#00e5ff',
-                    animation: 'neonPulse 3s ease-in-out infinite',
+                    fontSize: '26px', fontWeight: 'bold', margin: 0, letterSpacing: 4, color: tema.titleColor,
+                    animation: tema.neonPulse ? 'neonPulse 3s ease-in-out infinite' : 'none',
                 }}>
                     PAINEL DE OCORRÊNCIAS
                 </h1>
@@ -206,16 +263,15 @@ export default function DashboardPosEmbarque({ socket }) {
                     <span style={{
                         width: 10, height: 10, borderRadius: '50%', display: 'inline-block',
                         background: '#00e676',
-                        boxShadow: '0 0 8px rgba(0,230,118,0.8), 0 0 16px rgba(0,230,118,0.4)',
+                        boxShadow: modoClaro ? 'none' : '0 0 8px rgba(0,230,118,0.8), 0 0 16px rgba(0,230,118,0.4)',
                         animation: 'pulse 2s infinite'
                     }} />
-                    <span style={{ fontSize: 13, color: '#00e676', fontWeight: 600, textShadow: '0 0 8px rgba(0,230,118,0.4)' }}>Online — Tempo Real</span>
+                    <span style={{ fontSize: 13, color: '#00e676', fontWeight: 600 }}>Online — Tempo Real</span>
                 </div>
-                {/* Linha decorativa neon */}
                 <div style={{
                     marginTop: 12, height: 2, maxWidth: 300, margin: '12px auto 0',
-                    background: 'linear-gradient(90deg, transparent, #00e5ff, transparent)',
-                    boxShadow: '0 0 10px rgba(0,229,255,0.5)',
+                    background: modoClaro ? '#e2e8f0' : 'linear-gradient(90deg, transparent, #00e5ff, transparent)',
+                    boxShadow: modoClaro ? 'none' : '0 0 10px rgba(0,229,255,0.5)',
                 }} />
             </div>
 
@@ -236,24 +292,26 @@ export default function DashboardPosEmbarque({ socket }) {
 
                         return (
                             <div key={oc.id} style={{
-                                background: 'rgba(10,15,30,0.85)',
+                                background: tema.cardBg,
                                 backdropFilter: 'blur(16px)',
-                                border: `1px solid ${bordaCor}44`,
+                                border: tema.cardBorder(bordaCor),
                                 borderLeft: `4px solid ${bordaCor}`,
                                 borderRadius: '16px',
                                 padding: 0,
                                 overflow: 'hidden',
-                                boxShadow: getCardGlow(oc),
+                                boxShadow: modoClaro ? `0 2px 12px ${bordaCor}33` : getCardGlow(oc),
                                 animation: `slideIn 0.4s ease ${idx * 0.05}s both${isAtrasado && h > 48 ? ', cardPulseRed 2.5s ease-in-out infinite' : ''}${isResolvido ? ', cardPulseGreen 3s ease-in-out infinite' : ''}`,
                                 transition: 'transform 0.3s, box-shadow 0.3s',
                             }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.transform = 'translateY(-4px) scale(1.01)';
-                                e.currentTarget.style.boxShadow = `0 0 35px ${bordaCor}44, 0 12px 40px rgba(0,0,0,0.5)`;
+                                e.currentTarget.style.boxShadow = modoClaro
+                                    ? `0 8px 24px ${bordaCor}55`
+                                    : `0 0 35px ${bordaCor}44, 0 12px 40px rgba(0,0,0,0.5)`;
                             }}
                             onMouseLeave={e => {
                                 e.currentTarget.style.transform = '';
-                                e.currentTarget.style.boxShadow = getCardGlow(oc);
+                                e.currentTarget.style.boxShadow = modoClaro ? `0 2px 12px ${bordaCor}33` : getCardGlow(oc);
                             }}
                             >
                                 {/* TOPO: Status + Data/Hora */}
@@ -261,7 +319,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                     padding: '12px 16px',
                                     borderBottom: `1px solid ${bordaCor}22`,
-                                    background: `linear-gradient(135deg, ${bordaCor}11, transparent)`,
+                                    background: tema.headerBg(bordaCor),
                                 }}>
                                     <span style={{
                                         padding: '4px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
@@ -271,7 +329,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     }}>
                                         {status.label}
                                     </span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748b' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: tema.textSecondary }}>
                                         <Clock size={12} />
                                         {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia || ''}
                                     </div>
@@ -303,9 +361,9 @@ export default function DashboardPosEmbarque({ socket }) {
 
                                     {/* Cliente */}
                                     <div style={{
-                                        fontSize: 17, fontWeight: 'bold', color: '#e0f7fa', marginBottom: 8,
+                                        fontSize: 17, fontWeight: 'bold', color: tema.textCliente, marginBottom: 8,
                                         textTransform: 'uppercase', letterSpacing: 0.5,
-                                        textShadow: '0 0 6px rgba(0,229,255,0.15)',
+                                        textShadow: modoClaro ? 'none' : '0 0 6px rgba(0,229,255,0.15)',
                                     }}>
                                         {oc.cliente || '—'}
                                     </div>
@@ -320,9 +378,9 @@ export default function DashboardPosEmbarque({ socket }) {
                                     {/* Documentos */}
                                     {(oc.cte || oc.nfs) && (
                                         <div style={{
-                                            background: 'rgba(0,0,0,0.4)', borderRadius: 10, padding: '10px 14px',
+                                            background: tema.docBg, borderRadius: 10, padding: '10px 14px',
                                             marginBottom: 10, display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12,
-                                            border: '1px solid rgba(0,229,255,0.08)',
+                                            border: tema.docBorder,
                                         }}>
                                             {oc.cte && <span style={{ color: '#78909c' }}>CTE: <span style={{ color: '#b2ebf2', fontWeight: 600 }}>{oc.cte}</span></span>}
                                             {oc.nfs && <span style={{ color: '#78909c' }}>NF: <span style={{ color: '#b2ebf2', fontWeight: 600 }}>{oc.nfs}</span></span>}
@@ -331,7 +389,7 @@ export default function DashboardPosEmbarque({ socket }) {
 
                                     {/* Motorista + Modalidade */}
                                     {oc.motorista && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13, color: '#b0bec5' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13, color: tema.textMotorista }}>
                                             <Truck size={15} style={{ color: '#ff9100', filter: 'drop-shadow(0 0 4px rgba(255,145,0,0.4))' }} />
                                             <span style={{ fontWeight: 500 }}>{oc.motorista}</span>
                                             {oc.modalidade && (
@@ -357,9 +415,9 @@ export default function DashboardPosEmbarque({ socket }) {
 
                                     {/* Responsável */}
                                     {oc.responsavel && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#546e7a' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: tema.textMuted }}>
                                             <User size={13} />
-                                            RESP: <span style={{ color: '#78909c', fontWeight: 500 }}>{oc.responsavel}</span>
+                                            RESP: <span style={{ color: tema.textSecondary, fontWeight: 500 }}>{oc.responsavel}</span>
                                         </div>
                                     )}
                                 </div>
