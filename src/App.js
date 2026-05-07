@@ -9,7 +9,7 @@ import {
 } from './constants';
 import MainLayout from './components/layout/MainLayout';
 import './App.css';
-import { CheckCircle as CheckCircleIcon, Phone, LayoutGrid } from 'lucide-react';
+import { CheckCircle as CheckCircleIcon, Phone } from 'lucide-react';
 import useAuthStore from './store/useAuthStore';
 import useUIStore from './store/useUIStore';
 import useConfigStore from './store/useConfigStore';
@@ -20,7 +20,7 @@ import ModalConfirm from './components/ModalConfirm';
 // Lazy imports — carregam sob demanda na primeira navegação
 const PainelOperacional    = React.lazy(() => import('./components/PainelOperacional'));
 const PainelCte            = React.lazy(() => import('./components/PainelCte'));
-// const ModuloCubagem     = React.lazy(() => import('./components/ModuloCubagem')); // oculto em prod
+// TODO: ModuloCubagem — feature de cálculo de cubagem, mantida para futura ativação. Descomentar e adicionar rota 'cubagem' no Sidebar/permissões para habilitar.
 const NovoLancamento       = React.lazy(() => import('./components/NovoLancamento'));
 const LogsAuditoria        = React.lazy(() => import('./components/LogsAuditoria'));
 const DashboardTV          = React.lazy(() => import('./components/DashboardTV'));
@@ -38,7 +38,7 @@ const DashboardFrota       = React.lazy(() => import('./components/DashboardFrot
 const RelatorioPerformance = React.lazy(() => import('./components/RelatorioPerformance'));
 const RelatorioContratacao = React.lazy(() => import('./components/RelatorioContratacao'));
 const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'));
-// const RelatorioCubagem  = React.lazy(() => import('./components/RelatorioCubagem')); // oculto em prod
+// TODO: RelatorioCubagem — relatório de cubagem, mantido para futura ativação junto com ModuloCubagem.
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
 const PlanejamentoTramontina = React.lazy(() => import('./components/PlanejamentoTramontina'));

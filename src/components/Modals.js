@@ -1,65 +1,10 @@
 import React, { useState } from 'react';
 import {
-    X, Clock, BarChart3, Search, FileDown,
+    X, BarChart3, Search, FileDown,
     ClipboardList, GripVertical, Plus, Trash2,
-    CheckCircle,
     PieChart, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { displayColetaMoreno } from '../utils/coletaMoreno';
-
-// --- MODAL DE TEMPOS (OPERAÇÃO) ---
-export const ModalTempos = ({ item, onClose, atualizarTempo, isOpen }) => {
-    if (!isOpen || !item || !item.lista) return null;
-
-    const campoAlvo = item.origem === 'Recife' ? 'tempos_recife' : 'tempos_moreno';
-    const veiculo = item.lista[item.index];
-    if (!veiculo) return null;
-
-    const temposAtuais = veiculo[campoAlvo] || {};
-
-    return (
-        <div className="modal-overlay">
-            <div className="modal-neon-panel" style={{ width: '500px', maxWidth: '90%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>
-                    <h3 style={{ color: '#38bdf8', margin: 0, textShadow: '0 0 10px rgba(56,189,248,0.5)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <Clock size={20} /> Tempos - {item.origem?.toUpperCase()}
-                    </h3>
-                    <button onClick={onClose} className="btn-close-header"><X size={18} /></button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                    <div className="input-group">
-                        <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>INÍCIO SEPARAÇÃO</label>
-                        <input type="time" value={temposAtuais.inicio_separacao || ''} onChange={e => atualizarTempo('inicio_separacao', e.target.value)} />
-                    </div>
-                    <div className="input-group">
-                        <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>FIM SEPARAÇÃO</label>
-                        <input type="time" value={temposAtuais.fim_separacao || ''} onChange={e => atualizarTempo('fim_separacao', e.target.value)} />
-                    </div>
-                    <div className="input-group">
-                        <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>INÍCIO CARREGAMENTO</label>
-                        <input type="time" value={temposAtuais.inicio_carregamento || ''} onChange={e => atualizarTempo('inicio_carregamento', e.target.value)} />
-                    </div>
-                    <div className="input-group">
-                        <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>FIM CARREGAMENTO</label>
-                        <input type="time" value={temposAtuais.fim_carregamento || ''} onChange={e => atualizarTempo('fim_carregamento', e.target.value)} />
-                    </div>
-                    <div className="input-group">
-                        <label style={{ color: '#fbbf24', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>CARREGADO ÀS (auto)</label>
-                        <input type="time" value={temposAtuais.t_inicio_carregado || ''} onChange={e => atualizarTempo('t_inicio_carregado', e.target.value)} />
-                    </div>
-                    <div className="input-group">
-                        <label style={{ color: '#a78bfa', fontSize: '11px', fontWeight: 'bold', marginBottom: '5px', display: 'block' }}>LIBERADO P/ CT-e (auto)</label>
-                        <input type="time" value={temposAtuais.t_fim_liberado_cte || ''} onChange={e => atualizarTempo('t_fim_liberado_cte', e.target.value)} />
-                    </div>
-                </div>
-                <button onClick={onClose} className="btn-neon" style={{ marginTop: '25px', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-                    <CheckCircle size={18} /> SALVAR E FECHAR
-                </button>
-            </div>
-        </div>
-    );
-};
 
 // --- MODAL DE RELATÓRIO OPERACIONAL ---
 export const ModalRelatorio = ({
