@@ -217,6 +217,29 @@ body,
   font-family: 'Inter', sans-serif;
 }
 
+/* Tema claro: troca o fundo geral e melhora contraste de elementos comuns */
+[data-theme="claro"] body,
+[data-theme="claro"] .full-screen {
+  background-color: #f1f5f9 !important;
+  color: #0f172a;
+}
+[data-theme="claro"] .full-screen::before {
+  display: none !important;
+}
+[data-theme="claro"] .container-central {
+  color: #0f172a;
+}
+/* Garante que os modais glass continuem legíveis no claro */
+[data-theme="claro"] .modal-glass {
+  background: #ffffff !important;
+  color: #0f172a;
+  border: 1px solid #e2e8f0 !important;
+}
+[data-theme="claro"] .modal-title,
+[data-theme="claro"] .modal-desc {
+  color: #0f172a !important;
+}
+
 /* O Container que centraliza tudo */
 .login-wrapper {
   min-height: 100vh;

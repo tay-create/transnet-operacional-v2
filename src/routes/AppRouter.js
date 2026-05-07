@@ -9,6 +9,7 @@ import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
 import NotFound from '../components/NotFound';
 import io from 'socket.io-client';
+import { ThemeProvider } from '../contexts/ThemeContext';
 
 const MobileApp = React.lazy(() => import('../mobile/MobileApp'));
 
@@ -19,7 +20,7 @@ const socket = io(API_URL);
  * ROTEADOR PRINCIPAL
  * Gerencia rotas públicas, privadas e estado de autenticação global.
  */
-function AppRouter() {
+function AppRouterInner() {
     const { isAuthenticated, user } = useAuthStore();
     const path = window.location.pathname;
 
@@ -84,6 +85,14 @@ function AppRouter() {
 
     // 5. Sistema Principal (Admin/Operacional)
     return <App socket={socket} />;
+}
+
+function AppRouter() {
+    return (
+        <ThemeProvider>
+            <AppRouterInner />
+        </ThemeProvider>
+    );
 }
 
 export default AppRouter;

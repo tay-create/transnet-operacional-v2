@@ -311,7 +311,8 @@ export default function ProvisionamentoFrota({ socket, user }) {
     }
 
     async function salvarModal() {
-        if (!formVeiculo.placa || !formVeiculo.tipo_veiculo) return;
+        // Pelo menos uma identificação (placa ou carreta) e o tipo são obrigatórios
+        if ((!formVeiculo.placa && !formVeiculo.carreta) || !formVeiculo.tipo_veiculo) return;
         setSalvandoModal(true);
         try {
             if (modalVeiculo === 'novo') {
@@ -466,7 +467,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
                         <tbody>
                             {veiculos.map(v => (
                                 <tr key={v.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                    <td style={s.td}><span style={s.placa}>{v.placa}</span></td>
+                                    <td style={s.td}><span style={s.placa}>{v.placa || '—'}</span></td>
                                     <td style={s.td}><span style={{ color: '#64748b', fontSize: '12px' }}>{v.carreta || '—'}</span></td>
                                     <td style={s.td}>
                                         <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px' }}>
@@ -567,7 +568,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 <div>
-                                    <label style={s.label}>Placa *</label>
+                                    <label style={s.label}>Placa</label>
                                     <input style={s.input} value={formVeiculo.placa} onChange={e => setFormVeiculo(f => ({ ...f, placa: e.target.value.toUpperCase() }))} placeholder="Ex: FCW8G26" />
                                 </div>
                                 <div>
@@ -641,7 +642,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
 
                         <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
                             <button onClick={() => setModalVeiculo(null)} style={s.btnSecondary}>Cancelar</button>
-                            <button onClick={salvarModal} disabled={salvandoModal || !formVeiculo.placa} style={{ ...s.btnPrimary, opacity: !formVeiculo.placa ? 0.5 : 1 }}>
+                            <button onClick={salvarModal} disabled={salvandoModal || (!formVeiculo.placa && !formVeiculo.carreta)} style={{ ...s.btnPrimary, opacity: (!formVeiculo.placa && !formVeiculo.carreta) ? 0.5 : 1 }}>
                                 <Save size={14} /> {salvandoModal ? 'Salvando...' : 'Salvar'}
                             </button>
                         </div>

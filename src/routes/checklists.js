@@ -251,6 +251,10 @@ module.exports = function createChecklistsRouter(io) {
                     checklistAprovado = !!chk;
                 }
 
+                // Cordas extras (último checklist do veículo)
+                const chkCordas = await dbGet("SELECT cordas_adicionais FROM checklists_carreta WHERE veiculo_id = ? ORDER BY id DESC LIMIT 1", [v.id]);
+                const cordasAdicionais = chkCordas?.cordas_adicionais || 0;
+
                 return {
                     id: v.id,
                     motorista: v.motorista || 'A DEFINIR',
@@ -278,6 +282,7 @@ module.exports = function createChecklistsRouter(io) {
                     coletaMoreno,
                     isMista,
                     checklistAprovado,
+                    cordas_adicionais: cordasAdicionais,
                     status_cte: v.status_cte || '',
                     status_recife: v.status_recife || '',
                     status_moreno: v.status_moreno || '',
@@ -880,6 +885,36 @@ module.exports = function createChecklistsRouter(io) {
         } catch (e) {
             console.error('Erro ao liberar carregamento:', e);
             res.status(500).json({ success: false, message: 'Erro ao processar liberação.' });
+        }
+    });
+
+    // ── Editar/registrar quantidade de cordas extras por veiculo_id ──
+    // O conferente registra cordas extras entregues ao motorista direto pelo card do veículo,
+    // independente de já existir checklist (cria registro mínimo se não houver).
+    router.patch('/api/conferente/veiculos/:veiculoId/cordas-extras', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
+        try {
+            const veiculoId = Number(req.params.veiculoId);
+            const qtd = parseInt(req.body.cordas_adicionais, 10);
+            if (isNaN(qtd) || qtd < 0) return res.status(400).json({ success: false, message: 'Quantidade inválida.' });
+            const existente = await dbGet('SELECT id FROM checklists_carreta WHERE veiculo_id = ? ORDER BY id DESC LIMIT 1', [veiculoId]);
+            if (existente) {
+                await dbRun('UPDATE checklists_carreta SET cordas_adicionais = $1 WHERE id = $2', [qtd, existente.id]);
+            } else {
+                // Sem checklist ainda — cria registro mínimo só com a quantidade de cordas extras
+                const veiculo = await dbGet('SELECT motorista, placa FROM veiculos WHERE id = ?', [veiculoId]);
+                await dbRun(
+                    `INSERT INTO checklists_carreta (
+                        veiculo_id, motorista_nome, placa_carreta, placa_confere,
+                        condicao_bau, cordas, cordas_adicionais, conferente_nome, created_at, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [veiculoId, veiculo?.motorista || '', veiculo?.placa || '', 0, '', 0, qtd, req.user?.nome || '', new Date().toISOString(), 'PENDENTE_EXTRAS']
+                );
+            }
+            io.emit('receber_atualizacao', { tipo: 'cordas_extras_atualizada', veiculo_id: veiculoId, cordas_adicionais: qtd });
+            res.json({ success: true, cordas_adicionais: qtd });
+        } catch (e) {
+            console.error('Erro ao atualizar cordas extras:', e);
+            res.status(500).json({ success: false, message: 'Erro ao atualizar cordas extras.' });
         }
     });
 

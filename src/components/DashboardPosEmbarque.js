@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/apiService';
 import {
     Clock, MapPin, Truck, User, AlertTriangle, AlertCircle,
-    CheckCircle, RefreshCw, Sun, Moon
+    CheckCircle, RefreshCw
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 const TEMA = {
     escuro: {
@@ -160,7 +161,8 @@ const neonCSS = `
 export default function DashboardPosEmbarque({ socket }) {
     const [ocorrencias, setOcorrencias] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [modoClaro, setModoClaro] = useState(false);
+    const { tema: temaGlobal } = useTheme();
+    const modoClaro = temaGlobal === 'claro';
     const tema = modoClaro ? TEMA.claro : TEMA.escuro;
 
     const carregar = useCallback(async () => {
@@ -235,24 +237,6 @@ export default function DashboardPosEmbarque({ socket }) {
 
             {/* ── HEADER ── */}
             <div style={{ textAlign: 'center', marginBottom: '24px', position: 'relative' }}>
-                {/* Botão claro/escuro */}
-                <button
-                    onClick={() => setModoClaro(v => !v)}
-                    title={modoClaro ? 'Modo escuro' : 'Modo claro'}
-                    style={{
-                        position: 'absolute', right: 0, top: 0,
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        background: modoClaro ? '#0f172a' : '#f1f5f9',
-                        color: modoClaro ? '#f1f5f9' : '#0f172a',
-                        border: 'none', borderRadius: 10, padding: '7px 14px',
-                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        transition: 'all 0.2s',
-                    }}
-                >
-                    {modoClaro ? <Moon size={15} /> : <Sun size={15} />}
-                    {modoClaro ? 'Escuro' : 'Claro'}
-                </button>
-
                 <h1 style={{
                     fontSize: '26px', fontWeight: 'bold', margin: 0, letterSpacing: 4, color: tema.titleColor,
                     animation: tema.neonPulse ? 'neonPulse 3s ease-in-out infinite' : 'none',

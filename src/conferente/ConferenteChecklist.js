@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar, Camera, Lock
+    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar, Camera, Lock, Plus
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -109,6 +109,9 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [salvandoTransfer, setSalvandoTransfer] = useState(false);
     const [statusManual, setStatusManual] = useState(v.status || STATUS_CONFERENTE[0]);
     const [modalFotoLacre, setModalFotoLacre] = useState(false);
+    const [modalCordasExtras, setModalCordasExtras] = useState(false);
+    const [qtdCordasExtras, setQtdCordasExtras] = useState(v.cordas_adicionais || 0);
+    const [salvandoCordas, setSalvandoCordas] = useState(false);
     const [fotosLacre, setFotosLacre] = useState([]);
     const [salvandoLacre, setSalvandoLacre] = useState(false);
     const inputFotoRef = useRef(null);
@@ -419,6 +422,22 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             <ClipboardCheck size={14} /> CHECKLIST DA CARRETA
                         </button>
                     )}
+
+                    {/* Botão Corda Extra — registra cordas adicionais entregues ao motorista */}
+                    <button
+                        onClick={() => { setQtdCordasExtras(v.cordas_adicionais || 0); setModalCordasExtras(true); }}
+                        style={{
+                            width: '100%', padding: '10px',
+                            borderRadius: '10px',
+                            border: `1px solid ${(v.cordas_adicionais || 0) > 0 ? 'rgba(251,146,60,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                            background: (v.cordas_adicionais || 0) > 0 ? 'rgba(251,146,60,0.12)' : 'rgba(255,255,255,0.04)',
+                            color: (v.cordas_adicionais || 0) > 0 ? '#fb923c' : '#94a3b8',
+                            fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                        }}
+                    >
+                        <Plus size={14} /> CORDA EXTRA{(v.cordas_adicionais || 0) > 0 ? ` · ${v.cordas_adicionais} un.` : ''}
+                    </button>
 
                     {/* Botão Transferência — pula direto para CARREGADO */}
                     {v.status !== 'CARREGADO' && (
@@ -747,6 +766,55 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                     onClose={() => setModalPausa(false)}
                     onSucesso={() => { setModalPausa(false); onRecarregar(); }}
                 />
+            )}
+
+            {/* Modal Cordas Extras */}
+            {modalCordasExtras && (
+                <div onClick={() => !salvandoCordas && setModalCordasExtras(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: '#0f172a', border: '1px solid rgba(251,146,60,0.35)', borderRadius: '14px', padding: '20px', width: '100%', maxWidth: '340px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <Plus size={18} color="#fb923c" />
+                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#f1f5f9' }}>Corda Extra — {v.motorista}</h3>
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px' }}>
+                            Cordas adicionais entregues ao motorista (além das que já vieram com a carreta).
+                        </p>
+                        <input
+                            type="number" min="0" autoFocus
+                            value={qtdCordasExtras}
+                            onChange={e => setQtdCordasExtras(parseInt(e.target.value) || 0)}
+                            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '15px', fontWeight: '600', outline: 'none', marginBottom: '14px' }}
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => setModalCordasExtras(false)}
+                                disabled={salvandoCordas}
+                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setSalvandoCordas(true);
+                                    try {
+                                        await api.patch(`/api/conferente/veiculos/${v.id}/cordas-extras`, { cordas_adicionais: qtdCordasExtras });
+                                        v.cordas_adicionais = qtdCordasExtras;
+                                        setModalCordasExtras(false);
+                                        onRecarregar?.();
+                                    } catch (e) {
+                                        alert(e.response?.data?.message || 'Erro ao salvar.');
+                                    } finally {
+                                        setSalvandoCordas(false);
+                                    }
+                                }}
+                                disabled={salvandoCordas}
+                                style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', background: salvandoCordas ? 'rgba(251,146,60,0.4)' : 'linear-gradient(135deg, #ea580c, #fb923c)', color: 'white', fontSize: '13px', cursor: salvandoCordas ? 'not-allowed' : 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                {salvandoCordas ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Salvando...</> : <><CheckCircle size={13} /> Salvar</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

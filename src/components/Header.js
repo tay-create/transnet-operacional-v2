@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
     Bell, User, Check, X,
     Calendar, LogOut, ClipboardList, FileText,
-    AlertTriangle, ShieldOff, MessageCircle, MessageSquare
+    AlertTriangle, ShieldOff, MessageCircle, MessageSquare, Sun, Moon
 } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
 import api from '../services/apiService';
@@ -72,6 +73,8 @@ export default function Header({
 
     const [time, setTime] = useState(new Date());
     const [modalChamadosAberto, setModalChamadosAberto] = useState(false);
+    const [menuPerfilAberto, setMenuPerfilAberto] = useState(false);
+    const { tema, toggle: toggleTema } = useTheme();
 
     useEffect(() => {
         const timer = setInterval(() => setTime(new Date()), 1000);
@@ -235,9 +238,41 @@ export default function Header({
                     </div>
                 </div>
 
-                <button onClick={onLogout} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#fca5a5', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }} title="Sair do Sistema">
-                    <LogOut size={16} />
-                </button>
+                <div style={{ position: 'relative' }}>
+                    <button
+                        onClick={() => setMenuPerfilAberto(v => !v)}
+                        title="Configurações"
+                        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                        {tema === 'claro' ? <Sun size={16} /> : <Moon size={16} />}
+                    </button>
+                    {menuPerfilAberto && (
+                        <>
+                            <div onClick={() => setMenuPerfilAberto(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />
+                            <div style={{
+                                position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 200,
+                                background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)',
+                                borderRadius: '10px', minWidth: '200px',
+                                boxShadow: '0 12px 32px rgba(0,0,0,0.5)', overflow: 'hidden',
+                            }}>
+                                <button
+                                    onClick={() => { toggleTema(); setMenuPerfilAberto(false); }}
+                                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: '#e2e8f0', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}
+                                >
+                                    {tema === 'claro' ? <Moon size={14} color="#94a3b8" /> : <Sun size={14} color="#fbbf24" />}
+                                    Tema: {tema === 'claro' ? 'Mudar para escuro' : 'Mudar para claro'}
+                                </button>
+                                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)' }} />
+                                <button
+                                    onClick={() => { setMenuPerfilAberto(false); onLogout(); }}
+                                    style={{ width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: '#fca5a5', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}
+                                >
+                                    <LogOut size={14} /> Sair do sistema
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </header>
 

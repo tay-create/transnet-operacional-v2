@@ -3176,10 +3176,14 @@ app.get('/api/provisionamento/veiculos', authMiddleware, async (req, res) => {
 app.post('/api/provisionamento/veiculos', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
     try {
         const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
-        if (!placa || !tipo_veiculo) return res.status(400).json({ success: false, message: 'Placa e tipo_veiculo são obrigatórios.' });
+        const placaNorm = (placa || '').trim().toUpperCase() || null;
+        const carretaNorm = (carreta || '').trim().toUpperCase() || null;
+        if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
+            return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
+        }
         const r = await dbRun(
             'INSERT INTO prov_veiculos (placa, carreta, tipo_veiculo, modelo, motorista, ordem) VALUES ($1,$2,$3,$4,$5,$6)',
-            [placa.trim().toUpperCase(), (carreta || '').trim().toUpperCase() || null, tipo_veiculo, modelo || null, motorista || null, ordem || 0]
+            [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0]
         );
         res.json({ success: true, id: r.lastID || r.insertId });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
@@ -3189,9 +3193,14 @@ app.post('/api/provisionamento/veiculos', authMiddleware, authorize(PROV_EDITORE
 app.put('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
     try {
         const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
+        const placaNorm = (placa || '').trim().toUpperCase() || null;
+        const carretaNorm = (carreta || '').trim().toUpperCase() || null;
+        if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
+            return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
+        }
         await dbRun(
             'UPDATE prov_veiculos SET placa=$1, carreta=$2, tipo_veiculo=$3, modelo=$4, motorista=$5, ordem=$6 WHERE id=$7',
-            [placa.trim().toUpperCase(), (carreta || '').trim().toUpperCase() || null, tipo_veiculo, modelo || null, motorista || null, ordem || 0, req.params.id]
+            [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0, req.params.id]
         );
         res.json({ success: true });
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }

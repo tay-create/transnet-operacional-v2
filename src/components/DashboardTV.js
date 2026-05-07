@@ -1147,7 +1147,8 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
             cells[col.key] = count;
             total += count;
         });
-        return { dia, cells, total };
+        const reprogramados = veicsDia.filter(v => v.foi_reprogramado === 1 || v.foi_reprogramado === true).length;
+        return { dia, cells, total, reprogramados };
     });
 
     // Totais por coluna
@@ -1156,6 +1157,7 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
         totaisColunas[col.key] = linhasTabela.reduce((a, l) => a + (l.cells[col.key] || 0), 0);
     });
     const totalGeral = linhasTabela.reduce((a, l) => a + l.total, 0);
+    const totalReprogramados = linhasTabela.reduce((a, l) => a + (l.reprogramados || 0), 0);
 
     return (
         <div className="tv-card-anim">
@@ -1300,6 +1302,9 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                                     <th style={{ padding: '10px 10px', textAlign: 'center', fontSize: '9px', fontWeight: '800', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: `1px solid ${t.border}`, borderLeft: `1px solid ${t.border}` }}>
                                         TOTAL
                                     </th>
+                                    <th style={{ padding: '10px 10px', textAlign: 'center', fontSize: '9px', fontWeight: '800', color: '#fb923c', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: `2px solid #fb923c40`, borderLeft: `1px solid ${t.border}`, whiteSpace: 'nowrap' }}>
+                                        REPROGRAMADOS
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1338,6 +1343,15 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                                             <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: `1px solid ${t.border}20`, borderLeft: `1px solid ${t.border}20` }}>
                                                 <span style={{ fontSize: '13px', fontWeight: '800', color: isHoje ? '#22d3ee' : t.text }}>{linha.total}</span>
                                             </td>
+                                            <td style={{ padding: '8px 10px', textAlign: 'center', borderBottom: `1px solid ${t.border}20`, borderLeft: `1px solid ${t.border}20` }}>
+                                                {linha.reprogramados > 0 ? (
+                                                    <span style={{ display: 'inline-block', minWidth: '28px', padding: '2px 8px', background: 'rgba(251,146,60,0.18)', color: '#fb923c', borderRadius: '6px', fontSize: '13px', fontWeight: '800' }}>
+                                                        {linha.reprogramados}
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ color: t.textDim, fontSize: '11px' }}>—</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     );
                                 })}
@@ -1354,6 +1368,11 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                                     ))}
                                     <td style={{ padding: '10px 10px', textAlign: 'center', borderLeft: `1px solid ${t.border}` }}>
                                         <span style={{ fontSize: '14px', fontWeight: '900', color: '#22d3ee' }}>{totalGeral}</span>
+                                    </td>
+                                    <td style={{ padding: '10px 10px', textAlign: 'center', borderLeft: `1px solid ${t.border}` }}>
+                                        <span style={{ fontSize: '14px', fontWeight: '900', color: totalReprogramados > 0 ? '#fb923c' : t.textDim }}>
+                                            {totalReprogramados || '—'}
+                                        </span>
                                     </td>
                                 </tr>
                             </tfoot>

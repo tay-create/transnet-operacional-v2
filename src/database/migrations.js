@@ -460,7 +460,7 @@ const inicializarBanco = async () => {
         // ── Provisionamento de Frota ───────────────────────────────────────────
         await dbRun(`CREATE TABLE IF NOT EXISTS prov_veiculos (
             id SERIAL PRIMARY KEY,
-            placa TEXT NOT NULL,
+            placa TEXT,
             carreta TEXT,
             tipo_veiculo TEXT NOT NULL,
             modelo TEXT,
@@ -479,6 +479,8 @@ const inicializarBanco = async () => {
         )`);
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_prog_data ON prov_programacao(data)`); } catch (_) {}
         try { await dbRun(`CREATE INDEX IF NOT EXISTS idx_prov_veiculos_ativo ON prov_veiculos(ativo, ordem)`); } catch (_) {}
+        // Relaxa placa NOT NULL — carreta pura pode ser cadastrada só com campo "carreta" preenchido
+        try { await dbRun(`ALTER TABLE prov_veiculos ALTER COLUMN placa DROP NOT NULL`); } catch (_) {}
         await dbRun(`CREATE TABLE IF NOT EXISTS frota_obs_diarias (
             id SERIAL PRIMARY KEY,
             data_referencia DATE NOT NULL UNIQUE,

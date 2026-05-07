@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───── Tema Global (escuro padrão / claro opcional) ─────
+   Componentes podem usar var(--tn-bg-app), var(--tn-text-primary) etc.
+   Atributo data-theme no <html> alterna entre os modos. */
+:root, [data-theme="escuro"] {
+  --tn-bg-app: #0f172a;
+  --tn-bg-surface: rgba(255, 255, 255, 0.03);
+  --tn-bg-card: rgba(15, 23, 42, 0.85);
+  --tn-bg-overlay: rgba(0, 0, 0, 0.5);
+  --tn-text-primary: #f1f5f9;
+  --tn-text-secondary: #94a3b8;
+  --tn-text-muted: #64748b;
+  --tn-border: rgba(255, 255, 255, 0.08);
+  --tn-header-bg: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="claro"] {
+  --tn-bg-app: #f1f5f9;
+  --tn-bg-surface: #ffffff;
+  --tn-bg-card: #ffffff;
+  --tn-bg-overlay: rgba(15, 23, 42, 0.4);
+  --tn-text-primary: #0f172a;
+  --tn-text-secondary: #475569;
+  --tn-text-muted: #64748b;
+  --tn-border: #e2e8f0;
+  --tn-header-bg: #ffffff;
+}
+
+/* Aplica fundo global padrão ao body conforme o tema */
+body[data-theme="claro"] {
+  background: var(--tn-bg-app);
+  color: var(--tn-text-primary);
+}
+
+/* No modo claro, neutraliza efeitos neon (glow/text-shadow/drop-shadow) que ficariam estourados
+   sobre fundo branco. Animações que tocam text-shadow ficam pausadas. */
+[data-theme="claro"] *,
+body[data-theme="claro"] * {
+  text-shadow: none !important;
+}
+[data-theme="claro"] svg {
+  filter: none !important;
+}
+[data-theme="claro"] .tn-neon,
+[data-theme="claro"] [class*="neon"] {
+  animation: none !important;
+}
+
 @keyframes logo-wind {
   0%, 100% { transform: skewX(-12deg) translateX(0px); }
   50% { transform: skewX(-13deg) translateX(1px); }

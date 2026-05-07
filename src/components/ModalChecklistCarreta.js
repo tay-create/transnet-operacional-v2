@@ -11,7 +11,6 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     const [condicaoOutra, setCondicaoOutra] = useState('');
     const [temCordas, setTemCordas] = useState(false);
     const [qtdCordas, setQtdCordas] = useState('');
-    const [qtdCordasAdicionais, setQtdCordasAdicionais] = useState(0);
     const [temVazamento, setTemVazamento] = useState(false);
     const [fotoVazamento, setFotoVazamento] = useState(null); // legado — primeira foto
     const [midiasAvaria, setMidiasAvaria] = useState([]); // [{ tipo, data, thumb? }]
@@ -199,7 +198,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
             placa_confere: placaConfere,
             condicao_bau: condicaoBau === 'Outro' ? condicaoOutra : condicaoBau,
             cordas: temCordas ? parseInt(qtdCordas) : 0,
-            cordas_adicionais: qtdCordasAdicionais || 0,
+            cordas_adicionais: 0,
             foto_vazamento: temVazamento ? (fotoVazamento || null) : null,
             midias_json: temVazamento && midiasAvaria.length > 0 ? midiasAvaria : undefined,
             assinatura: assinaturaBase,
@@ -354,13 +353,6 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                             />
                         </div>
                     )}
-                    <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        <label style={{ ...label, marginBottom: '6px' }}>Cordas adicionais entregues ao motorista</label>
-                        <input
-                            type="number" min="0" placeholder="0" value={qtdCordasAdicionais} onChange={(e) => setQtdCordasAdicionais(parseInt(e.target.value) || 0)}
-                            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 14px', color: '#f1f5f9', fontSize: '14px', outline: 'none' }}
-                        />
-                    </div>
                 </div>
 
                 {/* 3.1 Paletização (NOVO) */}
