@@ -41,7 +41,7 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
             const p1 = (formLanca.placa1Motorista || '').replace(/[-\s]/g, '').toUpperCase();
             const p2 = (formLanca.placa2Motorista || '').replace(/[-\s]/g, '').toUpperCase();
             const v = veiculosProvisao.find(vp => {
-                const vPlaca = vp.placa.replace(/[-\s]/g, '').toUpperCase();
+                const vPlaca = (vp.placa || '').replace(/[-\s]/g, '').toUpperCase();
                 const vCarreta = (vp.carreta || '').replace(/[-\s]/g, '').toUpperCase();
                 return (p1 && (vPlaca === p1 || vCarreta === p1)) || (p2 && (vPlaca === p2 || vCarreta === p2));
             });

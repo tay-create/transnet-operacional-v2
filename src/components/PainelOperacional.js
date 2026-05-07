@@ -372,7 +372,7 @@ export default function PainelOperacional({
         return placas.some(p => {
             const pu = p.replace(/[-\s]/g, '').toUpperCase();
             return veiculosProvisao.some(vp =>
-                vp.placa.replace(/[-\s]/g, '').toUpperCase() === pu ||
+                (vp.placa && vp.placa.replace(/[-\s]/g, '').toUpperCase() === pu) ||
                 (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === pu)
             );
         });
@@ -381,7 +381,7 @@ export default function PainelOperacional({
     function checarPlacaProvisaoCard(placa, item) {
         if (!placa || placa.length < 6) return;
         const p = placa.replace(/[-\s]/g, '').toUpperCase();
-        const v = veiculosProvisao.find(vp => vp.placa.replace(/[-\s]/g, '').toUpperCase() === p || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
+        const v = veiculosProvisao.find(vp => (vp.placa && vp.placa.replace(/[-\s]/g, '').toUpperCase() === p) || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
         if (v) {
             // Usar a combinação real do card (prioritária sobre o provisionamento)
             const veiculoComCardAtual = { ...v };
