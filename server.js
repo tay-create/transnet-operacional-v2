@@ -3075,53 +3075,56 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
         const embarcadas = parseInt((resumoDP[0] && resumoDP[0][2]) || 0) || 0;
         const pendentes  = parseInt((resumoDP[1] && resumoDP[1][2]) || 0) || 0;
 
-        // Processar linha a linha (índice 0=A, 6=G DATA PREVISÃO, 12=M D, 13=N P, 14=O DC, 15=P PC, 16=Q DL, 17=R PL)
-        const hojeStr = new Date().toLocaleDateString('pt-BR'); // dd/mm/yyyy
-        let reprogramadas = 0, programadasHoje = 0, plastico = 0, porcelana = 0, consolidado = 0;
-
+        // Agrupar por rota (col A) para deduplicar rotas com múltiplas linhas
+        // Índices: 2=C(PROGRAMADO), 4=E(DATA EMBARQUE), 12=M, 13=N, 14=O, 15=P, 16=Q, 17=R
+        const rotasMap = new Map();
         for (const row of dadosDP) {
             const colA = (row[0] || '').trim();
-            if (!colA || isNaN(Number(colA))) continue; // só linhas-rota
+            if (!colA || isNaN(Number(colA))) continue;
+            const rota = Number(colA);
+            if (!rotasMap.has(rota)) {
+                rotasMap.set(rota, { programado: false, dataEmbarque: '', plastico: false, porcelana: false, consolidado: false });
+            }
+            const r = rotasMap.get(rota);
+            if ((row[2] || '').trim().toUpperCase() === 'P') r.programado = true;
+            if ((row[4] || '').trim()) r.dataEmbarque = (row[4] || '').trim();
+            if ((row[12] || '').trim() || (row[16] || '').trim()) r.plastico = true;
+            if ((row[13] || '').trim() || (row[17] || '').trim()) r.porcelana = true;
+            if ((row[14] || '').trim() || (row[15] || '').trim()) r.consolidado = true;
+        }
 
-            // Coluna R física = índice 17 (PL), mas "coluna R" do cabeçalho é a 2ª coluna (índice 1)
-            // Usuário confirmou: coluna R = letra física da planilha = índice 17
-            if ((row[17] || '').trim()) reprogramadas++;
-
-            const dataPrevisao = (row[6] || '').trim();
-            if (dataPrevisao === hojeStr) programadasHoje++;
-
-            // Plástico: M (índice 12) ou Q (índice 16) preenchida
-            if ((row[12] || '').trim() || (row[16] || '').trim()) plastico++;
-            // Porcelana: N (índice 13) preenchida
-            if ((row[13] || '').trim()) porcelana++;
-            // Consolidado: O (índice 14) ou P (índice 15) preenchida
-            if ((row[14] || '').trim() || (row[15] || '').trim()) consolidado++;
+        let programadasHoje = 0, plastico = 0, plasticoEmbarcado = 0;
+        let porcelana = 0, porcelanaEmbarcada = 0, consolidado = 0, consolidadoEmbarcado = 0;
+        for (const r of rotasMap.values()) {
+            if (r.programado) programadasHoje++;
+            if (r.plastico) { plastico++; if (r.dataEmbarque) plasticoEmbarcado++; }
+            if (r.porcelana) { porcelana++; if (r.dataEmbarque) porcelanaEmbarcada++; }
+            if (r.consolidado) { consolidado++; if (r.dataEmbarque) consolidadoEmbarcado++; }
         }
 
         // Aba Eletrik
-        let eletrikTotal = 0, eletrikCriado = 0, eletrikEmbarcado = 0, eletrikPendente = 0, eletrikProgramado = 0;
+        let eletrikTotal = 0, eletrikEmbarcado = 0, eletrikPendente = 0;
         try {
-            // Descobrir nome exato da aba Eletrik
             const metaResp = await sheets.spreadsheets.get({ spreadsheetId: TRAMONTINA_SHEET_ID });
             const abaEletrik = (metaResp.data.sheets || []).find(s =>
                 s.properties.title.toUpperCase().includes('ELETRIK')
             );
             if (abaEletrik) {
                 const nomeAba = abaEletrik.properties.title;
-                const [resumoEl, dadosElB] = await Promise.all([
-                    lerRangeTramontina(sheets, 'H7:J8', nomeAba),
-                    lerRangeTramontina(sheets, 'A11:B500', nomeAba),
+                const [resumoEl, dadosElBE] = await Promise.all([
+                    lerRangeTramontina(sheets, 'H7:H8', nomeAba),
+                    lerRangeTramontina(sheets, 'A11:E500', nomeAba),
                 ]);
+                // H7 (mesclada) = total criadas
                 eletrikTotal = parseInt((resumoEl[0] && resumoEl[0][0]) || 0) || 0;
-                eletrikEmbarcado = parseInt((resumoEl[0] && resumoEl[0][2]) || 0) || 0;
-                eletrikPendente  = parseInt((resumoEl[1] && resumoEl[1][2]) || 0) || 0;
 
-                for (const row of dadosElB) {
+                for (const row of dadosElBE) {
                     const colA = (row[0] || '').trim();
-                    if (!colA) continue;
-                    eletrikCriado++;
-                    const colB = (row[1] || '').trim().toLowerCase();
-                    if (colB.startsWith('n')) eletrikProgramado++;
+                    if (!colA || isNaN(Number(colA))) continue;
+                    // col B (índice 1) começa com "S" = embarcado
+                    if ((row[1] || '').toLowerCase().startsWith('s')) eletrikEmbarcado++;
+                    // col E (índice 4) vazia = pendente (tem rota mas sem data de embarque)
+                    if (!(row[4] || '').trim()) eletrikPendente++;
                 }
             }
         } catch (e) {
@@ -3130,8 +3133,13 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
 
         const resultado = {
             success: true,
-            deltaPorcelana: { totalRotas, embarcadas, pendentes, reprogramadas, programadasHoje, plastico, porcelana, consolidado },
-            eletrik: { total: eletrikTotal, criado: eletrikCriado, embarcado: eletrikEmbarcado, pendente: eletrikPendente, programado: eletrikProgramado },
+            deltaPorcelana: {
+                totalRotas, embarcadas, pendentes, reprogramadas: 0, programadasHoje,
+                plastico, plasticoEmbarcado,
+                porcelana, porcelanaEmbarcada,
+                consolidado, consolidadoEmbarcado,
+            },
+            eletrik: { total: eletrikTotal, embarcado: eletrikEmbarcado, pendente: eletrikPendente },
         };
         tramontinaCache = { data: resultado, ts: Date.now() };
         res.json(resultado);

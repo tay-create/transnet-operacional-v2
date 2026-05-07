@@ -132,10 +132,10 @@ export default function PainelCadastro({ user, socket }) {
                 const inicial = {};
                 veiculosFiltrados.forEach(m => {
                     inicial[m.id] = {
-                        chk_cnh_cad: false,
-                        chk_antt_cad: false,
-                        chk_tacografo_cad: false,
-                        chk_crlv_cad: false,
+                        chk_cnh_cad: !!m.chk_cnh_cad,
+                        chk_antt_cad: !!m.chk_antt_cad,
+                        chk_tacografo_cad: !!m.chk_tacografo_cad,
+                        chk_crlv_cad: !!m.chk_crlv_cad,
                         num_liberacao_cad: m.num_liberacao_cad || '',
                         situacao_cad: m.situacao_cad || 'NÃO CONFERIDO',
                         data_liberacao_cad: m.data_liberacao_cad || null,
