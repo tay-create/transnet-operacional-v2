@@ -396,8 +396,14 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         for (const lote of lotes) {
             if (sucessos[lote._id]) { ok++; continue; } // já lançado
             try {
-                await lancarPayloadDireto({ ...lote, data_prevista: dataPrevista });
-                novosSucessos[lote._id] = true;
+                const res = await lancarPayloadDireto({ ...lote, data_prevista: dataPrevista });
+                if (res?.atualizado) {
+                    novosSucessos[lote._id] = 'atualizado';
+                } else if (res?.duplicata) {
+                    novosSucessos[lote._id] = 'duplicata';
+                } else {
+                    novosSucessos[lote._id] = true;
+                }
                 ok++;
             } catch (e) {
                 novosErros[lote._id] = e?.response?.data?.message || 'Erro ao lançar';
@@ -767,11 +773,15 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
     const temRecife = ehRecife(lote.operacao);
     const temMoreno = ehMoreno(lote.operacao);
 
-    const borderColor = sucesso ? '#22c55e' : erro ? '#ef4444' : duplicata?.length ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.08)';
+    const foiAtualizado = sucesso === 'atualizado';
+    const foiDuplicataSemMudanca = sucesso === 'duplicata';
+    const foiLancado = sucesso === true;
+    const temSucesso = !!sucesso;
+    const borderColor = foiAtualizado ? '#facc15' : foiDuplicataSemMudanca ? '#94a3b8' : foiLancado ? '#22c55e' : erro ? '#ef4444' : duplicata?.length ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.08)';
 
     return (
         <div style={{
-            background: sucesso ? 'rgba(34,197,94,0.05)' : erro ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.03)',
+            background: foiAtualizado ? 'rgba(250,204,21,0.05)' : foiDuplicataSemMudanca ? 'rgba(148,163,184,0.05)' : foiLancado ? 'rgba(34,197,94,0.05)' : erro ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.03)',
             border: `1px solid ${borderColor}`,
             borderRadius: '10px', overflow: 'hidden'
         }}>
@@ -793,10 +803,12 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
                         {lote.placa1}{lote.placa2 ? ` / ${lote.placa2}` : ''} · {lote.operacao}
                     </div>
                 </div>
-                {sucesso && <CheckCircle size={15} color="#22c55e" />}
+                {foiLancado && <CheckCircle size={15} color="#22c55e" />}
+                {foiAtualizado && <CheckCircle size={15} color="#facc15" />}
+                {foiDuplicataSemMudanca && <CheckCircle size={15} color="#94a3b8" />}
                 {erro && <AlertCircle size={15} color="#ef4444" />}
-                {!sucesso && !erro && duplicata?.length > 0 && <AlertCircle size={15} color="#fbbf24" />}
-                {!sucesso && (
+                {!temSucesso && !erro && duplicata?.length > 0 && <AlertCircle size={15} color="#fbbf24" />}
+                {!temSucesso && (
                     <button
                         onClick={e => { e.stopPropagation(); onRemover(lote._id); }}
                         disabled={lancando}
@@ -808,11 +820,24 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
                 )}
             </div>
 
-            {/* Aviso de coleta duplicada */}
-            {duplicata?.length > 0 && !sucesso && !erro && (
+            {/* Aviso de coleta duplicada (pré-confirmação) */}
+            {duplicata?.length > 0 && !temSucesso && !erro && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: 'rgba(251,191,36,0.08)', borderBottom: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24', fontSize: '11px', fontWeight: '600' }}>
                     <AlertCircle size={12} style={{ flexShrink: 0 }} />
                     Coleta já ativa: {duplicata.join(', ')}
+                </div>
+            )}
+            {/* Resultado pós-confirmação */}
+            {foiAtualizado && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: 'rgba(250,204,21,0.08)', borderBottom: '1px solid rgba(250,204,21,0.2)', color: '#facc15', fontSize: '11px', fontWeight: '600' }}>
+                    <CheckCircle size={12} style={{ flexShrink: 0 }} />
+                    Coleta já existia — motorista/placas atualizados e cadastro resetado
+                </div>
+            )}
+            {foiDuplicataSemMudanca && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', background: 'rgba(148,163,184,0.08)', borderBottom: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: '11px', fontWeight: '600' }}>
+                    <CheckCircle size={12} style={{ flexShrink: 0 }} />
+                    Coleta já existia — sem alterações
                 </div>
             )}
 

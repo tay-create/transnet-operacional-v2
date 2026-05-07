@@ -275,7 +275,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const placeholders = STATUS_FINAIS.map(() => '?').join(',');
             for (const tag of [...tagsRec, ...tagsMor, ...tagsInt]) {
                 const existente = await dbGet(
-                    `SELECT id, motorista FROM veiculos
+                    `SELECT id, motorista, placa, modelo, dados_json FROM veiculos
                      WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coletainterestadual LIKE ?)
                        AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
                        AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
@@ -283,10 +283,37 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     [`%${tag}%`, `%${tag}%`, `%${tag}%`, ...STATUS_FINAIS, ...STATUS_FINAIS]
                 );
                 if (existente) {
-                    return res.status(409).json({
-                        success: false,
-                        message: `Coleta "${tag}" já está em uso (veículo #${existente.id} — ${existente.motorista || 'S/motorista'}).`
-                    });
+                    // Comparar motorista e placas — atualizar se mudou
+                    const djEx = (() => { try { return JSON.parse(existente.dados_json || '{}'); } catch { return {}; } })();
+                    const novoMotorista = v.motorista || '';
+                    const novaPlaca1 = v.placa1Motorista || v.placa || '';
+                    const novaPlaca2 = v.placa2Motorista || '';
+                    const novoModelo = v.tipoVeiculo || v.modelo || '';
+                    const mudouMotorista = novoMotorista && novoMotorista !== (existente.motorista || '');
+                    const mudouPlaca1 = novaPlaca1 && novaPlaca1 !== (djEx.placa1Motorista || existente.placa || '');
+                    const mudouPlaca2 = novaPlaca2 && novaPlaca2 !== (djEx.placa2Motorista || '');
+                    const mudouModelo = novoModelo && novoModelo !== (existente.modelo || '');
+
+                    if (mudouMotorista || mudouPlaca1 || mudouPlaca2 || mudouModelo) {
+                        const djNovo = { ...djEx };
+                        if (mudouPlaca1) djNovo.placa1Motorista = novaPlaca1;
+                        if (mudouPlaca2) djNovo.placa2Motorista = novaPlaca2;
+                        if (mudouMotorista) djNovo.motorista = novoMotorista;
+                        if (mudouModelo) djNovo.tipoVeiculo = novoModelo;
+                        await dbRun(
+                            `UPDATE veiculos SET
+                                motorista = COALESCE(NULLIF(?, ''), motorista),
+                                placa = COALESCE(NULLIF(?, ''), placa),
+                                modelo = COALESCE(NULLIF(?, ''), modelo),
+                                dados_json = ?,
+                                chk_cnh = 0, chk_antt = 0, chk_tacografo = 0, chk_crlv = 0,
+                                situacao_cadastro = 'NÃO CONFERIDO'
+                             WHERE id = ?`,
+                            [novoMotorista, novaPlaca1, novoModelo, JSON.stringify(djNovo), existente.id]
+                        );
+                        return res.json({ success: true, atualizado: true, id: existente.id, tag });
+                    }
+                    return res.json({ success: true, duplicata: true, id: existente.id, tag });
                 }
             }
 
