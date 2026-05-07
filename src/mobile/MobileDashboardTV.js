@@ -9,7 +9,9 @@ const TELAS = ['Embarques', 'Operação', 'CT-e', 'Leão / Eletrik Sul'];
 const STATUS_LEAO = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
 
 function normalizarStatusLeao(st) {
-    if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
+    if (['AGUARDANDO', 'AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA'].includes(st)) {
+        return 'LIBERADO P/ CARREGAMENTO';
+    }
     return st;
 }
 

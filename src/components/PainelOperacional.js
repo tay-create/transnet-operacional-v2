@@ -203,7 +203,17 @@ export default function PainelOperacional({
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Painel Leão/Eletrik Sul usa status_recife (operação única sem unidade fixa)
     const campoStatus = (origem === 'Recife' || operacoesFixas) ? 'status_recife' : 'status_moreno';
-    const getStatus = (item) => item[campoStatus] || 'AGUARDANDO';
+    // Cards interestaduais (Leão SP / Eletrik Sul) seguem fluxo restrito de 3 status —
+    // qualquer status anterior (AGUARDANDO/EM SEPARAÇÃO) é tratado como LIBERADO P/ CARREGAMENTO.
+    const ehInterestadualOp = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+    const normalizarStatusInterestadual = (item, status) => {
+        if (!ehInterestadualOp(item.operacao)) return status;
+        if (status === 'AGUARDANDO' || status === 'AGUARDANDO P/ SEPARAÇÃO' || status === 'EM SEPARAÇÃO' || status === 'LIBERADO P/ DOCA') {
+            return 'LIBERADO P/ CARREGAMENTO';
+        }
+        return status;
+    };
+    const getStatus = (item) => normalizarStatusInterestadual(item, item[campoStatus] || 'AGUARDANDO');
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
@@ -575,7 +585,9 @@ export default function PainelOperacional({
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
         const dataCarregadoUnidade = operacoesFixas ? null : (origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno);
-        const itemData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
+        // Normaliza para YYYY-MM-DD (corta timestamp ISO completo se vier do banco)
+        const rawData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
+        const itemData = String(rawData).substring(0, 10);
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
         // Verificar se a operação do card envolve esta unidade
@@ -610,7 +622,9 @@ export default function PainelOperacional({
     const ORDEM_STATUS = OPCOES_STATUS;
     const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
         const campo = campoStatus;
-        return ORDEM_STATUS.indexOf(a[campo] || OPCOES_STATUS[0]) - ORDEM_STATUS.indexOf(b[campo] || OPCOES_STATUS[0]);
+        const sa = normalizarStatusInterestadual(a, a[campo] || OPCOES_STATUS[0]);
+        const sb = normalizarStatusInterestadual(b, b[campo] || OPCOES_STATUS[0]);
+        return ORDEM_STATUS.indexOf(sa) - ORDEM_STATUS.indexOf(sb);
     }), [itensFiltrados, origem]); // eslint-disable-line
 
     const getEstiloRota = (valor) => ({
@@ -863,7 +877,7 @@ export default function PainelOperacional({
 
                             {ORDEM_STATUS.map(status => {
                                 const campoGrupo = campoStatus;
-                                const grupo = itensOrdenados.filter(item => (item[campoGrupo] || OPCOES_STATUS[0]) === status);
+                                const grupo = itensOrdenados.filter(item => normalizarStatusInterestadual(item, item[campoGrupo] || OPCOES_STATUS[0]) === status);
                                 if (grupo.length === 0) return null;
                                 const corGrupo = CORES_STATUS[status] || { border: '#64748b', text: '#94a3b8' };
                                 return (
@@ -878,7 +892,7 @@ export default function PainelOperacional({
                                             {grupo.map((item) => {
                                 const realIndex = lista.findIndex(i => i.id === item.id);
                                 const campoStatusAlvo = campoStatus;
-                                const valorStatusAtual = item[campoStatusAlvo] || 'AGUARDANDO';
+                                const valorStatusAtual = normalizarStatusInterestadual(item, item[campoStatusAlvo] || 'AGUARDANDO');
                                 const corStatus = CORES_STATUS[valorStatusAtual] || { border: '#fff', text: '#fff' };
                                 const isMista = item.coletaRecife && item.coletaMoreno;
 
@@ -1924,12 +1938,33 @@ export default function PainelOperacional({
                                     <div style={{ display: 'flex', gap: '8px', marginTop: 14 }}>
                                         <button
                                             onClick={async () => {
-                                                try {
-                                                    await navigator.clipboard.writeText(modalLinkMotorista.url);
+                                                const url = modalLinkMotorista.url;
+                                                let ok = false;
+                                                // 1) API moderna (precisa HTTPS ou localhost)
+                                                if (navigator.clipboard && window.isSecureContext) {
+                                                    try { await navigator.clipboard.writeText(url); ok = true; } catch {}
+                                                }
+                                                // 2) Fallback via textarea + execCommand (funciona em HTTP)
+                                                if (!ok) {
+                                                    try {
+                                                        const ta = document.createElement('textarea');
+                                                        ta.value = url;
+                                                        ta.style.position = 'fixed';
+                                                        ta.style.left = '-9999px';
+                                                        ta.style.top = '0';
+                                                        ta.setAttribute('readonly', '');
+                                                        document.body.appendChild(ta);
+                                                        ta.select();
+                                                        ta.setSelectionRange(0, ta.value.length);
+                                                        ok = document.execCommand('copy');
+                                                        document.body.removeChild(ta);
+                                                    } catch { ok = false; }
+                                                }
+                                                if (ok) {
                                                     setModalLinkMotorista(prev => ({ ...prev, copiado: true }));
                                                     setTimeout(() => setModalLinkMotorista(prev => prev && ({ ...prev, copiado: false })), 1800);
-                                                } catch {
-                                                    mostrarNotificacao?.('⚠️ Não foi possível copiar.');
+                                                } else {
+                                                    mostrarNotificacao?.('⚠️ Não foi possível copiar — selecione e copie manualmente.');
                                                 }
                                             }}
                                             style={{

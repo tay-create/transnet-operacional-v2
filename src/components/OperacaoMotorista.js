@@ -36,8 +36,12 @@ export default function OperacaoMotorista() {
         api.get(`/api/operacao-motorista/${token}`)
             .then(r => {
                 if (r.data?.success) {
-                    setInfo(r.data);
-                    setFase(r.data.status_atual === 'CARREGADO' ? 'concluido' : 'confirmar');
+                    // Normaliza status legado (AGUARDANDO etc.) para o início do fluxo do motorista
+                    const stRaw = r.data.status_atual;
+                    const st = ['AGUARDANDO', 'AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA'].includes(stRaw)
+                        ? 'LIBERADO P/ CARREGAMENTO' : stRaw;
+                    setInfo({ ...r.data, status_atual: st });
+                    setFase(st === 'CARREGADO' ? 'concluido' : 'confirmar');
                 } else {
                     setErroFatal(r.data?.message || 'Link inválido.');
                     setFase('erro');

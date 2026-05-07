@@ -773,9 +773,12 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     });
 
     // Status operacional (compatível com valores antigos e novos)
+    // Cards interestaduais usam só 3 status — qualquer status legado (AGUARDANDO/EM SEPARAÇÃO/LIBERADO P/ DOCA)
+    // é tratado como LIBERADO P/ CARREGAMENTO no fluxo do motorista.
     const normalizarStatus = (st) => {
-        if (st === 'AGUARDANDO') return 'AGUARDANDO P/ SEPARAÇÃO';
-        if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
+        if (['AGUARDANDO', 'AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA'].includes(st)) {
+            return 'LIBERADO P/ CARREGAMENTO';
+        }
         return st;
     };
     const contStatus = {};

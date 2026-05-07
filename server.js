@@ -454,7 +454,12 @@ app.post('/api/operacao-motorista/:token/avancar', async (req, res) => {
             return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
         }
 
-        const atual = v.status_recife || 'LIBERADO P/ CARREGAMENTO';
+        // Cards interestaduais começam o ciclo do motorista a partir de LIBERADO P/ CARREGAMENTO.
+        // Se status no banco ainda é AGUARDANDO/EM SEPARAÇÃO/LIBERADO P/ DOCA (legado), promove pra LIBERADO P/ CARREGAMENTO.
+        let atual = v.status_recife || 'LIBERADO P/ CARREGAMENTO';
+        if (['AGUARDANDO', 'AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA'].includes(atual)) {
+            atual = 'LIBERADO P/ CARREGAMENTO';
+        }
         const idx = STATUS_MOTORISTA.indexOf(atual);
         if (idx < 0 || idx >= STATUS_MOTORISTA.length - 1) {
             return res.status(400).json({ success: false, message: 'Não há próximo status possível.' });
