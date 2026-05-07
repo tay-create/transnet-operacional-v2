@@ -445,10 +445,13 @@ module.exports = function createChecklistsRouter(io) {
                 vals.push(novaDoca);
             }
 
-            // Gravar âncora de data ao marcar CARREGADO (garante que o card fique no dia certo)
+            // Gravar âncora de data ao marcar CARREGADO — usa data_prevista do veículo para preservar
+            // o card no dia original mesmo quando marcado retroativamente
             if (novoStatus === 'CARREGADO') {
                 const campoDataCarregado = cidade === 'Moreno' ? 'data_carregado_moreno' : 'data_carregado_recife';
-                const dataCarregado = agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+                const dataCarregado = veiculo.data_prevista
+                    ? veiculo.data_prevista.slice(0, 10)
+                    : agoraDt.toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
                 sets.push(`${campoDataCarregado} = ?`);
                 vals.push(dataCarregado);
             }
