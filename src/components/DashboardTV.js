@@ -132,14 +132,14 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
         { label: 'EMBARCADAS', valor: dp.embarcadas ?? '—', cor: '#4ade80', sub: null },
         { label: 'PROG. HOJE', valor: dp.programadasHoje ?? '—', cor: '#facc15', sub: null },
         { label: 'REPROGRAMADAS', valor: dp.reprogramadas ?? '—', cor: '#fb923c', sub: null },
-        { label: 'ELETRIK (EMBARC.)', valor: el.embarcado ?? '—', cor: '#a78bfa', sub: `TOTAL CRIADAS: ${el.criado ?? '—'}` },
+        { label: 'ELETRIK (EMBARC.)', valor: el.embarcado ?? '—', cor: '#a78bfa', sub: `TOTAL CRIADAS: ${el.total ?? '—'}` },
         { label: 'PENDENTES', valor: dp.pendentes ?? '—', cor: '#f87171', sub: null },
     ];
 
     const operacoes = [
-        { label: 'DELTA PLÁSTICO', valor: dp.plastico ?? 0, total: dp.totalRotas || 1, cor: '#38bdf8' },
-        { label: 'DELTA PORCELANA', valor: dp.porcelana ?? 0, total: dp.totalRotas || 1, cor: '#a78bfa' },
-        { label: 'CONSOLIDADAS', valor: dp.consolidado ?? 0, total: dp.totalRotas || 1, cor: '#818cf8' },
+        { label: 'DELTA PLÁSTICO',  total: dp.plastico ?? 0,    embarcado: dp.plasticoEmbarcado ?? 0,    cor: '#38bdf8' },
+        { label: 'DELTA PORCELANA', total: dp.porcelana ?? 0,   embarcado: dp.porcelanaEmbarcada ?? 0,   cor: '#a78bfa' },
+        { label: 'CONSOLIDADAS',    total: dp.consolidado ?? 0, embarcado: dp.consolidadoEmbarcado ?? 0, cor: '#818cf8' },
     ];
 
     const cardBg = tema === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.7)';
@@ -174,7 +174,6 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
                         )}
                         {b.label === 'ELETRIK (EMBARC.)' && (
                             <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 6, fontSize: 9, color: t.textDim }}>
-                                <span>PROG: <b style={{ color: b.cor }}>{el.programado ?? '—'}</b></span>
                                 <span>PEND: <b style={{ color: '#f87171' }}>{el.pendente ?? '—'}</b></span>
                             </div>
                         )}
@@ -185,8 +184,8 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
             {/* Contadores de operação */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                 {operacoes.map((op, i) => {
-                    const pct = op.total > 0 ? Math.round((op.valor / op.total) * 100) : 0;
-                    const faltam = op.total - op.valor;
+                    const pct = op.total > 0 ? Math.round((op.embarcado / op.total) * 100) : 0;
+                    const faltam = op.total - op.embarcado;
                     const circunf = 2 * Math.PI * 54;
                     const offset = circunf - (pct / 100) * circunf;
                     return (
@@ -209,13 +208,14 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
                                     />
                                 </svg>
                                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                    <span style={{ fontSize: 32, fontWeight: 900, color: op.cor, lineHeight: 1 }}>{op.valor}</span>
+                                    <span style={{ fontSize: 32, fontWeight: 900, color: op.cor, lineHeight: 1 }}>{op.embarcado}</span>
                                     <span style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{pct}%</span>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 16, fontSize: 12 }}>
                                 <span style={{ color: t.textMuted }}>Total: <b style={{ color: t.text }}>{op.total}</b></span>
                                 <span style={{ color: t.textMuted }}>Faltam: <b style={{ color: '#f87171' }}>{faltam}</b></span>
+                                <span style={{ color: t.textMuted }}>Embarcou: <b style={{ color: op.cor }}>{op.embarcado}</b></span>
                             </div>
                         </div>
                     );
