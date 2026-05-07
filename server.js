@@ -2969,6 +2969,45 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
     }
 });
 
+// ── CRON: Limpar fila de separação à meia-noite ──────────────────────────────
+// Remove itens cuja coleta já passou: veiculo_id com data_prevista < hoje,
+// ou itens sem veiculo_id criados há mais de 1 dia.
+cron.schedule('0 0 * * *', async () => {
+    console.log('[CRON-FILA] 00:00 — Limpando fila de separação...');
+    try {
+        const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        const itens = await dbAll('SELECT id, dados_json, data_criacao FROM fila');
+        let removidos = 0;
+        for (const item of itens) {
+            let dados = {};
+            try { dados = JSON.parse(item.dados_json || '{}'); } catch { }
+            const veiculoId = dados.veiculo_id;
+            if (veiculoId) {
+                const v = await dbGet('SELECT data_prevista FROM veiculos WHERE id = $1', [veiculoId]);
+                if (v && v.data_prevista && v.data_prevista < hoje) {
+                    await dbRun('DELETE FROM fila WHERE id = $1', [item.id]);
+                    removidos++;
+                }
+            } else if (item.data_criacao) {
+                const criacao = new Date(item.data_criacao).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+                if (criacao < hoje) {
+                    await dbRun('DELETE FROM fila WHERE id = $1', [item.id]);
+                    removidos++;
+                }
+            }
+        }
+        console.log(`[CRON-FILA] ${removidos} item(ns) removido(s).`);
+        if (removidos > 0) {
+            const filaAtual = await dbAll('SELECT * FROM fila ORDER BY id ASC');
+            const ordem = filaAtual.map(f => ({ id: f.id, unidade: f.unidade, ...JSON.parse(f.dados_json || '{}') }));
+            io.emit('receber_atualizacao', { tipo: 'reordenar_fila', ordem });
+        }
+    } catch (e) {
+        console.error('[CRON-FILA] Erro:', e.message);
+    }
+}, { timezone: 'America/Sao_Paulo' });
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── CRON: Gerar Inicial automático às 10h / Final às 17h ─────────────────────
 cron.schedule('0 10 * * 1-6', async () => {
     console.log('[CRON-PROG] 10:00 — Gerando Programação Inicial automática...');

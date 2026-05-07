@@ -82,6 +82,7 @@ const inicializarBanco = async () => {
         )`);
         // Migrações seguras para colunas novas
         try { await dbRun(`ALTER TABLE fila ADD COLUMN IF NOT EXISTS unidade TEXT`); } catch (_) { }
+        try { await dbRun(`ALTER TABLE fila ADD COLUMN IF NOT EXISTS data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS is_paletizado TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS tipo_palete TEXT`); } catch (_) { }
         try { await dbRun(`ALTER TABLE checklists_carreta ADD COLUMN IF NOT EXISTS qtd_paletes INTEGER`); } catch (_) { }
