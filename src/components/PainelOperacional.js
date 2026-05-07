@@ -281,6 +281,17 @@ export default function PainelOperacional({
         }).catch(() => {});
     }, []);
 
+    // Em operações interestaduais (Leão - SP / Eletrik Sul), incluir cargo Planejamento na lista
+    // de operadores que podem receber o CT-e — recarrega quando o modal abre
+    useEffect(() => {
+        if (!confirmarLiberadoCte) return;
+        const op = confirmarLiberadoCte.operacao || '';
+        const eInterestadual = op === 'LEÃO - SP' || op === 'ELETRIK SUL';
+        api.get(`/api/usuarios/conhecimento${eInterestadual ? '?incluirPlanejamento=1' : ''}`).then(r => {
+            if (r.data?.success) setOperadoresConhecimento(r.data.usuarios);
+        }).catch(() => {});
+    }, [confirmarLiberadoCte]);
+
     useEffect(() => {
         api.get(`/api/docas-interditadas?data=${dataInicio}`).then(r => {
             if (r.data && r.data.success) {
@@ -1723,7 +1734,7 @@ export default function PainelOperacional({
                                                     {/* Botão Liberado p/ CTE */}
                                                     {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <button
-                                                            onClick={() => item.motorista?.trim() && setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem })}
+                                                            onClick={() => item.motorista?.trim() && setConfirmarLiberadoCte({ realIndex, campoStatusAlvo, origem, operacao: item.operacao })}
                                                             style={{
                                                                 padding: '6px 14px', borderRadius: '8px',
                                                                 background: item.motorista?.trim()
@@ -1863,7 +1874,17 @@ export default function PainelOperacional({
                                     >
                                         <div style={{ textAlign: 'left' }}>
                                             <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '13px' }}>{op.nome}</div>
-                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{op.cidade}</div>
+                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span>{op.cidade}</span>
+                                                {op.cargo && (
+                                                    <span style={{
+                                                        fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '4px',
+                                                        background: op.cargo === 'Planejamento' ? 'rgba(168,85,247,0.18)' : 'rgba(56,189,248,0.18)',
+                                                        color: op.cargo === 'Planejamento' ? '#c4b5fd' : '#7dd3fc',
+                                                        letterSpacing: '0.5px',
+                                                    }}>{op.cargo.toUpperCase()}</span>
+                                                )}
+                                            </div>
                                         </div>
                                         {operadorSelecionado?.id === op.id && <CheckCircle size={18} style={{ color: '#38bdf8' }} />}
                                     </button>

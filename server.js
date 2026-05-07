@@ -1968,9 +1968,14 @@ app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
 app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
 
 // Listar operadores com cargo Conhecimento (para modal de seleção CT-e)
+// Query param incluirPlanejamento=1 → também retorna usuários com cargo Planejamento
+// (usado em operações interestaduais Leão - SP e Eletrik Sul, onde Planejamento também recebe sininho)
 app.get('/api/usuarios/conhecimento', authMiddleware, async (req, res) => {
     try {
-        const rows = await dbAll("SELECT id, nome, cidade FROM usuarios WHERE cargo = 'Conhecimento' ORDER BY nome", []);
+        const incluirPlanejamento = req.query.incluirPlanejamento === '1' || req.query.incluirPlanejamento === 'true';
+        const cargos = incluirPlanejamento ? ['Conhecimento', 'Planejamento'] : ['Conhecimento'];
+        const placeholders = cargos.map((_, i) => `$${i + 1}`).join(', ');
+        const rows = await dbAll(`SELECT id, nome, cidade, cargo FROM usuarios WHERE cargo IN (${placeholders}) ORDER BY cargo, nome`, cargos);
         res.json({ success: true, usuarios: rows || [] });
     } catch (e) { res.status(500).json({ success: false }); }
 });
