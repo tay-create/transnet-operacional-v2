@@ -366,8 +366,8 @@ app.post('/api/tokens/auto', autoTokenLimiter, async (req, res) => {
 
 const STATUS_MOTORISTA = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
 
-// (a) Coordenador/Planejamento/Encarregado gera o link
-app.post('/api/operacao-motorista/gerar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+// (a) Qualquer usuário autenticado pode gerar o link (sem restrição de cargo)
+app.post('/api/operacao-motorista/gerar', authMiddleware, async (req, res) => {
     try {
         const { veiculo_id } = req.body;
         if (!veiculo_id) return res.status(400).json({ success: false, message: 'veiculo_id obrigatório.' });
