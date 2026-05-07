@@ -146,34 +146,34 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
     const borderColor = tema === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '8px 0', animation: 'fadeSlide 0.4s ease-out' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 28, padding: '8px 0', animation: 'fadeSlide 0.4s ease-out' }}>
             {/* Título */}
             <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: t.textMuted, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>Monitoramento</div>
-                <div style={{ fontSize: 26, fontWeight: 900, color: t.text, letterSpacing: 2 }}>TRAMONTINA</div>
-                <div style={{ width: 60, height: 3, background: '#38bdf8', borderRadius: 2, margin: '8px auto 0' }} />
+                <div style={{ fontSize: 14, color: t.textMuted, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 6 }}>Monitoramento</div>
+                <div style={{ fontSize: 34, fontWeight: 900, color: t.text, letterSpacing: 2 }}>TRAMONTINA</div>
+                <div style={{ width: 80, height: 3, background: '#38bdf8', borderRadius: 2, margin: '10px auto 0' }} />
             </div>
 
             {/* Badges superiores */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 16 }}>
                 {badges.map((b, i) => (
                     <div key={i} style={{
                         background: cardBg, border: `1px solid ${borderColor}`,
                         borderTop: `3px solid ${b.cor}`, borderRadius: 16,
-                        padding: '18px 12px', textAlign: 'center',
+                        padding: '22px 14px', textAlign: 'center',
                         boxShadow: tema === 'dark' ? `0 0 20px ${b.cor}22` : '0 2px 12px rgba(0,0,0,0.06)',
                     }}>
-                        <div style={{ fontSize: 42, fontWeight: 900, color: b.cor, lineHeight: 1, filter: tema === 'dark' ? `drop-shadow(0 0 8px ${b.cor}80)` : 'none' }}>
+                        <div style={{ fontSize: 56, fontWeight: 900, color: b.cor, lineHeight: 1, filter: tema === 'dark' ? `drop-shadow(0 0 8px ${b.cor}80)` : 'none' }}>
                             {b.valor}
                         </div>
-                        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>
+                        <div style={{ fontSize: 13, color: t.textMuted, marginTop: 8, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 }}>
                             {b.label}
                         </div>
                         {b.sub && (
-                            <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, letterSpacing: 0.5 }}>{b.sub}</div>
+                            <div style={{ fontSize: 11, color: t.textDim, marginTop: 5, letterSpacing: 0.5, fontWeight: 600 }}>{b.sub}</div>
                         )}
                         {b.label === 'ELETRIK (EMBARC.)' && (
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 6, fontSize: 9, color: t.textDim }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 6, fontSize: 12, color: t.textDim, fontWeight: 600 }}>
                                 <span>PROG: <b style={{ color: b.cor }}>{el.prog ?? '—'}</b></span>
                                 <span>PEND: <b style={{ color: '#f87171' }}>{el.pendente ?? '—'}</b></span>
                             </div>
@@ -183,40 +183,40 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
             </div>
 
             {/* Contadores de operação */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22 }}>
                 {operacoes.map((op, i) => {
                     const pct = op.total > 0 ? Math.round((op.embarcado / op.total) * 100) : 0;
                     const faltam = op.total - op.embarcado;
-                    const circunf = 2 * Math.PI * 54;
+                    const circunf = 2 * Math.PI * 64;
                     const offset = circunf - (pct / 100) * circunf;
                     return (
                         <div key={i} style={{
                             background: cardBg, border: `1px solid ${borderColor}`,
-                            borderRadius: 20, padding: '28px 24px', textAlign: 'center',
+                            borderRadius: 20, padding: '32px 28px', textAlign: 'center',
                             boxShadow: tema === 'dark' ? `0 0 30px ${op.cor}18` : '0 2px 16px rgba(0,0,0,0.06)',
                         }}>
-                            <div style={{ fontSize: 12, fontWeight: 800, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 }}>
+                            <div style={{ fontSize: 16, fontWeight: 800, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 22 }}>
                                 {op.label}
                             </div>
-                            {/* Gauge circular SVG */}
+                            {/* Gauge circular SVG (maior) */}
                             <div style={{ position: 'relative', display: 'inline-block' }}>
-                                <svg width={130} height={130} viewBox="0 0 130 130">
-                                    <circle cx={65} cy={65} r={54} fill="none" stroke={tema === 'dark' ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} strokeWidth={10} />
-                                    <circle cx={65} cy={65} r={54} fill="none" stroke={op.cor} strokeWidth={10}
+                                <svg width={160} height={160} viewBox="0 0 160 160">
+                                    <circle cx={80} cy={80} r={64} fill="none" stroke={tema === 'dark' ? 'rgba(255,255,255,0.06)' : '#e2e8f0'} strokeWidth={12} />
+                                    <circle cx={80} cy={80} r={64} fill="none" stroke={op.cor} strokeWidth={12}
                                         strokeDasharray={circunf} strokeDashoffset={offset}
-                                        strokeLinecap="round" transform="rotate(-90 65 65)"
+                                        strokeLinecap="round" transform="rotate(-90 80 80)"
                                         style={{ transition: 'stroke-dashoffset 1s ease' }}
                                     />
                                 </svg>
                                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                    <span style={{ fontSize: 32, fontWeight: 900, color: op.cor, lineHeight: 1 }}>{op.embarcado}</span>
-                                    <span style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{pct}%</span>
+                                    <span style={{ fontSize: 44, fontWeight: 900, color: op.cor, lineHeight: 1 }}>{op.embarcado}</span>
+                                    <span style={{ fontSize: 14, color: t.textMuted, marginTop: 4, fontWeight: 700 }}>{pct}%</span>
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 16, fontSize: 12 }}>
-                                <span style={{ color: t.textMuted }}>Total: <b style={{ color: t.text }}>{op.total}</b></span>
-                                <span style={{ color: t.textMuted }}>Faltam: <b style={{ color: '#f87171' }}>{faltam}</b></span>
-                                <span style={{ color: t.textMuted }}>Embarcou: <b style={{ color: op.cor }}>{op.embarcado}</b></span>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginTop: 20, fontSize: 15 }}>
+                                <span style={{ color: t.textMuted }}>Total: <b style={{ color: t.text, fontSize: 16 }}>{op.total}</b></span>
+                                <span style={{ color: t.textMuted }}>Faltam: <b style={{ color: '#f87171', fontSize: 16 }}>{faltam}</b></span>
+                                <span style={{ color: t.textMuted }}>Embarcou: <b style={{ color: op.cor, fontSize: 16 }}>{op.embarcado}</b></span>
                             </div>
                         </div>
                     );
@@ -1551,14 +1551,19 @@ function TelaConfrontoEmbarques({ veiculos, ctes, t, tema }) {
 // ================================================================
 // COMPONENTE: BARRAS DE STATUS
 // ================================================================
-function StatusBars({ dados, t }) {
+function StatusBars({ dados, t, fontePlus = false }) {
     const max = Math.max(...dados.map(d => d.value), 1);
+    const fontLabel = fontePlus ? '14px' : '11px';
+    const fontValor = fontePlus ? '18px' : '13px';
+    const larguraLabel = fontePlus ? '170px' : '130px';
+    const altura = fontePlus ? '24px' : '20px';
+    const larguraValor = fontePlus ? '40px' : '28px';
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: fontePlus ? '10px' : '7px' }}>
             {dados.map(d => (
-                <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '130px', fontSize: '11px', fontWeight: '700', color: t.textMuted, textAlign: 'right', flexShrink: 0 }}>{d.name}</span>
-                    <div style={{ flex: 1, height: '20px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ width: larguraLabel, fontSize: fontLabel, fontWeight: '700', color: t.textMuted, textAlign: 'right', flexShrink: 0 }}>{d.name}</span>
+                    <div style={{ flex: 1, height: altura, background: 'rgba(255,255,255,0.04)', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <div style={{
                             width: `${(d.value / max) * 100}%`, height: '100%',
                             background: `linear-gradient(90deg, ${d.fill}90, ${d.fill})`,
@@ -1568,7 +1573,7 @@ function StatusBars({ dados, t }) {
                             boxShadow: d.value > 0 ? `0 0 6px ${d.fill}60` : 'none'
                         }} />
                     </div>
-                    <span style={{ width: '28px', fontSize: '13px', fontWeight: '700', color: d.fill, filter: d.value > 0 ? `drop-shadow(0 0 4px ${d.fill}80)` : 'none' }}>{d.value}</span>
+                    <span style={{ width: larguraValor, fontSize: fontValor, fontWeight: '700', color: d.fill, filter: d.value > 0 ? `drop-shadow(0 0 4px ${d.fill}80)` : 'none' }}>{d.value}</span>
                 </div>
             ))}
         </div>
@@ -1621,29 +1626,29 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
     const fluxoEletrik = calcFluxoCte(veiculosEletrik, ctes);
 
     const PainelOp = ({ label, cor, total, dadosStatus, fluxo }) => (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ ...glassCard(t, `${cor}40`), padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '16px', borderLeft: `4px solid ${cor}` }}>
-                <div style={{ fontSize: '48px', fontWeight: '900', color: cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${cor}60)` }}>{total}</div>
-                <div style={{ fontSize: '13px', color: cor, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{label}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ ...glassCard(t, `${cor}40`), padding: '18px 22px', display: 'flex', alignItems: 'center', gap: '20px', borderLeft: `4px solid ${cor}` }}>
+                <div style={{ fontSize: '64px', fontWeight: '900', color: cor, lineHeight: 1, filter: `drop-shadow(0 0 8px ${cor}60)` }}>{total}</div>
+                <div style={{ fontSize: '17px', color: cor, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1.5px' }}>{label}</div>
             </div>
 
-            <div style={{ ...glassCard(t), padding: '14px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Status de Embarque</div>
-                <StatusBars dados={dadosStatus} t={t} />
+            <div style={{ ...glassCard(t), padding: '16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '10px' }}>Status de Embarque</div>
+                <StatusBars dados={dadosStatus} t={t} fontePlus />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '2px' }}>Fluxo CT-e</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: '2px', paddingLeft: '2px' }}>Fluxo CT-e</div>
                 {[
                     { label: 'Aguardando', valor: fluxo.aguardando, cor: '#f59e0b' },
                     { label: 'Em Emissão', valor: fluxo.emEmissao, cor: '#3b82f6' },
                     { label: 'Emitido', valor: fluxo.emitidos, cor: '#34d399' },
                 ].map(item => (
-                    <div key={item.label} style={{ ...glassCard(t, `${item.cor}20`), padding: '10px 14px', borderLeft: `3px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '600', color: t.text }}>{item.label}</div>
+                    <div key={item.label} style={{ ...glassCard(t, `${item.cor}20`), padding: '14px 18px', borderLeft: `3px solid ${item.cor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '16px', fontWeight: '600', color: t.text }}>{item.label}</div>
                         <div style={{ textAlign: 'right' }}>
-                            <span style={{ fontSize: '28px', fontWeight: '900', color: item.cor }}>{item.valor}</span>
-                            <span style={{ fontSize: '11px', color: t.textMuted, marginLeft: '6px' }}>{fluxo.pct(item.valor)}</span>
+                            <span style={{ fontSize: '36px', fontWeight: '900', color: item.cor }}>{item.valor}</span>
+                            <span style={{ fontSize: '13px', color: t.textMuted, marginLeft: '8px' }}>{fluxo.pct(item.valor)}</span>
                         </div>
                     </div>
                 ))}
@@ -1653,14 +1658,14 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
 
     return (
         <div className="tv-card-anim">
-            <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                <h2 style={{ fontSize: '18px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 12px 0' }}>
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '22px', fontWeight: '700', color: t.textMuted, letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 14px 0' }}>
                     Operação Leão / Eletrik Sul
                 </h2>
                 <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <div style={{ ...glassCard(t, '#f9731660'), padding: '16px 40px', textAlign: 'center', borderLeft: '4px solid #f97316' }}>
-                        <div style={{ fontSize: '56px', fontWeight: '900', color: '#f97316', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f9731680)' }}>{totalGeral}</div>
-                        <div style={{ fontSize: '11px', color: '#fdba74', marginTop: '4px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Leão / Eletrik Sul</div>
+                    <div style={{ ...glassCard(t, '#f9731660'), padding: '20px 50px', textAlign: 'center', borderLeft: '4px solid #f97316' }}>
+                        <div style={{ fontSize: '72px', fontWeight: '900', color: '#f97316', lineHeight: 1, filter: 'drop-shadow(0 0 12px #f9731680)' }}>{totalGeral}</div>
+                        <div style={{ fontSize: '14px', color: '#fdba74', marginTop: '6px', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 'bold' }}>Total Leão / Eletrik Sul</div>
                     </div>
                 </div>
             </div>

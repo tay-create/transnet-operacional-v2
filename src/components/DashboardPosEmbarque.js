@@ -362,12 +362,26 @@ export default function DashboardPosEmbarque({ socket }) {
                                     {/* Documentos */}
                                     {(oc.cte || oc.nfs) && (
                                         <div style={{
-                                            background: tema.docBg, borderRadius: 10, padding: '10px 14px',
-                                            marginBottom: 10, display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 12,
+                                            background: tema.docBg, borderRadius: 10, padding: '12px 14px',
+                                            marginBottom: 10, display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13,
                                             border: tema.docBorder,
                                         }}>
-                                            {oc.cte && <span style={{ color: '#78909c' }}>CTE: <span style={{ color: '#b2ebf2', fontWeight: 600 }}>{oc.cte}</span></span>}
-                                            {oc.nfs && <span style={{ color: '#78909c' }}>NF: <span style={{ color: '#b2ebf2', fontWeight: 600 }}>{oc.nfs}</span></span>}
+                                            {oc.cte && (
+                                                <span style={{ color: tema.textSecondary, fontWeight: 700, letterSpacing: 0.3 }}>
+                                                    CTE: <span style={{
+                                                        color: modoClaro ? '#0f172a' : '#e0f7fa',
+                                                        fontWeight: 800, fontSize: 15, letterSpacing: 0.5,
+                                                    }}>{oc.cte}</span>
+                                                </span>
+                                            )}
+                                            {oc.nfs && (
+                                                <span style={{ color: tema.textSecondary, fontWeight: 700, letterSpacing: 0.3 }}>
+                                                    NF: <span style={{
+                                                        color: modoClaro ? '#0f172a' : '#e0f7fa',
+                                                        fontWeight: 800, fontSize: 15, letterSpacing: 0.5,
+                                                    }}>{oc.nfs}</span>
+                                                </span>
+                                            )}
                                         </div>
                                     )}
 
