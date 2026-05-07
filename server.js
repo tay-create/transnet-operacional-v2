@@ -1470,6 +1470,14 @@ app.post('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. O
     try {
         const item = req.body;
         const unidade = item.unidade || req.user.cidade || 'Recife';
+        // Bloquear duplicata pelo número de coleta
+        if (item.coleta) {
+            const existente = await dbAll('SELECT id, dados_json FROM fila');
+            const jaExiste = existente.some(row => {
+                try { return JSON.parse(row.dados_json).coleta == item.coleta; } catch { return false; }
+            });
+            if (jaExiste) return res.json({ success: true, duplicata: true });
+        }
         const result = await dbRun(`INSERT INTO fila (dados_json, unidade) VALUES (?, ?)`, [JSON.stringify(item), unidade]);
         const novo = { id: result.lastID, unidade, ...item };
         await registrarLog('FILA_CRIADA', req.user?.nome || '?', result.lastID, 'fila', null, null, `Unidade: ${unidade}`);
