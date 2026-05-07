@@ -278,7 +278,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
     const verificarDuplicatas = useCallback(async (lotesParaVerificar) => {
         try {
-            const r = await api.get('/api/veiculos');
+            const r = await api.get('/veiculos');
             const veiculos = r.data.veiculos || [];
             const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
             const ativos = veiculos.filter(v =>
@@ -287,7 +287,8 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             );
             const tagsAtivas = new Set();
             for (const v of ativos) {
-                for (const campo of [v.coletaRecife, v.coletaMoreno, v.coletainterestadual]) {
+                // Backend mapeia coletainterestadual → coletaInterestadual no payload (camelCase)
+                for (const campo of [v.coletaRecife, v.coletaMoreno, v.coletaInterestadual, v.coletainterestadual]) {
                     (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => tagsAtivas.add(t));
                 }
             }
