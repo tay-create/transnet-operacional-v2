@@ -3075,37 +3075,49 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
         const embarcadas = parseInt((resumoDP[0] && resumoDP[0][2]) || 0) || 0;
         const pendentes  = parseInt((resumoDP[1] && resumoDP[1][2]) || 0) || 0;
 
-        // Agrupar por rota (col A) para deduplicar rotas com múltiplas linhas
-        // Índices: 2=C(PROGRAMADO), 4=E(DATA EMBARQUE), 12=M, 13=N, 14=O, 15=P, 16=Q, 17=R
-        const rotasMap = new Map();
+        // Lógica espelhada do AppScript (codigo.gs):
+        // Col B(1)=reprog X, C(2)=prog X, D(3)=embarcada X, M(12)/Q(16)=plástico, N(13)/R(17)=porcelana, O(14)/P(15)=consolidado
+        // Consolidado tem prioridade sobre plástico/porcelana na mesma linha
+        let programadasHoje = 0, reprogramadas = 0;
+        let plastico = 0, plasticoEmbarcado = 0;
+        let porcelana = 0, porcelanaEmbarcada = 0;
+        let consolidado = 0, consolidadoEmbarcado = 0;
+
         for (const row of dadosDP) {
-            const colA = (row[0] || '').trim();
+            const colA = (row[0] || '').toString().trim();
             if (!colA || isNaN(Number(colA))) continue;
-            const rota = Number(colA);
-            if (!rotasMap.has(rota)) {
-                rotasMap.set(rota, { programado: false, reprogramado: false, dataEmbarque: '', plastico: false, porcelana: false, consolidado: false });
+            const colB = (row[1] || '').toString().trim().toUpperCase();
+            const colC = (row[2] || '').toString().trim().toUpperCase();
+            const colD = (row[3] || '').toString().trim().toUpperCase();
+            const colM = (row[12] || '').toString().trim();
+            const colN = (row[13] || '').toString().trim();
+            const colO = (row[14] || '').toString().trim();
+            const colP = (row[15] || '').toString().trim();
+            const colQ = (row[16] || '').toString().trim();
+            const colR = (row[17] || '').toString().trim();
+
+            if (colB === 'X') reprogramadas++;
+            if (colC === 'X') programadasHoje++;
+
+            const embarcada = colD === 'X';
+
+            if (colO === '-' || colP === '-') {
+                consolidado++;
+                if (embarcada) consolidadoEmbarcado++;
+            } else {
+                if (colM === '-' || colQ === '-') {
+                    plastico++;
+                    if (embarcada) plasticoEmbarcado++;
+                }
+                if (colN === '-' || colR === '-') {
+                    porcelana++;
+                    if (embarcada) porcelanaEmbarcada++;
+                }
             }
-            const r = rotasMap.get(rota);
-            if ((row[2] || '').trim().toUpperCase() === 'P') r.programado = true;
-            if ((row[1] || '').trim().toLowerCase() === 'x') r.reprogramado = true;
-            if ((row[4] || '').trim()) r.dataEmbarque = (row[4] || '').trim();
-            if ((row[12] || '').trim() || (row[16] || '').trim()) r.plastico = true;
-            if ((row[13] || '').trim() || (row[17] || '').trim()) r.porcelana = true;
-            if ((row[14] || '').trim() || (row[15] || '').trim()) r.consolidado = true;
         }
 
-        let programadasHoje = 0, reprogramadas = 0, plastico = 0, plasticoEmbarcado = 0;
-        let porcelana = 0, porcelanaEmbarcada = 0, consolidado = 0, consolidadoEmbarcado = 0;
-        for (const r of rotasMap.values()) {
-            if (r.programado) programadasHoje++;
-            if (r.reprogramado) reprogramadas++;
-            if (r.plastico) { plastico++; if (r.dataEmbarque) plasticoEmbarcado++; }
-            if (r.porcelana) { porcelana++; if (r.dataEmbarque) porcelanaEmbarcada++; }
-            if (r.consolidado) { consolidado++; if (r.dataEmbarque) consolidadoEmbarcado++; }
-        }
-
-        // Aba Eletrik
-        let eletrikTotal = 0, eletrikEmbarcado = 0, eletrikPendente = 0;
+        // Aba Eletrik — espelhado do AppScript
+        let eletrikTotal = 0, eletrikEmbarcado = 0, eletrikProg = 0, eletrikPendente = 0;
         try {
             const metaResp = await sheets.spreadsheets.get({ spreadsheetId: TRAMONTINA_SHEET_ID });
             const abaEletrik = (metaResp.data.sheets || []).find(s =>
@@ -3113,20 +3125,16 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             );
             if (abaEletrik) {
                 const nomeAba = abaEletrik.properties.title;
-                const [resumoEl, dadosElBE] = await Promise.all([
-                    lerRangeTramontina(sheets, 'H7:H8', nomeAba),
-                    lerRangeTramontina(sheets, 'A11:E500', nomeAba),
-                ]);
-                // H7 (mesclada) = total criadas
-                eletrikTotal = parseInt((resumoEl[0] && resumoEl[0][0]) || 0) || 0;
+                const dadosElBE = await lerRangeTramontina(sheets, 'A11:B500', nomeAba);
 
                 for (const row of dadosElBE) {
-                    const colA = (row[0] || '').trim();
+                    const colA = (row[0] || '').toString().trim();
                     if (!colA || isNaN(Number(colA))) continue;
-                    // col B (índice 1) começa com "S" = embarcado
-                    if ((row[1] || '').toLowerCase().startsWith('s')) eletrikEmbarcado++;
-                    // col E (índice 4) vazia = pendente (tem rota mas sem data de embarque)
-                    if (!(row[4] || '').trim()) eletrikPendente++;
+                    eletrikTotal++;
+                    const colB = (row[1] || '').toString().trim().toUpperCase();
+                    if (colB === 'SIM') eletrikEmbarcado++;
+                    else if (colB === 'NÃO' || colB === 'NAO') eletrikProg++;
+                    else eletrikPendente++;
                 }
             }
         } catch (e) {
@@ -3141,7 +3149,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
                 porcelana, porcelanaEmbarcada,
                 consolidado, consolidadoEmbarcado,
             },
-            eletrik: { total: eletrikTotal, embarcado: eletrikEmbarcado, pendente: eletrikPendente },
+            eletrik: { total: eletrikTotal, embarcado: eletrikEmbarcado, prog: eletrikProg, pendente: eletrikPendente },
         };
         tramontinaCache = { data: resultado, ts: Date.now() };
         res.json(resultado);

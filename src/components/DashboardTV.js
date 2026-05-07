@@ -174,6 +174,7 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
                         )}
                         {b.label === 'ELETRIK (EMBARC.)' && (
                             <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 6, fontSize: 9, color: t.textDim }}>
+                                <span>PROG: <b style={{ color: b.cor }}>{el.prog ?? '—'}</b></span>
                                 <span>PEND: <b style={{ color: '#f87171' }}>{el.pendente ?? '—'}</b></span>
                             </div>
                         )}
