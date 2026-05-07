@@ -372,7 +372,7 @@ app.post('/api/operacao-motorista/gerar', authMiddleware, async (req, res) => {
         const { veiculo_id } = req.body;
         if (!veiculo_id) return res.status(400).json({ success: false, message: 'veiculo_id obrigatório.' });
 
-        const v = await dbGet("SELECT id, operacao, motorista, status_recife, coletaInterestadual, coletarecife FROM veiculos WHERE id = ?", [veiculo_id]);
+        const v = await dbGet("SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife FROM veiculos WHERE id = ?", [veiculo_id]);
         if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
         if (v.operacao !== 'LEÃO - SP' && v.operacao !== 'ELETRIK SUL') {
             return res.status(400).json({ success: false, message: 'Disponível apenas para Leão SP / Eletrik Sul.' });
@@ -399,7 +399,7 @@ app.post('/api/operacao-motorista/gerar', authMiddleware, async (req, res) => {
 app.get('/api/operacao-motorista/:token', async (req, res) => {
     try {
         const v = await dbGet(
-            "SELECT id, operacao, motorista, status_recife, coletaInterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            "SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
             [req.params.token]
         );
         if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
@@ -415,6 +415,14 @@ app.get('/api/operacao-motorista/:token', async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: 'Erro ao validar link.' }); }
 });
 
+// Helper: extrai todas as coletas (separadas por vírgula no TagInput) e normaliza removendo zeros à esquerda
+function extrairColetasNumero(raw) {
+    return String(raw || '')
+        .split(',')
+        .map(t => t.trim().replace(/^0+/, ''))
+        .filter(Boolean);
+}
+
 // (c) Confirmar coleta — motorista digita o número
 app.post('/api/operacao-motorista/:token/confirmar', async (req, res) => {
     try {
@@ -422,15 +430,18 @@ app.post('/api/operacao-motorista/:token/confirmar', async (req, res) => {
         if (!coletaDigitada) return res.status(400).json({ success: false, message: 'Informe o número da coleta.' });
 
         const v = await dbGet(
-            "SELECT coletaInterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            "SELECT coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
             [req.params.token]
         );
         if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
         if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
             return res.status(410).json({ success: false, message: 'Link expirado.' });
         }
-        const coletaCard = String(v.coletaInterestadual || v.coletarecife || '').trim().replace(/^0+/, '');
-        if (!coletaCard || coletaCard !== coletaDigitada) {
+        const coletasCard = [
+            ...extrairColetasNumero(v.coletainterestadual),
+            ...extrairColetasNumero(v.coletarecife),
+        ];
+        if (coletasCard.length === 0 || !coletasCard.includes(coletaDigitada)) {
             return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
         }
         res.json({ success: true });
@@ -442,15 +453,18 @@ app.post('/api/operacao-motorista/:token/avancar', async (req, res) => {
     try {
         const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
         const v = await dbGet(
-            "SELECT id, motorista, status_recife, coletaInterestadual, coletarecife, token_operacao_expira_em, timestamps_status, tempos_recife FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            "SELECT id, motorista, status_recife, coletainterestadual, coletarecife, token_operacao_expira_em, timestamps_status, tempos_recife FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
             [req.params.token]
         );
         if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
         if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
             return res.status(410).json({ success: false, message: 'Link expirado.' });
         }
-        const coletaCard = String(v.coletaInterestadual || v.coletarecife || '').trim().replace(/^0+/, '');
-        if (!coletaCard || coletaCard !== coletaDigitada) {
+        const coletasCard = [
+            ...extrairColetasNumero(v.coletainterestadual),
+            ...extrairColetasNumero(v.coletarecife),
+        ];
+        if (coletasCard.length === 0 || !coletasCard.includes(coletaDigitada)) {
             return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
         }
 
