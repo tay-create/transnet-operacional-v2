@@ -2968,7 +2968,30 @@ app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenado
         res.status(500).json({ success: false, message: e.message });
     }
 });
-// ────────────────────────────────────────────────────────────
+
+// ── CRON: Gerar Inicial automático às 10h / Final às 17h ─────────────────────
+cron.schedule('0 10 * * 1-6', async () => {
+    console.log('[CRON-PROG] 10:00 — Gerando Programação Inicial automática...');
+    try {
+        const r = await gerarProgramacaoDiaria('Inicial');
+        console.log(`[CRON-PROG] Inicial gerada: ${r.data_referencia}`);
+        io.emit('receber_atualizacao', { tipo: 'programacao_gerada', turno: 'Inicial' });
+    } catch (e) {
+        console.error('[CRON-PROG] Erro ao gerar Inicial:', e.message);
+    }
+}, { timezone: 'America/Sao_Paulo' });
+
+cron.schedule('0 17 * * 1-6', async () => {
+    console.log('[CRON-PROG] 17:00 — Gerando Programação Final automática...');
+    try {
+        const r = await gerarProgramacaoDiaria('Final');
+        console.log(`[CRON-PROG] Final gerada: ${r.data_referencia}`);
+        io.emit('receber_atualizacao', { tipo: 'programacao_gerada', turno: 'Final' });
+    } catch (e) {
+        console.error('[CRON-PROG] Erro ao gerar Final:', e.message);
+    }
+}, { timezone: 'America/Sao_Paulo' });
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Tramontina Dashboard ─────────────────────────────────────────────────────
 const { google } = require('googleapis');
