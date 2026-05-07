@@ -201,6 +201,10 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'data_prevista_original', tipo: 'TEXT' },
             // Programação Diária v3.1 — flag explícita de reprogramação (botão ou calendário)
             { tabela: 'veiculos', coluna: 'foi_reprogramado', tipo: 'INTEGER DEFAULT 0' },
+            // Auto-atendimento do motorista interestadual (Leão SP / Eletrik Sul)
+            // Token público que o motorista usa pra avançar status pela rota /operacao/:token
+            { tabela: 'veiculos', coluna: 'token_operacao_motorista', tipo: 'TEXT' },
+            { tabela: 'veiculos', coluna: 'token_operacao_expira_em', tipo: 'TIMESTAMP' },
             // Âncoras de data por unidade — garante que card CARREGADO fique no dia certo mesmo após Finalizar
             { tabela: 'veiculos', coluna: 'data_carregado_recife', tipo: 'TEXT' },
             { tabela: 'veiculos', coluna: 'data_carregado_moreno', tipo: 'TEXT' },

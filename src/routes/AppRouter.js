@@ -5,6 +5,7 @@ import MarcacaoForm from '../components/MarcacaoForm';
 import LoginScreen from '../components/LoginScreen';
 import RedefinirSenha from '../components/RedefinirSenha';
 import EntrarMotorista from '../components/EntrarMotorista';
+import OperacaoMotorista from '../components/OperacaoMotorista';
 import ConferenteLogin from '../conferente/ConferenteLogin';
 import ConferenteApp from '../conferente/ConferenteApp';
 import NotFound from '../components/NotFound';
@@ -39,6 +40,11 @@ function AppRouterInner() {
         return <EntrarMotorista />;
     }
 
+    // Auto-atendimento do motorista interestadual (Leão SP / Eletrik Sul) — pública por token
+    if (path.startsWith('/operacao/')) {
+        return <OperacaoMotorista />;
+    }
+
     // 2. Rota do Conferente (Login separado + App dedicado)
     if (path.startsWith('/conferente')) {
         if (!isAuthenticated || !['Conferente', 'Encarregado', 'Coordenador', 'Desenvolvedor'].includes(user?.cargo)) {
@@ -67,7 +73,7 @@ function AppRouterInner() {
     }
 
     // 3. Rotas desconhecidas → 404
-    const rotasValidas = ['/', '/cadastro', '/redefinir-senha', '/entrar', '/conferente', '/mobile', '/checklist', '/qrcode-caminhao'];
+    const rotasValidas = ['/', '/cadastro', '/redefinir-senha', '/entrar', '/operacao', '/conferente', '/mobile', '/checklist', '/qrcode-caminhao'];
     const isRotaValida = rotasValidas.some(r => path === r || path.startsWith(r + '/'));
     if (!isRotaValida) {
         return <NotFound />;

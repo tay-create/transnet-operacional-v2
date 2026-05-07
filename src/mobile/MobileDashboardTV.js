@@ -3,7 +3,15 @@ import { Truck, FileText, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-
 import { DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import api from '../services/apiService';
 
-const TELAS = ['Embarques', 'Operação', 'CT-e'];
+const TELAS = ['Embarques', 'Operação', 'CT-e', 'Leão / Eletrik Sul'];
+
+// Régua restrita pra cards interestaduais — fluxo do motorista
+const STATUS_LEAO = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
+
+function normalizarStatusLeao(st) {
+    if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
+    return st;
+}
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
@@ -321,6 +329,21 @@ export default function MobileDashboardTV({ socket }) {
     const ctesRecife = ctes.filter(c => c.origem === 'Recife');
     const ctesMoreno = ctes.filter(c => c.origem !== 'Recife');
 
+    // Tela 3 — Leão SP / Eletrik Sul
+    const vLeao = veiculosHoje.filter(v => v.operacao === 'LEÃO - SP');
+    const vEletrikSul = veiculosHoje.filter(v => v.operacao === 'ELETRIK SUL');
+    const calcStatusLeao = (lista) => {
+        const cont = {};
+        STATUS_LEAO.forEach(s => { cont[s] = 0; });
+        lista.forEach(v => {
+            const st = normalizarStatusLeao(v.status_recife || 'LIBERADO P/ CARREGAMENTO');
+            if (cont[st] !== undefined) cont[st]++;
+        });
+        return cont;
+    };
+    const statusLeao = calcStatusLeao(vLeao);
+    const statusEletrikSul = calcStatusLeao(vEletrikSul);
+
     // Label da data selecionada
     const labelData = dataSel === hoje
         ? `Hoje — ${new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Recife' })}`
@@ -603,6 +626,66 @@ export default function MobileDashboardTV({ socket }) {
                                 </div>
                             );
                         })()}
+
+                        {/* TELA 3: Leão SP / Eletrik Sul */}
+                        {tela === 3 && (
+                            <div>
+                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Interestaduais · {labelData}
+                                </div>
+
+                                {/* KPIs totais lado a lado */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                                    <div style={{ background: 'rgba(249,115,22,0.08)', border: '1px solid rgba(249,115,22,0.25)', borderTop: '3px solid #f97316', borderRadius: '12px', padding: '14px 10px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '36px', fontWeight: '900', color: '#f97316', lineHeight: 1 }}>{vLeao.length}</div>
+                                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Leão - SP</div>
+                                    </div>
+                                    <div style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', borderTop: '3px solid #a855f7', borderRadius: '12px', padding: '14px 10px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '36px', fontWeight: '900', color: '#a855f7', lineHeight: 1 }}>{vEletrikSul.length}</div>
+                                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', marginTop: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Eletrik Sul</div>
+                                    </div>
+                                </div>
+
+                                {/* Régua de status — Leão */}
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '14px', marginBottom: '12px' }}>
+                                    <div style={{ fontSize: '10px', color: '#f97316', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                                        Status — Leão SP
+                                    </div>
+                                    {STATUS_LEAO.map(st => (
+                                        <div key={st} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                            <span style={{ flex: 1, fontSize: '11px', fontWeight: '700', color: STATUS_COR[st] || '#94a3b8' }}>{st}</span>
+                                            <span style={{ fontSize: '16px', fontWeight: '900', color: STATUS_COR[st] || '#475569', minWidth: '30px', textAlign: 'right' }}>
+                                                {statusLeao[st] || 0}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Régua de status — Eletrik Sul */}
+                                <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '14px' }}>
+                                    <div style={{ fontSize: '10px', color: '#a855f7', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                                        Status — Eletrik Sul
+                                    </div>
+                                    {STATUS_LEAO.map(st => (
+                                        <div key={st} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                            <span style={{ flex: 1, fontSize: '11px', fontWeight: '700', color: STATUS_COR[st] || '#94a3b8' }}>{st}</span>
+                                            <span style={{ fontSize: '16px', fontWeight: '900', color: STATUS_COR[st] || '#475569', minWidth: '30px', textAlign: 'right' }}>
+                                                {statusEletrikSul[st] || 0}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {vLeao.length === 0 && vEletrikSul.length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: '24px', color: '#334155' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                                            <Truck size={24} color="#334155" strokeWidth={1.5} />
+                                        </div>
+                                        <div style={{ fontSize: '12px' }}>Nenhum interestadual neste dia.</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </div>

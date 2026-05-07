@@ -1588,15 +1588,17 @@ function TelaOperacaoLeaoEletrikSul({ veiculos, ctes, t, tema, ocorrenciasHoje =
         return st;
     };
 
+    // Régua restrita: cards Leão SP / Eletrik Sul só passam por 3 status no fluxo do motorista
+    // (LIBERADO P/ CT-e segue como botão à parte, fora da régua de carregamento).
+    const STATUS_LEAO_RUA = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
     const calcStatus = (lista) => {
         const cont = {};
-        OPCOES_STATUS.forEach(s => { cont[s] = 0; });
+        STATUS_LEAO_RUA.forEach(s => { cont[s] = 0; });
         lista.forEach(v => {
-            const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
+            const st = normalizarStatus(v.status_recife || 'LIBERADO P/ CARREGAMENTO');
             if (cont[st] !== undefined) cont[st]++;
-            if (v.cte_antecipado_interestadual && st !== 'LIBERADO P/ CT-e') cont['LIBERADO P/ CT-e']++;
         });
-        return OPCOES_STATUS.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
+        return STATUS_LEAO_RUA.map(s => ({ name: s, value: cont[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
     };
 
     const calcFluxoCte = (listaVeiculos, ctesList) => {

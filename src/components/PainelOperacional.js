@@ -3,7 +3,8 @@ import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
-    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX, Download
+    CheckCircle, Clock, FileText, Warehouse, Truck, CalendarPlus, CalendarCheck, UserX, Download,
+    Smartphone, Copy, MessageCircle
 } from 'lucide-react';
 import { gerarPdfCubagem } from '../utils/cubagemPdf';
 import ModalChecklistCarreta from './ModalChecklistCarreta';
@@ -273,6 +274,7 @@ export default function PainelOperacional({
     const [frotaDestino, setFrotaDestino] = useState('');
     const [loadingPdf, setLoadingPdf] = useState({});
     const [modalLacre, setModalLacre] = useState(null); // { foto, motorista }
+    const [modalLinkMotorista, setModalLinkMotorista] = useState(null); // { url, motorista, gerando, copiado }
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -1454,9 +1456,15 @@ export default function PainelOperacional({
                                                             }}
                                                             style={{ background: `${corStatus.border}22`, border: `1px solid ${corStatus.border}66`, borderRadius: '6px', color: corStatus.text, fontSize: '12px', fontWeight: 'bold', padding: '4px 6px', outline: 'none', cursor: 'pointer' }}
                                                         >
-                                                            {OPCOES_STATUS.filter(s => s !== 'LIBERADO P/ CT-e').map(s => (
-                                                                <option key={s} value={s} style={{ color: 'black' }}>{s}</option>
-                                                            ))}
+                                                            {(() => {
+                                                                const eInterestadual = item.operacao === 'LEÃO - SP' || item.operacao === 'ELETRIK SUL';
+                                                                const opcoes = eInterestadual
+                                                                    ? ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO']
+                                                                    : OPCOES_STATUS.filter(s => s !== 'LIBERADO P/ CT-e');
+                                                                return opcoes.map(s => (
+                                                                    <option key={s} value={s} style={{ color: 'black' }}>{s}</option>
+                                                                ));
+                                                            })()}
                                                         </select>
                                                     </div>
                                                 </div>
@@ -1731,6 +1739,39 @@ export default function PainelOperacional({
                                                         </button>
                                                     )}
 
+                                                    {/* Botão Link Motorista — só Leão SP / Eletrik Sul, status pré-CARREGADO */}
+                                                    {(item.operacao === 'LEÃO - SP' || item.operacao === 'ELETRIK SUL') &&
+                                                     valorStatusAtual !== 'CARREGADO' && valorStatusAtual !== 'LIBERADO P/ CT-e' && item.motorista?.trim() && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                setModalLinkMotorista({ veiculoId: item.id, motorista: item.motorista, gerando: true, url: '', copiado: false });
+                                                                try {
+                                                                    const r = await api.post('/api/operacao-motorista/gerar', { veiculo_id: item.id });
+                                                                    if (r.data?.success) {
+                                                                        setModalLinkMotorista(prev => ({ ...prev, gerando: false, url: r.data.url }));
+                                                                    } else {
+                                                                        setModalLinkMotorista(null);
+                                                                        mostrarNotificacao?.(`⚠️ ${r.data?.message || 'Erro ao gerar link.'}`);
+                                                                    }
+                                                                } catch (e) {
+                                                                    setModalLinkMotorista(null);
+                                                                    mostrarNotificacao?.(`⚠️ ${e.response?.data?.message || 'Erro ao gerar link.'}`);
+                                                                }
+                                                            }}
+                                                            title="Gerar link para o motorista atualizar status"
+                                                            style={{
+                                                                padding: '6px 10px', borderRadius: '8px',
+                                                                background: 'linear-gradient(135deg, #0891b2, #22d3ee)',
+                                                                border: 'none', color: 'white',
+                                                                fontSize: '11px', fontWeight: '700',
+                                                                cursor: 'pointer', letterSpacing: '0.4px',
+                                                                display: 'flex', alignItems: 'center', gap: '5px'
+                                                            }}
+                                                        >
+                                                            <Smartphone size={13} /> LINK MOTORISTA
+                                                        </button>
+                                                    )}
+
                                                     {/* Botão Liberado p/ CTE */}
                                                     {(valorStatusAtual === 'CARREGADO' || valorStatusAtual === 'EM CARREGAMENTO') && !(origem === 'Recife' ? item.cte_antecipado_recife : origem === 'Moreno' ? item.cte_antecipado_moreno : item.cte_antecipado_interestadual) && (
                                                         <button
@@ -1846,6 +1887,83 @@ export default function PainelOperacional({
                     onClose={() => { setModalChecklistAberto(false); setVeiculoSelecionado(null); }}
                     onSucesso={(msg) => adicionarToast(msg, 'sucesso')}
                 />
+            )}
+
+            {/* Modal — Link Motorista (Leão SP / Eletrik Sul) */}
+            {modalLinkMotorista && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(34,211,238,0.3)', borderRadius: '14px', boxShadow: '0 20px 50px rgba(0,0,0,0.9)', width: '100%', maxWidth: '460px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 20px', background: 'rgba(34,211,238,0.12)', borderBottom: '1px solid rgba(34,211,238,0.3)' }}>
+                            <Smartphone size={20} style={{ color: '#22d3ee' }} />
+                            <span style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '15px', flex: 1 }}>Link para o motorista</span>
+                            <button onClick={() => setModalLinkMotorista(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px' }}><X size={16} /></button>
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 14px 0' }}>
+                                Envie este link para <strong style={{ color: '#e2e8f0' }}>{modalLinkMotorista.motorista}</strong>.
+                                Ele vai precisar digitar o número da coleta pra confirmar e poderá avançar os status do carregamento direto pelo celular.
+                            </p>
+                            {modalLinkMotorista.gerando ? (
+                                <div style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                                    <div style={{ display: 'inline-block', width: 18, height: 18, border: '2px solid #1e293b', borderTop: '2px solid #22d3ee', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                    <div style={{ marginTop: 10, fontSize: 13 }}>Gerando link...</div>
+                                </div>
+                            ) : (
+                                <>
+                                    <input
+                                        readOnly value={modalLinkMotorista.url}
+                                        onClick={e => e.target.select()}
+                                        style={{
+                                            width: '100%', boxSizing: 'border-box',
+                                            background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(34,211,238,0.25)',
+                                            borderRadius: '10px', padding: '10px 12px', fontSize: '12px',
+                                            color: '#22d3ee', fontFamily: 'monospace', outline: 'none',
+                                        }}
+                                    />
+                                    <p style={{ marginTop: 8, fontSize: 11, color: '#475569' }}>Válido por 24h ou até o motorista marcar como CARREGADO.</p>
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: 14 }}>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    await navigator.clipboard.writeText(modalLinkMotorista.url);
+                                                    setModalLinkMotorista(prev => ({ ...prev, copiado: true }));
+                                                    setTimeout(() => setModalLinkMotorista(prev => prev && ({ ...prev, copiado: false })), 1800);
+                                                } catch {
+                                                    mostrarNotificacao?.('⚠️ Não foi possível copiar.');
+                                                }
+                                            }}
+                                            style={{
+                                                flex: 1, padding: '10px', borderRadius: '8px',
+                                                background: modalLinkMotorista.copiado ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
+                                                border: `1px solid ${modalLinkMotorista.copiado ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                                                color: modalLinkMotorista.copiado ? '#4ade80' : '#cbd5e1',
+                                                fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                            }}
+                                        >
+                                            {modalLinkMotorista.copiado ? <CheckCircle size={14} /> : <Copy size={14} />}
+                                            {modalLinkMotorista.copiado ? 'Copiado!' : 'Copiar link'}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const msg = `Olá ${modalLinkMotorista.motorista}, registre o status do carregamento aqui: ${modalLinkMotorista.url}`;
+                                                window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+                                            }}
+                                            style={{
+                                                flex: 1, padding: '10px', borderRadius: '8px',
+                                                background: '#25D366', border: 'none', color: 'white',
+                                                fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                            }}
+                                        >
+                                            <MessageCircle size={14} /> WhatsApp
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Modal — Liberar p/ CT-e (seleção de operador Conhecimento) */}

@@ -357,6 +357,155 @@ app.post('/api/tokens/auto', autoTokenLimiter, async (req, res) => {
     } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTO-ATENDIMENTO DE STATUS — MOTORISTA INTERESTADUAL (LEÃO SP / ELETRIK SUL)
+// O motorista carrega fora do galpão; recebe um link público temporário e
+// dita o avanço linear: LIBERADO P/ CARREGAMENTO → EM CARREGAMENTO → CARREGADO.
+// Token expira em 24h ou ao chegar em CARREGADO.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATUS_MOTORISTA = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
+
+// (a) Coordenador/Planejamento/Encarregado gera o link
+app.post('/api/operacao-motorista/gerar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
+    try {
+        const { veiculo_id } = req.body;
+        if (!veiculo_id) return res.status(400).json({ success: false, message: 'veiculo_id obrigatório.' });
+
+        const v = await dbGet("SELECT id, operacao, motorista, status_recife, coletaInterestadual, coletarecife FROM veiculos WHERE id = ?", [veiculo_id]);
+        if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+        if (v.operacao !== 'LEÃO - SP' && v.operacao !== 'ELETRIK SUL') {
+            return res.status(400).json({ success: false, message: 'Disponível apenas para Leão SP / Eletrik Sul.' });
+        }
+        if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') {
+            return res.status(400).json({ success: false, message: 'Carga já concluída — não é possível gerar link.' });
+        }
+
+        const token = require('crypto').randomBytes(16).toString('hex');
+        const expira = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await dbRun(
+            "UPDATE veiculos SET token_operacao_motorista = $1, token_operacao_expira_em = $2 WHERE id = $3",
+            [token, expira, veiculo_id]
+        );
+        const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+        res.json({ success: true, token, url: `${origin}/operacao/${token}`, expira_em: expira });
+    } catch (e) {
+        console.error('Erro ao gerar token motorista:', e);
+        res.status(500).json({ success: false, message: 'Erro ao gerar link.' });
+    }
+});
+
+// (b) GET público — info do card pra o motorista confirmar
+app.get('/api/operacao-motorista/:token', async (req, res) => {
+    try {
+        const v = await dbGet(
+            "SELECT id, operacao, motorista, status_recife, coletaInterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            [req.params.token]
+        );
+        if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
+        if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
+            return res.status(410).json({ success: false, message: 'Link expirado.' });
+        }
+        res.json({
+            success: true,
+            motorista: v.motorista || '',
+            operacao: v.operacao,
+            status_atual: v.status_recife || 'LIBERADO P/ CARREGAMENTO',
+        });
+    } catch (e) { res.status(500).json({ success: false, message: 'Erro ao validar link.' }); }
+});
+
+// (c) Confirmar coleta — motorista digita o número
+app.post('/api/operacao-motorista/:token/confirmar', async (req, res) => {
+    try {
+        const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
+        if (!coletaDigitada) return res.status(400).json({ success: false, message: 'Informe o número da coleta.' });
+
+        const v = await dbGet(
+            "SELECT coletaInterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            [req.params.token]
+        );
+        if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
+        if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
+            return res.status(410).json({ success: false, message: 'Link expirado.' });
+        }
+        const coletaCard = String(v.coletaInterestadual || v.coletarecife || '').trim().replace(/^0+/, '');
+        if (!coletaCard || coletaCard !== coletaDigitada) {
+            return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ success: false, message: 'Erro ao confirmar coleta.' }); }
+});
+
+// (d) Avançar status — linear, valida coleta de novo
+app.post('/api/operacao-motorista/:token/avancar', async (req, res) => {
+    try {
+        const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
+        const v = await dbGet(
+            "SELECT id, motorista, status_recife, coletaInterestadual, coletarecife, token_operacao_expira_em, timestamps_status, tempos_recife FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+            [req.params.token]
+        );
+        if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
+        if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
+            return res.status(410).json({ success: false, message: 'Link expirado.' });
+        }
+        const coletaCard = String(v.coletaInterestadual || v.coletarecife || '').trim().replace(/^0+/, '');
+        if (!coletaCard || coletaCard !== coletaDigitada) {
+            return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
+        }
+
+        const atual = v.status_recife || 'LIBERADO P/ CARREGAMENTO';
+        const idx = STATUS_MOTORISTA.indexOf(atual);
+        if (idx < 0 || idx >= STATUS_MOTORISTA.length - 1) {
+            return res.status(400).json({ success: false, message: 'Não há próximo status possível.' });
+        }
+        const proximo = STATUS_MOTORISTA[idx + 1];
+
+        const agora = new Date().toISOString();
+        const agoraHHMM = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' });
+        let ts = {};
+        try { ts = typeof v.timestamps_status === 'string' ? JSON.parse(v.timestamps_status || '{}') : (v.timestamps_status || {}); } catch {}
+        let tempos = {};
+        try { tempos = typeof v.tempos_recife === 'string' ? JSON.parse(v.tempos_recife || '{}') : (v.tempos_recife || {}); } catch {}
+
+        if (proximo === 'EM CARREGAMENTO') {
+            if (!ts.carregamento_recife_at) ts.carregamento_recife_at = agora;
+            if (!tempos.t_inicio_carregamento) tempos.t_inicio_carregamento = agoraHHMM;
+        }
+        if (proximo === 'CARREGADO') {
+            if (!ts.carregado_recife_at) ts.carregado_recife_at = agora;
+            if (!tempos.t_inicio_carregado) tempos.t_inicio_carregado = agoraHHMM;
+        }
+
+        // Ao chegar em CARREGADO, expira o token
+        const novoExpira = proximo === 'CARREGADO' ? new Date(Date.now() - 1000).toISOString() : v.token_operacao_expira_em;
+
+        await dbRun(
+            "UPDATE veiculos SET status_recife = $1, timestamps_status = $2, tempos_recife = $3, token_operacao_expira_em = $4 WHERE id = $5",
+            [proximo, JSON.stringify(ts), JSON.stringify(tempos), novoExpira, v.id]
+        );
+
+        // Emite atualização ao vivo pra Painel/TV
+        const veiculoAtualizado = await dbGet('SELECT * FROM veiculos WHERE id = ?', [v.id]);
+        let dadosJson = {};
+        try { dadosJson = JSON.parse(veiculoAtualizado?.dados_json || '{}'); } catch {}
+        io.emit('receber_atualizacao', {
+            tipo: 'atualiza_veiculo',
+            id: Number(v.id),
+            ...(veiculoAtualizado || {}),
+            timestamps_status: ts,
+            tempos_recife: tempos,
+            placa1Motorista: dadosJson.placa1Motorista || '',
+            placa2Motorista: dadosJson.placa2Motorista || '',
+        });
+
+        res.json({ success: true, novo_status: proximo, concluido: proximo === 'CARREGADO' });
+    } catch (e) {
+        console.error('Erro ao avançar status motorista:', e);
+        res.status(500).json({ success: false, message: 'Erro ao avançar status.' });
+    }
+});
+
 app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
     try {
         await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);

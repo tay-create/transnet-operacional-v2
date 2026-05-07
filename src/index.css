@@ -35,8 +35,8 @@ body[data-theme="claro"] {
   color: var(--tn-text-primary);
 }
 
-/* No modo claro, neutraliza efeitos neon (glow/text-shadow/drop-shadow) que ficariam estourados
-   sobre fundo branco. Animações que tocam text-shadow ficam pausadas. */
+/* No modo claro, neutraliza efeitos neon (glow/text-shadow/drop-shadow/box-shadow) que ficariam
+   estourados sobre fundo branco. Animações que tocam text-shadow ficam pausadas. */
 [data-theme="claro"] *,
 body[data-theme="claro"] * {
   text-shadow: none !important;
@@ -44,9 +44,18 @@ body[data-theme="claro"] * {
 [data-theme="claro"] svg {
   filter: none !important;
 }
+/* Desativa box-shadow inline (onde mora a maior parte do glow do projeto), preservando
+   sombras "limpas" em botões e modais que dão profundidade sem ser neon. */
+[data-theme="claro"] *:not(button):not(.modal-glass):not([class*="card"]):not([class*="kpi"]) {
+  box-shadow: none !important;
+}
 [data-theme="claro"] .tn-neon,
-[data-theme="claro"] [class*="neon"] {
+[data-theme="claro"] [class*="neon"],
+[data-theme="claro"] [class*="glow"],
+[data-theme="claro"] .tv-card-anim {
   animation: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
 
 @keyframes logo-wind {
