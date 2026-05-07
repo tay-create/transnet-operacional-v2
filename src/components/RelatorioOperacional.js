@@ -138,7 +138,10 @@ export default function RelatorioOperacional() {
             const cat = classificarOperacao(v.operacao);
             if (cat && cnt[cat] !== undefined) cnt[cat]++;
         });
-        return { ...cnt, total: veiculosPorUnidade.length };
+        const totalSP = cnt.leaoSP + cnt.eletrikSul;
+        const totalRec = veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao) && !ehInterestadual(v.operacao)).length;
+        const totalMor = veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length;
+        return { ...cnt, total: veiculosPorUnidade.length, totalRec, totalMor, totalSP };
     }, [veiculosPorUnidade]);
 
     // ── Gráfico 1: embarques por dia ──────────────────────────────────────────
@@ -245,8 +248,9 @@ export default function RelatorioOperacional() {
       <div class="total-label">Total de Embarques</div>
       <div class="total-num">${contadores.total}</div>
       <div class="total-sub">
-        <span>${veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife &nbsp;·&nbsp;
-        <span>${veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno
+        <span>${contadores.totalRec}</span> Recife &nbsp;·&nbsp;
+        <span>${contadores.totalMor}</span> Moreno &nbsp;·&nbsp;
+        <span>${contadores.totalSP}</span> São Paulo
       </div>
     </div>
     ${kpiRows}
@@ -332,6 +336,48 @@ export default function RelatorioOperacional() {
                 </div>
             </div>
 
+            {/* ── Distribuição por Unidade ── */}
+            {(() => {
+                const apenasRec = veiculosPorUnidade.filter(v => !ehInterestadual(v.operacao) && ehOperacaoRecife(v.operacao) && !v.operacao?.includes('/')).length;
+                const apenasMoreno = veiculosPorUnidade.filter(v => !ehInterestadual(v.operacao) && ehOperacaoMoreno(v.operacao) && !v.operacao?.includes('/')).length;
+                const ambas = veiculosPorUnidade.filter(v => v.operacao?.includes('/') && !ehInterestadual(v.operacao)).length;
+                const sp = contadores.totalSP;
+                const totalDist = apenasRec + apenasMoreno + ambas + sp;
+                const pct = (n) => totalDist > 0 ? ((n / totalDist) * 100).toFixed(0) : 0;
+                const BARRAS = [
+                    { label: 'Apenas Recife', valor: apenasRec, cor: '#3b82f6' },
+                    { label: 'Moreno', valor: apenasMoreno, cor: '#f59e0b' },
+                    { label: 'Recife c/ Moreno', valor: ambas, cor: '#8b5cf6' },
+                    { label: 'São Paulo', valor: sp, cor: '#f97316' },
+                ];
+                return (
+                    <div style={{ ...s.card, marginBottom: '20px' }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px', textAlign: 'center' }}>Distribuição por Unidade</div>
+                        <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', marginBottom: '16px' }}>
+                            {BARRAS.map(b => (
+                                <div key={b.label} style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '28px', fontWeight: '900', color: b.cor, lineHeight: 1 }}>{b.valor}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{b.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '80px', padding: '0 16px' }}>
+                            {BARRAS.map(b => {
+                                const maxVal = Math.max(...BARRAS.map(x => x.valor), 1);
+                                const h = Math.max((b.valor / maxVal) * 100, b.valor > 0 ? 8 : 0);
+                                return (
+                                    <div key={b.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
+                                        <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>{b.valor > 0 ? `${pct(b.valor)}%` : ''}</div>
+                                        <div style={{ width: '100%', height: `${h}%`, background: b.cor, borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: b.valor > 0 ? '4px' : '0' }} />
+                                        <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', whiteSpace: 'nowrap' }}>{b.label}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* ── KPIs — Operações locais ── */}
             {(() => {
                 const KPIS_LOCAL = KPIS.filter(k => k.id !== 'leaoSP' && k.id !== 'eletrikSul');
@@ -342,9 +388,10 @@ export default function RelatorioOperacional() {
                             <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Total de Embarques</div>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: '20px' }}>
                                 <span style={{ fontSize: '52px', fontWeight: '900', color: COR, lineHeight: 1 }}>{contadores.total}</span>
-                                <div style={{ fontSize: '12px', color: '#64748b' }}>
-                                    <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoRecife(v.operacao)).length}</span> Recife</div>
-                                    <div><span style={{ color: COR, fontWeight: '700' }}>{veiculosPorUnidade.filter(v => ehOperacaoMoreno(v.operacao)).length}</span> Moreno</div>
+                                <div style={{ fontSize: '12px', color: '#64748b', lineHeight: '1.8' }}>
+                                    <div><span style={{ color: '#3b82f6', fontWeight: '700' }}>{contadores.totalRec}</span> Recife</div>
+                                    <div><span style={{ color: '#f59e0b', fontWeight: '700' }}>{contadores.totalMor}</span> Moreno</div>
+                                    <div><span style={{ color: '#f97316', fontWeight: '700' }}>{contadores.totalSP}</span> São Paulo</div>
                                 </div>
                             </div>
                         </div>
