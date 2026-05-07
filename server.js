@@ -3083,20 +3083,22 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             if (!colA || isNaN(Number(colA))) continue;
             const rota = Number(colA);
             if (!rotasMap.has(rota)) {
-                rotasMap.set(rota, { programado: false, dataEmbarque: '', plastico: false, porcelana: false, consolidado: false });
+                rotasMap.set(rota, { programado: false, reprogramado: false, dataEmbarque: '', plastico: false, porcelana: false, consolidado: false });
             }
             const r = rotasMap.get(rota);
             if ((row[2] || '').trim().toUpperCase() === 'P') r.programado = true;
+            if ((row[1] || '').trim().toLowerCase() === 'x') r.reprogramado = true;
             if ((row[4] || '').trim()) r.dataEmbarque = (row[4] || '').trim();
             if ((row[12] || '').trim() || (row[16] || '').trim()) r.plastico = true;
             if ((row[13] || '').trim() || (row[17] || '').trim()) r.porcelana = true;
             if ((row[14] || '').trim() || (row[15] || '').trim()) r.consolidado = true;
         }
 
-        let programadasHoje = 0, plastico = 0, plasticoEmbarcado = 0;
+        let programadasHoje = 0, reprogramadas = 0, plastico = 0, plasticoEmbarcado = 0;
         let porcelana = 0, porcelanaEmbarcada = 0, consolidado = 0, consolidadoEmbarcado = 0;
         for (const r of rotasMap.values()) {
             if (r.programado) programadasHoje++;
+            if (r.reprogramado) reprogramadas++;
             if (r.plastico) { plastico++; if (r.dataEmbarque) plasticoEmbarcado++; }
             if (r.porcelana) { porcelana++; if (r.dataEmbarque) porcelanaEmbarcada++; }
             if (r.consolidado) { consolidado++; if (r.dataEmbarque) consolidadoEmbarcado++; }
@@ -3134,7 +3136,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
         const resultado = {
             success: true,
             deltaPorcelana: {
-                totalRotas, embarcadas, pendentes, reprogramadas: 0, programadasHoje,
+                totalRotas, embarcadas, pendentes, reprogramadas, programadasHoje,
                 plastico, plasticoEmbarcado,
                 porcelana, porcelanaEmbarcada,
                 consolidado, consolidadoEmbarcado,
