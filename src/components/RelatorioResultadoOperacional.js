@@ -1,11 +1,125 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
 import { BarChart3, RefreshCw, Printer, TrendingUp } from 'lucide-react';
 import api from '../services/apiService';
+import 'leaflet/dist/leaflet.css';
 
 const COR_VEICULO = { carreta: '#3b82f6', truck: '#f59e0b', tresQuartos: '#8b5cf6' };
 const COR_MIX = { plastico: '#3b82f6', porcelana: '#ec4899', consolidado: '#06b6d4', eletrik: '#10b981' };
 const COR_REGIAO = { NORDESTE: '#1e40af', SUL: '#0369a1', SUDESTE: '#0891b2', 'C.OESTE': '#0e7490', NORTE: '#155e75' };
+
+// codarea IBGE → nome da região no sistema
+const IBGE_REGIAO = { '1': 'NORTE', '2': 'NORDESTE', '3': 'SUDESTE', '4': 'SUL', '5': 'C.OESTE' };
+
+// Gradiente azul: 0% = mais claro, 100% = mais escuro
+function corChoropleth(pctVal) {
+    const v = Math.min(Math.max(parseFloat(pctVal) || 0, 0), 100);
+    const lightness = Math.round(70 - v * 0.45); // 70% → 25%
+    return `hsl(220, 75%, ${lightness}%)`;
+}
+
+function MapaBrasil({ regioes, totalEntregas }) {
+    const containerRef = useRef(null);
+    const mapRef = useRef(null);
+
+    useEffect(() => {
+        if (!containerRef.current || mapRef.current) return;
+
+        const L = require('leaflet');
+
+        const map = L.map(containerRef.current, {
+            center: [-14.2, -51.9],
+            zoom: 4,
+            zoomControl: true,
+            scrollWheelZoom: false,
+            dragging: true,
+            attributionControl: false,
+        });
+        mapRef.current = map;
+
+        // Fundo escuro sem tiles externos — só cor sólida
+        containerRef.current.style.background = '#0f172a';
+
+        const porNome = {};
+        regioes.forEach(r => { porNome[r.regiao] = r; });
+
+        fetch('https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&divisao=regioes')
+            .then(r => r.json())
+            .then(geojson => {
+                L.geoJSON(geojson, {
+                    style: (feature) => {
+                        const nomeRegiao = IBGE_REGIAO[feature.properties.codarea] || '';
+                        const dado = porNome[nomeRegiao];
+                        const pctVal = dado ? parseFloat(pct(dado.entregas, totalEntregas)) : 0;
+                        return {
+                            fillColor: corChoropleth(pctVal),
+                            fillOpacity: 0.85,
+                            color: '#1e293b',
+                            weight: 1.5,
+                        };
+                    },
+                    onEachFeature: (feature, layer) => {
+                        const nomeRegiao = IBGE_REGIAO[feature.properties.codarea] || '—';
+                        const dado = porNome[nomeRegiao];
+                        const pctVal = dado ? pct(dado.entregas, totalEntregas) : '0.0';
+                        const entregas = dado?.entregas ?? 0;
+                        layer.bindTooltip(
+                            `<div style="font-family:sans-serif;font-size:13px;font-weight:700;color:#f1f5f9;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;pointer-events:none">
+                                <div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${nomeRegiao}</div>
+                                <div style="font-size:22px;color:#60a5fa">${pctVal}%</div>
+                                <div style="color:#64748b;font-size:11px;margin-top:2px">${entregas} entregas</div>
+                            </div>`,
+                            { sticky: true, opacity: 1, className: 'leaflet-tooltip-custom' }
+                        );
+                        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 1, weight: 2.5 }));
+                        layer.on('mouseout', () => layer.setStyle({ fillOpacity: 0.85, weight: 1.5 }));
+                    }
+                }).addTo(map);
+
+                // Ajusta o zoom para cobrir o Brasil inteiro
+                map.fitBounds([[-33.7, -73.9], [5.3, -28.8]]);
+            })
+            .catch(console.error);
+
+        return () => {
+            map.remove();
+            mapRef.current = null;
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Atualiza estilos quando os dados mudam sem recriar o mapa
+    useEffect(() => {
+        if (!mapRef.current) return;
+        const L = require('leaflet');
+        const porNome = {};
+        regioes.forEach(r => { porNome[r.regiao] = r; });
+        mapRef.current.eachLayer(layer => {
+            if (layer.feature) {
+                const nomeRegiao = IBGE_REGIAO[layer.feature.properties.codarea] || '';
+                const dado = porNome[nomeRegiao];
+                const pctVal = dado ? parseFloat(pct(dado.entregas, totalEntregas)) : 0;
+                if (layer.setStyle) layer.setStyle({ fillColor: corChoropleth(pctVal) });
+            }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [regioes, totalEntregas]);
+
+    return (
+        <div style={{ position: 'relative' }}>
+            <div ref={containerRef} style={{ height: '340px', borderRadius: '10px', overflow: 'hidden', background: '#0f172a' }} />
+            {/* Legenda gradiente */}
+            <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 12px', zIndex: 1000 }}>
+                <div style={{ fontSize: '9px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>% Entregas</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>0%</span>
+                    <div style={{ width: '80px', height: '10px', borderRadius: '4px', background: 'linear-gradient(to right, hsl(220,75%,70%), hsl(220,75%,25%))' }} />
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>100%</span>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const s = {
     card: { background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '14px', padding: '20px 24px' },
@@ -343,7 +457,35 @@ export default function RelatorioResultadoOperacional() {
                 </div>
             </div>
 
-            {/* Gráfico Regiões */}
+            {/* Mapa + Gráfico Regiões */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div style={s.card}>
+                    <div style={s.titulo}>Distribuição por Região</div>
+                    <MapaBrasil regioes={regioes} totalEntregas={totais.entregas} />
+                </div>
+                <div style={s.card}>
+                    <div style={s.titulo}>% por Região</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                        {dadosRegiao.map(r => {
+                            const p = parseFloat(pct(r.entregas, totais.entregas));
+                            return (
+                                <div key={r.regiao}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#f1f5f9' }}>{r.regiao}</span>
+                                        <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '700' }}>{p.toFixed(1)}%</span>
+                                    </div>
+                                    <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '4px', height: '10px', overflow: 'hidden' }}>
+                                        <div style={{ width: `${p}%`, height: '100%', background: corChoropleth(p), borderRadius: '4px', transition: 'width 0.4s' }} />
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '3px' }}>{r.entregas} entregas · {r.carreta} carreta · {r.truck} truck · {r.tresQuartos} 3/4</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+
+            {/* Gráfico Regiões × Veículo */}
             <div style={s.card}>
                 <div style={s.titulo}>Entregas por Região × Tipo de Veículo</div>
                 <ResponsiveContainer width="100%" height={260}>
