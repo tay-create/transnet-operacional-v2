@@ -3336,7 +3336,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
 
 let geojsonBrasilCache = { data: null, ts: 0 };
 
-app.get('/api/geojson-brasil', authMiddleware, async (req, res) => {
+app.get('/api/geojson-brasil', async (req, res) => {
     try {
         if (geojsonBrasilCache.data && Date.now() - geojsonBrasilCache.ts < 86400000)
             return res.json(geojsonBrasilCache.data);
