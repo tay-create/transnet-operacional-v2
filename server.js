@@ -3238,15 +3238,13 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             lerRangeTramontina(sheets, 'A10:R500', 'DELTA-PORCELANA'),
         ]);
 
-        // Resumo: H6 = total rotas, J6 = embarcadas, J7 = pendentes
+        // totalRotas vem da célula H6 (número sequencial máximo de rotas)
         const totalRotas = parseInt((resumoDP[0] && resumoDP[0][0]) || 0) || 0;
-        const embarcadas = parseInt((resumoDP[0] && resumoDP[0][2]) || 0) || 0;
-        const pendentes  = parseInt((resumoDP[1] && resumoDP[1][2]) || 0) || 0;
 
-        // Lógica espelhada do AppScript (codigo.gs):
+        // Lógica espelhada do AppScript (codigo.gs) — tudo calculado linha a linha:
         // Col B(1)=reprog X, C(2)=prog X, D(3)=embarcada X, M(12)/Q(16)=plástico, N(13)/R(17)=porcelana, O(14)/P(15)=consolidado
         // Consolidado tem prioridade sobre plástico/porcelana na mesma linha
-        let programadasHoje = 0, reprogramadas = 0;
+        let programadasHoje = 0, reprogramadas = 0, embarcadas = 0;
         let plastico = 0, plasticoEmbarcado = 0;
         let porcelana = 0, porcelanaEmbarcada = 0;
         let consolidado = 0, consolidadoEmbarcado = 0;
@@ -3268,6 +3266,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             if (colC === 'X') programadasHoje++;
 
             const embarcada = colD === 'X';
+            if (embarcada) embarcadas++;
 
             if (colO === '-' || colP === '-') {
                 consolidado++;
@@ -3283,6 +3282,9 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
                 }
             }
         }
+
+        // Pendentes = totalRotas - embarcadas (igual ao AppScript)
+        const pendentes = Math.max(totalRotas - embarcadas, 0);
 
         // Aba Eletrik — espelhado do AppScript
         let eletrikTotal = 0, eletrikEmbarcado = 0, eletrikProg = 0, eletrikPendente = 0;
