@@ -499,31 +499,19 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema
         { name: 'Emitido', value: statusCte.emitido }
     ].filter(d => d.value > 0);
 
-    // Dados para gráfico de barras de status geral (Recife + Moreno separados)
+    // Dados para gráfico de barras de status geral (Recife + Moreno + SP separados)
     const dadosBarrasStatus = OPCOES_STATUS.map(s => ({
         name: s,
         fullName: s,
-        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && (
-            (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
-            (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
-            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_recife) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO') ||
-            (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
-        )).length,
-        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && (
-            (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_moreno === 'AGUARDANDO') ||
-            (s === 'LIBERADO P/ CARREGAMENTO' && v.status_moreno === 'LIBERADO P/ DOCA') ||
-            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_moreno) ||
-            (s === 'CARREGADO' && v.status_moreno === 'CARREGADO') ||
-            (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_moreno === s)
-        )).length,
-        'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) && (
-            (s === 'AGUARDANDO P/ SEPARAÇÃO' && v.status_recife === 'AGUARDANDO') ||
-            (s === 'LIBERADO P/ CARREGAMENTO' && v.status_recife === 'LIBERADO P/ DOCA') ||
-            (s === 'LIBERADO P/ CT-e' && !!v.cte_antecipado_interestadual) ||
-            (s === 'CARREGADO' && v.status_recife === 'CARREGADO') ||
-            (s !== 'AGUARDANDO P/ SEPARAÇÃO' && s !== 'LIBERADO P/ CARREGAMENTO' && s !== 'LIBERADO P/ CT-e' && s !== 'CARREGADO' && v.status_recife === s)
-        )).length,
+        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && !ehOperacaoLeaoEletrikSul(v.operacao) &&
+            (s === 'LIBERADO P/ CT-e' ? !!v.cte_antecipado_recife : v.status_recife === s)
+        ).length,
+        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) &&
+            (s === 'LIBERADO P/ CT-e' ? !!v.cte_antecipado_moreno : v.status_moreno === s)
+        ).length,
+        'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) &&
+            (s === 'LIBERADO P/ CT-e' ? !!v.cte_antecipado_interestadual : v.status_recife === s)
+        ).length,
     }));
 
     return (
