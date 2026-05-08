@@ -162,10 +162,12 @@ export default function RelatorioOperacional() {
     }, [veiculosFiltrados]);
 
     // ── Gráfico 2: embarques por operação (barras horizontais) ───────────────
+    const normalizarOperacao = (op) => op ? op.replace(/DELTA\(/g, 'PLÁSTICO(') : op;
+
     const dadosOp = useMemo(() => {
         const mapa = {};
         veiculosFiltrados.forEach(v => {
-            const op = v.operacao || '—';
+            const op = normalizarOperacao(v.operacao) || '—';
             mapa[op] = (mapa[op] || 0) + 1;
         });
         return Object.entries(mapa)
