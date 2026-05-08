@@ -2863,12 +2863,9 @@ async function gerarProgramacaoDiaria(turno) {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
-                // Lógica híbrida: flag explícita OU comparação de datas (mantém compatibilidade com registros antigos)
                 const foiReprogramado =
                     v.foi_reprogramado === 1 || v.foi_reprogramado === true
-                    || (v.data_prevista_original
-                        ? v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10)
-                        : (v.data_criacao && v.data_criacao.substring(0, 10) < v.data_prevista.substring(0, 10)));
+                    || (v.data_prevista_original && v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10));
 
                 if (foiReprogramado) {
                     totais[cliente][`reprogramado_${un}`] += 1;
