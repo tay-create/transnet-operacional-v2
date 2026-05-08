@@ -18,7 +18,7 @@ function corChoropleth(pctVal) {
     return `hsl(220, 75%, ${lightness}%)`;
 }
 
-function MapaBrasil({ regioes, totalEntregas, regiaoSelecionada, onSelectRegiao }) {
+function MapaBrasil({ regioes, totalEntregas, regiaoSelecionada, onSelectRegiao, geojsonRef }) {
     const containerRef = useRef(null);
     const mapRef = useRef(null);
     const layersRef = useRef({}); // { NORDESTE: layer, ... }
@@ -52,6 +52,7 @@ function MapaBrasil({ regioes, totalEntregas, regiaoSelecionada, onSelectRegiao 
         fetch('/api/geojson-brasil')
             .then(r => r.json())
             .then(geojson => {
+                if (geojsonRef) geojsonRef.current = geojson;
                 L.geoJSON(geojson, {
                     style: (feature) => {
                         const nomeRegiao = IBGE_REGIAO[feature.properties.codarea] || '';
@@ -133,6 +134,10 @@ function MapaBrasil({ regioes, totalEntregas, regiaoSelecionada, onSelectRegiao 
 
     return (
         <div style={{ position: 'relative' }}>
+            <style>{`
+                .leaflet-tooltip-custom { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
+                .leaflet-tooltip-custom::before { display: none !important; border: none !important; }
+            `}</style>
             <div ref={containerRef} style={{ height: '340px', borderRadius: '10px', overflow: 'hidden', background: '#0f172a', cursor: 'pointer' }} />
             {/* Legenda gradiente */}
             <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 12px', zIndex: 1000 }}>
@@ -184,11 +189,95 @@ const PizzaLegenda = ({ dados, cores }) => (
     </div>
 );
 
+// Centroides aproximados das regiões (lat, lng) — usados para posicionar labels no SVG estático
+const CENTROIDE_REGIAO = {
+    NORTE: [-3.5, -62.5],
+    NORDESTE: [-9.0, -41.0],
+    'C.OESTE': [-15.5, -53.0],
+    SUDESTE: [-19.5, -45.0],
+    SUL: [-27.5, -52.0],
+};
+
+// Gera um SVG estático do Brasil a partir do GeoJSON, colorindo cada região pelo % e
+// imprimindo nome + percentual sobre cada polígono. Não depende do Leaflet em runtime.
+function gerarSvgMapaBrasil(geojson, regioes, totalEntregas) {
+    if (!geojson || !geojson.features) return '';
+    const W = 520, H = 520;
+    // Bounds Brasil
+    const minLng = -74, maxLng = -34, minLat = -34, maxLat = 6;
+    const project = (lng, lat) => {
+        const x = ((lng - minLng) / (maxLng - minLng)) * W;
+        const y = H - ((lat - minLat) / (maxLat - minLat)) * H;
+        return [x, y];
+    };
+    const ringToPath = (ring) => {
+        if (!ring || !ring.length) return '';
+        return ring.map((c, i) => {
+            const [x, y] = project(c[0], c[1]);
+            return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ') + 'Z';
+    };
+    const porNome = {};
+    regioes.forEach(r => { porNome[r.regiao] = r; });
+
+    const corChoropletePrint = (pctVal) => {
+        const v = Math.min(Math.max(parseFloat(pctVal) || 0, 0), 100);
+        const lightness = Math.round(70 - v * 0.45);
+        return `hsl(220, 75%, ${lightness}%)`;
+    };
+
+    let paths = '';
+    let labels = '';
+
+    geojson.features.forEach(f => {
+        const cod = f.properties?.codarea;
+        const nome = IBGE_REGIAO[cod] || '';
+        const dado = porNome[nome];
+        const pctVal = dado ? pct(dado.entregas, totalEntregas) : '0.0';
+        const cor = corChoropletePrint(parseFloat(pctVal));
+        const geom = f.geometry;
+        if (!geom) return;
+        let d = '';
+        if (geom.type === 'Polygon') {
+            geom.coordinates.forEach(ring => { d += ringToPath(ring) + ' '; });
+        } else if (geom.type === 'MultiPolygon') {
+            geom.coordinates.forEach(poly => poly.forEach(ring => { d += ringToPath(ring) + ' '; }));
+        }
+        paths += `<path d="${d}" fill="${cor}" stroke="#1e293b" stroke-width="0.8" />`;
+
+        const cent = CENTROIDE_REGIAO[nome];
+        if (cent) {
+            const [lx, ly] = project(cent[1], cent[0]);
+            labels += `
+                <g>
+                    <rect x="${(lx - 38).toFixed(1)}" y="${(ly - 18).toFixed(1)}" width="76" height="36" rx="6" fill="rgba(255,255,255,0.85)" stroke="#1e3a5f" stroke-width="0.6"/>
+                    <text x="${lx.toFixed(1)}" y="${(ly - 4).toFixed(1)}" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" fill="#1e3a5f" letter-spacing="0.3">${nome}</text>
+                    <text x="${lx.toFixed(1)}" y="${(ly + 11).toFixed(1)}" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="900" fill="#1e40af">${pctVal}%</text>
+                </g>
+            `;
+        }
+    });
+
+    // Legenda gradiente
+    const legenda = `
+        <g transform="translate(${W - 130}, ${H - 36})">
+            <rect x="0" y="0" width="120" height="28" rx="6" fill="rgba(255,255,255,0.9)" stroke="#cbd5e1" stroke-width="0.6"/>
+            <text x="6" y="11" font-family="Segoe UI,Arial,sans-serif" font-size="7.5" font-weight="700" fill="#64748b">% ENTREGAS</text>
+            <defs><linearGradient id="grad" x1="0" x2="1"><stop offset="0%" stop-color="hsl(220,75%,70%)"/><stop offset="100%" stop-color="hsl(220,75%,25%)"/></linearGradient></defs>
+            <rect x="6" y="15" width="80" height="8" rx="3" fill="url(#grad)"/>
+            <text x="90" y="22" font-family="Segoe UI,Arial,sans-serif" font-size="8" fill="#64748b">100%</text>
+        </g>
+    `;
+
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#f8fafc;border-radius:10px">${paths}${labels}${legenda}</svg>`;
+}
+
 export default function RelatorioResultadoOperacional() {
     const [dados, setDados] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
     const [regiaoFiltro, setRegiaoFiltro] = useState(null);
+    const geojsonCacheRef = useRef(null);
     const [mes, setMes] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
@@ -213,6 +302,7 @@ export default function RelatorioResultadoOperacional() {
     const imprimir = () => {
         if (!dados) return;
         const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+        const mapaSvg = gerarSvgMapaBrasil(geojsonCacheRef.current, dados.regioes, dados.totais.entregas);
 
         const veiculoRows = [
             { label: 'CARRETA', val: dados.veiculos.carreta, cor: COR_VEICULO.carreta },
@@ -352,6 +442,33 @@ export default function RelatorioResultadoOperacional() {
     </div>
     <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span>Página 2 de 2</span></div>
   </div>
+
+  ${mapaSvg ? `
+  <div style="display:grid;grid-template-columns: 1.05fr 1fr; gap: 24px; align-items: start; margin-bottom: 14px">
+    <div>
+      <div class="section-title">Distribuição por Região</div>
+      ${mapaSvg}
+    </div>
+    <div>
+      <div class="section-title">% por Região</div>
+      <table>
+        <thead><tr><th>Região</th><th style="text-align:right">Entregas</th><th></th><th style="text-align:right">%</th></tr></thead>
+        <tbody>
+          ${[...dados.regioes].sort((a,b)=>b.entregas-a.entregas).map(r => {
+            const p = pct(r.entregas, dados.totais.entregas);
+            const cor = COR_REGIAO[r.regiao] || '#3b82f6';
+            return `<tr>
+              <td style="font-weight:700;color:#1e3a5f">${r.regiao}</td>
+              <td class="num">${r.entregas}</td>
+              <td><div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${cor}"></div></div></td>
+              <td class="pct" style="color:#1e40af;font-weight:700">${p}%</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  ` : ''}
 
   <div class="section-title">Entregas por Região × Tipo de Veículo</div>
   <table>
@@ -504,7 +621,7 @@ export default function RelatorioResultadoOperacional() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div style={s.card}>
                     <div style={s.titulo}>Distribuição por Região</div>
-                    <MapaBrasil regioes={regioes} totalEntregas={totais.entregas} regiaoSelecionada={regiaoFiltro} onSelectRegiao={setRegiaoFiltro} />
+                    <MapaBrasil regioes={regioes} totalEntregas={totais.entregas} regiaoSelecionada={regiaoFiltro} onSelectRegiao={setRegiaoFiltro} geojsonRef={geojsonCacheRef} />
                 </div>
                 <div style={s.card}>
                     <div style={{ ...s.titulo, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
