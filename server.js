@@ -2863,9 +2863,7 @@ async function gerarProgramacaoDiaria(turno) {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
-                const foiReprogramado =
-                    v.foi_reprogramado === 1 || v.foi_reprogramado === true
-                    || (v.data_prevista_original && v.data_prevista_original.substring(0, 10) !== v.data_prevista.substring(0, 10));
+                const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
 
                 if (foiReprogramado) {
                     totais[cliente][`reprogramado_${un}`] += 1;
