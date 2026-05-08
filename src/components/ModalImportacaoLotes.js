@@ -773,6 +773,7 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
     const [expandido, setExpandido] = useState(true);
     const temRecife = ehRecife(lote.operacao);
     const temMoreno = ehMoreno(lote.operacao);
+    const temInterestadual = lote.operacao === 'ELETRIK SUL' || lote.operacao === 'LEÃO - SP';
 
     const foiAtualizado = sucesso === 'atualizado';
     const foiDuplicataSemMudanca = sucesso === 'duplicata';
@@ -896,6 +897,13 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
                                     value={lote.coletaMoreno}
                                     onChange={e => onChange(lote._id, 'coletaMoreno', e.target.value)}
                                     placeholder="PLAS:x | PORC:y | ELET:z" />
+                            </Campo>
+                        )}
+                        {temInterestadual && (
+                            <Campo label="COLETA" cor="#f97316">
+                                <input className="input-internal" style={{ fontSize: '11px', borderColor: 'rgba(249,115,22,0.4)' }}
+                                    value={lote.coletaInterestadual || ''}
+                                    onChange={e => onChange(lote._id, 'coletaInterestadual', e.target.value)} />
                             </Campo>
                         )}
                     </div>
