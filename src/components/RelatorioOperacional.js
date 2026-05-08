@@ -184,10 +184,42 @@ export default function RelatorioOperacional() {
         const periodoStr = dataInicio === dataFim ? dataInicio.split('-').reverse().join('/') : `${dataInicio.split('-').reverse().join('/')} → ${dataFim.split('-').reverse().join('/')}`;
         const unidadeStr = filtroUnidade === 'Todas' ? 'Todas as unidades' : filtroUnidade;
 
-        const kpiRows = KPIS.map(k => {
-            const valor = contadores[k.id] || 0;
-            const pct = contadores.total > 0 ? ((valor / contadores.total) * 100).toFixed(1) : '0.0';
-            return `<div class="kpi-card"><div class="kpi-valor">${valor}</div><div class="kpi-pct">${pct}%</div><div class="kpi-label">${k.label}</div></div>`;
+        const KPIS_LOCAL = KPIS.filter(k => k.id !== 'leaoSP' && k.id !== 'eletrikSul');
+        const KPIS_SP = KPIS.filter(k => k.id === 'leaoSP' || k.id === 'eletrikSul');
+        const totalLocal = KPIS_LOCAL.reduce((a, k) => a + (contadores[k.id] || 0), 0);
+        const totalSP = KPIS_SP.reduce((a, k) => a + (contadores[k.id] || 0), 0);
+
+        const kpiRowsLocal = KPIS_LOCAL
+            .filter(k => (contadores[k.id] || 0) > 0)
+            .map(k => {
+                const valor = contadores[k.id] || 0;
+                const pct = totalLocal > 0 ? ((valor / totalLocal) * 100).toFixed(1) : '0.0';
+                const cor = COR_OP[k.id] || COR;
+                return `<div class="kpi-card" style="border-top-color:${cor}"><div class="kpi-valor" style="color:${cor}">${valor}</div><div class="kpi-pct">${pct}%</div><div class="kpi-label">${k.label}</div></div>`;
+            }).join('');
+
+        const kpiRowsSP = KPIS_SP
+            .filter(k => (contadores[k.id] || 0) > 0)
+            .map(k => {
+                const valor = contadores[k.id] || 0;
+                const pct = totalSP > 0 ? ((valor / totalSP) * 100).toFixed(1) : '0.0';
+                const cor = COR_OP[k.id] || COR;
+                return `<div class="kpi-card" style="border-top-color:${cor}"><div class="kpi-valor" style="color:${cor}">${valor}</div><div class="kpi-pct">${pct}%</div><div class="kpi-label">${k.label}</div></div>`;
+            }).join('');
+
+        const spBlock = totalSP > 0 ? `
+          <div class="section-title" style="margin-top:16px;">Embarques São Paulo</div>
+          <div class="kpi-grid-sp">${kpiRowsSP}</div>
+        ` : '';
+
+        const diasRows = dadosDia.map(d => {
+            const maxVal = Math.max(...dadosDia.map(x => x.total), 1);
+            const pct = ((d.total / maxVal) * 100).toFixed(1);
+            return `<tr>
+                <td style="width:60px;color:#64748b;">${d.label}</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:#06b6d4"></div></div></td>
+                <td class="num">${d.total}</td>
+            </tr>`;
         }).join('');
 
         const opRows = dadosOp.map(d => {
@@ -200,6 +232,15 @@ export default function RelatorioOperacional() {
             </tr>`;
         }).join('');
 
+        const headerHtml = (pagina) => `
+  <div class="header">
+    <div class="header-left">
+      <h1>Relatório Operacional</h1>
+      <p>Período: ${periodoStr} &nbsp;·&nbsp; Unidade: ${unidadeStr} &nbsp;·&nbsp; ${contadores.total} embarque${contadores.total !== 1 ? 's' : ''}</p>
+    </div>
+    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span style="color:#cbd5e1">Página ${pagina}</span></div>
+  </div>`;
+
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -207,63 +248,82 @@ export default function RelatorioOperacional() {
 <title>Relatório Operacional</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 12px; padding: 32px 40px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #06b6d4; padding-bottom: 14px; margin-bottom: 22px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 12px; }
+  .page { padding: 28px 36px; }
+  .page-break { page-break-before: always; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #06b6d4; padding-bottom: 12px; margin-bottom: 20px; }
   .header-left h1 { font-size: 22px; font-weight: 900; color: #0891b2; letter-spacing: -0.5px; }
   .header-left p { font-size: 11px; color: #64748b; margin-top: 3px; }
   .header-right { text-align: right; font-size: 10px; color: #94a3b8; line-height: 1.6; }
   .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
-  .kpi-grid { display: grid; grid-template-columns: 1.6fr repeat(6, 1fr); gap: 10px; margin-bottom: 24px; }
+  .kpi-grid { display: grid; grid-template-columns: 1.6fr repeat(${Math.min(KPIS_LOCAL.filter(k=>(contadores[k.id]||0)>0).length, 6)}, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi-grid-sp { display: flex; gap: 10px; margin-bottom: 16px; }
+  .kpi-grid-sp .kpi-card { flex: 1; }
   .kpi-total { background: #f0fdfe; border: 1px solid #a5f3fc; border-left: 4px solid #06b6d4; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; }
   .kpi-total .total-num { font-size: 42px; font-weight: 900; color: #0891b2; line-height: 1; }
   .kpi-total .total-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 6px; letter-spacing: 0.5px; }
   .kpi-total .total-sub { font-size: 11px; color: #64748b; margin-top: 6px; }
-  .kpi-total .total-sub span { font-weight: 700; color: #0891b2; }
+  .kpi-total .total-sub span { font-weight: 700; }
   .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid #06b6d4; border-radius: 8px; padding: 10px 8px; text-align: center; }
-  .kpi-valor { font-size: 28px; font-weight: 900; color: #0891b2; line-height: 1; }
+  .kpi-valor { font-size: 28px; font-weight: 900; line-height: 1; }
   .kpi-pct { font-size: 11px; font-weight: 700; color: #22d3ee; margin-top: 2px; }
   .kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { padding: 8px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-  td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+  th { padding: 7px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
   td.num { font-weight: 700; color: #0891b2; text-align: right; width: 40px; }
   td.pct { color: #64748b; text-align: right; width: 50px; }
   .bar-wrap { background: #f1f5f9; border-radius: 4px; height: 12px; width: 100%; }
   .bar-fill { height: 12px; border-radius: 4px; min-width: 2px; }
   .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
-  @media print { body { padding: 20px 24px; } @page { margin: 12mm 10mm; size: A4 landscape; } }
+  @media print { @page { margin: 10mm 8mm; size: A4 landscape; } }
 </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-left">
-      <h1>Relatório Operacional</h1>
-      <p>Período: ${periodoStr} &nbsp;·&nbsp; Unidade: ${unidadeStr} &nbsp;·&nbsp; ${contadores.total} embarque${contadores.total !== 1 ? 's' : ''}</p>
-    </div>
-    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}</div>
-  </div>
-  <div class="section-title">Resumo por Tipo de Operação</div>
-  <div class="kpi-grid">
-    <div class="kpi-total">
-      <div class="total-label">Total de Embarques</div>
-      <div class="total-num">${contadores.total}</div>
-      <div class="total-sub">
-        <span>${contadores.totalRec}</span> Recife &nbsp;·&nbsp;
-        <span>${contadores.totalMor}</span> Moreno &nbsp;·&nbsp;
-        <span>${contadores.totalSP}</span> São Paulo
+
+  <!-- ========== PÁGINA 1: KPIs + Embarques por Dia ========== -->
+  <div class="page">
+    ${headerHtml('1 de 2')}
+    <div class="section-title">Resumo por Tipo de Operação</div>
+    <div class="kpi-grid">
+      <div class="kpi-total">
+        <div class="total-label">Total de Embarques</div>
+        <div class="total-num">${contadores.total}</div>
+        <div class="total-sub">
+          <span style="color:#3b82f6;font-weight:700">${contadores.totalRec}</span> Recife &nbsp;·&nbsp;
+          <span style="color:#f59e0b;font-weight:700">${contadores.totalMor}</span> Moreno &nbsp;·&nbsp;
+          <span style="color:#f97316;font-weight:700">${contadores.totalSP}</span> São Paulo
+        </div>
       </div>
+      ${kpiRowsLocal}
     </div>
-    ${kpiRows}
+    ${spBlock}
+    ${dadosDia.length > 0 ? `
+    <div class="section-title" style="margin-top:4px;">Embarques por Dia</div>
+    <table>
+      <thead><tr><th style="width:60px">Data</th><th></th><th style="text-align:right;width:40px">Qtd</th></tr></thead>
+      <tbody>${diasRows}</tbody>
+    </table>` : ''}
+    <div class="footer">
+      <span>Transnet Logística — Relatório Operacional</span>
+      <span>${periodoStr} · ${unidadeStr}</span>
+    </div>
   </div>
-  <div class="section-title" style="margin-bottom:10px;">Embarques por Operação</div>
-  <table>
-    <thead><tr><th>Operação</th><th></th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
-    <tbody>${opRows}</tbody>
-  </table>
-  <div class="footer">
-    <span>Transnet Logística — Relatório Operacional</span>
-    <span>${periodoStr} · ${unidadeStr}</span>
+
+  <!-- ========== PÁGINA 2: Embarques por Operação ========== -->
+  <div class="page page-break">
+    ${headerHtml('2 de 2')}
+    <div class="section-title">Embarques por Operação</div>
+    <table>
+      <thead><tr><th>Operação</th><th></th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
+      <tbody>${opRows}</tbody>
+    </table>
+    <div class="footer">
+      <span>Transnet Logística — Relatório Operacional</span>
+      <span>${periodoStr} · ${unidadeStr}</span>
+    </div>
   </div>
+
 </body>
 </html>`;
 
