@@ -3238,12 +3238,10 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             lerRangeTramontina(sheets, 'A10:R500', 'DELTA-PORCELANA'),
         ]);
 
-        // totalRotas vem da célula H6 (número sequencial máximo de rotas)
-        const totalRotas = parseInt((resumoDP[0] && resumoDP[0][0]) || 0) || 0;
-
         // Lógica espelhada do AppScript (codigo.gs) — tudo calculado linha a linha:
         // Col B(1)=reprog X, C(2)=prog X, D(3)=embarcada X, M(12)/Q(16)=plástico, N(13)/R(17)=porcelana, O(14)/P(15)=consolidado
         // Consolidado tem prioridade sobre plástico/porcelana na mesma linha
+        let totalRotas = 0; // maior número encontrado em col A (igual AppScript)
         let programadasHoje = 0, reprogramadas = 0, embarcadas = 0;
         let plastico = 0, plasticoEmbarcado = 0;
         let porcelana = 0, porcelanaEmbarcada = 0;
@@ -3262,8 +3260,12 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
             const colQ = (row[16] || '').toString().trim();
             const colR = (row[17] || '').toString().trim();
 
+            const numRota = parseInt(colA);
+            if (!isNaN(numRota) && numRota > totalRotas) totalRotas = numRota;
+
             if (colB === 'X') reprogramadas++;
             if (colC === 'X') programadasHoje++;
+            // Igual ao AppScript: PROG. HOJE = programadas + reprogramadas (colC + colB)
 
             const embarcada = colD === 'X';
             if (embarcada) embarcadas++;
@@ -3314,7 +3316,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
         const resultado = {
             success: true,
             deltaPorcelana: {
-                totalRotas, embarcadas, pendentes, reprogramadas, programadasHoje,
+                totalRotas, embarcadas, pendentes, reprogramadas, programadasHoje: programadasHoje + reprogramadas,
                 plastico, plasticoEmbarcado,
                 porcelana, porcelanaEmbarcada,
                 consolidado, consolidadoEmbarcado,
