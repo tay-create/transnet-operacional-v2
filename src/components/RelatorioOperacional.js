@@ -215,24 +215,26 @@ export default function RelatorioOperacional() {
         ` : '';
 
         const maxVal = Math.max(...dadosDia.map(x => x.total), 1);
-        // Layout 2 colunas: metade esquerda, metade direita lado a lado
-        const metade = Math.ceil(dadosDia.length / 2);
-        const col1 = dadosDia.slice(0, metade);
-        const col2 = dadosDia.slice(metade);
-        const diasRows = col1.map((d, i) => {
-            const d2 = col2[i];
-            const pct1 = ((d.total / maxVal) * 100).toFixed(1);
-            const pct2 = d2 ? ((d2.total / maxVal) * 100).toFixed(1) : null;
-            return `<tr>
-                <td style="width:50px;color:#64748b;padding-right:4px">${d.label}</td>
-                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct1}%;background:#06b6d4"></div></div></td>
-                <td class="num" style="padding-right:20px">${d.total}</td>
-                ${d2 ? `
-                <td style="width:50px;color:#64748b;padding-right:4px;border-left:1px solid #f1f5f9;padding-left:12px">${d2.label}</td>
-                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct2}%;background:#06b6d4"></div></div></td>
-                <td class="num">${d2.total}</td>` : '<td colspan="3"></td>'}
-            </tr>`;
+        const svgW = 900, svgH = 160, padL = 10, padR = 10, padT = 24, padB = 28;
+        const chartW = svgW - padL - padR;
+        const chartH = svgH - padT - padB;
+        const n = dadosDia.length;
+        const barW = Math.min(Math.floor(chartW / n) - 4, 36);
+        const gap = (chartW - barW * n) / (n + 1);
+        const diasSvgBars = dadosDia.map((d, i) => {
+            const bh = Math.round((d.total / maxVal) * chartH);
+            const x = Math.round(padL + gap + i * (barW + gap));
+            const y = padT + chartH - bh;
+            return `
+              <rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#06b6d4"/>
+              <text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle" font-size="9" fill="#475569" font-weight="700">${d.total}</text>
+              <text x="${x + barW / 2}" y="${svgH - 4}" text-anchor="middle" font-size="8.5" fill="#94a3b8">${d.label}</text>`;
         }).join('');
+        const diasGrafico = `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
+          <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#e2e8f0" stroke-width="1"/>
+          <line x1="${padL}" y1="${padT + chartH}" x2="${svgW - padR}" y2="${padT + chartH}" stroke="#e2e8f0" stroke-width="1"/>
+          ${diasSvgBars}
+        </svg>`;
 
         const opRows = dadosOp.map(d => {
             const pct = contadores.total > 0 ? ((d.total / contadores.total) * 100).toFixed(1) : '0.0';
@@ -312,10 +314,7 @@ export default function RelatorioOperacional() {
     ${spBlock}
     ${dadosDia.length > 0 ? `
     <div class="section-title" style="margin-top:4px;">Embarques por Dia</div>
-    <table>
-      <thead><tr><th style="width:50px">Data</th><th></th><th style="text-align:right;width:40px;padding-right:20px">Qtd</th><th style="width:50px;border-left:1px solid #e2e8f0;padding-left:12px">Data</th><th></th><th style="text-align:right;width:40px">Qtd</th></tr></thead>
-      <tbody>${diasRows}</tbody>
-    </table>` : ''}
+    ${diasGrafico}` : ''}
     <div class="footer">
       <span>Transnet Logística — Relatório Operacional</span>
       <span>${periodoStr} · ${unidadeStr}</span>
