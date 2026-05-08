@@ -1244,7 +1244,7 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${t.border}`, borderRadius: '12px', padding: '16px' }}>
                     <h3 style={{ fontSize: '10px', fontWeight: '700', color: t.textMuted, marginBottom: '12px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '2px' }}>Distribuição por Unidade</h3>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '28px', marginBottom: '10px' }}>
-                        {[{v:recifeOnly,l:'Recife',c:'#3b82f6'},{v:morenoOnly,l:'Moreno',c:'#60a5fa'},{v:ambasMes,l:'Ambas',c:'#818cf8'}].filter(x=>x.v>0).map(x=>(
+                        {[{v:recifeOnly,l:'Recife',c:'#3b82f6'},{v:morenoOnly,l:'Moreno',c:'#60a5fa'},{v:ambasMes,l:'Ambas',c:'#818cf8'},{v:spMes,l:'São Paulo',c:'#f97316'}].filter(x=>x.v>0).map(x=>(
                             <div key={x.l} style={{ textAlign: 'center' }}>
                                 <div style={{ fontSize: '36px', fontWeight: '900', color: x.c }}>{x.v}</div>
                                 <div style={{ fontSize: '10px', color: t.textMuted }}>{x.l}</div>
