@@ -24,12 +24,12 @@ const TooltipCustom = ({ active, payload }) => {
     );
 };
 
-const PizzaLegenda = ({ dados, cores, labelKey = 'name' }) => (
+const PizzaLegenda = ({ dados, cores }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
         {dados.map(d => (
-            <div key={d[labelKey]} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cores[d[labelKey]], flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{d[labelKey]}</span>
+            <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cores[d.name], flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{d.label}</span>
                 <span style={{ fontSize: '13px', fontWeight: '700', color: '#f1f5f9', marginLeft: 'auto' }}>{d.value}</span>
                 <span style={{ fontSize: '11px', color: '#64748b', width: '38px', textAlign: 'right' }}>{pct(d.value, d.total)}%</span>
             </div>
@@ -324,7 +324,7 @@ export default function RelatorioResultadoOperacional() {
                             </Pie>
                             <Tooltip content={<TooltipCustom />} />
                         </PieChart>
-                        <PizzaLegenda dados={dadosVeiculo} cores={COR_VEICULO} labelKey="name" />
+                        <PizzaLegenda dados={dadosVeiculo} cores={COR_VEICULO} labelKey="label" />
                     </div>
                 </div>
 
@@ -338,7 +338,7 @@ export default function RelatorioResultadoOperacional() {
                             </Pie>
                             <Tooltip content={<TooltipCustom />} />
                         </PieChart>
-                        <PizzaLegenda dados={dadosMix} cores={COR_MIX} labelKey="name" />
+                        <PizzaLegenda dados={dadosMix} cores={COR_MIX} labelKey="label" />
                     </div>
                 </div>
             </div>
