@@ -3332,6 +3332,24 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
     }
 });
 
+// ── GeoJSON Brasil proxy (evita CSP) ─────────────────────────────────────────
+
+let geojsonBrasilCache = { data: null, ts: 0 };
+
+app.get('/api/geojson-brasil', authMiddleware, async (req, res) => {
+    try {
+        if (geojsonBrasilCache.data && Date.now() - geojsonBrasilCache.ts < 86400000)
+            return res.json(geojsonBrasilCache.data);
+        const resp = await fetch('https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&divisao=regioes');
+        const data = await resp.json();
+        geojsonBrasilCache = { data, ts: Date.now() };
+        res.json(data);
+    } catch (e) {
+        console.error('Erro geojson-brasil:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 // ── Resultado Operacional (Google Sheets) ────────────────────────────────────
 
 const RESULTADO_SHEET_ID = '1-9TPCUJX2JPsAYeOjLPgzXLiB_1IjIKIU4olfCrj9sw';

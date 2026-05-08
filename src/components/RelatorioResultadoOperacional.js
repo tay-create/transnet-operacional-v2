@@ -43,7 +43,7 @@ function MapaBrasil({ regioes, totalEntregas }) {
         const porNome = {};
         regioes.forEach(r => { porNome[r.regiao] = r; });
 
-        fetch('https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&divisao=regioes')
+        fetch('/api/geojson-brasil')
             .then(r => r.json())
             .then(geojson => {
                 L.geoJSON(geojson, {
