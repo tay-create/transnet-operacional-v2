@@ -214,13 +214,23 @@ export default function RelatorioOperacional() {
           <div class="kpi-grid-sp">${kpiRowsSP}</div>
         ` : '';
 
-        const diasRows = dadosDia.map(d => {
-            const maxVal = Math.max(...dadosDia.map(x => x.total), 1);
-            const pct = ((d.total / maxVal) * 100).toFixed(1);
+        const maxVal = Math.max(...dadosDia.map(x => x.total), 1);
+        // Layout 2 colunas: metade esquerda, metade direita lado a lado
+        const metade = Math.ceil(dadosDia.length / 2);
+        const col1 = dadosDia.slice(0, metade);
+        const col2 = dadosDia.slice(metade);
+        const diasRows = col1.map((d, i) => {
+            const d2 = col2[i];
+            const pct1 = ((d.total / maxVal) * 100).toFixed(1);
+            const pct2 = d2 ? ((d2.total / maxVal) * 100).toFixed(1) : null;
             return `<tr>
-                <td style="width:60px;color:#64748b;">${d.label}</td>
-                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:#06b6d4"></div></div></td>
-                <td class="num">${d.total}</td>
+                <td style="width:50px;color:#64748b;padding-right:4px">${d.label}</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct1}%;background:#06b6d4"></div></div></td>
+                <td class="num" style="padding-right:20px">${d.total}</td>
+                ${d2 ? `
+                <td style="width:50px;color:#64748b;padding-right:4px;border-left:1px solid #f1f5f9;padding-left:12px">${d2.label}</td>
+                <td><div class="bar-wrap"><div class="bar-fill" style="width:${pct2}%;background:#06b6d4"></div></div></td>
+                <td class="num">${d2.total}</td>` : '<td colspan="3"></td>'}
             </tr>`;
         }).join('');
 
@@ -303,7 +313,7 @@ export default function RelatorioOperacional() {
     ${dadosDia.length > 0 ? `
     <div class="section-title" style="margin-top:4px;">Embarques por Dia</div>
     <table>
-      <thead><tr><th style="width:60px">Data</th><th></th><th style="text-align:right;width:40px">Qtd</th></tr></thead>
+      <thead><tr><th style="width:50px">Data</th><th></th><th style="text-align:right;width:40px;padding-right:20px">Qtd</th><th style="width:50px;border-left:1px solid #e2e8f0;padding-left:12px">Data</th><th></th><th style="text-align:right;width:40px">Qtd</th></tr></thead>
       <tbody>${diasRows}</tbody>
     </table>` : ''}
     <div class="footer">
