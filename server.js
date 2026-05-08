@@ -1811,14 +1811,15 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
                     // Colunas dedicadas têm prioridade sobre dados_json
                     motorista: row.motorista || dados.motorista || '',
                     placa1Motorista: row.placa1 || dados.placa1Motorista || '',
-                    coleta: row.coleta || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || '',
+                    coleta: row.coleta || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || dados.coletaInterestadual || dados.coletainterestadual || '',
                     numero_liberacao: row.numero_liberacao || dados.numero_liberacao || '',
                     data_liberacao: row.data_liberacao || dados.data_liberacao || null,
                     origem_cad: row.origem_cad || dados.origem_cad || '',
                     destino_uf_cad: row.destino_uf_cad || dados.destino_uf_cad || '',
                     destino_cidade_cad: row.destino_cidade_cad || dados.destino_cidade_cad || '',
                     usuario_aceitou: row.usuario_aceitou || dados.usuario_aceitou || '',
-                    data_emissao: row.data_emissao || null
+                    data_emissao: row.data_emissao || null,
+                    operacao: dados.operacao || '',
                 };
             } catch (_) {
                 return { id: row.id, origem: row.origem, status: row.status };
