@@ -3223,7 +3223,7 @@ async function lerRangeTramontina(sheets, range, aba) {
 
 app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
     try {
-        if (tramontinaCache.data && Date.now() - tramontinaCache.ts < 60000)
+        if (tramontinaCache.data && Date.now() - tramontinaCache.ts < 30000)
             return res.json(tramontinaCache.data);
 
         const auth = new google.auth.GoogleAuth({
