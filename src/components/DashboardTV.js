@@ -772,19 +772,10 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
         else if (cat === 'deltaRxM') contOp.deltaRxM++;
     });
 
-    // Status operacional (compatível com valores antigos e novos)
-    // Cards interestaduais usam só 3 status — qualquer status legado (AGUARDANDO/EM SEPARAÇÃO/LIBERADO P/ DOCA)
-    // é tratado como LIBERADO P/ CARREGAMENTO no fluxo do motorista.
-    const normalizarStatus = (st) => {
-        if (['AGUARDANDO', 'AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA'].includes(st)) {
-            return 'LIBERADO P/ CARREGAMENTO';
-        }
-        return st;
-    };
     const contStatus = {};
     OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
     veiculosRecife.forEach(v => {
-        const st = normalizarStatus(v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO');
+        const st = v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO';
         if (contStatus[st] !== undefined) contStatus[st]++;
         if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
     });
@@ -1696,16 +1687,10 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
         else if (v.operacao && (v.operacao.includes('DELTA(MORENO)') || v.operacao.includes('PLÁSTICO(MORENO)'))) contOp.deltaMoreno++;
     });
 
-    // Status operacional (compatível com valores antigos e novos)
-    const normalizarStatus = (st) => {
-        if (st === 'AGUARDANDO') return 'AGUARDANDO P/ SEPARAÇÃO';
-        if (st === 'LIBERADO P/ DOCA') return 'LIBERADO P/ CARREGAMENTO';
-        return st;
-    };
     const contStatus = {};
     OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
     veiculosMoreno.forEach(v => {
-        const st = normalizarStatus(v.status_moreno || 'AGUARDANDO P/ SEPARAÇÃO');
+        const st = v.status_moreno || 'AGUARDANDO P/ SEPARAÇÃO';
         if (contStatus[st] !== undefined) contStatus[st]++;
         if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
     });
