@@ -5,180 +5,212 @@
 </div>
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Versão-0.3.3-blue.svg" alt="Versão" />
-  <img src="https://img.shields.io/badge/Estágio-Produção-success.svg" alt="Produção" />
-  <img src="https://img.shields.io/badge/Node.js-18%2B-green.svg" alt="Node JS" />
+  <img src="https://img.shields.io/badge/Versão-0.3.4-blue.svg" alt="Versão" />
+  <img src="https://img.shields.io/badge/Produção-portal.tnethub.com.br-success.svg" alt="Produção" />
+  <img src="https://img.shields.io/badge/Homologação-homolog.tnethub.com.br-yellow.svg" alt="Homologação" />
+  <img src="https://img.shields.io/badge/Node.js-20%2B-green.svg" alt="Node JS" />
   <img src="https://img.shields.io/badge/PostgreSQL-15%2B-informational.svg" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Docker-Compose-blue.svg" alt="Docker" />
 </div>
 
 <br />
 
-O **Transnet Operacional** é um sistema completo Client-Server focado no setor de Transportes e Logística, com interface WEB (React) e Desktop (Electron). Ele centraliza o registro, auditoria e gestão das etapas operacionais de fretamento, emissão de CT-e, liberação de cadastro de risco e pátio.
+O **Transnet Operacional** é um sistema web completo voltado para gestão logística de embarques, CT-e, frota e pós-embarque em transportadoras. Centraliza todas as etapas operacionais — da marcação do motorista na fila até a emissão do CT-e e rastreamento de ocorrências — com atualização em tempo real via Socket.io.
 
 ---
 
-## 🚀 Principais Módulos
+## Infraestrutura
 
-O sistema é dividido em submódulos isolados por permissão de acesso (RBAC), projetados para diferentes Setores/Cargos de uma transportadora (Coordenador, Planejamento, Encarregado, Auxiliar, Conhecimento, Cadastro e Pós Embarque):
+| Ambiente | URL | Branch | Porta |
+|---|---|---|---|
+| **Produção** | portal.tnethub.com.br | `main` | 3001 |
+| **Homologação** | homolog.tnethub.com.br | `develop` | 3002 |
 
-- **📌 Marcação de Placas (Fila Pública)**
-  - Geração de links seguros com tokens (`/cadastro/:token`) válidos por 4 horas para preenchimento de dados e envio de anexos (CRLV, CNH) direto pelo próprio motorista via celular.
-  - Painel da Fila com gestão visual de tempos (SLA), disponibilidade e rastreamento.
-- **🛡️ Gerenciamento de Risco e Cadastro**
-  - Aprovação/bloqueio veicular via *Checklists de Documentações* (CNH, ANTT, Tacógrafo).
-  - Controle das Liberações de GR (Gerenciadora de Risco do Seguro) integrado aos lançamentos.
-- **🚚 Operações de Embarque**
-  - Quadros Kanban interativos ou listagem de controle para Doca, Carregamento e Expedição.
-  - Formulários de Nova Coleta e Ocorrências com envio de imagens Base64.
-- **📦 Cubagem de Carga**
-  - Módulo detalhado para mensuração de lotes e cálculo de Mix, Metragem e Valor de Frota/Terceiros.
-- **📋 Checklists de Carreta (Vistoria de Pátio)**
-  - Auditoria física com assinaturas digitais, fotos contra vazamentos/avarias e controles de avarias (Canvas).
-- **🧱 Saldo de Paletes**
-  - Rastreamento e gestão financeira de estoques (PBR / Descartáveis) repassados ou retidos com agregados/frota.
-- **🗓️ Provisionamento de Frota**
-  - Grid semanal de status por veículo com atualização em tempo real via Socket.io.
-  - Ciclo de vida automático ao lançar um veículo: `EM OPERAÇÃO` → `CARREGANDO` (conferente) → `CARREGADO` → `EM VIAGEM` → `RETORNANDO` → `DISPONÍVEL`.
-  - Modal de registro de viagem simplificado: informa apenas as datas de entrega e retorno. O destino aparece no grid somente no dia da entrega; dias de trânsito ficam sem texto.
-  - O dia de retorno informado é automaticamente marcado como `DISPONÍVEL`.
-- **📱 Portal Mobile — PWA para Coordenador** *(novo em v0.3.3)*
-  - Acesso via `https://portal.tnethub.com.br/mobile` — instalável como app no iOS e Android.
-  - Visualização de Painel Operacional (Recife/Moreno), Ger. Risco/CT-e e Dashboard TV em tempo real.
-  - **Marcação de Placas totalmente interativa** no celular: criar links, reativar, revogar e copiar via WhatsApp com feedback háptico.
-  - Design touch-first com bottom navigation bar, swipe, pull-to-refresh e suporte a notch/home indicator do iPhone.
-- **🖥️ Painel TV (Painel Status)**
-  - Modo interativo "Real-Time" (`socket.io`) para projetar o status de liberação e chamadas em telões visuais da operação (Dashboard Viewer).
-  - Fluxo Mensal com KPIs de embarques, CT-es emitidos e tabela de coletas por operação (estilo planilha).
-- **🔔 Notificações em Tempo Real**
-  - Pos Embarque e Cadastro recebem alertas automáticos (sem F5) de novas ocorrências e marcações de placa.
-  - Coordenador recebe aviso simplificado de quem marcou placa.
-- **📝 Auditoria Completa (Cockpit)**
-  - Todas as ações de modificação de dados (tokens, marcações, CT-es, checklists, fila, paletes, cubagens) são registradas na tabela de logs com usuário, horário e detalhes.
+- **Stack**: React 19 + Express 5 + PostgreSQL 15 + Socket.io + Docker + nginx + Cloudflare
+- **Deploy**: push em `main` → CI GitHub Actions rebuilda imagem Docker e faz deploy automaticamente no servidor via self-hosted runner. O branch `develop` é sincronizado automaticamente após cada deploy em `main`.
+- **Containers**: `transnet-prod` (porta 3001) e `transnet-staging` (porta 3002) no mesmo host WSL Ubuntu
+- **Imagens**: `ghcr.io/tay-create/transnet-operacional-v2:latest` (prod) e `:staging` (homolog)
+- **Banco**: PostgreSQL em containers separados (`transnet-db-prod` e `transnet-db-staging`). Migrations automáticas ao subir o servidor.
 
 ---
 
-## 📱 Portal Mobile — `/mobile`
+## Módulos
 
-Rota dedicada ao **Coordenador** para acompanhar a operação e gerenciar motoristas pelo celular, sem precisar do computador.
+### Operação de Embarques
+- Painel Kanban com cards por motorista/coleta — status em tempo real via socket
+- Gestão de Docas visual (Recife e Moreno) com mapa de calor por status
+- Importação em lote de coletas via planilha XLSX com detecção automática de duplicatas
+- Reprogramação de cards com flag `foi_reprogramado` e controle de data original
+- Lançamento de nova coleta com validação de operação, unidade e tipo de veículo
+- Botão "Avisar Saída" e controle de tempo em pátio por card
 
-### Como instalar como app
+### Auto-atendimento de Status — Motorista Interestadual (Leão SP / Eletrik Sul)
+- Coordenador gera link temporário (válido 24h) direto no card
+- Motorista acessa `/operacao/:token` no celular sem login
+- Confirma a coleta como autenticação, depois avança os status linearmente: `LIBERADO P/ CARREGAMENTO` → `EM CARREGAMENTO` → `CARREGADO`
+- Token expira ao chegar em CARREGADO ou após 24h
+- Dropdown e régua de status restritos a esses 3 status para operações interestaduais
 
-| Plataforma | Passos |
-|------------|--------|
-| **iOS (Safari)** | Abrir a URL → Compartilhar → "Adicionar à Tela de Início" |
-| **Android (Chrome)** | Abrir a URL → Banner "Instalar" ou menu → "Adicionar à tela inicial" |
+### Conferente (Pátio)
+- Checklist de vistoria da carreta com fotos, assinatura digital e controle de avarias
+- Corda extra: botão por card com modal de quantidade — registrado separado do checklist principal
+- Status atualizado em tempo real — refletido no PainelOperacional e DashboardTV
 
-### Telas
+### CT-e e Liberações
+- Painel de emissão com fluxo: Aguardando → Em Emissão → Emitido
+- Controle de liberações de Gerenciadora de Risco com verificação de checklists
+- CT-e antecipado (flag por unidade) para operações especiais
+- Destinatários configuráveis por operação (inclui Planejamento para interestaduais)
 
-| Tela | Permissão | Descrição |
-|------|-----------|-----------|
-| Home | — | Grid 2×2 com badges dinâmicos, relógio, indicador online/offline, botão sair |
-| Painel Operacional | Leitura | Toggle Recife/Moreno, filtro de data, pull-to-refresh, cards por status com cores neon |
-| Ger. Risco / CT-e | Leitura | Em Espera (checklist pills) · Na Operação (timer colorido) · Frota Própria (grid) |
-| Marcação de Placas | **Interativo** | Criar/reativar/revogar links, copiar via clipboard com vibração háptica, ver marcações com cronômetro |
-| Dashboard TV | Leitura | Swipe entre 3 telas (Embarques · Operação · CT-e), autoplay 12s com toggle |
+### Pós-Embarque
+- Painel de ocorrências com KPIs (Em Andamento / Resolvidas / +24h / Total)
+- Cards ordenados por atraso, com CTE/NF em destaque (15px/800 weight)
+- Atualização em tempo real via socket (`posembarque_atualizada`)
 
-### Arquitetura
+### Dashboard TV
+Exibido em televisões do galpão. 6 painéis em rotação automática:
 
-```
-src/mobile/
-├── MobileApp.js          Wrapper + bottom navigation bar + login gate
-├── MobileLogin.js        Tela de login (font-size 16px → sem zoom no iOS)
-├── MobileHome.js         Home com 4 cards e badges dinâmicos
-├── MobileOperacional.js  Painel Operacional read-only
-├── MobileCadastro.js     Ger. Risco / CT-e read-only
-├── MobileMarcacoes.js    Marcações interativo — bottom sheets, háptico
-└── MobileDashboardTV.js  Dashboard TV com swipe e dots indicator
-```
+| Painel | Conteúdo |
+|---|---|
+| 0 — Embarques (Visão Geral) | KPIs por operação, total geral, ocorrências, status CT-e, frota vs terceiros, gráfico de status por unidade |
+| 1 — Recife | Veículos agrupados por doca + régua de status real |
+| 2 — Moreno | Veículos agrupados por doca + régua de status real |
+| 3 — Leão / Eletrik Sul | Dois painéis lado a lado (laranja/roxo), régua restrita a 3 status, fluxo CT-e |
+| 4 — Tramontina | Monitoramento via Google Sheets API (cache 30s) — badges, gauges Plástico/Porcelana/Consolidadas |
+| 5 — Fluxo Mensal | Heatmap 5 dias com coletas por operação + coluna Reprogramados |
+
+### Monitoramento Tramontina (Google Sheets)
+- Lê a aba `DELTA-PORCELANA` e `ELETRIK` da planilha via service account
+- Lógica 100% espelhada do AppScript (`codigo.gs`):
+  - **TOTAL ROTAS**: maior número encontrado em col A
+  - **EMBARCADAS**: count col D = "X" linha a linha
+  - **PROG. HOJE**: col C = "X" + col B = "X" (programadas + reprogramadas)
+  - **REPROGRAMADAS**: col B = "X"
+  - **PENDENTES**: TOTAL ROTAS − EMBARCADAS
+  - **ELETRIK (EMBARC.)**: col B = "SIM" na aba Eletrik
+- Gauges: Consolidado tem prioridade (col O ou P = "-"), depois Plástico (M ou Q), Porcelana (N ou R)
+
+### Programação Diária de Frota
+- Geração manual (Inicial/Final) ou automática via cron (10h e 17h)
+- Snapshot salvo em `frota_programacao_diaria` com lista de veículos e KPIs por operação/unidade
+- Flag `foi_reprogramado` é a única fonte de verdade para o contador de reprogramados
+
+### Provisionamento de Frota Própria
+- Grid semanal de veículos com status e destino
+- Placa do cavalo opcional (suporte a carretas sem cavalo cadastrado)
+- Ciclo de vida: `EM OPERAÇÃO` → `CARREGANDO` → `CARREGADO` → `EM VIAGEM` → `RETORNANDO` → `DISPONÍVEL`
+
+### Relatório Operacional
+- Período, unidade e tipo de operação configuráveis
+- Bloco "Total de Embarques" com sub-contadores Recife / Moreno / São Paulo
+- Bloco separado para interestaduais (Leão SP + Eletrik Sul)
+- Gráficos: embarques por dia (barras verticais) + por operação (barras horizontais)
+- Impressão formatada em A4 landscape
+
+### Portal Mobile (PWA)
+Acesso via `/mobile` — instalável como app no iOS e Android.
+
+| Tela | Descrição |
+|---|---|
+| Home | Grid 2×2 com badges dinâmicos e relógio |
+| Painel Operacional | Toggle Recife/Moreno, cards por status |
+| Ger. Risco / CT-e | Checklist pills e timer colorido |
+| Marcação de Placas | Criar/revogar links, copiar via WhatsApp com háptico |
+| Dashboard TV | Swipe entre 4 telas (Embarques · Operação · CT-e · Leão/Eletrik Sul) |
+
+### Outros Módulos
+- **Marcação de Placas (Fila Pública)**: link com token válido 4h para motorista preencher dados e enviar documentos
+- **Cadastro de Motoristas**: QR Code de auto-registro (`/api/tokens/auto`)
+- **Cubagem de Carga**: mensuração de lotes, mix, metragem e valor
+- **Saldo de Paletes**: rastreamento de PBR/descartáveis por viagem
+- **Auditoria**: logs de todas as ações com usuário, horário e detalhes
+- **Tema claro/escuro global**: toggle no menu de perfil, persiste em localStorage
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Tema e UI
 
-A pilha escolhida (Stack) enfatiza respostas em Tempo Real (Event-Driven) aliadas a uma UI Fluida.
-
-| Frontend (UI) | Backend (API) | Banco e Ferramentas |
-| :--- | :--- | :--- |
-| **React** (v19.x) | **Node.js + Express** (v5) | **PostgreSQL** (Driver `pg`) |
-| **TailwindCSS** (Estilos rápidos) | **Socket.io** (WebSockets) | **Bcryptjs + JWT** (Segurança OTP) |
-| **Zustand** (Gestão de Estado global)| **Multer / Body-Parser** | **html2pdf / jsPDF** (Relatórios) |
-| **Lucide-React** (Ícones) | **Express-Rate-Limit** | **Electron** (Desktop wrapper) |
+- **ThemeContext** (`src/contexts/ThemeContext.js`): provedor global com `useTheme()` hook
+- Toggle Sol/Lua no menu de perfil do Header — aplica `data-theme="claro"` ou `"escuro"` no `<html>`
+- CSS variables em `src/index.css`: `--tn-bg-app`, `--tn-text-primary`, etc.
+- Neon/glow desativados automaticamente no tema claro via seletores CSS
 
 ---
 
-## ⚙️ Pré-requisitos e Setup
+## Cargos e Permissões (RBAC)
 
-### 1. Requisitos de Ambiente
-* **Node.js** (v18.x ou superior recomendado)
-* **PostgreSQL** (v14+ com credenciais administrativas prontas)
-* (Opcional) Ambiente WSL/Linux para desenvolvimento. *(Testado em Windows 11/Ubuntu WSL).*
+| Cargo | Acesso principal |
+|---|---|
+| Coordenador | Tudo |
+| Planejamento | Operacional, lançamento, CT-e, relatórios |
+| Encarregado | Operacional, checklist, doca |
+| Aux. Operacional | Operacional leitura + ações limitadas |
+| Conhecimento | CT-e e liberações |
+| Cadastro | Cadastro de motoristas e documentação |
+| Conferente | Checklist de carreta e status de carga |
+| Pós Embarque | Painel de ocorrências |
+| Manutenção | Provisionamento de frota |
+| Dashboard Viewer | Somente DashboardTV (sem expiração de JWT) |
 
-### 2. Configurando Variáveis (`.env`)
-Duplique o arquivo `.env.example` (se existente) para `.env` e ajuste seu acesso ao banco:
+---
+
+## Setup de Desenvolvimento
+
+### Requisitos
+- Node.js 20+
+- PostgreSQL 15+
+- Docker + Docker Compose (para rodar equivalente ao prod)
+
+### Variáveis de ambiente (`.env`)
 ```ini
 NODE_ENV=development
-PORT=3000
+PORT=3001
 
-# Conexão Banco Postgres
-DB_USER=DB_USER
+DB_USER=postgres
 DB_HOST=localhost
-DB_NAME=tnet_operacional
+DB_NAME=transnet_dev
 DB_PASSWORD=sua_senha
-DB_PORT=DB_PORT
+DB_PORT=5432
 
-# Autenticação
-JWT_SECRET=SuaChaveSuperSecretaToken
+JWT_SECRET=sua_chave_jwt
+
+GMAIL_USER=email@gmail.com
+GMAIL_APP_PASSWORD=app_password
+
+# Google Sheets (Tramontina)
+# Arquivo google-credentials.json na raiz com service account key
 ```
 
-### 3. Instalando as Dependências
+### Executar
 ```bash
 npm install
+npm run dev        # React (porta 3000) + Express (porta 3001) em paralelo
+npm run server     # Só o backend
+npm run build      # Build de produção do React
 ```
 
-### 4. Inicializando Banco e Usuários
+### Docker (equivalente ao prod)
 ```bash
-# Popula os cargos mínimos padrão (senha padrao: 123456)
-node scripts/seed_usuarios.js
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 ```
 
 ---
 
-## 🏃‍♂️ Como Executar (Modo Desenvolvedor)
+## Estrutura de pastas relevante
 
-### Web (API + React ao mesmo tempo)
-Inicia o Back-End Express na porta `3000` e o Dev-Server do React na porta `3001` em paralelo:
-```bash
-npm run dev
 ```
-
-### Só Servidor (Back-end)
-```bash
-npm run server
+src/
+├── components/          Painéis principais (PainelOperacional, DashboardTV, DashboardPosEmbarque, ...)
+├── conferente/          Módulo do conferente (checklist, painel)
+├── contexts/            ThemeContext
+├── database/            db.js (pg), migrations.js
+├── mobile/              PWA mobile (MobileApp, MobileDashboardTV, ...)
+├── routes/              Express routers (veiculos, checklists, tramontina, ...)
+└── services/            apiService (axios com baseURL automática)
 ```
-
----
-
-## 📦 Empacotamento para Produção (Desktop App)
-
-O Transnet Operacional pode ser compilado como um aplicativo Nativo de Windows (`.exe` em NSIS) utilizando o `electron-builder`.
-
-```bash
-# Faz o Build otimizado do React e gera o instalador Desktop:
-npm run electron:build
-```
-> ⚠️ **Nota de Ambiente Windows SmartScreen:** O artefato gerado `.exe` pela pasta `dist/` entrará no processo de *SmartScreen* do Windows 11 caso você não tenha uma licença EV (*Code Signing* comprada) assinando o pacote. Instrua os usuários a clicar em "*Mais Informações > Executar assim mesmo*" na primeira abertura do aplicativo. 
-
----
-
-## 🗃️ Estrutura do Banco e Permissões (RBAC)
-As regras de negócio do acesso a abas são atreladas diretamente a tabela `configuracoes` sob as chaves `permissoes_acesso` e `permissoes_edicao`.
-
-**Cargos Suportados e Hierarquias:**
-`Coordenador`, `Planejamento`, `Encarregado`, `Aux. Operacional`, `Conhecimento`, `Cadastro`, `Conferente`, `Pos Embarque`, e `Dashboard Viewer` (para as TVs).
-O sistema **gera automaticamente** a tabela subjacente pelo Migrations ao ligar o Node.
 
 ---
 
 <div align="center">
-  <p>Feito para suprir Logística em Tempo Real.</p>
+  <p>Desenvolvido para gestão logística em tempo real — Transnet Logística</p>
 </div>
