@@ -3340,8 +3340,16 @@ app.get('/api/geojson-brasil', async (req, res) => {
     try {
         if (geojsonBrasilCache.data && Date.now() - geojsonBrasilCache.ts < 86400000)
             return res.json(geojsonBrasilCache.data);
-        const resp = await fetch('https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR?formato=application/vnd.geo+json&qualidade=minima&divisao=regioes');
-        const data = await resp.json();
+        const codigos = ['1', '2', '3', '4', '5'];
+        const features = await Promise.all(codigos.map(async cod => {
+            const r = await fetch(`https://servicodados.ibge.gov.br/api/v3/malhas/regioes/${cod}?formato=application/vnd.geo+json&qualidade=intermediaria`);
+            const j = await r.json();
+            const f = (j.features || [])[0];
+            if (!f) return null;
+            f.properties = { ...(f.properties || {}), codarea: cod };
+            return f;
+        }));
+        const data = { type: 'FeatureCollection', features: features.filter(Boolean) };
         geojsonBrasilCache = { data, ts: Date.now() };
         res.json(data);
     } catch (e) {

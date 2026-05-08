@@ -18,9 +18,14 @@ function corChoropleth(pctVal) {
     return `hsl(220, 75%, ${lightness}%)`;
 }
 
-function MapaBrasil({ regioes, totalEntregas }) {
+function MapaBrasil({ regioes, totalEntregas, regiaoSelecionada, onSelectRegiao }) {
     const containerRef = useRef(null);
     const mapRef = useRef(null);
+    const layersRef = useRef({}); // { NORDESTE: layer, ... }
+    const selecionadaRef = useRef(regiaoSelecionada);
+
+    // mantém ref atualizada pra o handler de clique sempre ler valor atual
+    useEffect(() => { selecionadaRef.current = regiaoSelecionada; }, [regiaoSelecionada]);
 
     useEffect(() => {
         if (!containerRef.current || mapRef.current) return;
@@ -30,14 +35,15 @@ function MapaBrasil({ regioes, totalEntregas }) {
         const map = L.map(containerRef.current, {
             center: [-14.2, -51.9],
             zoom: 4,
+            minZoom: 3,
+            maxZoom: 8,
             zoomControl: true,
-            scrollWheelZoom: false,
+            scrollWheelZoom: true,
             dragging: true,
             attributionControl: false,
         });
         mapRef.current = map;
 
-        // Fundo escuro sem tiles externos — só cor sólida
         containerRef.current.style.background = '#0f172a';
 
         const porNome = {};
@@ -60,6 +66,7 @@ function MapaBrasil({ regioes, totalEntregas }) {
                     },
                     onEachFeature: (feature, layer) => {
                         const nomeRegiao = IBGE_REGIAO[feature.properties.codarea] || '—';
+                        layersRef.current[nomeRegiao] = layer;
                         const dado = porNome[nomeRegiao];
                         const pctVal = dado ? pct(dado.entregas, totalEntregas) : '0.0';
                         const entregas = dado?.entregas ?? 0;
@@ -67,16 +74,24 @@ function MapaBrasil({ regioes, totalEntregas }) {
                             `<div style="font-family:sans-serif;font-size:13px;font-weight:700;color:#f1f5f9;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;pointer-events:none">
                                 <div style="color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">${nomeRegiao}</div>
                                 <div style="font-size:22px;color:#60a5fa">${pctVal}%</div>
-                                <div style="color:#64748b;font-size:11px;margin-top:2px">${entregas} entregas</div>
+                                <div style="color:#64748b;font-size:11px;margin-top:2px">${entregas} entregas · clique p/ filtrar</div>
                             </div>`,
                             { sticky: true, opacity: 1, className: 'leaflet-tooltip-custom' }
                         );
-                        layer.on('mouseover', () => layer.setStyle({ fillOpacity: 1, weight: 2.5 }));
-                        layer.on('mouseout', () => layer.setStyle({ fillOpacity: 0.85, weight: 1.5 }));
+                        layer.on('mouseover', () => {
+                            if (selecionadaRef.current !== nomeRegiao) layer.setStyle({ fillOpacity: 1, weight: 2.5 });
+                        });
+                        layer.on('mouseout', () => {
+                            if (selecionadaRef.current !== nomeRegiao) layer.setStyle({ fillOpacity: 0.85, weight: 1.5 });
+                        });
+                        layer.on('click', () => {
+                            // toggle: clicou na mesma região, limpa filtro
+                            const novo = selecionadaRef.current === nomeRegiao ? null : nomeRegiao;
+                            onSelectRegiao(novo);
+                        });
                     }
                 }).addTo(map);
 
-                // Ajusta o zoom para cobrir o Brasil inteiro
                 map.fitBounds([[-33.7, -73.9], [5.3, -28.8]]);
             })
             .catch(console.error);
@@ -84,30 +99,41 @@ function MapaBrasil({ regioes, totalEntregas }) {
         return () => {
             map.remove();
             mapRef.current = null;
+            layersRef.current = {};
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Atualiza estilos quando os dados mudam sem recriar o mapa
+    // Re-aplica estilos quando regiões/dados mudam
     useEffect(() => {
-        if (!mapRef.current) return;
-        const L = require('leaflet');
         const porNome = {};
         regioes.forEach(r => { porNome[r.regiao] = r; });
-        mapRef.current.eachLayer(layer => {
-            if (layer.feature) {
-                const nomeRegiao = IBGE_REGIAO[layer.feature.properties.codarea] || '';
-                const dado = porNome[nomeRegiao];
-                const pctVal = dado ? parseFloat(pct(dado.entregas, totalEntregas)) : 0;
-                if (layer.setStyle) layer.setStyle({ fillColor: corChoropleth(pctVal) });
-            }
+        Object.entries(layersRef.current).forEach(([nome, layer]) => {
+            const dado = porNome[nome];
+            const pctVal = dado ? parseFloat(pct(dado.entregas, totalEntregas)) : 0;
+            if (layer.setStyle) layer.setStyle({ fillColor: corChoropleth(pctVal) });
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [regioes, totalEntregas]);
 
+    // Realça a região selecionada (borda branca grossa) e dimishe as outras
+    useEffect(() => {
+        Object.entries(layersRef.current).forEach(([nome, layer]) => {
+            if (!layer.setStyle) return;
+            if (regiaoSelecionada && nome === regiaoSelecionada) {
+                layer.setStyle({ color: '#f8fafc', weight: 3, fillOpacity: 1 });
+                if (layer.bringToFront) layer.bringToFront();
+            } else if (regiaoSelecionada) {
+                layer.setStyle({ color: '#1e293b', weight: 1, fillOpacity: 0.35 });
+            } else {
+                layer.setStyle({ color: '#1e293b', weight: 1.5, fillOpacity: 0.85 });
+            }
+        });
+    }, [regiaoSelecionada]);
+
     return (
         <div style={{ position: 'relative' }}>
-            <div ref={containerRef} style={{ height: '340px', borderRadius: '10px', overflow: 'hidden', background: '#0f172a' }} />
+            <div ref={containerRef} style={{ height: '340px', borderRadius: '10px', overflow: 'hidden', background: '#0f172a', cursor: 'pointer' }} />
             {/* Legenda gradiente */}
             <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 12px', zIndex: 1000 }}>
                 <div style={{ fontSize: '9px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>% Entregas</div>
@@ -117,6 +143,13 @@ function MapaBrasil({ regioes, totalEntregas }) {
                     <span style={{ fontSize: '10px', color: '#94a3b8' }}>100%</span>
                 </div>
             </div>
+            {regiaoSelecionada && (
+                <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: '8px', padding: '6px 10px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtro:</span>
+                    <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '700' }}>{regiaoSelecionada}</span>
+                    <button onClick={() => onSelectRegiao(null)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '14px', padding: '0 4px', lineHeight: 1 }} title="Limpar filtro">×</button>
+                </div>
+            )}
         </div>
     );
 }
@@ -155,6 +188,7 @@ export default function RelatorioResultadoOperacional() {
     const [dados, setDados] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
+    const [regiaoFiltro, setRegiaoFiltro] = useState(null);
     const [mes, setMes] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
@@ -372,10 +406,17 @@ export default function RelatorioResultadoOperacional() {
 
     const { veiculos, mix, regioes, totais } = dados;
 
+    // Quando filtro por região está ativo: substitui veiculos/totais pela linha da região
+    const regiaoAtiva = regiaoFiltro ? regioes.find(r => r.regiao === regiaoFiltro) : null;
+    const veiculosBase = regiaoAtiva
+        ? { carreta: regiaoAtiva.carreta, truck: regiaoAtiva.truck, tresQuartos: regiaoAtiva.tresQuartos, total: regiaoAtiva.carreta + regiaoAtiva.truck + regiaoAtiva.tresQuartos }
+        : veiculos;
+    const entregasBase = regiaoAtiva ? regiaoAtiva.entregas : totais.entregas;
+
     const dadosVeiculo = [
-        { name: 'carreta', label: 'CARRETA', value: veiculos.carreta, total: veiculos.total },
-        { name: 'truck', label: 'TRUCK', value: veiculos.truck, total: veiculos.total },
-        { name: 'tresQuartos', label: '3/4', value: veiculos.tresQuartos, total: veiculos.total },
+        { name: 'carreta', label: 'CARRETA', value: veiculosBase.carreta, total: veiculosBase.total },
+        { name: 'truck', label: 'TRUCK', value: veiculosBase.truck, total: veiculosBase.total },
+        { name: 'tresQuartos', label: '3/4', value: veiculosBase.tresQuartos, total: veiculosBase.total },
     ].filter(d => d.value > 0);
 
     const dadosMix = [
@@ -385,7 +426,9 @@ export default function RelatorioResultadoOperacional() {
         { name: 'eletrik', label: 'ELETRIK', value: mix.eletrik, total: mix.total },
     ].filter(d => d.value > 0);
 
-    const dadosRegiao = [...regioes].sort((a, b) => b.entregas - a.entregas);
+    const dadosRegiao = regiaoAtiva
+        ? [regiaoAtiva]
+        : [...regioes].sort((a, b) => b.entregas - a.entregas);
 
     return (
         <div style={{ padding: '10px 0' }}>
@@ -414,9 +457,9 @@ export default function RelatorioResultadoOperacional() {
             {/* KPIs */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                 {[
-                    { label: 'Total de Embarques', valor: veiculos.total, cor: '#3b82f6', sub: `${veiculos.carreta} Carreta · ${veiculos.truck} Truck · ${veiculos.tresQuartos} 3/4` },
-                    { label: 'Total de Entregas', valor: totais.entregas, cor: '#06b6d4', sub: 'Soma de todas as regiões' },
-                    { label: 'Mix de Operação', valor: mix.total, cor: '#10b981', sub: `${mix.plastico} Plástico · ${mix.consolidado} Consol. · ${mix.porcelana} Porc. · ${mix.eletrik} Eletrik` },
+                    { label: regiaoFiltro ? `Embarques · ${regiaoFiltro}` : 'Total de Embarques', valor: veiculosBase.total, cor: '#3b82f6', sub: `${veiculosBase.carreta} Carreta · ${veiculosBase.truck} Truck · ${veiculosBase.tresQuartos} 3/4` },
+                    { label: regiaoFiltro ? `Entregas · ${regiaoFiltro}` : 'Total de Entregas', valor: entregasBase, cor: '#06b6d4', sub: regiaoFiltro ? `${pct(entregasBase, totais.entregas)}% do total geral` : 'Soma de todas as regiões' },
+                    { label: 'Mix de Operação' + (regiaoFiltro ? ' (geral)' : ''), valor: mix.total, cor: '#10b981', sub: `${mix.plastico} Plástico · ${mix.consolidado} Consol. · ${mix.porcelana} Porc. · ${mix.eletrik} Eletrik` },
                 ].map(k => (
                     <div key={k.label} style={{ ...s.card, borderLeft: `4px solid ${k.cor}` }}>
                         <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.5px', marginBottom: '6px' }}>{k.label}</div>
@@ -430,7 +473,7 @@ export default function RelatorioResultadoOperacional() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 {/* Pizza Veículo */}
                 <div style={s.card}>
-                    <div style={s.titulo}>Tipo de Veículo</div>
+                    <div style={s.titulo}>Tipo de Veículo{regiaoFiltro ? ` · ${regiaoFiltro}` : ''}</div>
                     <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                         <PieChart width={160} height={160}>
                             <Pie data={dadosVeiculo} cx={75} cy={75} innerRadius={45} outerRadius={72} dataKey="value" nameKey="label" paddingAngle={2}>
@@ -461,17 +504,28 @@ export default function RelatorioResultadoOperacional() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                 <div style={s.card}>
                     <div style={s.titulo}>Distribuição por Região</div>
-                    <MapaBrasil regioes={regioes} totalEntregas={totais.entregas} />
+                    <MapaBrasil regioes={regioes} totalEntregas={totais.entregas} regiaoSelecionada={regiaoFiltro} onSelectRegiao={setRegiaoFiltro} />
                 </div>
                 <div style={s.card}>
-                    <div style={s.titulo}>% por Região</div>
+                    <div style={{ ...s.titulo, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span>% por Região</span>
+                        {regiaoFiltro && (
+                            <button onClick={() => setRegiaoFiltro(null)} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', fontSize: '9px', fontWeight: '700', padding: '3px 8px', borderRadius: '6px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Limpar filtro</button>
+                        )}
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
-                        {dadosRegiao.map(r => {
+                        {[...regioes].sort((a, b) => b.entregas - a.entregas).map(r => {
                             const p = parseFloat(pct(r.entregas, totais.entregas));
+                            const sel = regiaoFiltro === r.regiao;
+                            const dimmed = regiaoFiltro && !sel;
                             return (
-                                <div key={r.regiao}>
+                                <div
+                                    key={r.regiao}
+                                    onClick={() => setRegiaoFiltro(sel ? null : r.regiao)}
+                                    style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: '6px', background: sel ? 'rgba(59,130,246,0.12)' : 'transparent', opacity: dimmed ? 0.4 : 1, transition: 'all 0.2s' }}
+                                >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span style={{ fontSize: '12px', fontWeight: '700', color: '#f1f5f9' }}>{r.regiao}</span>
+                                        <span style={{ fontSize: '12px', fontWeight: '700', color: sel ? '#60a5fa' : '#f1f5f9' }}>{r.regiao}</span>
                                         <span style={{ fontSize: '12px', color: '#60a5fa', fontWeight: '700' }}>{p.toFixed(1)}%</span>
                                     </div>
                                     <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '4px', height: '10px', overflow: 'hidden' }}>
@@ -487,7 +541,7 @@ export default function RelatorioResultadoOperacional() {
 
             {/* Gráfico Regiões × Veículo */}
             <div style={s.card}>
-                <div style={s.titulo}>Entregas por Região × Tipo de Veículo</div>
+                <div style={s.titulo}>Entregas por Região × Tipo de Veículo{regiaoFiltro ? ` · ${regiaoFiltro}` : ''}</div>
                 <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={dadosRegiao} margin={{ top: 20, right: 20, left: -10, bottom: 4 }}>
                         <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
