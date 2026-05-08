@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
     Truck, Users, LogOut, BarChart3, Bell,
-    FileText, PlusCircle, Monitor,
+    FileText, PlusCircle, Monitor, TrendingUp,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
     Clock, CheckCircle, Warehouse, QrCode
 } from 'lucide-react';
@@ -189,6 +189,7 @@ export default function Sidebar({
                     <>
                         <Divider label="Relatórios" aberto={aberto} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Relatório Operacional" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_op'); }} />
+                        <MenuItem icon={<TrendingUp size={20} />} label="Resultado Operacional" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_resultado'); }} />
                         <MenuItem icon={<BarChart3 size={20} />} label="Performance de Embarque" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_performance'); }} />
                         <MenuItem icon={<Clock size={20} />} label="Tempo Médio de Contratação" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_liberacoes'); }} />
                         <MenuItem icon={<FileText size={20} />} label="Relatório CT-e" subItem aberto={aberto} onClick={() => { setAbaAtiva('relatorio_cte'); }} />

@@ -26,7 +26,8 @@ const LogsAuditoria        = React.lazy(() => import('./components/LogsAuditoria
 const DashboardTV          = React.lazy(() => import('./components/DashboardTV'));
 const GestaoMarcacoes      = React.lazy(() => import('./components/GestaoMarcacoes'));
 const DashboardMarcacoes   = React.lazy(() => import('./components/DashboardMarcacoes'));
-const RelatorioOperacional = React.lazy(() => import('./components/RelatorioOperacional'));
+const RelatorioOperacional          = React.lazy(() => import('./components/RelatorioOperacional'));
+const RelatorioResultadoOperacional = React.lazy(() => import('./components/RelatorioResultadoOperacional'));
 const PainelCadastro       = React.lazy(() => import('./components/PainelCadastro'));
 const HistoricoLiberacoes  = React.lazy(() => import('./components/HistoricoLiberacoes'));
 const PainelProgramacao    = React.lazy(() => import('./components/PainelProgramacao'));
@@ -1490,6 +1491,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'relatorio_op' && temAcesso('relatorios') && (
                     <RelatorioOperacional />
+                )}
+
+                {abaAtiva === 'relatorio_resultado' && temAcesso('relatorios') && (
+                    <RelatorioResultadoOperacional />
                 )}
 
                 {abaAtiva === 'relatorio_performance' && temAcesso('relatorios') && (

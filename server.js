@@ -3332,6 +3332,95 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
     }
 });
 
+// ── Resultado Operacional (Google Sheets) ────────────────────────────────────
+
+const RESULTADO_SHEET_ID = '1-9TPCUJX2JPsAYeOjLPgzXLiB_1IjIKIU4olfCrj9sw';
+let resultadoCache = { data: null, ts: 0 };
+
+app.get('/api/resultado-operacional', authMiddleware, async (req, res) => {
+    try {
+        if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
+            return res.json(resultadoCache.data);
+
+        const auth = new google.auth.GoogleAuth({
+            keyFile: path.join(__dirname, 'google-credentials.json'),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        const lerRange = async (aba, range) => {
+            const r = await sheets.spreadsheets.values.get({ spreadsheetId: RESULTADO_SHEET_ID, range: `${aba}!${range}` });
+            return r.data.values || [];
+        };
+
+        // Regiões — DELTA-PORCELANA L750:W754 (5 regiões: SUL, SUDESTE, C.OESTE, NORTE, NORDESTE)
+        const deltaPorRegiao = await lerRange('DELTA-PORCELANA', 'A750:W754');
+        // Regiões — ELETRIK L87:I91
+        const eletrikPorRegiao = await lerRange('ELETRIK', 'A87:I91');
+        // Mix operação — DELTA-PORCELANA linhas específicas
+        const mixLinhas = await lerRange('DELTA-PORCELANA', 'A758:W775');
+        // Total eletrik
+        const eletrikTotal = await lerRange('ELETRIK', 'I92');
+
+        // Parser regiões DELTA-PORCELANA: A=região, F(idx5)=total, I(idx8)=carreta, J(idx9)=truck, K(idx10)=3/4, W(idx22)=entregas
+        const regioes = {};
+        const REGIOES_ORDEM = ['SUL', 'SUDESTE', 'C.OESTE', 'NORTE', 'NORDESTE'];
+        for (const row of deltaPorRegiao) {
+            const regiao = (row[0] || '').toString().trim().toUpperCase();
+            if (!REGIOES_ORDEM.includes(regiao)) continue;
+            regioes[regiao] = {
+                total: parseInt(row[5]) || 0,
+                carreta: parseInt(row[8]) || 0,
+                truck: parseInt(row[9]) || 0,
+                tresQuartos: parseInt(row[10]) || 0,
+                entregas: parseInt(row[22]) || 0,
+            };
+        }
+
+        // Somar ELETRIK por região: A=região, D(idx3)=total, E(idx4)=carreta, F(idx5)=truck, G(idx6)=3/4, I(idx8)=entregas
+        for (const row of eletrikPorRegiao) {
+            const regiao = (row[0] || '').toString().trim().toUpperCase();
+            if (!REGIOES_ORDEM.includes(regiao)) continue;
+            if (!regioes[regiao]) regioes[regiao] = { total: 0, carreta: 0, truck: 0, tresQuartos: 0, entregas: 0 };
+            regioes[regiao].total += parseInt(row[3]) || 0;
+            regioes[regiao].carreta += parseInt(row[4]) || 0;
+            regioes[regiao].truck += parseInt(row[5]) || 0;
+            regioes[regiao].tresQuartos += parseInt(row[6]) || 0;
+            regioes[regiao].entregas += parseInt(row[8]) || 0;
+        }
+
+        // Mix operação — índices relativos a partir de A758 (linha 0 = L758)
+        // Plástico = W760(idx2, col22) + W771(idx13, col22)
+        // Porcelana = A760(idx2, col0) + A771(idx13, col0)
+        // Consolidado = A766(idx8, col0) + W766(idx8, col22)
+        const v = (row, col) => parseInt((mixLinhas[row] || [])[col]) || 0;
+        const plastico = v(2, 22) + v(13, 22);
+        const porcelana = v(2, 0) + v(13, 0);
+        const consolidado = v(8, 0) + v(8, 22);
+        const eletrik = parseInt((eletrikTotal[0] || [])[0]) || 0;
+
+        // Totais gerais somando todas as regiões
+        const totalEmbarques = Object.values(regioes).reduce((a, r) => a + r.total, 0);
+        const totalCarreta = Object.values(regioes).reduce((a, r) => a + r.carreta, 0);
+        const totalTruck = Object.values(regioes).reduce((a, r) => a + r.truck, 0);
+        const totalTresQuartos = Object.values(regioes).reduce((a, r) => a + r.tresQuartos, 0);
+        const totalEntregas = Object.values(regioes).reduce((a, r) => a + r.entregas, 0);
+
+        const resultado = {
+            regioes: REGIOES_ORDEM.map(r => ({ regiao: r, ...(regioes[r] || { total: 0, carreta: 0, truck: 0, tresQuartos: 0, entregas: 0 }) })),
+            veiculos: { carreta: totalCarreta, truck: totalTruck, tresQuartos: totalTresQuartos, total: totalEmbarques },
+            mix: { plastico, porcelana, consolidado, eletrik, total: plastico + porcelana + consolidado + eletrik },
+            totais: { embarques: totalEmbarques, entregas: totalEntregas },
+        };
+
+        resultadoCache = { data: resultado, ts: Date.now() };
+        res.json(resultado);
+    } catch (e) {
+        console.error('Erro resultado-operacional:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
 const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Manutenção'];
