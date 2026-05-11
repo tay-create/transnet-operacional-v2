@@ -2,6 +2,8 @@ const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { validate, novoLancamentoSchema } = require('../../middleware/validationMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 // Função centralizada de data/hora no timezone de Brasília
 const obterDataHoraBrasilia = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
@@ -10,8 +12,7 @@ const obterDataHoraBrasilia = () => new Date().toLocaleString('sv-SE', { timeZon
 module.exports = function createVeiculosRouter(io, registrarLog) {
     const router = express.Router();
 
-    router.get('/veiculos', authMiddleware, async (req, res) => {
-        try {
+    router.get('/veiculos', authMiddleware, asyncHandler(async (req, res) => {
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = (page - 1) * limit;
@@ -95,11 +96,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 };
             });
             res.json({ success: true, veiculos, total, page, limit, totalPages: Math.ceil(total / limit) });
-        } catch (e) { res.status(500).json({ success: false }); }
-    });
+        }));
 
-    router.get('/veiculos/:id', authMiddleware, async (req, res) => {
-        try {
+    router.get('/veiculos/:id', authMiddleware, asyncHandler(async (req, res) => {
             const [row, provVeiculosId] = await Promise.all([
                 dbGet(`
                     SELECT v.*,
@@ -154,11 +153,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 dados_json: row.dados_json || '{}'
             };
             res.json({ success: true, veiculo });
-        } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-    });
+        }));
 
-    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), validate(novoLancamentoSchema), async (req, res) => {
-        try {
+    router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), validate(novoLancamentoSchema), asyncHandler(async (req, res) => {
             const v = req.body;
             const data_criacao = obterDataHoraBrasilia();
 
@@ -451,10 +448,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
             res.json({ success: true, id: result.lastID });
-        } catch (e) { console.error(e); res.status(500).json({ success: false }); }
-    });
-    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), async (req, res) => {
-        try {
+        }));
+    router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), asyncHandler(async (req, res) => {
             const v = req.body;
             console.log(`[DEBUG veiculos.js] PUT /veiculos/${req.params.id} -> req.body.motorista: "${v.motorista}", old motorista in req: "${v.itemOriginal?.motorista}"`);
 
@@ -1171,12 +1166,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             res.json({ success: true });
-        } catch (e) { console.error('Erro PUT /veiculos/:id', e); res.status(500).json({ success: false }); }
-    });
+        }));
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
-    router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-        try {
+    router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
             const { nova_data, foi_reprogramado = 1 } = req.body;
             if (!nova_data) return res.status(400).json({ success: false, message: 'nova_data obrigatória.' });
             await dbRun(
@@ -1185,11 +1178,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             );
             io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), data_prevista: nova_data, foi_reprogramado: foi_reprogramado ? 1 : 0 });
             res.json({ success: true });
-        } catch (e) { console.error('Erro PUT /veiculos/:id/reprogramar', e); res.status(500).json({ success: false }); }
-    });
+        }));
 
-    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), async (req, res) => {
-        try {
+    router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
             console.log(`🗑️ [DELETE] Tentando excluir veículo ID: ${req.params.id}`);
 
             // Buscar dados do veículo antes de excluir para auditoria
@@ -1231,15 +1222,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             io.emit('receber_atualizacao', { tipo: 'remove_veiculo', id: Number(req.params.id) });
             res.json({ success: true });
-        } catch (e) {
-            console.error(`❌ Erro ao deletar veículo:`, e);
-            res.status(500).json({ success: false, message: 'Erro interno ao excluir veículo.' });
-        }
-    });
+        }));
 
     // ── DELETE Motorista do Card (mantém o card, libera motorista) ──
-    router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-        try {
+    router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
             const veiculo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
             if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
 
@@ -1290,17 +1276,12 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
             io.emit('marcacao_atualizada');
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao remover motorista do card:', e);
-            res.status(500).json({ success: false, message: 'Erro ao remover motorista.' });
-        }
-    });
+        }));
 
     // ── GET Ocorrências da Operação ──────────────────
 
     // ── POST Pausar Veículo ───────────────────────────
-    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
-        try {
+    router.post('/api/veiculos/:id/pausar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), asyncHandler(async (req, res) => {
             const { motivo, unidade, fonte } = req.body;
             // fonte: 'operacao' (pausa em lote pelo header) | 'conferente' (pausa individual)
             const fonteNorm = fonte === 'conferente' ? 'conferente' : 'operacao';
@@ -1323,15 +1304,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             await registrarLog('PAUSA_INICIADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, motivo);
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao pausar veículo:', e);
-            res.status(500).json({ success: false, message: 'Erro ao pausar.' });
-        }
-    });
+        }));
 
     // ── POST Retomar Veículo ──────────────────────────
-    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), async (req, res) => {
-        try {
+    router.post('/api/veiculos/:id/retomar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conferente']), asyncHandler(async (req, res) => {
             const { unidade, fonte } = req.body;
             // fonte: 'operacao' | 'conferente' — retoma somente pausas da própria fonte
             const fonteNorm = fonte === 'conferente' ? 'conferente' : 'operacao';
@@ -1354,15 +1330,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             await registrarLog('PAUSA_FINALIZADA', req.user?.nome || 'desconhecido', veiculo_id, 'veiculo', null, null, null);
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao retomar veículo:', e);
-            res.status(500).json({ success: false, message: 'Erro ao retomar.' });
-        }
-    });
+        }));
 
     // ── GET Relatório por período (dados próprios, não depende de memória do App) ──
-    router.get('/api/relatorio/veiculos', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/relatorio/veiculos', authMiddleware, asyncHandler(async (req, res) => {
             const { de, ate } = req.query;
             if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
@@ -1394,15 +1365,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             });
 
             res.json({ success: true, veiculos });
-        } catch (e) {
-            console.error('Erro ao buscar dados do relatório:', e);
-            res.status(500).json({ success: false, message: 'Erro interno.' });
-        }
-    });
+        }));
 
     // ── Relatório: Performance de Embarque ────────────────────────────────
-    router.get('/api/relatorio/performance', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/relatorio/performance', authMiddleware, asyncHandler(async (req, res) => {
             const { de, ate, unidade, operacao } = req.query;
             if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
@@ -1515,15 +1481,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             }
 
             res.json({ success: true, linhas });
-        } catch (e) {
-            console.error('Erro ao buscar relatório de performance:', e);
-            res.status(500).json({ success: false, message: 'Erro interno.' });
-        }
-    });
+        }));
 
     // ── Relatório: Tempo de Liberação ──────────────────────────────────────
-    router.get('/api/relatorio/liberacoes', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/relatorio/liberacoes', authMiddleware, asyncHandler(async (req, res) => {
             const { de, ate } = req.query;
             if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
@@ -1565,15 +1526,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             });
 
             res.json({ success: true, liberacoes });
-        } catch (e) {
-            console.error('Erro ao buscar relatório de liberações:', e);
-            res.status(500).json({ success: false, message: 'Erro interno.' });
-        }
-    });
+        }));
 
     // ── Relatório: Tempo Médio de Contratação ──────────────────────────────
-    router.get('/api/relatorio/contratacao', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/relatorio/contratacao', authMiddleware, asyncHandler(async (req, res) => {
             const { de, ate } = req.query;
             if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
@@ -1687,16 +1643,11 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 frota,
                 por_regiao,
             });
-        } catch (e) {
-            console.error('Erro ao buscar relatório de contratação:', e);
-            res.status(500).json({ success: false, message: 'Erro interno.' });
-        }
-    });
+        }));
 
     // ── Finalizar Operação (manual) ────────────────────────────────────────
     // Avança data_prevista para o próximo dia útil nos cards com status AGUARDANDO até EM CARREGAMENTO
-    router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
-        try {
+    router.post('/veiculos/finalizar-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
             const { unidade, confirmarMisto, proxima_data } = req.body; // 'Recife' ou 'Moreno'
             if (!unidade || !['Recife', 'Moreno'].includes(unidade)) {
                 return res.status(400).json({ success: false, message: 'Unidade inválida.' });
@@ -1790,11 +1741,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 veiculosAvancados: resultado.changes,
                 ctesAvancados: ctesAtualizados
             });
-        } catch (e) {
-            console.error('Erro ao finalizar operação:', e);
-            res.status(500).json({ success: false, message: 'Erro ao finalizar operação.' });
-        }
-    });
+        }));
 
     return router;
 };

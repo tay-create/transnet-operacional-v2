@@ -2,6 +2,8 @@ const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { validate, novoLancamentoSchema } = require('../../middleware/validationMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 // Cria entrada em saldo_paletes quando checklist é aprovado com paletização
 async function criarSaldoPaletesDoChecklist({ veiculo_id, motorista_nome, placa_carreta, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr }) {
@@ -44,22 +46,16 @@ async function criarSaldoPaletesDoChecklist({ veiculo_id, motorista_nome, placa_
 module.exports = function createChecklistsRouter(io) {
     const router = express.Router();
 
-    router.get('/api/checklists', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/checklists', authMiddleware, asyncHandler(async (req, res) => {
             const checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
             const formatted = checklists.map(c => ({
                 ...c,
                 placa_confere: c.placa_confere === 1
             }));
             res.json({ success: true, checklists: formatted });
-        } catch (e) {
-            console.error('Erro ao listar checklists:', e);
-            res.status(500).json({ success: false, message: 'Erro ao listar checklists.' });
-        }
-    });
+        }));
 
-    router.post('/api/checklists', authMiddleware, async (req, res) => {
-        try {
+    router.post('/api/checklists', authMiddleware, asyncHandler(async (req, res) => {
             const {
                 veiculo_id, motorista_nome, placa_carreta, placa_confere,
                 condicao_bau, cordas, cordas_adicionais, foto_vazamento, midias_json, assinatura, conferente_nome,
@@ -107,14 +103,9 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             res.json({ success: true, id: result.lastID, status: statusChecklist });
-        } catch (e) {
-            console.error('Erro ao criar checklist:', e.message, e.stack);
-            res.status(500).json({ success: false, message: e.message || 'Erro ao salvar checklist.' });
-        }
-    });
+        }));
 
-    router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), async (req, res) => {
-        try {
+    router.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
             const { status } = req.body; // 'APROVADO' ou 'RECUSADO'
             if (!['APROVADO', 'RECUSADO'].includes(status)) {
                 return res.status(400).json({ success: false, message: 'Status inválido.' });
@@ -141,15 +132,10 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao atualizar checklist:', e);
-            res.status(500).json({ success: false, message: 'Erro ao atualizar status do checklist.' });
-        }
-    });
+        }));
 
     // ── Reset Checklist (Coordenador libera para conferente refazer) ──
-    router.delete('/api/checklists/veiculo/:veiculoId', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
-        try {
+    router.delete('/api/checklists/veiculo/:veiculoId', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
             const veiculoId = Number(req.params.veiculoId);
             await dbRun("DELETE FROM checklists_carreta WHERE veiculo_id = ?", [veiculoId]);
             console.log(`🔄 [Checklist Reset] Veículo #${veiculoId} — checklist liberado por ${req.user?.nome || '?'}`);
@@ -157,15 +143,10 @@ module.exports = function createChecklistsRouter(io) {
             io.emit('conferente_checklist_resultado', { veiculoId, status: 'RESET' });
             io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: veiculoId });
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao resetar checklist:', e);
-            res.status(500).json({ success: false, message: 'Erro ao resetar checklist.' });
-        }
-    });
+        }));
 
     // ── Conferente: Veículos ativos na operação (todos os status até CARREGADO) ──
-    router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), async (req, res) => {
-        try {
+    router.get('/api/conferente/veiculos', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), asyncHandler(async (req, res) => {
             const cidade = req.user.cidade; // 'Recife', 'Moreno' ou 'Ambas' (teste)
             const STATUS_CONFERENTE = ['AGUARDANDO P/ SEPARAÇÃO', 'AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO', 'CARREGADO'];
             const placeholders = STATUS_CONFERENTE.map(() => '?').join(', ');
@@ -291,15 +272,10 @@ module.exports = function createChecklistsRouter(io) {
             }));
 
             res.json({ success: true, veiculos: formatted });
-        } catch (e) {
-            console.error('Erro ao listar veículos conferente:', e);
-            res.status(500).json({ success: false, message: 'Erro ao obter lista de veículos.' });
-        }
-    });
+        }));
 
     // ── Conferente: Atualizar status e/ou doca ──
-    router.post('/api/conferente/atualizar-status', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
-        try {
+    router.post('/api/conferente/atualizar-status', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), asyncHandler(async (req, res) => {
             const { veiculoId, novoStatus, novaDoca, unidade, horaManual } = req.body;
             const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
@@ -570,15 +546,10 @@ module.exports = function createChecklistsRouter(io) {
             io.emit('receber_atualizacao', socketPayload);
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao atualizar status pelo conferente:', e);
-            res.status(500).json({ success: false, message: 'Erro ao atualizar status.' });
-        }
-    });
+        }));
 
     // ── Conferente: Salvar fotos do lacre (array) ──
-    router.post('/api/conferente/salvar-lacre', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
-        try {
+    router.post('/api/conferente/salvar-lacre', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), asyncHandler(async (req, res) => {
             const { veiculoId, unidade, fotos } = req.body;
             if (!veiculoId || !fotos || !fotos.length) return res.status(400).json({ success: false, message: 'veiculoId e fotos obrigatórios.' });
             const veiculo = await dbGet(`SELECT coletarecife, coletamoreno FROM veiculos WHERE id = ?`, [veiculoId]);
@@ -597,15 +568,10 @@ module.exports = function createChecklistsRouter(io) {
                 io.emit('receber_atualizacao', { tipo: 'foto_lacre', veiculoId, campo, fotos });
             }
             res.json({ success: true });
-        } catch (e) {
-            console.error('[Conferente/salvar-lacre] Erro:', e);
-            res.status(500).json({ success: false, message: 'Erro ao salvar fotos do lacre.' });
-        }
-    });
+        }));
 
     // ── Conferente: Transferência (pula direto para CARREGADO, sem validações) ──
-    router.post('/api/conferente/transferencia', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), async (req, res) => {
-        try {
+    router.post('/api/conferente/transferencia', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), asyncHandler(async (req, res) => {
             const { veiculoId, unidade } = req.body;
             const cidade = req.user.cidade === 'Ambas' ? (unidade || 'Recife') : req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
@@ -690,15 +656,10 @@ module.exports = function createChecklistsRouter(io) {
             }
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro na transferência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao processar transferência.' });
-        }
-    });
+        }));
 
     // ── Conferente: Lista de Embarques ──
-    router.get('/api/conferente/embarques', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), async (req, res) => {
-        try {
+    router.get('/api/conferente/embarques', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), asyncHandler(async (req, res) => {
             const cidade = req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
             const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
@@ -748,15 +709,10 @@ module.exports = function createChecklistsRouter(io) {
             });
 
             res.json({ success: true, embarques: formatted });
-        } catch (e) {
-            console.error('Erro ao listar embarques conferente:', e);
-            res.status(500).json({ success: false, message: 'Erro ao listar embarques.' });
-        }
-    });
+        }));
 
     // ── Conferente: Liberar para Carregamento ──
-    router.post('/api/conferente/liberar-carregamento', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), async (req, res) => {
-        try {
+    router.post('/api/conferente/liberar-carregamento', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado']), asyncHandler(async (req, res) => {
             const { veiculoId } = req.body;
             const cidade = req.user.cidade;
             const statusField = cidade === 'Moreno' ? 'status_moreno' : 'status_recife';
@@ -882,17 +838,12 @@ module.exports = function createChecklistsRouter(io) {
             });
 
             res.json({ success: true, message: 'Veículo liberado para carregamento.' });
-        } catch (e) {
-            console.error('Erro ao liberar carregamento:', e);
-            res.status(500).json({ success: false, message: 'Erro ao processar liberação.' });
-        }
-    });
+        }));
 
     // ── Editar/registrar quantidade de cordas extras por veiculo_id ──
     // O conferente registra cordas extras entregues ao motorista direto pelo card do veículo,
     // independente de já existir checklist (cria registro mínimo se não houver).
-    router.patch('/api/conferente/veiculos/:veiculoId/cordas-extras', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), async (req, res) => {
-        try {
+    router.patch('/api/conferente/veiculos/:veiculoId/cordas-extras', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção', 'Encarregado', 'Aux. Operacional', 'Auxiliar Operacional']), asyncHandler(async (req, res) => {
             const veiculoId = Number(req.params.veiculoId);
             const qtd = parseInt(req.body.cordas_adicionais, 10);
             if (isNaN(qtd) || qtd < 0) return res.status(400).json({ success: false, message: 'Quantidade inválida.' });
@@ -912,11 +863,7 @@ module.exports = function createChecklistsRouter(io) {
             }
             io.emit('receber_atualizacao', { tipo: 'cordas_extras_atualizada', veiculo_id: veiculoId, cordas_adicionais: qtd });
             res.json({ success: true, cordas_adicionais: qtd });
-        } catch (e) {
-            console.error('Erro ao atualizar cordas extras:', e);
-            res.status(500).json({ success: false, message: 'Erro ao atualizar cordas extras.' });
-        }
-    });
+        }));
 
     // --- ROTAS DE CUBAGEM ---
 

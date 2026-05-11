@@ -2,6 +2,8 @@ const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
 const { calcularDiasUteis, classificarLeadTime, regiaoDeUF } = require('../utils/tramontinaLeadTime');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 const CARGOS_EDITAR = ['Coordenador', 'Planejamento', 'Desenvolvedor'];
 
@@ -23,8 +25,7 @@ module.exports = function createTramontinaRouter(io) {
     }
 
     // ── GET Listar rotas + entregas do mês ──────────────────────────
-    router.get('/api/tramontina/rotas', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/tramontina/rotas', authMiddleware, asyncHandler(async (req, res) => {
             const mes = req.query.mes;
             if (!mes) return res.status(400).json({ success: false, message: 'Parâmetro mes obrigatório (formato YYYY-MM).' });
             const rotas = await dbAll(
@@ -44,15 +45,10 @@ module.exports = function createTramontinaRouter(io) {
                 porRota[e.rota_id].push(e);
             }
             res.json({ success: true, rotas: rotas.map(r => ({ ...r, entregas: porRota[r.id] || [] })) });
-        } catch (e) {
-            console.error('Erro listar rotas tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao listar rotas.' });
-        }
-    });
+        }));
 
     // ── KPIs do mês ──────────────────────────
-    router.get('/api/tramontina/kpis', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/tramontina/kpis', authMiddleware, asyncHandler(async (req, res) => {
             const mes = req.query.mes;
             if (!mes) return res.status(400).json({ success: false, message: 'Parâmetro mes obrigatório.' });
             const rotas = await dbAll(`SELECT * FROM tramontina_rotas WHERE mes_referencia = ?`, [mes]);
@@ -87,15 +83,10 @@ module.exports = function createTramontinaRouter(io) {
                     totalEntregas: totalEnt,
                 }
             });
-        } catch (e) {
-            console.error('Erro KPIs tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao calcular KPIs.' });
-        }
-    });
+        }));
 
     // ── POST Criar rota ──────────────────────────
-    router.post('/api/tramontina/rotas', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.post('/api/tramontina/rotas', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const dados = req.body || {};
             const mes = dados.mes_referencia;
             if (!mes) return res.status(400).json({ success: false, message: 'mes_referencia obrigatório.' });
@@ -120,15 +111,10 @@ module.exports = function createTramontinaRouter(io) {
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [novaId]);
             io.emit('tramontina_rota_criada', { rota: { ...rota, entregas: [] } });
             res.json({ success: true, rota: { ...rota, entregas: [] } });
-        } catch (e) {
-            console.error('Erro criar rota tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao criar rota.' });
-        }
-    });
+        }));
 
     // ── PUT Editar rota ──────────────────────────
-    router.put('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.put('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [id]);
             if (!rota) return res.status(404).json({ success: false, message: 'Rota não encontrada.' });
@@ -161,28 +147,18 @@ module.exports = function createTramontinaRouter(io) {
             const payload = { ...rotaNova, entregas };
             io.emit('tramontina_rota_atualizada', { rota: payload });
             res.json({ success: true, rota: payload });
-        } catch (e) {
-            console.error('Erro editar rota tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao editar rota.' });
-        }
-    });
+        }));
 
     // ── DELETE Remover rota ──────────────────────────
-    router.delete('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.delete('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             await dbRun(`DELETE FROM tramontina_rotas WHERE id = ?`, [id]);
             io.emit('tramontina_rota_removida', { id });
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro remover rota tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao remover rota.' });
-        }
-    });
+        }));
 
     // ── POST Adicionar entrega ──────────────────────────
-    router.post('/api/tramontina/rotas/:rotaId/entregas', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.post('/api/tramontina/rotas/:rotaId/entregas', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const rotaId = Number(req.params.rotaId);
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [rotaId]);
             if (!rota) return res.status(404).json({ success: false, message: 'Rota não encontrada.' });
@@ -204,15 +180,10 @@ module.exports = function createTramontinaRouter(io) {
             const entrega = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [r.lastID]);
             io.emit('tramontina_entrega_criada', { rotaId, entrega });
             res.json({ success: true, entrega });
-        } catch (e) {
-            console.error('Erro criar entrega tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao criar entrega.' });
-        }
-    });
+        }));
 
     // ── PUT Editar entrega ──────────────────────────
-    router.put('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.put('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const entrega = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             if (!entrega) return res.status(404).json({ success: false, message: 'Entrega não encontrada.' });
@@ -237,29 +208,20 @@ module.exports = function createTramontinaRouter(io) {
             const final = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             io.emit('tramontina_entrega_atualizada', { rotaId: entrega.rota_id, entrega: final });
             res.json({ success: true, entrega: final });
-        } catch (e) {
-            console.error('Erro editar entrega tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao editar entrega.' });
-        }
-    });
+        }));
 
     // ── DELETE Remover entrega ──────────────────────────
-    router.delete('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.delete('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const ent = await dbGet(`SELECT rota_id FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             if (!ent) return res.status(404).json({ success: false, message: 'Entrega não encontrada.' });
             await dbRun(`DELETE FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             io.emit('tramontina_entrega_removida', { id, rotaId: ent.rota_id });
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro remover entrega tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao remover entrega.' });
-        }
-    });
+        }));
 
     // ── Lock visual (broadcast quem está editando) ──────────────────────────
-    router.post('/api/tramontina/editando', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
+    router.post('/api/tramontina/editando', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
         const { rotaId, campo } = req.body || {};
         io.emit('tramontina_usuario_editando', {
             rotaId, campo,
@@ -267,11 +229,10 @@ module.exports = function createTramontinaRouter(io) {
             expira_em: Date.now() + 5000
         });
         res.json({ success: true });
-    });
+    }));
 
     // ── POST Importar (recebe JSON pré-parseado do frontend, ver ModalImportarTramontina.js) ──
-    router.post('/api/tramontina/importar', authMiddleware, authorize(CARGOS_EDITAR), async (req, res) => {
-        try {
+    router.post('/api/tramontina/importar', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
             const { mes_referencia: mes, rotas: payload } = req.body || {};
             if (!mes) return res.status(400).json({ success: false, message: 'mes_referencia obrigatório.' });
             if (!Array.isArray(payload) || !payload.length) return res.status(400).json({ success: false, message: 'Nenhuma rota recebida.' });
@@ -316,11 +277,7 @@ module.exports = function createTramontinaRouter(io) {
             }
             io.emit('tramontina_importacao_concluida', { mes, rotasOk, entregasOk });
             res.json({ success: true, importadas: rotasOk, entregas: entregasOk });
-        } catch (e) {
-            console.error('Erro importar tramontina:', e);
-            res.status(500).json({ success: false, message: 'Erro ao importar planilha: ' + e.message });
-        }
-    });
+        }));
 
     return router;
 };

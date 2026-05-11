@@ -1,6 +1,8 @@
 const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 module.exports = function createPosEmbarqueRouter(registrarLog, io) {
     const router = express.Router();
@@ -15,8 +17,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
     }
 
     // ── GET Listar ocorrências com filtros ──────────────────────────
-    router.get('/api/posembarque/ocorrencias', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/posembarque/ocorrencias', authMiddleware, asyncHandler(async (req, res) => {
             const { busca, situacao, arquivado } = req.query;
             let sql = 'SELECT * FROM posemb_ocorrencias WHERE 1=1';
             const params = [];
@@ -38,15 +39,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             sql += ' ORDER BY data_criacao DESC';
             const ocorrencias = await dbAll(sql, params);
             res.json({ success: true, ocorrencias });
-        } catch (e) {
-            console.error('Erro ao listar ocorrências posembarque:', e);
-            res.status(500).json({ success: false, message: 'Erro ao listar ocorrências.' });
-        }
-    });
+        }));
 
     // ── POST Criar ocorrência ──────────────────────────
-    router.post('/api/posembarque/ocorrencias', authMiddleware, authorize(['Pos Embarque', 'Planejamento', 'Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias', authMiddleware, authorize(['Pos Embarque', 'Planejamento', 'Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             const { data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email } = req.body;
             const responsavel = req.user?.nome || 'desconhecido';
 
@@ -78,15 +74,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             if (io) io.emit('posembarque_atualizada', { tipo: 'criada' });
 
             res.json({ success: true, id: result.lastID });
-        } catch (e) {
-            console.error('[POSEMB] Erro ao criar ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao criar ocorrência.' });
-        }
-    });
+        }));
 
     // ── GET Detalhes de uma ocorrência ──────────────────────────
-    router.get('/api/posembarque/ocorrencias/:id', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/posembarque/ocorrencias/:id', authMiddleware, asyncHandler(async (req, res) => {
             const oc = await dbGet('SELECT * FROM posemb_ocorrencias WHERE id = ?', [req.params.id]);
             if (!oc) return res.status(404).json({ success: false, message: 'Ocorrência não encontrada.' });
 
@@ -98,15 +89,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             }
 
             res.json({ success: true, ocorrencia: oc });
-        } catch (e) {
-            console.error('Erro ao buscar ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar ocorrência.' });
-        }
-    });
+        }));
 
     // ── PUT Atualizar ocorrência ──────────────────────────
-    router.put('/api/posembarque/ocorrencias/:id', authMiddleware, authorize(['Pos Embarque', 'Planejamento', 'Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.put('/api/posembarque/ocorrencias/:id', authMiddleware, authorize(['Pos Embarque', 'Planejamento', 'Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             const id = req.params.id;
             const { data_ocorrencia, hora_ocorrencia, motorista, modalidade, cte, operacao, nfs, cliente, cidade, motivo, link_email } = req.body;
 
@@ -121,29 +107,19 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             if (io) io.emit('posembarque_atualizada', { tipo: 'atualizada' });
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao atualizar ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao atualizar ocorrência.' });
-        }
-    });
+        }));
 
     // ── DELETE Excluir ocorrência ──────────────────────────
-    router.delete('/api/posembarque/ocorrencias/:id', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.delete('/api/posembarque/ocorrencias/:id', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             const id = req.params.id;
             await dbRun('DELETE FROM posemb_ocorrencias WHERE id = ?', [id]);
             await registrarLog('POSEMB_OCORRENCIA_DELETADA', req.user?.nome || '?', id, 'posemb_ocorrencias', null, null, '');
             if (io) io.emit('posembarque_atualizada', { tipo: 'deletada' });
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao deletar ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao deletar ocorrência.' });
-        }
-    });
+        }));
 
     // ── POST Resolver ocorrência ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/resolver', authMiddleware, async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/resolver', authMiddleware, asyncHandler(async (req, res) => {
             const id = req.params.id;
             const agora = new Date();
             const resolved_at = agora.toISOString();
@@ -159,15 +135,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             if (io) io.emit('posembarque_atualizada', { tipo: 'resolvida' });
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao resolver ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao resolver ocorrência.' });
-        }
-    });
+        }));
 
     // ── POST Solicitar edição ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/solicitar-edicao', authMiddleware, authorize(['Pos Embarque', 'Planejamento']), async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/solicitar-edicao', authMiddleware, authorize(ROLES.POS_EMBARQUE), asyncHandler(async (req, res) => {
             const { motivo_edicao } = req.body;
             await dbRun(
                 `UPDATE posemb_ocorrencias SET status_edicao = 'SOLICITADO', motivo_edicao = ? WHERE id = ?`,
@@ -175,60 +146,40 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             );
             await registrarLog('POSEMB_EDICAO_SOLICITADA', req.user?.nome || '?', req.params.id, 'posemb_ocorrencias', null, null, motivo_edicao || '');
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao solicitar edição:', e);
-            res.status(500).json({ success: false, message: 'Erro ao solicitar edição.' });
-        }
-    });
+        }));
 
     // ── POST Liberar edição ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/liberar-edicao', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/liberar-edicao', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             await dbRun(
                 `UPDATE posemb_ocorrencias SET status_edicao = 'AUTORIZADO' WHERE id = ?`,
                 [req.params.id]
             );
             await registrarLog('POSEMB_EDICAO_LIBERADA', req.user?.nome || '?', req.params.id, 'posemb_ocorrencias', null, null, '');
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao liberar edição:', e);
-            res.status(500).json({ success: false, message: 'Erro ao liberar edição.' });
-        }
-    });
+        }));
 
     // ── POST Recusar edição ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/recusar-edicao', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/recusar-edicao', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             await dbRun(
                 `UPDATE posemb_ocorrencias SET status_edicao = 'BLOQUEADO', motivo_edicao = NULL WHERE id = ?`,
                 [req.params.id]
             );
             await registrarLog('POSEMB_EDICAO_RECUSADA', req.user?.nome || '?', req.params.id, 'posemb_ocorrencias', null, null, '');
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao recusar edição:', e);
-            res.status(500).json({ success: false, message: 'Erro ao recusar edição.' });
-        }
-    });
+        }));
 
     // ── POST Arquivar resolvidos ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/arquivar', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/arquivar', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             await dbRun(
                 `UPDATE posemb_ocorrencias SET arquivado = 1 WHERE id = ?`,
                 [req.params.id]
             );
             await registrarLog('POSEMB_OCORRENCIA_ARQUIVADA', req.user?.nome || '?', req.params.id, 'posemb_ocorrencias', null, null, '');
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao arquivar ocorrência:', e);
-            res.status(500).json({ success: false, message: 'Erro ao arquivar ocorrência.' });
-        }
-    });
+        }));
 
     // ── POST Adicionar foto ──────────────────────────
-    router.post('/api/posembarque/ocorrencias/:id/fotos', authMiddleware, async (req, res) => {
-        try {
+    router.post('/api/posembarque/ocorrencias/:id/fotos', authMiddleware, asyncHandler(async (req, res) => {
             const id = req.params.id;
             const { base64, nome } = req.body;
 
@@ -252,15 +203,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             await registrarLog('POSEMB_FOTO_ADICIONADA', req.user?.nome || '?', id, 'posemb_ocorrencias', null, null, nome || '');
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao adicionar foto:', e);
-            res.status(500).json({ success: false, message: 'Erro ao adicionar foto.' });
-        }
-    });
+        }));
 
     // ── DELETE Remover foto ──────────────────────────
-    router.delete('/api/posembarque/ocorrencias/:id/fotos/:index', authMiddleware, async (req, res) => {
-        try {
+    router.delete('/api/posembarque/ocorrencias/:id/fotos/:index', authMiddleware, asyncHandler(async (req, res) => {
             const id = req.params.id;
             const index = parseInt(req.params.index);
 
@@ -284,15 +230,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
             await registrarLog('POSEMB_FOTO_REMOVIDA', req.user?.nome || '?', id, 'posemb_ocorrencias', null, null, '');
 
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao remover foto:', e);
-            res.status(500).json({ success: false, message: 'Erro ao remover foto.' });
-        }
-    });
+        }));
 
     // ── GET Listas (motoristas, clientes, motivos) ──────────────────────────
-    router.get('/api/posembarque/listas', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/posembarque/listas', authMiddleware, asyncHandler(async (req, res) => {
             const motoristas = await dbAll('SELECT DISTINCT nome FROM posemb_motoristas ORDER BY nome ASC');
             const clientes = await dbAll('SELECT DISTINCT nome FROM posemb_clientes ORDER BY nome ASC');
             const motivos = await dbAll('SELECT DISTINCT nome FROM posemb_motivos ORDER BY nome ASC');
@@ -307,15 +248,10 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
                 cidades: cidades.map(c => c.cidade),
                 operacoes: operacoes.map(o => o.operacao)
             });
-        } catch (e) {
-            console.error('Erro ao buscar listas:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar listas.' });
-        }
-    });
+        }));
 
     // ── GET Relatório com filtros ──────────────────────────
-    router.get('/api/posembarque/relatorio', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/posembarque/relatorio', authMiddleware, asyncHandler(async (req, res) => {
             const { de, ate, motorista, cliente, cidade, motivo, operacao, situacao } = req.query;
             // Relatório é histórico: exclui ocorrências Em Andamento (a menos que filtro explícito)
             let sql = "SELECT * FROM posemb_ocorrencias WHERE arquivado = 0 AND situacao = 'RESOLVIDO'";
@@ -364,11 +300,7 @@ module.exports = function createPosEmbarqueRouter(registrarLog, io) {
                 por_operacao,
                 top_motivos
             });
-        } catch (e) {
-            console.error('Erro ao buscar relatório:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar relatório.' });
-        }
-    });
+        }));
 
     return router;
 };
