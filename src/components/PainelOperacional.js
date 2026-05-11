@@ -234,7 +234,8 @@ export default function PainelOperacional({
             d.setDate(d.getDate() - 30);
             return d.toISOString().substring(0, 10);
         }
-        return (salvo && salvo >= hoje) ? salvo : hoje;
+        // Para Recife/Moreno: dataInicio sempre = hoje (não persiste futuro)
+        return hoje;
     });
     const [dataFim, setDataFim] = useState(() => {
         const salvo = localStorage.getItem('filtro_data_fim_' + origem);
@@ -245,8 +246,8 @@ export default function PainelOperacional({
             d.setDate(d.getDate() + 30);
             return d.toISOString().substring(0, 10);
         }
-        // Para Recife/Moreno: dataFim nunca ultrapassa hoje (evita ver cards de dias futuros)
-        return (salvo && salvo === hoje) ? salvo : hoje;
+        // Para Recife/Moreno: dataFim sempre = hoje
+        return hoje;
     });
     const [filtroOperacao, setFiltroOperacao] = useState('');
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
@@ -1288,22 +1289,28 @@ export default function PainelOperacional({
                                                             </span>
                                                         )}
 
-                                                        {/* Badge Lacre */}
+                                                        {/* Badge Lacre — carrega fotos sob demanda ao clicar */}
                                                         {!item.entregaLocal && (() => {
-                                                            const campoLacre = origem === 'Moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
-                                                            const raw = item[campoLacre];
-                                                            if (!raw) return null;
-                                                            let fotos = [];
-                                                            try { fotos = JSON.parse(raw); } catch { fotos = [raw]; }
-                                                            if (!fotos.length) return null;
+                                                            const temFoto = origem === 'Moreno' ? item.tem_foto_lacre_moreno : item.tem_foto_lacre_recife;
+                                                            if (!temFoto) return null;
+                                                            const origemParam = origem === 'Moreno' ? 'moreno' : 'recife';
                                                             return (
                                                                 <button
-                                                                    onClick={() => setModalLacre({ fotos, motorista: item.motorista })}
-                                                                    title={`Ver fotos do lacre (${fotos.length})`}
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const r = await api.get(`/veiculos/${item.id}/foto-lacre/${origemParam}`);
+                                                                            const raw = r.data?.foto;
+                                                                            if (!raw) return;
+                                                                            let fotos = [];
+                                                                            try { fotos = JSON.parse(raw); } catch { fotos = [raw]; }
+                                                                            if (!fotos.length) return;
+                                                                            setModalLacre({ fotos, motorista: item.motorista });
+                                                                        } catch (e) { console.error('Erro ao carregar foto do lacre:', e); }
+                                                                    }}
+                                                                    title="Ver fotos do lacre"
                                                                     style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '3px', padding: '4px 6px', background: 'rgba(34,197,94,0.15)', borderRadius: '12px', color: '#22c55e', cursor: 'pointer', border: 'none', fontSize: '10px', fontWeight: '700' }}
                                                                 >
                                                                     <Lock size={13} />
-                                                                    {fotos.length > 1 && fotos.length}
                                                                 </button>
                                                             );
                                                         })()}
