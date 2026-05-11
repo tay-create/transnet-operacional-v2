@@ -4,6 +4,7 @@ import {
     Loader, AlertCircle, Image, Trash2, ChevronDown
 } from 'lucide-react';
 import api from '../services/apiService';
+import ModalWrapper from './ModalWrapper';
 
 const STATUS_COR = {
     'Analisando':   { bg: 'rgba(251,191,36,0.15)',  border: 'rgba(251,191,36,0.4)',  text: '#fbbf24' },
@@ -476,17 +477,11 @@ export default function ModalChamados({ user, socket, onClose }) {
     };
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div onClick={e => e.stopPropagation()} style={{
-                width: '100%', maxWidth: '560px', maxHeight: '85vh', display: 'flex', flexDirection: 'column',
-                background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px',
-                boxShadow: '0 25px 60px rgba(0,0,0,0.6)', padding: '24px', boxSizing: 'border-box'
+        <ModalWrapper isOpen={true} onClose={onClose} maxWidth="560px">
+            <div style={{
+                maxHeight: '85vh', display: 'flex', flexDirection: 'column',
+                padding: '24px', boxSizing: 'border-box'
             }}>
-                {/* Botão fechar */}
-                <button onClick={onClose} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex' }}>
-                    <X size={18} />
-                </button>
 
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                     {tela === 'lista' && (
@@ -515,6 +510,6 @@ export default function ModalChamados({ user, socket, onClose }) {
                     )}
                 </div>
             </div>
-        </div>
+        </ModalWrapper>
     );
 }

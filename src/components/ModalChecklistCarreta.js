@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Camera, PenTool, Trash2, CheckCircle, AlertTriangle, ClipboardCheck, X, Loader, ArrowLeft, Image as ImageIcon, Video as VideoIcon, Play } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
+import ModalWrapper from './ModalWrapper';
 
 export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, backMode = false }) {
     const user = useAuthStore(state => state.user);
@@ -247,11 +248,7 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
     };
 
     return (
-        <div style={{
-            position: 'fixed', inset: 0, background: 'linear-gradient(160deg, rgba(2,6,23,0.95) 0%, rgba(15,23,42,0.95) 60%, rgba(30,41,59,0.95) 100%)',
-            backdropFilter: 'blur(8px)', zIndex: 9999, overflowY: 'auto', color: '#f1f5f9',
-            fontFamily: 'system-ui, sans-serif',
-        }}>
+        <ModalWrapper isOpen={true} onClose={onClose} maxWidth="100%" hideCloseButton>
             <div style={{
                 background: 'rgba(0,0,0,0.4)', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '14px 18px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -517,6 +514,6 @@ export default function ModalChecklistCarreta({ veiculo, onClose, onSucesso, bac
                     {loading ? <><Loader size={18} /> Salvando...</> : <><CheckCircle size={18} /> REGISTRAR VISTORIA DA DOCA</>}
                 </button>
             </div>
-        </div>
+        </ModalWrapper>
     );
 }

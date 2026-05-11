@@ -5,6 +5,7 @@ import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import { joinColetaMoreno } from '../utils/coletaMoreno';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
+import ModalWrapper from './ModalWrapper';
 
 // ── Helpers de mapeamento ──────────────────────────────────────────────────
 
@@ -321,8 +322,6 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         }
     };
 
-    if (!isOpen) return null;
-
     const handleArquivo = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -479,16 +478,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
     return (
         <>
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-        }}>
+        <ModalWrapper isOpen={isOpen} onClose={fechar} maxWidth={passo === 2 ? '900px' : '480px'} hideCloseButton>
             <div style={{
-                background: '#0f172a', border: '1px solid rgba(59,130,246,0.25)',
-                borderRadius: '16px', width: '100%', maxWidth: passo === 2 ? '900px' : '480px',
                 maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-                boxShadow: '0 24px 80px rgba(0,0,0,0.6)'
             }}>
                 {/* Header */}
                 <div style={{
@@ -735,7 +727,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                     </div>
                 )}
             </div>
-        </div>
+        </ModalWrapper>
 
         {/* Modal de Registrar Viagem para veículos de frota */}
         {provisaoAtual && (

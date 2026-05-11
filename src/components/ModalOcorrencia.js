@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, X, Save, Loader, AlertTriangle, Trash2, Image as ImageIcon, Video as VideoIcon, Play } from 'lucide-react';
 import api from '../services/apiService';
+import ModalWrapper from './ModalWrapper';
 
 function VideoPlayerLazy({ ocorrenciaId, thumb, api: apiInst }) {
     const [src, setSrc] = useState(null);
@@ -155,18 +156,9 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
     };
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 10000, padding: '20px'
-        }}>
+        <ModalWrapper isOpen={true} onClose={onClose} maxWidth="500px" hideCloseButton>
             <div style={{
-                background: 'linear-gradient(160deg, rgba(2,6,23,0.98) 0%, rgba(15,23,42,0.98) 100%)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '16px', width: '100%', maxWidth: '500px',
-                display: 'flex', flexDirection: 'column', maxHeight: '90vh',
-                boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+                display: 'flex', flexDirection: 'column',
                 color: '#f1f5f9', fontFamily: 'system-ui, sans-serif'
             }}>
                 {/* Header */}
@@ -376,6 +368,6 @@ export default function ModalOcorrencia({ onClose, veiculo }) {
                     </div>
                 </div>
             </div>
-        </div>
+        </ModalWrapper>
     );
 }
