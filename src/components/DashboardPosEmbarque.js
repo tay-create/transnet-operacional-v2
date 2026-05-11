@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatDataBR } from '../utils/dateFormatter';
+import { calcularHorasAtraso, verificarAtraso, ordenarOcorrencias } from '../utils/slaUtils';
 
 const TEMA = {
     escuro: {
@@ -46,27 +47,6 @@ const TEMA = {
 
 // ──────────── Helpers ────────────────────────────────────
 
-function parseDatetimeBRT(data, hora) {
-    // Constrói Date tratando como horário de Brasília (BRT = UTC-3)
-    const d = (data || '').substring(0, 10);       // YYYY-MM-DD
-    const h = (hora || '00:00').substring(0, 5);   // HH:MM
-    return new Date(`${d}T${h}:00-03:00`);
-}
-
-function calcularHorasAtraso(oc) {
-    // Início: quando a ocorrência aconteceu (preenchido pelo usuário, horário BRT)
-    const inicio = parseDatetimeBRT(oc.data_ocorrencia, oc.hora_ocorrencia);
-    // Fim: resolved_at (ISO preciso) se resolvido, senão agora
-    const fim = oc.situacao === 'RESOLVIDO'
-        ? (oc.resolved_at ? new Date(oc.resolved_at) : parseDatetimeBRT(oc.data_conclusao, oc.hora_conclusao))
-        : new Date();
-    return (fim - inicio) / (60 * 60 * 1000);
-}
-
-function verificarAtraso(oc) {
-    return calcularHorasAtraso(oc) > 24;
-}
-
 function getStatusDisplay(oc) {
     if (oc.situacao === 'RESOLVIDO') return { label: 'RESOLVIDO', color: '#22c55e', bg: 'rgba(34,197,94,0.15)', glow: '0 0 12px rgba(34,197,94,0.4)' };
     const h = calcularHorasAtraso(oc);
@@ -100,21 +80,6 @@ function getCardGlow(oc) {
     if (h > 48) return '0 0 25px rgba(255,23,68,0.25), 0 0 50px rgba(255,23,68,0.1)';
     if (h > 24) return '0 0 20px rgba(255,82,82,0.2)';
     return '0 0 15px rgba(255,145,0,0.15)';
-}
-
-function ordenarOcorrencias(lista) {
-    return [...lista].sort((a, b) => {
-        const aEm = a.situacao === 'Em Andamento';
-        const bEm = b.situacao === 'Em Andamento';
-        const aAt = aEm && verificarAtraso(a);
-        const bAt = bEm && verificarAtraso(b);
-        if (aAt && !bAt) return -1;
-        if (!aAt && bAt) return 1;
-        if (aAt && bAt) return calcularHorasAtraso(b) - calcularHorasAtraso(a);
-        if (aEm && !bEm) return -1;
-        if (!aEm && bEm) return 1;
-        return 0;
-    });
 }
 
 // ──────────── CSS Animações ────────────────────────────────────
