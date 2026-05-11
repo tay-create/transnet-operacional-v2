@@ -272,7 +272,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             const placeholders = STATUS_FINAIS.map(() => '?').join(',');
             for (const tag of [...tagsRec, ...tagsMor, ...tagsInt]) {
                 const existente = await dbGet(
-                    `SELECT id, motorista, placa, modelo, dados_json FROM veiculos
+                    `SELECT id, motorista, placa, modelo, dados_json,
+                            rota_recife, rota_moreno, observacao, data_prevista FROM veiculos
                      WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coletainterestadual LIKE ?)
                        AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
                        AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
@@ -291,23 +292,79 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     const mudouPlaca2 = novaPlaca2 && novaPlaca2 !== (djEx.placa2Motorista || '');
                     const mudouModelo = novoModelo && novoModelo !== (existente.modelo || '');
 
-                    if (mudouMotorista || mudouPlaca1 || mudouPlaca2 || mudouModelo) {
+                    const novaRotaRecife  = v.rotaRecife  || v.rota_recife  || '';
+                    const novaRotaMoreno  = v.rotaMoreno  || v.rota_moreno  || '';
+                    const novaObs         = v.observacao  || '';
+                    const novaData        = v.data_prevista || '';
+
+                    const mudouRotaRecife = novaRotaRecife.trim() !== '' && novaRotaRecife !== (existente.rota_recife || '');
+                    const mudouRotaMoreno = novaRotaMoreno.trim() !== '' && novaRotaMoreno !== (existente.rota_moreno || '');
+                    const mudouObs        = novaObs.trim() !== '' && novaObs !== (existente.observacao || '');
+                    const mudouData       = novaData.trim() !== '' && novaData !== (existente.data_prevista || '');
+
+                    if (mudouMotorista || mudouPlaca1 || mudouPlaca2 || mudouModelo ||
+                        mudouRotaRecife || mudouRotaMoreno || mudouObs || mudouData) {
                         const djNovo = { ...djEx };
                         if (mudouPlaca1) djNovo.placa1Motorista = novaPlaca1;
                         if (mudouPlaca2) djNovo.placa2Motorista = novaPlaca2;
                         if (mudouMotorista) djNovo.motorista = novoMotorista;
                         if (mudouModelo) djNovo.tipoVeiculo = novoModelo;
+                        if (mudouRotaRecife) djNovo.rotaRecife = novaRotaRecife;
+                        if (mudouRotaMoreno) djNovo.rotaMoreno = novaRotaMoreno;
+                        if (mudouObs)        djNovo.observacao  = novaObs;
+                        if (mudouData)       djNovo.data_prevista = novaData;
                         await dbRun(
                             `UPDATE veiculos SET
-                                motorista = COALESCE(NULLIF(?, ''), motorista),
-                                placa = COALESCE(NULLIF(?, ''), placa),
-                                modelo = COALESCE(NULLIF(?, ''), modelo),
-                                dados_json = ?,
+                                motorista     = COALESCE(NULLIF(?, ''), motorista),
+                                placa         = COALESCE(NULLIF(?, ''), placa),
+                                modelo        = COALESCE(NULLIF(?, ''), modelo),
+                                rota_recife   = COALESCE(NULLIF(?, ''), rota_recife),
+                                rota_moreno   = COALESCE(NULLIF(?, ''), rota_moreno),
+                                observacao    = COALESCE(NULLIF(?, ''), observacao),
+                                data_prevista = COALESCE(NULLIF(?, ''), data_prevista),
+                                dados_json    = ?,
                                 chk_cnh = 0, chk_antt = 0, chk_tacografo = 0, chk_crlv = 0,
                                 situacao_cadastro = 'NÃO CONFERIDO'
                              WHERE id = ?`,
-                            [novoMotorista, novaPlaca1, novoModelo, JSON.stringify(djNovo), existente.id]
+                            [novoMotorista, novaPlaca1, novoModelo,
+                             novaRotaRecife, novaRotaMoreno, novaObs, novaData,
+                             JSON.stringify(djNovo), existente.id]
                         );
+                        const veicAtualizado = await dbGet(`
+                            SELECT v.*,
+                                   (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
+                                   (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd
+                            FROM veiculos v WHERE v.id = ?
+                        `, [existente.id]);
+                        if (veicAtualizado) {
+                            const djAt = (() => { try { return JSON.parse(veicAtualizado.dados_json || '{}'); } catch { return {}; } })();
+                            io.emit('receber_atualizacao', {
+                                tipo: 'atualiza_veiculo',
+                                id: Number(existente.id),
+                                ...veicAtualizado,
+                                rotaRecife: veicAtualizado.rota_recife,
+                                rotaMoreno: veicAtualizado.rota_moreno,
+                                coletaRecife: veicAtualizado.coletarecife || '',
+                                coletaMoreno: veicAtualizado.coletamoreno || '',
+                                tempos_recife: (() => { try { return JSON.parse(veicAtualizado.tempos_recife || '{}'); } catch { return {}; } })(),
+                                tempos_moreno: (() => { try { return JSON.parse(veicAtualizado.tempos_moreno || '{}'); } catch { return {}; } })(),
+                                status_coleta: (() => { try { return JSON.parse(veicAtualizado.status_coleta || '{}'); } catch { return {}; } })(),
+                                imagens: (() => { try { return JSON.parse(veicAtualizado.imagens || '[]'); } catch { return []; } })(),
+                                timestamps_status: (() => { try { return JSON.parse(veicAtualizado.timestamps_status || '{}'); } catch { return {}; } })(),
+                                observacao: veicAtualizado.observacao || '',
+                                numero_coleta: veicAtualizado.numero_coleta || '',
+                                situacao_cadastro: veicAtualizado.situacao_cadastro || 'NÃO CONFERIDO',
+                                chk_cnh: veicAtualizado.chk_cnh ? 1 : 0,
+                                chk_antt: veicAtualizado.chk_antt ? 1 : 0,
+                                chk_tacografo: veicAtualizado.chk_tacografo ? 1 : 0,
+                                chk_crlv: veicAtualizado.chk_crlv ? 1 : 0,
+                                tipoVeiculo: djAt.tipoVeiculo || '',
+                                placa1Motorista: djAt.placa1Motorista || '',
+                                placa2Motorista: djAt.placa2Motorista || '',
+                                telefoneMotorista: djAt.telefoneMotorista || veicAtualizado.telefone_bd || '',
+                                isFrotaMotorista: veicAtualizado.is_frota_bd === 1 || false,
+                            });
+                        }
                         return res.json({ success: true, atualizado: true, id: existente.id, tag });
                     }
                     return res.json({ success: true, duplicata: true, id: existente.id, tag });
