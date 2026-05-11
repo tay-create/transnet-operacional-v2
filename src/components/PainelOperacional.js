@@ -19,12 +19,8 @@ import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
+import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno } from '../utils/operacaoUtils';
 
-
-
-const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
-const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const SUB_STYLES_CARD = {
     plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO' },
