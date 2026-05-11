@@ -4,6 +4,7 @@ import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
 import { useToast } from '../hooks/useToast';
 import { calcularTempoEspera, corDisponibilidade } from '../utils/marcacoesUtils';
+import { useMarcacoes } from '../hooks/useMarcacoes';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -62,11 +63,17 @@ const FAIXAS_TEMPO = [
 ];
 
 export default function GestaoMarcacoes({ socket }) {
+    const {
+        marcacoes, tokens, loadingTokens,
+        carregarTokens,
+        criarToken, atualizarToken, deletarToken,
+        deletarMarcacao: deletarMarcacaoHook,
+        atualizarStatus, atualizarStatusOperacional, atualizarTag,
+        setMarcacoes,
+    } = useMarcacoes();
+
     const [aba, setAba] = useState('links');
-    const [tokens, setTokens] = useState([]);
-    const [marcacoes, setMarcacoes] = useState([]);
     const [confirmar, setConfirmar] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [tel, setTel] = useState('');
     const [copiado, setCopiado] = useState(null);
     const { toasts, toast } = useToast();
@@ -83,21 +90,13 @@ export default function GestaoMarcacoes({ socket }) {
     const [contadoresMarcacoes, setContadoresMarcacoes] = useState(null);
     const ITENS_POR_PAGINA = 50;
     // Tick para atualizar cronômetros a cada minuto
+    const [loadingMarcacoes, setLoadingMarcacoes] = useState(false);
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
 
     useEffect(() => {
         const id = setInterval(() => setTick(t => t + 1), 60000);
         return () => clearInterval(id);
-    }, []);
-
-    const carregarTokens = useCallback(async () => {
-        setLoading(true);
-        try {
-            const r = await api.get('/api/tokens');
-            if (r.data.success) setTokens(r.data.tokens);
-        } catch (e) { console.error(e); toast.error('Erro ao carregar links.'); }
-        finally { setLoading(false); }
     }, []);
 
     // AbortController da última request — cancela requests obsoletas (evita race condition HTTP)
@@ -109,7 +108,7 @@ export default function GestaoMarcacoes({ socket }) {
         const controller = new AbortController();
         abortMarcacoesRef.current = controller;
 
-        setLoading(true);
+        setLoadingMarcacoes(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
             if (filtroDisponibilidade) qp.set('local', filtroDisponibilidade);
@@ -133,8 +132,8 @@ export default function GestaoMarcacoes({ socket }) {
             if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
             console.error(e); toast.error('Erro ao carregar marcações.');
         }
-        finally { setLoading(false); }
-    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]);
+        finally { setLoadingMarcacoes(false); }
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo, setMarcacoes]);
 
     // Ref para socket handler — evita re-registro a cada render
     const carregarMarcacoesRef = useRef(carregarMarcacoes);
@@ -187,23 +186,18 @@ export default function GestaoMarcacoes({ socket }) {
     async function gerarLink() {
         if (!tel.trim()) { toast.error('Informe o telefone.'); return; }
         try {
-            const r = await api.post('/api/tokens', { telefone: tel.trim() });
-            if (r.data.success) {
-                setTel('');
-                toast.success('Link gerado com sucesso!');
-                carregarTokens();
-            } else {
-                toast.error(r.data.message || 'Erro ao gerar link.');
-            }
-        } catch (e) { toast.error(e.response?.data?.message || 'Erro de conexão.'); }
+            await criarToken(tel.trim());
+            setTel('');
+            toast.success('Link gerado com sucesso!');
+            carregarTokens();
+        } catch (e) { toast.error(e.response?.data?.message || e.message || 'Erro de conexão.'); }
     }
 
     async function toggleStatus(token) {
         const efetivo = statusEfetivo(token);
         const novoStatus = efetivo === 'ativo' ? 'inativo' : 'ativo';
         try {
-            await api.put(`/api/tokens/${token.id}`, { status: novoStatus });
-            setTokens(prev => prev.map(t => t.id === token.id ? { ...t, status: novoStatus } : t));
+            await atualizarToken(token.id, novoStatus);
             toast.success(novoStatus === 'ativo' ? 'Link reativado.' : 'Link inativado.');
         } catch (e) { toast.error('Erro ao atualizar.'); }
     }
@@ -215,8 +209,7 @@ export default function GestaoMarcacoes({ socket }) {
             onConfirm: async () => {
                 setConfirmar(null);
                 try {
-                    await api.delete(`/api/tokens/${id}`);
-                    setTokens(prev => prev.filter(t => t.id !== id));
+                    await deletarToken(id);
                     toast.success('Link excluído.');
                 } catch (e) { toast.error('Erro ao excluir.'); }
             }
@@ -230,8 +223,7 @@ export default function GestaoMarcacoes({ socket }) {
             onConfirm: async () => {
                 setConfirmar(null);
                 try {
-                    await api.delete(`/api/marcacoes/${id}`);
-                    setMarcacoes(prev => prev.filter(m => m.id !== id));
+                    await deletarMarcacaoHook(id);
                     toast.success('Marcação removida.');
                 } catch (e) { toast.error('Erro ao excluir.'); }
             }
@@ -241,21 +233,13 @@ export default function GestaoMarcacoes({ socket }) {
     async function handleToggleIndisponivel(id, disponibilidadeAtual) {
         const novoStatus = disponibilidadeAtual === 'Indisponível' ? 'Disponível' : 'Indisponível';
         try {
-            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novoStatus });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
-            }
+            await atualizarStatus(id, novoStatus);
         } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
     async function handleAtualizarLocalizacao(id, novaLocalizacao) {
         try {
-            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novaLocalizacao });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novaLocalizacao } : m));
-            } else {
-                toast.error('Erro ao atualizar localização.');
-            }
+            await atualizarStatus(id, novaLocalizacao);
         } catch (e) { toast.error('Erro ao atualizar localização.'); }
     }
 
@@ -265,10 +249,7 @@ export default function GestaoMarcacoes({ socket }) {
         const fluxo = { DISPONIVEL: 'EM OPERACAO', 'EM OPERACAO': 'CONTRATADO', CONTRATADO: 'DISPONIVEL', 'EM VIAGEM': 'DISPONIVEL', 'EM ROTA': 'DISPONIVEL' };
         const novoStatus = fluxo[atual] || 'DISPONIVEL';
         try {
-            const r = await api.put(`/api/marcacoes/${m.id}/status`, { status_operacional: novoStatus });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, status_operacional: novoStatus } : x));
-            }
+            await atualizarStatusOperacional(m.id, novoStatus);
         } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
@@ -280,10 +261,7 @@ export default function GestaoMarcacoes({ socket }) {
             body = { tag_motorista: m.tag_motorista === 'PROBLEMÁTICO' ? null : 'PROBLEMÁTICO' };
         }
         try {
-            const r = await api.put(`/api/marcacoes/${m.id}/tag`, body);
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, ...body } : x));
-            }
+            await atualizarTag(m.id, body);
         } catch (e) { toast.error('Erro ao atualizar tag.'); }
     }
 
@@ -487,7 +465,7 @@ export default function GestaoMarcacoes({ socket }) {
                         </button>
                     </div>
 
-                    {loading ? (
+                    {loadingTokens ? (
                         <div style={s.empty}>Carregando...</div>
                     ) : tokens.length === 0 ? (
                         <div style={s.empty}>Nenhum link gerado ainda.</div>
@@ -699,7 +677,7 @@ export default function GestaoMarcacoes({ socket }) {
                         </div>
                     )}
 
-                    {loading ? (
+                    {loadingMarcacoes ? (
                         <div style={s.empty}>Carregando...</div>
                     ) : marcacoes.length === 0 ? (
                         <div style={s.empty}>Nenhuma marcação registrada.</div>
