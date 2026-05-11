@@ -382,15 +382,12 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     }, [dataPrevista, avancarParaRotaNova]);
 
     const resolverSumida = useCallback((idResolvido, lotesParaRotaNova) => {
-        setColetasSumidas(prev => {
-            const nova = (prev || []).filter(c => c.id !== idResolvido);
-            if (nova.length === 0) {
-                setTimeout(() => avancarParaRotaNova(lotesParaRotaNova), 0);
-                return null;
-            }
-            return nova;
-        });
-    }, [avancarParaRotaNova]);
+        const novaLista = (coletasSumidas || []).filter(c => c.id !== idResolvido);
+        setColetasSumidas(novaLista.length > 0 ? novaLista : null);
+        if (novaLista.length === 0) {
+            avancarParaRotaNova(lotesParaRotaNova);
+        }
+    }, [coletasSumidas, avancarParaRotaNova]);
 
     const avancarRotaNova = useCallback(() => {
         const proxima = rotaNovaFila[0] ?? null;
