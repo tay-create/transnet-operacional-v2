@@ -270,6 +270,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [rotaNovaAtual, setRotaNovaAtual] = useState(null);
     const [rotaNovaInput, setRotaNovaInput] = useState('');
     const [coletasSumidas,  setColetasSumidas]  = useState(null);
+    const [excluindoId, setExcluindoId] = useState(null);
     const [reprogramarCard, setReprogramarCard] = useState(null);
     const [novaDataRepro,   setNovaDataRepro]   = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
@@ -535,6 +536,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setProvisaoAtual(null);
         setDataPrevista(obterDataBrasiliaISO());
         setColetasSumidas(null);
+        setExcluindoId(null);
         setReprogramarCard(null);
         setNovaDataRepro('');
         onClose();
@@ -807,16 +809,22 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                                             <button
                                                 onClick={async () => {
+                                                    if (excluindoId) return;
+                                                    setExcluindoId(card.id);
                                                     try { await api.delete(`/veiculos/${card.id}`); } catch { /* ignorar */ }
+                                                    setExcluindoId(null);
                                                     resolverSumida(card.id, lotes);
                                                 }}
+                                                disabled={!!excluindoId}
                                                 style={{
                                                     padding: '6px 12px', borderRadius: '7px', border: 'none',
-                                                    background: 'rgba(239,68,68,0.15)', color: '#fca5a5',
-                                                    fontSize: '11px', fontWeight: '700', cursor: 'pointer'
+                                                    background: excluindoId ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.15)',
+                                                    color: excluindoId ? '#64748b' : '#fca5a5',
+                                                    fontSize: '11px', fontWeight: '700',
+                                                    cursor: excluindoId ? 'not-allowed' : 'pointer'
                                                 }}
                                             >
-                                                Excluída
+                                                {excluindoId === card.id ? '...' : 'Excluída'}
                                             </button>
                                             <button
                                                 onClick={() => { setReprogramarCard(card); setNovaDataRepro(dataPrevista); }}
@@ -868,6 +876,8 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                                 ...reprogramarCard._full,
                                                 data_prevista: novaDataRepro,
                                                 data_prevista_original: reprogramarCard._full.data_prevista_original || dataPrevista,
+                                                status_recife: reprogramarCard._full.status_recife ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
+                                                status_moreno: reprogramarCard._full.status_moreno ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
                                             });
                                         } catch { /* falha silenciosa */ }
                                         const idResolvido = reprogramarCard.id;
