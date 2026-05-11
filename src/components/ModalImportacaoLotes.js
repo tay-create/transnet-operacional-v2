@@ -14,15 +14,26 @@ function obterDataBrasiliaISO() {
         .split('/').reverse().join('-');
 }
 
-// Converte "11/05/2026" ou Date/serial Excel para "YYYY-MM-DD". Vazio se inválido.
+// Converte "11/05/2026", Date object ou Excel serial number para "YYYY-MM-DD". Vazio se inválido.
 function parseDataPrevisao(valor) {
-    if (!valor) return '';
-    // xlsx pode entregar Date object quando a célula é tipada como data
+    if (valor === null || valor === undefined || valor === '') return '';
+    // xlsx pode entregar Date object quando cellDates:true
     if (valor instanceof Date && !isNaN(valor)) {
         const y = valor.getFullYear();
         const m = String(valor.getMonth() + 1).padStart(2, '0');
         const d = String(valor.getDate()).padStart(2, '0');
         return `${y}-${m}-${d}`;
+    }
+    // Excel serial number (dias desde 1900-01-01, ajustado pelo bug do 1900)
+    if (typeof valor === 'number' && valor > 25569 && valor < 80000) {
+        // 25569 = dias entre 1900-01-01 e 1970-01-01. valor*86400000 = ms desde epoch
+        const d = new Date(Math.round((valor - 25569) * 86400 * 1000));
+        if (!isNaN(d)) {
+            const y = d.getUTCFullYear();
+            const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const da = String(d.getUTCDate()).padStart(2, '0');
+            return `${y}-${mo}-${da}`;
+        }
     }
     const s = String(valor).trim();
     // dd/mm/yyyy
@@ -255,6 +266,7 @@ function processarPlanilha(linhas) {
     const colMotorista   = buscarChave('Motorista');
     const colTipo        = buscarChave('Tipo de Veículo', 'Tipo Veiculo', 'Tipo Veículo', 'TipoVeiculo');
     const colDataPrev    = buscarChave('Data de Previsão', 'Data de Previsao', 'Data Previsao', 'Data Prevista', 'DataPrevisao', 'DataPrevista');
+    console.log('[ImportarLotes] colDataPrev =', colDataPrev, '| primeira amostra =', colDataPrev ? linhas[0][colDataPrev] : '(coluna não encontrada)', '| tipo =', colDataPrev ? typeof linhas[0][colDataPrev] : '?');
 
     console.log('[ImportarLotes] Colunas mapeadas:', { colNumeroColeta, colOperacao, colObservacao, colPlacaV, colPlacaC, colMotorista, colTipo });
 
@@ -454,7 +466,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         const reader = new FileReader();
         reader.onload = (ev) => {
             try {
-                const wb = XLSX.read(ev.target.result, { type: 'array' });
+                const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
                 const ws = wb.Sheets[wb.SheetNames[0]];
 
                 // Lê sem header para encontrar a linha que contém os cabeçalhos reais
