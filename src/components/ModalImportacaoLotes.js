@@ -125,6 +125,20 @@ function gerarId() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// Extrai apenas os números de coleta de uma string que pode conter prefixos
+// (PLAS:, PORC:, ELET:), separadores (|, ,) e espaços. Retorna array de strings limpas.
+// Exemplos:
+//   "PLAS:1216 | PORC:1304" -> ["1216", "1304"]
+//   "1318" -> ["1318"]
+//   "1213,PORC:1317" -> ["1213", "1317"]
+function extrairNumerosColeta(str) {
+    if (!str) return [];
+    return String(str)
+        .split(/[|,]/)
+        .map(p => p.trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').trim())
+        .filter(Boolean);
+}
+
 // Consolidar linhas com mesma placa+data em 1 LoteItem (placas iguais em datas diferentes viram lotes separados)
 function consolidarPorPlaca(linhasBrutas) {
     const grupos = new Map(); // chave: placa1+placa2+data
@@ -332,15 +346,15 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             for (const v of ativos) {
                 // Backend mapeia coletainterestadual → coletaInterestadual no payload (camelCase)
                 for (const campo of [v.coletaRecife, v.coletaMoreno, v.coletaInterestadual, v.coletainterestadual]) {
-                    (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => tagsAtivas.add(t));
+                    extrairNumerosColeta(campo).forEach(t => tagsAtivas.add(t));
                 }
             }
             const novasDuplicatas = {};
             for (const lote of lotesParaVerificar) {
                 const tags = [
-                    ...(lote.coletaRecife || '').split(','),
-                    ...(lote.coletaMoreno || '').split(','),
-                ].map(t => t.trim()).filter(Boolean);
+                    ...extrairNumerosColeta(lote.coletaRecife),
+                    ...extrairNumerosColeta(lote.coletaMoreno),
+                ];
                 const dup = tags.filter(t => tagsAtivas.has(t));
                 if (dup.length > 0) novasDuplicatas[lote._id] = dup;
             }
@@ -375,7 +389,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             for (const l of lotesResolvidos) {
                 if (l.dataPrevista) datasDosLotes.add(l.dataPrevista);
                 for (const campo of [l.coletaRecife, l.coletaMoreno, l.coletaInterestadual]) {
-                    (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => coletasNovas.add(t));
+                    extrairNumerosColeta(campo).forEach(t => coletasNovas.add(t));
                 }
             }
             // Se nenhum lote tem data, usa a global (compat)
@@ -387,10 +401,10 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 if (recFinal && morFinal) return false;
                 if (!datasDosLotes.has(v.data_prevista || '')) return false;
                 const coletas = [
-                    ...(v.coletaRecife || '').split(','),
-                    ...(v.coletaMoreno || '').split(','),
-                    ...((v.coletaInterestadual || v.coletainterestadual || '')).split(','),
-                ].map(t => t.trim()).filter(Boolean);
+                    ...extrairNumerosColeta(v.coletaRecife),
+                    ...extrairNumerosColeta(v.coletaMoreno),
+                    ...extrairNumerosColeta(v.coletaInterestadual || v.coletainterestadual),
+                ];
                 return coletas.length > 0 && coletas.every(t => !coletasNovas.has(t));
             }).map(v => ({
                 id: v.id,
