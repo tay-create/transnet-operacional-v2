@@ -4,6 +4,7 @@ import useAuthStore from '../store/useAuthStore';
 import { Calendar, RefreshCw, BarChart, PieChart as PieChartIcon, FileDown, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { obterDataBrasilia } from '../utils/helpers';
+import { formatDataBR } from '../utils/dateFormatter';
 
 const OPERACOES = ['Plástico', 'Porcelana', 'Eletrik', 'Consolidados'];
 
@@ -144,12 +145,6 @@ export default function PainelProgramacao() {
         }
     };
 
-    const formatData = (dStr) => {
-        if (!dStr) return '';
-        const [a, m, d] = dStr.split('-');
-        return `${d}/${m}/${a}`;
-    };
-
     const handleExportPDF = async () => {
         try {
             const { jsPDF } = await import('jspdf');
@@ -159,8 +154,8 @@ export default function PainelProgramacao() {
             const agora = new Date();
             const geradoEm = `${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
             const periodoLabel = dataInicio === dataFim
-                ? formatData(dataInicio)
-                : `${formatData(dataInicio)} a ${formatData(dataFim)}`;
+                ? formatDataBR(dataInicio)
+                : `${formatDataBR(dataInicio)} a ${formatDataBR(dataFim)}`;
 
             // Buscar veículos do período
             const resVeiculos = await api.get(`/api/relatorio/veiculos?de=${dataInicio}&ate=${dataFim}`);
@@ -212,7 +207,7 @@ export default function PainelProgramacao() {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 116, 139);
-                doc.text(formatData(progInicial.data_referencia), 282, y + 7, { align: 'right' });
+                doc.text(formatDataBR(progInicial.data_referencia), 282, y + 7, { align: 'right' });
                 y += 13;
 
                 const dados = progInicial.dados_json || {};
@@ -291,7 +286,7 @@ export default function PainelProgramacao() {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 116, 139);
-                doc.text(formatData(progFinal.data_referencia), 282, y + 7, { align: 'right' });
+                doc.text(formatDataBR(progFinal.data_referencia), 282, y + 7, { align: 'right' });
                 y += 13;
 
                 const dados = progFinal.dados_json || {};
@@ -546,7 +541,7 @@ export default function PainelProgramacao() {
                                     <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f8fafc', fontWeight: 'bold', fontSize: '15px' }}>
                                             <Calendar size={18} color="#60a5fa" />
-                                            {formatData(prog.data_referencia)} — Programação {prog.turno}
+                                            {formatDataBR(prog.data_referencia)} — Programação {prog.turno}
                                         </div>
                                         {/* Tabs */}
                                         <div style={{ display: 'flex', gap: '4px' }}>

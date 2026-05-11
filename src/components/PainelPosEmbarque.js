@@ -1,16 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../services/apiService';
+import { formatDataBR } from '../utils/dateFormatter';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink, X, Download, Filter } from 'lucide-react';
 import ModalConfirm from './ModalConfirm';
 import { gerarPDFPosEmbarque } from '../utils/pdfGenerator';
 
 // ──────────── Helpers ────────────────────────────────────
-const formatData = (d) => {
-    if (!d) return '—';
-    const s = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00-03:00' : d;
-    return new Date(s).toLocaleDateString('pt-BR');
-};
 
 function parseDatetimeBRT(data, hora) {
     const d = (data || '').substring(0, 10);
@@ -504,7 +500,7 @@ export default function PainelPosEmbarque() {
                                                 }}>
                                                     {oc.situacao === 'RESOLVIDO' ? 'Resolvido' : atraso ? 'Em Andamento (Atrasado)' : 'Em Andamento'}
                                                 </span>
-                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
+                                                {oc.data_ocorrencia && <span> • {formatDataBR(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -870,13 +866,13 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
                                     const situ = getSituacaoDisplay(oc);
                                     const dash = (v) => (v === null || v === undefined || v === '') ? '—' : v;
                                     const dataFim = oc.situacao === 'RESOLVIDO'
-                                        ? (oc.data_conclusao ? formatData(oc.data_conclusao) : (oc.resolved_at ? formatData(String(oc.resolved_at).substring(0, 10)) : '—'))
+                                        ? (oc.data_conclusao ? formatDataBR(oc.data_conclusao) : (oc.resolved_at ? formatDataBR(String(oc.resolved_at).substring(0, 10)) : '—'))
                                         : '—';
                                     const horaFim = oc.situacao === 'RESOLVIDO' ? dash(oc.hora_conclusao) : '—';
                                     const rowBg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)';
                                     return (
                                         <tr key={oc.id} style={{ background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{formatData(oc.data_ocorrencia)}</td>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{formatDataBR(oc.data_ocorrencia)}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dash(oc.hora_ocorrencia)}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dataFim}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{horaFim}</td>

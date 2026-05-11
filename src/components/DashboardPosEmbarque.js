@@ -5,6 +5,7 @@ import {
     CheckCircle, RefreshCw
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatDataBR } from '../utils/dateFormatter';
 
 const TEMA = {
     escuro: {
@@ -44,12 +45,6 @@ const TEMA = {
 };
 
 // ──────────── Helpers ────────────────────────────────────
-const formatData = (d) => {
-    if (!d) return '—';
-    // Strings YYYY-MM-DD sem horário devem ser tratadas como BRT, não UTC
-    const s = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00-03:00' : d;
-    return new Date(s).toLocaleDateString('pt-BR');
-};
 
 function parseDatetimeBRT(data, hora) {
     // Constrói Date tratando como horário de Brasília (BRT = UTC-3)
@@ -315,7 +310,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     </span>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: tema.textSecondary }}>
                                         <Clock size={12} />
-                                        {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia || ''}
+                                        {formatDataBR(oc.data_ocorrencia)} {oc.hora_ocorrencia || ''}
                                     </div>
                                 </div>
 
