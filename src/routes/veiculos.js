@@ -13,6 +13,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     const router = express.Router();
 
     router.get('/veiculos', authMiddleware, asyncHandler(async (req, res) => {
+            const __t0 = Date.now();
             const page = parseInt(req.query.page) || 1;
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = (page - 1) * limit;
@@ -95,6 +96,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     dados_json: row.dados_json || '{}'
                 };
             });
+            const __dt = Date.now() - __t0;
+            if (__dt > 500) console.warn(`[PERF] GET /veiculos slow: ${__dt}ms rows=${veiculos.length} total=${total} user=${req.user?.nome || '?'}`);
+            else console.log(`[PERF] GET /veiculos: ${__dt}ms rows=${veiculos.length}`);
             res.json({ success: true, veiculos, total, page, limit, totalPages: Math.ceil(total / limit) });
         }));
 
