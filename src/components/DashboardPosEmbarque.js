@@ -72,10 +72,6 @@ function getBordaEsquerda(oc) {
     return '#ff9100';
 }
 
-function getCardGlow() {
-    return "none";
-}
-
 // ──────────── CSS Animações ────────────────────────────────────
 const neonCSS = `
 @keyframes spin { to { transform: rotate(360deg) } }
@@ -152,7 +148,7 @@ export default function DashboardPosEmbarque({ socket }) {
                         borderRadius: '16px',
                         padding: '22px 16px',
                         textAlign: 'center',
-                        boxShadow: `0 2px 12px ${k.corGlow}`,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                         animation: `slideIn 0.5s ease ${i * 0.1}s both`,
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8, color: k.cor }}>
@@ -217,7 +213,7 @@ export default function DashboardPosEmbarque({ socket }) {
                             }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.transform = 'translateY(-4px) scale(1.01)';
-                                e.currentTarget.style.boxShadow = `0 8px 24px ${bordaCor}55`;
+                                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
                             }}
                             onMouseLeave={e => {
                                 e.currentTarget.style.transform = '';
