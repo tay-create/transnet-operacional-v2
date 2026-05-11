@@ -7,15 +7,15 @@ export function parseDateLocal(str) {
     return new Date(str.replace(' ', 'T'));
 }
 
-// Tempo de espera entre marcação e contratação (em minutos)
-// Returns: número de minutos | null
+// Tempo de espera entre marcação e contratação
+// Returns: { horas: number, label: string, cor: string } | null
 export function calcularTempoEspera(dataMarcacao, dataContratacao) {
     if (!dataMarcacao) return null;
     const inicio = parseDateLocal(dataMarcacao);
     const fim = dataContratacao ? parseDateLocal(dataContratacao) : new Date();
     if (!inicio || isNaN(inicio)) return null;
-    const diff = Math.floor((fim - inicio) / 60000);
-    return Math.max(0, diff);
+    const min = Math.max(0, Math.floor((fim - inicio) / 60000));
+    return { horas: min / 60, label: formatarTempo(min), cor: corTempo(min) };
 }
 
 // Formata minutos para string legível (ex: "2h30", "1d 3h", etc.)

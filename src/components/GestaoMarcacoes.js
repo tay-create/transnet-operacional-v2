@@ -3,7 +3,7 @@ import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, 
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
 import { useToast } from '../hooks/useToast';
-import { parseDateLocal, calcularTempoEspera, formatarTempo, corTempo, corDisponibilidade } from '../utils/marcacoesUtils';
+import { calcularTempoEspera, corDisponibilidade } from '../utils/marcacoesUtils';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -724,7 +724,7 @@ export default function GestaoMarcacoes({ socket }) {
                                 <tbody>
                                     {marcacoesFiltradas.map(m => {
                                         void tick;
-                                        const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
+                                        const espera = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
                                         const statusOp = m.status_operacional || 'DISPONIVEL';
                                         const isContratado = ['CONTRATADO', 'EM VIAGEM', 'EM ROTA'].includes(statusOp);
                                         const statusLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : isContratado ? 'Contratado' : statusOp;
@@ -810,8 +810,8 @@ export default function GestaoMarcacoes({ socket }) {
                                                 </td>
                                                 {/* Tempo */}
                                                 <td style={s.td}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '700', color: corTempo(tempoMin) }}>
-                                                        <Clock size={11} />{formatarTempo(tempoMin)}
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '700', color: espera?.cor ?? '#64748b' }}>
+                                                        <Clock size={11} />{espera?.label ?? '—'}
                                                     </span>
                                                 </td>
                                                 {/* Marcado em */}
