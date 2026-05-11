@@ -833,6 +833,7 @@ function App({ socket }) {
 
         // Persistir no banco de dados
         let cteCriado = false;
+        let jaExistia = false;
         try {
             const origemCte = origem || (user.cidade === 'Moreno' ? 'Moreno' : 'Recife');
             const response = await api.post('/ctes', { origem: origemCte, dados: dadosCte });
@@ -841,17 +842,24 @@ function App({ socket }) {
                 cteCriado = true;
             }
         } catch (error) {
-            console.error("Erro ao persistir CT-e:", error);
-            const msg = error?.response?.data?.message || error.message || 'Erro desconhecido';
-            mostrarNotificacao(`❌ Falha ao criar CT-e: ${msg}`);
-            aceitandoCteIds.current.delete(idInterno);
-            return; // Não remove a notificação se falhou
+            // 409 = CT-e já aceito por outro usuário do Conhecimento. Não é erro, só remove a notificação.
+            if (error?.response?.status === 409) {
+                jaExistia = true;
+            } else {
+                console.error("Erro ao persistir CT-e:", error);
+                const msg = error?.response?.data?.message || error.message || 'Erro desconhecido';
+                mostrarNotificacao(`❌ Falha ao criar CT-e: ${msg}`);
+                aceitandoCteIds.current.delete(idInterno);
+                return; // Não remove a notificação se falhou
+            }
         }
 
         const origemLabel = user.cidade === 'Moreno' ? 'MORENO' : 'RECIFE';
         mostrarNotificacao(cteCriado
             ? `✅ CT-e Aceito! Enviado para ${origemLabel}.`
-            : `⚠️ CT-e já existia — duplicata ignorada.`
+            : jaExistia
+                ? `ℹ️ CT-e já havia sido aceito por outro usuário.`
+                : `⚠️ CT-e já existia — duplicata ignorada.`
         );
 
         // Remover notificação globalmente (CT-e aceito = remove para todos)
