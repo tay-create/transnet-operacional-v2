@@ -2976,8 +2976,8 @@ cron.schedule('0 10 * * 1-6', async () => {
     }
 }, { timezone: 'America/Sao_Paulo' });
 
-cron.schedule('0 22 * * 1-6', async () => {
-    console.log('[CRON-PROG] 22:00 — Gerando Programação Final automática...');
+cron.schedule('50 23 * * 1-6', async () => {
+    console.log('[CRON-PROG] 23:50 — Gerando Programação Final automática...');
     try {
         const r = await gerarProgramacaoDiaria('Final');
         console.log(`[CRON-PROG] Final gerada: ${r.data_referencia}`);
@@ -3000,8 +3000,8 @@ cron.schedule('0 22 * * 1-6', async () => {
 // Para cards em EM CARREGAMENTO com CT-e Emitido associado, atualiza também
 // data_entrada_cte no dados_json do CT-e para que ele apareça no PainelCte
 // do dia seguinte (data_emissao real é preservada como histórico).
-cron.schedule('58 23 * * *', async () => {
-    console.log('[CRON-ROLLOVER] 23:58 — virando cards em fluxo para amanhã...');
+cron.schedule('40 23 * * *', async () => {
+    console.log('[CRON-ROLLOVER] 23:40 — virando cards em fluxo para amanhã...');
     try {
         const STATUS_ATIVOS = ['AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO'];
         const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
