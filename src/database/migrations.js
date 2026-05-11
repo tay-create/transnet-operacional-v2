@@ -249,6 +249,24 @@ const inicializarBanco = async () => {
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`);
 
+        // Índice único parcial: previne duplicação de CT-e ativo (não-emitido) para o
+        // MESMO (motorista + numero_liberacao + coleta). Motoristas da frota têm a mesma
+        // liberação reutilizada em vários embarques, por isso a coleta entra na chave —
+        // permite múltiplos CT-es ativos do mesmo motorista com a mesma liberação,
+        // desde que sejam coletas diferentes.
+        // Se já existir uma versão antiga do índice (sem coleta), recria.
+        try {
+            const idx = await dbGet(
+                `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_ctes_ativos_unique_ativo'`
+            );
+            if (idx && !idx.indexdef.includes('coleta')) {
+                await dbRun(`DROP INDEX idx_ctes_ativos_unique_ativo`);
+            }
+        } catch (_) { /* sem-op */ }
+        await dbRun(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ctes_ativos_unique_ativo
+            ON ctes_ativos (motorista, numero_liberacao, coleta)
+            WHERE status <> 'Emitido'`);
+
         await dbRun(`CREATE TABLE IF NOT EXISTS docas_interditadas(
                 id SERIAL PRIMARY KEY,
                 unidade TEXT,
