@@ -31,7 +31,9 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const [rows, countRow, provVeiculos] = await Promise.all([
                 dbAll(`
-                SELECT v.*,
+                SELECT v.id, v.dados_json, v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno, v.doca_recife, v.doca_moreno, v.coleta, v.coletarecife, v.coletamoreno, v.rota_recife, v.rota_moreno, v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista, v.data_criacao, v.tempos_recife, v.tempos_moreno, v.status_coleta, v.observacao, v.imagens, v.numero_cte, v.chave_cte, v.numero_coleta, v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv, v.gerenciadora_risco, v.status_gerenciadora, v.numero_liberacao, v.situacao_cadastro, v.data_liberacao, v.status_cte, v.timestamps_cte, v.tipoveiculo, v.telefonemotorista, v.isfrotamotorista, v.placa1motorista, v.placa2motorista, v.timestamps_status, v.pausas_status, v.seguradora_cad, v.origem_cad, v.destino_uf_cad, v.destino_cidade_cad, v.cte_antecipado_recife, v.cte_antecipado_moreno, v.data_prevista_original, v.data_inicio_patio, v.foi_reprogramado, v.data_carregado_recife, v.data_carregado_moreno, v.cte_antecipado_interestadual, v.coletainterestadual, v.token_operacao_motorista, v.token_operacao_expira_em,
+                       (v.foto_lacre_recife IS NOT NULL AND v.foto_lacre_recife <> '') as tem_foto_lacre_recife,
+                       (v.foto_lacre_moreno IS NOT NULL AND v.foto_lacre_moreno <> '') as tem_foto_lacre_moreno,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
                        (SELECT m.is_frota FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as is_frota_bd,
                        (SELECT COUNT(*) FROM checklists_carreta c WHERE c.veiculo_id = v.id) as checklist_count,
@@ -55,6 +57,10 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 try {
                     dados_json = JSON.parse(row.dados_json || '{}');
                 } catch (e) { }
+                // Remove fotos base64 legadas do payload (carregadas sob demanda via /veiculos/:id/foto-lacre/:origem)
+                if (dados_json.foto_lacre_recife) delete dados_json.foto_lacre_recife;
+                if (dados_json.foto_lacre_moreno) delete dados_json.foto_lacre_moreno;
+                const dados_json_str = JSON.stringify(dados_json);
 
                 // Spreada toda a row (SELECT v.* já traz todos os campos do banco)
                 // e sobrescreve apenas os que precisam de tratamento especial
@@ -93,13 +99,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     isFrotaMotorista: row.is_frota_bd === 1 || placasProvisao.has(normPlaca(dados_json.placa1Motorista)) || placasProvisao.has(normPlaca(row.placa)) || false,
                     entregaLocal: dados_json.entregaLocal || false,
                     checklistFeito: parseInt(row.checklist_count) > 0,
-                    dados_json: row.dados_json || '{}'
+                    dados_json: dados_json_str
                 };
             });
             const __dt = Date.now() - __t0;
             if (__dt > 500) console.warn(`[PERF] GET /veiculos slow: ${__dt}ms rows=${veiculos.length} total=${total} user=${req.user?.nome || '?'}`);
             else console.log(`[PERF] GET /veiculos: ${__dt}ms rows=${veiculos.length}`);
             res.json({ success: true, veiculos, total, page, limit, totalPages: Math.ceil(total / limit) });
+        }));
+
+    router.get('/veiculos/:id/foto-lacre/:origem', authMiddleware, asyncHandler(async (req, res) => {
+            const origem = req.params.origem === 'moreno' ? 'foto_lacre_moreno' : 'foto_lacre_recife';
+            const row = await dbGet(`SELECT ${origem} as foto FROM veiculos WHERE id = ?`, [req.params.id]);
+            if (!row || !row.foto) return res.status(404).json({ success: false, error: 'Foto não encontrada' });
+            res.json({ success: true, foto: row.foto });
         }));
 
     router.get('/veiculos/:id', authMiddleware, asyncHandler(async (req, res) => {

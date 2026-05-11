@@ -231,8 +231,8 @@ export default function MobileOperacional() {
                     const docaV = doca(v);
                     const coletaV = coleta(v);
                     const cteEmitido = v.numero_cte;
-                    const campoLacre = origem === 'Moreno' ? v.foto_lacre_moreno : v.foto_lacre_recife;
-                    const fotosLacre = parseFotos(campoLacre);
+                    const temFotoLacre = origem === 'Moreno' ? v.tem_foto_lacre_moreno : v.tem_foto_lacre_recife;
+                    const origemLacreParam = origem === 'Moreno' ? 'moreno' : 'recife';
                     return (
                         <div key={v.id} style={{
                             background: '#0f172a', border: '1px solid #1e293b',
@@ -286,30 +286,29 @@ export default function MobileOperacional() {
                                 )}
                             </div>
 
-                            {/* Fotos do lacre */}
-                            {fotosLacre.length > 0 && (
+                            {/* Botão Lacre — carrega fotos sob demanda */}
+                            {temFotoLacre && (
                                 <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                                        <Lock size={10} color="#4ade80" strokeWidth={2} />
-                                        <span style={{ fontSize: '10px', color: '#4ade80', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                            Lacre ({fotosLacre.length})
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                        {fotosLacre.map((foto, i) => (
-                                            <img
-                                                key={i}
-                                                src={foto}
-                                                alt={`Lacre ${i + 1}`}
-                                                onClick={() => setFotoAmpliada(foto)}
-                                                style={{
-                                                    width: 56, height: 56, objectFit: 'cover',
-                                                    borderRadius: 6, border: '1px solid rgba(74,222,128,0.25)',
-                                                    cursor: 'pointer',
-                                                }}
-                                            />
-                                        ))}
-                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const r = await api.get(`/veiculos/${v.id}/foto-lacre/${origemLacreParam}`);
+                                                const raw = r.data?.foto;
+                                                if (!raw) return;
+                                                const fotos = parseFotos(raw);
+                                                if (fotos.length) setFotoAmpliada(fotos[0]);
+                                            } catch (e) { console.error('Erro ao carregar lacre:', e); }
+                                        }}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                            padding: '4px 8px', background: 'rgba(74,222,128,0.12)',
+                                            border: '1px solid rgba(74,222,128,0.3)', borderRadius: 6,
+                                            color: '#4ade80', fontSize: 10, fontWeight: 700,
+                                            textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
+                                        }}
+                                    >
+                                        <Lock size={10} strokeWidth={2} /> Ver Lacre
+                                    </button>
                                 </div>
                             )}
                         </div>
