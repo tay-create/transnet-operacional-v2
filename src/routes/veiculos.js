@@ -239,7 +239,8 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                     data_liberacao = cad.data_liberacao_cad || null;
 
                     // Nova viagem = nova conferência obrigatória: reset se estava LIBERADO
-                    if (cad.situacao_cad === 'LIBERADO') {
+                    // EXCETO para motoristas da frota — liberação deles é válida por 1 ano
+                    if (cad.situacao_cad === 'LIBERADO' && !cad.is_frota) {
                         const telReset = cad.telefone || telefoneMotorista;
                         if (telReset) {
                             await dbRun(
