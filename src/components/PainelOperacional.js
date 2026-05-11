@@ -1406,11 +1406,22 @@ export default function PainelOperacional({
                                                         <Truck size={11} color="#64748b" />
                                                         <span style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', fontFamily: 'monospace' }}>{placaExibida}</span>
                                                         {placa2Exibida && <><span style={{ color: '#475569', fontSize: '11px' }}>/</span><span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{placa2Exibida}</span></>}
-                                                        {podEditarPlaca && (
-                                                            <button onClick={() => setEditandoPlaca(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px', marginLeft: 'auto', display: 'flex', alignItems: 'center' }} title="Editar placa">
-                                                                <Edit2 size={12} />
-                                                            </button>
-                                                        )}
+                                                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {itemTemPlacaNoProvisionamento(item) && (
+                                                                <button
+                                                                    onClick={() => checarPlacaProvisaoCard(item.placa1Motorista || item.placa || '', item)}
+                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                                                    title="Registrar datas no Provisionamento"
+                                                                >
+                                                                    <CalendarPlus size={12} />
+                                                                </button>
+                                                            )}
+                                                            {podEditarPlaca && (
+                                                                <button onClick={() => setEditandoPlaca(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px', display: 'flex', alignItems: 'center' }} title="Editar placa">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })()}
