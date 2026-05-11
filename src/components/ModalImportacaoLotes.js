@@ -266,6 +266,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [duplicatas, setDuplicatas] = useState({});
     const [eletrikPendente, setEletrikPendente] = useState(null);
     const [rotaNovaPendente, setRotaNovaPendente] = useState(null); // lotes com "ROTA NOVA" aguardando confirmação
+    const [rotaNovaFila,  setRotaNovaFila]  = useState([]);
+    const [rotaNovaAtual, setRotaNovaAtual] = useState(null);
+    const [rotaNovaInput, setRotaNovaInput] = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const [provisaoFila, setProvisaoFila] = useState([]);
     const [provisaoAtual, setProvisaoAtual] = useState(null);
@@ -321,6 +324,20 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             verificarDuplicatas(lotesResolvidos);
         }
     };
+
+    const avancarRotaNova = useCallback(() => {
+        setRotaNovaFila(prev => {
+            if (prev.length > 0) {
+                setRotaNovaAtual(prev[0]);
+                setRotaNovaInput('');
+                return prev.slice(1);
+            }
+            setRotaNovaAtual(null);
+            setPasso(2);
+            verificarDuplicatas(lotes);
+            return [];
+        });
+    }, [lotes, verificarDuplicatas]);
 
     const handleArquivo = (e) => {
         const file = e.target.files?.[0];
@@ -450,6 +467,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setDuplicatas({});
         setEletrikPendente(null);
         setRotaNovaPendente(null);
+        setRotaNovaFila([]);
+        setRotaNovaAtual(null);
+        setRotaNovaInput('');
         setProvisaoFila([]);
         setProvisaoAtual(null);
         setDataPrevista(obterDataBrasiliaISO());
@@ -535,7 +555,18 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button
-                                    onClick={() => { setRotaNovaPendente(null); setPasso(2); verificarDuplicatas(lotes); }}
+                                    onClick={() => {
+                                        const fila = rotaNovaPendente || [];
+                                        setRotaNovaPendente(null);
+                                        if (fila.length > 0) {
+                                            setRotaNovaAtual(fila[0]);
+                                            setRotaNovaFila(fila.slice(1));
+                                            setRotaNovaInput('');
+                                        } else {
+                                            setPasso(2);
+                                            verificarDuplicatas(lotes);
+                                        }
+                                    }}
                                     style={{
                                         padding: '12px 28px', borderRadius: '10px', border: 'none',
                                         background: 'linear-gradient(135deg,#d97706,#f59e0b)',
@@ -601,6 +632,76 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                             >
                                 Cancelar importação
                             </button>
+                        </div>
+                    )}
+
+                    {/* Overlay ROTA NOVA — passo a passo por lote */}
+                    {rotaNovaAtual && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <MapPin size={36} color="#60a5fa" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '8px' }}>
+                                Qual a rota desta coleta?
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                                {rotaNovaAtual.motorista || '—'} · <span style={{ fontFamily: 'monospace' }}>{rotaNovaAtual.placa1}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '20px', fontFamily: 'monospace' }}>
+                                Coleta: {rotaNovaAtual.coletaRecife || rotaNovaAtual.coletaMoreno || rotaNovaAtual.coletaInterestadual || '—'}
+                            </div>
+                            <input
+                                className="input-internal"
+                                placeholder="Nº da Rota"
+                                value={rotaNovaInput}
+                                onChange={e => setRotaNovaInput(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && rotaNovaInput.trim()) {
+                                        const ehRec = ehRecife(rotaNovaAtual.operacao);
+                                        atualizarLote(rotaNovaAtual._id, ehRec ? 'rotaRecife' : 'rotaMoreno', rotaNovaInput.trim());
+                                        avancarRotaNova();
+                                    }
+                                }}
+                                style={{ width: '200px', textAlign: 'center', fontSize: '14px', marginBottom: '24px' }}
+                                autoFocus
+                            />
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={() => {
+                                        if (!rotaNovaInput.trim()) return;
+                                        const ehRec = ehRecife(rotaNovaAtual.operacao);
+                                        atualizarLote(rotaNovaAtual._id, ehRec ? 'rotaRecife' : 'rotaMoreno', rotaNovaInput.trim());
+                                        avancarRotaNova();
+                                    }}
+                                    disabled={!rotaNovaInput.trim()}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: rotaNovaInput.trim() ? 'linear-gradient(135deg,#2563eb,#3b82f6)' : 'rgba(59,130,246,0.3)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px',
+                                        cursor: rotaNovaInput.trim() ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    Confirmar
+                                </button>
+                                <button
+                                    onClick={() => avancarRotaNova()}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: '#94a3b8', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Pular
+                                </button>
+                            </div>
+                            {rotaNovaFila.length > 0 && (
+                                <div style={{ marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                                    {rotaNovaFila.length} coleta(s) restante(s)
+                                </div>
+                            )}
                         </div>
                     )}
 
