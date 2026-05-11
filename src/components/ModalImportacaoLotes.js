@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2, MapPin } from 'lucide-react';
+import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2, MapPin, CalendarPlus } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import { joinColetaMoreno } from '../utils/coletaMoreno';
 import api from '../services/apiService';
@@ -269,6 +269,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [rotaNovaFila,  setRotaNovaFila]  = useState([]);
     const [rotaNovaAtual, setRotaNovaAtual] = useState(null);
     const [rotaNovaInput, setRotaNovaInput] = useState('');
+    const [coletasSumidas,  setColetasSumidas]  = useState(null);
+    const [reprogramarCard, setReprogramarCard] = useState(null);
+    const [novaDataRepro,   setNovaDataRepro]   = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const [provisaoFila, setProvisaoFila] = useState([]);
     const [provisaoAtual, setProvisaoAtual] = useState(null);
@@ -318,7 +321,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         }
     }, []);
 
-    const avancarParaPasso2 = (lotesResolvidos) => {
+    const avancarParaRotaNova = (lotesResolvidos) => {
         const comRotaNova = lotesResolvidos.filter(l =>
             /rota\s*nova/i.test(l.observacao || '')
         );
@@ -331,6 +334,63 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             verificarDuplicatas(lotesResolvidos);
         }
     };
+
+    const detectarSumidas = useCallback(async (lotesResolvidos) => {
+        try {
+            const r = await api.get('/veiculos');
+            const veiculos = r.data.veiculos || [];
+            const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
+
+            const coletasNovas = new Set();
+            for (const l of lotesResolvidos) {
+                for (const campo of [l.coletaRecife, l.coletaMoreno, l.coletaInterestadual]) {
+                    (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => coletasNovas.add(t));
+                }
+            }
+
+            const sumidos = veiculos.filter(v => {
+                const recFinal = !v.status_recife || STATUS_FINAIS.includes(v.status_recife);
+                const morFinal = !v.status_moreno || STATUS_FINAIS.includes(v.status_moreno);
+                if (recFinal && morFinal) return false;
+                if ((v.data_prevista || '') !== dataPrevista) return false;
+                const coletas = [
+                    ...(v.coletaRecife || '').split(','),
+                    ...(v.coletaMoreno || '').split(','),
+                    ...((v.coletaInterestadual || v.coletainterestadual || '')).split(','),
+                ].map(t => t.trim()).filter(Boolean);
+                return coletas.length > 0 && coletas.every(t => !coletasNovas.has(t));
+            }).map(v => ({
+                id: v.id,
+                motorista: v.motorista || '—',
+                placa1: v.placa1Motorista || v.placa || '',
+                placa2: v.placa2Motorista || '',
+                coleta: v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || v.coletainterestadual || '',
+                operacao: v.operacao || '',
+                _full: v,
+            }));
+
+            setLotes(lotesResolvidos);
+            if (sumidos.length > 0) {
+                setColetasSumidas(sumidos);
+            } else {
+                avancarParaRotaNova(lotesResolvidos);
+            }
+        } catch {
+            setLotes(lotesResolvidos);
+            avancarParaRotaNova(lotesResolvidos);
+        }
+    }, [dataPrevista, avancarParaRotaNova]);
+
+    const resolverSumida = useCallback((idResolvido, lotesParaRotaNova) => {
+        setColetasSumidas(prev => {
+            const nova = (prev || []).filter(c => c.id !== idResolvido);
+            if (nova.length === 0) {
+                setTimeout(() => avancarParaRotaNova(lotesParaRotaNova), 0);
+                return null;
+            }
+            return nova;
+        });
+    }, [avancarParaRotaNova]);
 
     const avancarRotaNova = useCallback(() => {
         const proxima = rotaNovaFila[0] ?? null;
@@ -389,7 +449,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 if (temEletrikAmbiguo) {
                     setEletrikPendente(processados);
                 } else {
-                    avancarParaPasso2(processados);
+                    detectarSumidas(processados);
                 }
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
@@ -477,6 +537,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setProvisaoFila([]);
         setProvisaoAtual(null);
         setDataPrevista(obterDataBrasiliaISO());
+        setColetasSumidas(null);
+        setReprogramarCard(null);
+        setNovaDataRepro('');
         onClose();
     };
 
@@ -494,7 +557,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             return lote; // demais operações (PORCELANA/ELETRIK etc.) são sempre Moreno
         });
         setEletrikPendente(null);
-        avancarParaPasso2(resolvidos);
+        detectarSumidas(resolvidos);
     };
 
     const ehRecife = (op) => op && (op.includes('RECIFE') || op === 'PLÁSTICO(RECIFE X MORENO)');
@@ -710,6 +773,133 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                     {rotaNovaFila.length} coleta(s) restante(s)
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Overlay Coletas Sumidas */}
+                    {coletasSumidas && !reprogramarCard && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center',
+                            overflowY: 'auto',
+                        }}>
+                            <AlertCircle size={36} color="#f59e0b" style={{ marginBottom: '16px', flexShrink: 0 }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px' }}>
+                                Coletas não encontradas no novo arquivo
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px', maxWidth: '360px', lineHeight: 1.6 }}>
+                                As coletas abaixo estavam no painel com esta data, mas não vieram nesta importação.
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '420px', marginBottom: '8px' }}>
+                                {coletasSumidas.map(card => (
+                                    <div key={card.id} style={{
+                                        background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)',
+                                        borderRadius: '10px', padding: '10px 14px',
+                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                    }}>
+                                        <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>
+                                                {card.motorista}
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>
+                                                {card.placa1}{card.placa2 ? ` / ${card.placa2}` : ''} · Coleta: {card.coleta || '—'}
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#64748b' }}>{card.operacao}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                            <button
+                                                onClick={async () => {
+                                                    try { await api.delete(`/veiculos/${card.id}`); } catch { /* ignorar */ }
+                                                    resolverSumida(card.id, lotes);
+                                                }}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '7px', border: 'none',
+                                                    background: 'rgba(239,68,68,0.15)', color: '#fca5a5',
+                                                    fontSize: '11px', fontWeight: '700', cursor: 'pointer'
+                                                }}
+                                            >
+                                                Excluída
+                                            </button>
+                                            <button
+                                                onClick={() => { setReprogramarCard(card); setNovaDataRepro(dataPrevista); }}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '7px', border: 'none',
+                                                    background: 'rgba(59,130,246,0.15)', color: '#93c5fd',
+                                                    fontSize: '11px', fontWeight: '700', cursor: 'pointer'
+                                                }}
+                                            >
+                                                Reprogramada
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sub-overlay Reprogramar */}
+                    {reprogramarCard && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 11, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.98)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <CalendarPlus size={36} color="#60a5fa" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px' }}>
+                                Nova data para esta coleta
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                                {reprogramarCard.motorista} · <span style={{ fontFamily: 'monospace' }}>{reprogramarCard.placa1}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '20px', fontFamily: 'monospace' }}>
+                                Coleta: {reprogramarCard.coleta || '—'}
+                            </div>
+                            <input
+                                type="date"
+                                className="input-internal"
+                                value={novaDataRepro}
+                                onChange={e => setNovaDataRepro(e.target.value)}
+                                style={{ width: '180px', textAlign: 'center', fontSize: '13px', marginBottom: '24px' }}
+                            />
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={async () => {
+                                        if (!novaDataRepro) return;
+                                        try {
+                                            await api.put(`/veiculos/${reprogramarCard.id}`, {
+                                                ...reprogramarCard._full,
+                                                data_prevista: novaDataRepro,
+                                                data_prevista_original: reprogramarCard._full.data_prevista_original || dataPrevista,
+                                            });
+                                        } catch { /* falha silenciosa */ }
+                                        const idResolvido = reprogramarCard.id;
+                                        setReprogramarCard(null);
+                                        setNovaDataRepro('');
+                                        resolverSumida(idResolvido, lotes);
+                                    }}
+                                    disabled={!novaDataRepro}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: novaDataRepro ? 'linear-gradient(135deg,#2563eb,#3b82f6)' : 'rgba(59,130,246,0.3)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px',
+                                        cursor: novaDataRepro ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    Confirmar
+                                </button>
+                                <button
+                                    onClick={() => { setReprogramarCard(null); setNovaDataRepro(''); }}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: '#94a3b8', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     )}
 
