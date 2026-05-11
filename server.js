@@ -1736,7 +1736,10 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
     const { origem, dados } = req.body;
 
         // Proteção contra duplicatas: mesmo motorista + número de liberação com status ativo
-        if (dados.motorista && dados.numero_liberacao) {
+        // Motoristas da frota têm liberação válida por 1 ano e podem ter múltiplos CT-es ativos
+        // com o mesmo numero_liberacao — nesse caso pula a proteção.
+        const ehFrota = String(dados.isFrotaMotorista) === 'true' || String(dados.isFrotaMotorista) === '1' || dados.isFrotaMotorista === true;
+        if (!ehFrota && dados.motorista && dados.numero_liberacao) {
             const duplicado = await dbGet(
                 `SELECT id FROM ctes_ativos
                  WHERE motorista = $1 AND numero_liberacao = $2
