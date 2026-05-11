@@ -510,6 +510,8 @@ export default function RelatorioResultadoOperacional() {
   .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
   .chart-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; background: #fff; max-height: 200px; overflow: hidden; }
   .chart-box svg { max-height: 165px; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+  .chart-box-mapa { max-height: 412px; }
+  .chart-box-mapa svg { max-height: 380px; }
   .legenda-pat { font-size: 8.5px; color: #64748b; margin-top: 4px; font-style: italic; }
   @media print { @page { margin: 8mm 7mm; size: A4 landscape; } body { font-size: 10.5px; } }
 </style>
@@ -622,8 +624,8 @@ export default function RelatorioResultadoOperacional() {
     </div>
   </div>
 
-  <div class="grid-2" style="margin-top:12px">
-    <div class="chart-box">
+  <div style="display:grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap:12px; margin-top:12px">
+    <div class="chart-box chart-box-mapa" style="grid-row: span 2">
       <div class="section-title" style="margin-top:0">Distribuição por Região (mapa)</div>
       ${mapaSvg || '<div style="padding:20px;text-align:center;color:#94a3b8">mapa indisponível</div>'}
     </div>
@@ -632,11 +634,10 @@ export default function RelatorioResultadoOperacional() {
       ${reguaSvg}
       <div class="legenda-pat">Barras ordenadas por volume — número absoluto · % do total geral</div>
     </div>
-  </div>
-
-  <div class="chart-box" style="margin-top:12px">
-    <div class="section-title" style="margin-top:0">Entregas por Região × Tipo de Veículo</div>
-    ${barrasAgrupSvg}
+    <div class="chart-box">
+      <div class="section-title" style="margin-top:0">Entregas por Região × Tipo de Veículo</div>
+      ${barrasAgrupSvg}
+    </div>
   </div>
 
   <div class="footer">
