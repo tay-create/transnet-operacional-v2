@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+import { useApiCall } from '../hooks/useApiCall';
 import { Copy, ChevronRight, Loader, Trash2 } from 'lucide-react';
 import { OPCOES_STATUS_CTE } from '../constants';
 import api from '../services/apiService';
@@ -144,8 +145,7 @@ export default function PainelCte({
 }
 
 function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, isRecife, origemCte, podeEditar, updateListCte, setToastCopiaMsg }) {
-    const [salvando, setSalvando] = useState(false);
-    const [erro, setErro] = useState('');
+    const { loading: salvando, erro, execute } = useApiCall();
 
     const idxAtual = OPCOES_STATUS_CTE.indexOf(cte.status);
     const proximoStatus = OPCOES_STATUS_CTE[idxAtual + 1] || null;
@@ -154,15 +154,9 @@ function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, i
 
     const avancarStatus = async () => {
         if (!proximoStatus || salvando) return;
-        setSalvando(true);
-        setErro('');
-        try {
-            await updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, origemCte || (isRecife ? 'Recife' : 'Moreno'));
-        } catch (e) {
-            setErro(e.response?.data?.message || 'Erro ao atualizar status.');
-        } finally {
-            setSalvando(false);
-        }
+        await execute(() =>
+            updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, origemCte || (isRecife ? 'Recife' : 'Moreno'))
+        );
     };
 
     return (

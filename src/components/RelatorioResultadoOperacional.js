@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useApiCall } from '../hooks/useApiCall';
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
 import { BarChart3, RefreshCw, Printer, TrendingUp } from 'lucide-react';
 import api from '../services/apiService';
@@ -274,8 +275,7 @@ function gerarSvgMapaBrasil(geojson, regioes, totalEntregas) {
 
 export default function RelatorioResultadoOperacional() {
     const [dados, setDados] = useState(null);
-    const [carregando, setCarregando] = useState(false);
-    const [erro, setErro] = useState(null);
+    const { loading: carregando, erro, execute } = useApiCall();
     const [regiaoFiltro, setRegiaoFiltro] = useState(null);
     const geojsonCacheRef = useRef(null);
     const [mes, setMes] = useState(() => {
@@ -285,17 +285,9 @@ export default function RelatorioResultadoOperacional() {
     });
 
     const buscar = useCallback(async () => {
-        setCarregando(true);
-        setErro(null);
-        try {
-            const res = await api.get('/api/resultado-operacional');
-            setDados(res.data);
-        } catch (e) {
-            setErro(e.response?.data?.message || 'Erro ao carregar dados');
-        } finally {
-            setCarregando(false);
-        }
-    }, []);
+        const res = await execute(() => api.get('/api/resultado-operacional'));
+        if (res) setDados(res.data);
+    }, [execute]);
 
     useEffect(() => { buscar(); }, [buscar]);
 

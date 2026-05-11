@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useApiCall } from '../hooks/useApiCall';
 import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
@@ -2388,8 +2389,7 @@ export default function PainelOperacional({
 function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
     const unidade = origem.toLowerCase();
     const [motivo, setMotivo] = useState('');
-    const [salvando, setSalvando] = useState(false);
-    const [erro, setErro] = useState('');
+    const { loading: salvando, erro, execute } = useApiCall();
 
     const veiculosAtivos = lista.filter(v => {
         const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
@@ -2403,9 +2403,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
 
     const handleConfirmar = async () => {
         if (!algumPausado && !motivo.trim()) return;
-        setSalvando(true);
-        setErro('');
-        try {
+        await execute(async () => {
             const endpoint = algumPausado ? 'retomar' : 'pausar';
             const body = algumPausado ? { unidade, fonte: 'operacao' } : { motivo, unidade, fonte: 'operacao' };
             const veiculosAlvo = algumPausado
@@ -2422,11 +2420,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
                 api.post(`/api/veiculos/${v.id}/${endpoint}`, body)
             ));
             onSucesso(algumPausado ? `${veiculosAlvo.length} veículo(s) retomado(s)` : `${veiculosAlvo.length} veículo(s) pausado(s)`);
-        } catch (e) {
-            setErro(e?.response?.data?.message || 'Erro ao processar.');
-        } finally {
-            setSalvando(false);
-        }
+        });
     };
 
     return (
