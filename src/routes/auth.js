@@ -5,6 +5,8 @@ const rateLimit = require('express-rate-limit');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize, generateToken } = require('../../middleware/authMiddleware');
 const { validate, loginSchema, cadastroUsuarioSchema } = require('../../middleware/validationMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -44,8 +46,7 @@ function limparTentativas(email) {
     tentativasLogin.delete(email);
 }
 
-router.post('/login', validate(loginSchema), async (req, res) => {
-    const { nome, senha } = req.body;
+router.post('/login', validate(loginSchema), asyncHandler(async (req, res) => {const { nome, senha } = req.body;
     const emailLogin = nome.trim().toLowerCase();
 
     // Verificar bloqueio por conta antes de qualquer consulta
@@ -56,7 +57,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         });
     }
 
-    try {
+    
         const usuario = await dbGet("SELECT * FROM usuarios WHERE email = ?", [emailLogin]);
 
         if (!usuario) {
@@ -134,14 +135,9 @@ router.post('/login', validate(loginSchema), async (req, res) => {
             usuario: usuarioSemSenha,
             token
         });
-    } catch (e) {
-        console.error('Erro no login:', e);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor' });
-    }
-});
+    }));
 
-router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
-    try {
+router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
         const rows = await dbAll("SELECT id, nome, email, cidade, cargo, avatarurl, permissoesacesso, permissoesedicao, usapermissaoindividual FROM usuarios");
         const parseJson = (val, fallback = '[]') => { try { return JSON.parse(val || fallback); } catch { return JSON.parse(fallback); } };
         const usuarios = rows.map(u => ({
@@ -151,16 +147,11 @@ router.get('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção', '
             permissoesEdicao: parseJson(u.permissoesedicao || u.permissoesEdicao)
         }));
         res.json({ success: true, usuarios });
-    } catch (e) {
-        console.error("Erro ao buscar usuarios:", e);
-        res.status(500).json({ success: false });
-    }
-});
+    }));
 
-router.post('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção']), validate(cadastroUsuarioSchema), async (req, res) => {
-    const { nome, email, senha, cidade, cargo } = req.body;
+router.post('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção']), validate(cadastroUsuarioSchema), asyncHandler(async (req, res) => {const { nome, email, senha, cidade, cargo } = req.body;
 
-    try {
+    
         const usuarioExistente = await dbGet("SELECT id FROM usuarios WHERE LOWER(email) = LOWER($1)", [email]);
         if (usuarioExistente) {
             return res.status(400).json({ success: false, message: "Este email já está em uso!" });
@@ -175,15 +166,10 @@ router.post('/usuarios', authMiddleware, authorize(['Coordenador', 'Direção'])
             [nome, email, hashedPassword, cidade, cargo]);
 
         res.json({ success: true, message: "Usuário criado com sucesso!" });
-    } catch (e) {
-        console.error("❌ [POST /usuarios] Erro ao criar usuário:", e);
-        res.status(500).json({ success: false, message: "Erro interno do servidor ao criar usuário." });
-    }
-});
+    }));
 
-router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
-    const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome, telefone } = req.body;
-    try {
+router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {const { usaPermissaoIndividual, permissoesAcesso, permissoesEdicao, cargo, cidade, nome, telefone } = req.body;
+    
         const usuarioAtual = await dbGet("SELECT * FROM usuarios WHERE id=$1", [req.params.id]);
         if (!usuarioAtual) return res.status(404).json({ success: false, message: 'Usuário não encontrado' });
 
@@ -215,20 +201,11 @@ router.put('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção
             ]
         );
         res.json({ success: true });
-    } catch (e) {
-        console.error("Erro ao atualizar usuário:", e);
-        res.status(500).json({ success: false });
-    }
-});
+    }));
 
-router.delete('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-    try {
+router.delete('/usuarios/:id', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
         await dbRun("DELETE FROM usuarios WHERE id=?", [req.params.id]);
         res.json({ success: true });
-    } catch (e) {
-        console.error("Erro ao deletar usuário:", e);
-        res.status(500).json({ success: false });
-    }
-});
+    }));
 
 module.exports = router;

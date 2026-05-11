@@ -1,10 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2, MapPin } from 'lucide-react';
+import { Upload, X, ChevronDown, AlertCircle, CheckCircle, Loader, Trash2, MapPin, CalendarPlus } from 'lucide-react';
 import { OPCOES_OPERACAO, OPCOES_VEICULO } from '../constants';
 import { joinColetaMoreno } from '../utils/coletaMoreno';
 import api from '../services/apiService';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
+import ModalWrapper from './ModalWrapper';
 
 // ── Helpers de mapeamento ──────────────────────────────────────────────────
 
@@ -265,10 +266,24 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [duplicatas, setDuplicatas] = useState({});
     const [eletrikPendente, setEletrikPendente] = useState(null);
     const [rotaNovaPendente, setRotaNovaPendente] = useState(null); // lotes com "ROTA NOVA" aguardando confirmação
+    const [rotaNovaFila,  setRotaNovaFila]  = useState([]);
+    const [rotaNovaAtual, setRotaNovaAtual] = useState(null);
+    const [rotaNovaInput, setRotaNovaInput] = useState('');
+    const [coletasSumidas,  setColetasSumidas]  = useState(null);
+    const [excluindoId, setExcluindoId] = useState(null);
+    const [reprogramarCard, setReprogramarCard] = useState(null);
+    const [novaDataRepro,   setNovaDataRepro]   = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const [provisaoFila, setProvisaoFila] = useState([]);
     const [provisaoAtual, setProvisaoAtual] = useState(null);
     const fileRef = useRef();
+    const inputRotaRef = useRef();
+
+    useEffect(() => {
+        if (rotaNovaAtual) {
+            setTimeout(() => inputRotaRef.current?.focus(), 50);
+        }
+    }, [rotaNovaAtual]);
 
     useEffect(() => {
         api.get('/api/provisionamento/veiculos').then(r => {
@@ -307,7 +322,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         }
     }, []);
 
-    const avancarParaPasso2 = (lotesResolvidos) => {
+    const avancarParaRotaNova = (lotesResolvidos) => {
         const comRotaNova = lotesResolvidos.filter(l =>
             /rota\s*nova/i.test(l.observacao || '')
         );
@@ -321,7 +336,70 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         }
     };
 
-    if (!isOpen) return null;
+    const detectarSumidas = useCallback(async (lotesResolvidos) => {
+        try {
+            const r = await api.get('/veiculos');
+            const veiculos = r.data.veiculos || [];
+            const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
+
+            const coletasNovas = new Set();
+            for (const l of lotesResolvidos) {
+                for (const campo of [l.coletaRecife, l.coletaMoreno, l.coletaInterestadual]) {
+                    (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => coletasNovas.add(t));
+                }
+            }
+
+            const sumidos = veiculos.filter(v => {
+                const recFinal = !v.status_recife || STATUS_FINAIS.includes(v.status_recife);
+                const morFinal = !v.status_moreno || STATUS_FINAIS.includes(v.status_moreno);
+                if (recFinal && morFinal) return false;
+                if ((v.data_prevista || '') !== dataPrevista) return false;
+                const coletas = [
+                    ...(v.coletaRecife || '').split(','),
+                    ...(v.coletaMoreno || '').split(','),
+                    ...((v.coletaInterestadual || v.coletainterestadual || '')).split(','),
+                ].map(t => t.trim()).filter(Boolean);
+                return coletas.length > 0 && coletas.every(t => !coletasNovas.has(t));
+            }).map(v => ({
+                id: v.id,
+                motorista: v.motorista || '—',
+                placa1: v.placa1Motorista || v.placa || '',
+                placa2: v.placa2Motorista || '',
+                coleta: v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || v.coletainterestadual || '',
+                operacao: v.operacao || '',
+                _full: v,
+            }));
+
+            setLotes(lotesResolvidos);
+            if (sumidos.length > 0) {
+                setColetasSumidas(sumidos);
+            } else {
+                avancarParaRotaNova(lotesResolvidos);
+            }
+        } catch {
+            setLotes(lotesResolvidos);
+            avancarParaRotaNova(lotesResolvidos);
+        }
+    }, [dataPrevista, avancarParaRotaNova]);
+
+    const resolverSumida = useCallback((idResolvido, lotesParaRotaNova) => {
+        const novaLista = (coletasSumidas || []).filter(c => c.id !== idResolvido);
+        setColetasSumidas(novaLista.length > 0 ? novaLista : null);
+        if (novaLista.length === 0) {
+            avancarParaRotaNova(lotesParaRotaNova);
+        }
+    }, [coletasSumidas, avancarParaRotaNova]);
+
+    const avancarRotaNova = useCallback(() => {
+        const proxima = rotaNovaFila[0] ?? null;
+        setRotaNovaFila(prev => prev.slice(1));
+        setRotaNovaAtual(proxima);
+        setRotaNovaInput('');
+        if (!proxima) {
+            setPasso(2);
+            verificarDuplicatas(lotes);
+        }
+    }, [rotaNovaFila, lotes, verificarDuplicatas]);
 
     const handleArquivo = (e) => {
         const file = e.target.files?.[0];
@@ -369,7 +447,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 if (temEletrikAmbiguo) {
                     setEletrikPendente(processados);
                 } else {
-                    avancarParaPasso2(processados);
+                    detectarSumidas(processados);
                 }
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
@@ -451,9 +529,16 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setDuplicatas({});
         setEletrikPendente(null);
         setRotaNovaPendente(null);
+        setRotaNovaFila([]);
+        setRotaNovaAtual(null);
+        setRotaNovaInput('');
         setProvisaoFila([]);
         setProvisaoAtual(null);
         setDataPrevista(obterDataBrasiliaISO());
+        setColetasSumidas(null);
+        setExcluindoId(null);
+        setReprogramarCard(null);
+        setNovaDataRepro('');
         onClose();
     };
 
@@ -471,7 +556,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             return lote; // demais operações (PORCELANA/ELETRIK etc.) são sempre Moreno
         });
         setEletrikPendente(null);
-        avancarParaPasso2(resolvidos);
+        detectarSumidas(resolvidos);
     };
 
     const ehRecife = (op) => op && (op.includes('RECIFE') || op === 'PLÁSTICO(RECIFE X MORENO)');
@@ -479,16 +564,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
 
     return (
         <>
-        <div style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
-        }}>
+        <ModalWrapper isOpen={isOpen} onClose={fechar} maxWidth={passo === 2 ? '900px' : '480px'} hideCloseButton>
             <div style={{
-                background: '#0f172a', border: '1px solid rgba(59,130,246,0.25)',
-                borderRadius: '16px', width: '100%', maxWidth: passo === 2 ? '900px' : '480px',
                 maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-                boxShadow: '0 24px 80px rgba(0,0,0,0.6)'
             }}>
                 {/* Header */}
                 <div style={{
@@ -543,7 +621,18 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button
-                                    onClick={() => { setRotaNovaPendente(null); setPasso(2); verificarDuplicatas(lotes); }}
+                                    onClick={() => {
+                                        const fila = rotaNovaPendente || [];
+                                        setRotaNovaPendente(null);
+                                        if (fila.length > 0) {
+                                            setRotaNovaAtual(fila[0]);
+                                            setRotaNovaFila(fila.slice(1));
+                                            setRotaNovaInput('');
+                                        } else {
+                                            setPasso(2);
+                                            verificarDuplicatas(lotes);
+                                        }
+                                    }}
                                     style={{
                                         padding: '12px 28px', borderRadius: '10px', border: 'none',
                                         background: 'linear-gradient(135deg,#d97706,#f59e0b)',
@@ -609,6 +698,215 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                             >
                                 Cancelar importação
                             </button>
+                        </div>
+                    )}
+
+                    {/* Overlay ROTA NOVA — passo a passo por lote */}
+                    {rotaNovaAtual && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <MapPin size={36} color="#60a5fa" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '8px' }}>
+                                Qual a rota desta coleta?
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                                {rotaNovaAtual.motorista || '—'} · <span style={{ fontFamily: 'monospace' }}>{rotaNovaAtual.placa1}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '20px', fontFamily: 'monospace' }}>
+                                Coleta: {rotaNovaAtual.coletaRecife || rotaNovaAtual.coletaMoreno || rotaNovaAtual.coletaInterestadual || '—'}
+                            </div>
+                            <input
+                                ref={inputRotaRef}
+                                className="input-internal"
+                                placeholder="Nº da Rota"
+                                value={rotaNovaInput}
+                                onChange={e => setRotaNovaInput(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && rotaNovaInput.trim()) {
+                                        const ehRec = ehRecife(rotaNovaAtual.operacao);
+                                        const ehMor = ehMoreno(rotaNovaAtual.operacao);
+                                        if (ehRec) atualizarLote(rotaNovaAtual._id, 'rotaRecife', rotaNovaInput.trim());
+                                        if (ehMor) atualizarLote(rotaNovaAtual._id, 'rotaMoreno', rotaNovaInput.trim());
+                                        avancarRotaNova();
+                                    }
+                                }}
+                                style={{ width: '200px', textAlign: 'center', fontSize: '14px', marginBottom: '24px' }}
+                            />
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={() => {
+                                        if (!rotaNovaInput.trim()) return;
+                                        const ehRec = ehRecife(rotaNovaAtual.operacao);
+                                        const ehMor = ehMoreno(rotaNovaAtual.operacao);
+                                        if (ehRec) atualizarLote(rotaNovaAtual._id, 'rotaRecife', rotaNovaInput.trim());
+                                        if (ehMor) atualizarLote(rotaNovaAtual._id, 'rotaMoreno', rotaNovaInput.trim());
+                                        avancarRotaNova();
+                                    }}
+                                    disabled={!rotaNovaInput.trim()}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: rotaNovaInput.trim() ? 'linear-gradient(135deg,#2563eb,#3b82f6)' : 'rgba(59,130,246,0.3)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px',
+                                        cursor: rotaNovaInput.trim() ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    Confirmar
+                                </button>
+                                <button
+                                    onClick={() => avancarRotaNova()}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: '#94a3b8', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Pular
+                                </button>
+                            </div>
+                            {rotaNovaFila.length > 0 && (
+                                <div style={{ marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                                    {rotaNovaFila.length} coleta(s) restante(s)
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Overlay Coletas Sumidas */}
+                    {coletasSumidas && !reprogramarCard && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center',
+                            overflowY: 'auto',
+                        }}>
+                            <AlertCircle size={36} color="#f59e0b" style={{ marginBottom: '16px', flexShrink: 0 }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px' }}>
+                                Coletas não encontradas no novo arquivo
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px', maxWidth: '360px', lineHeight: 1.6 }}>
+                                As coletas abaixo estavam no painel com esta data, mas não vieram nesta importação.
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '420px', marginBottom: '8px' }}>
+                                {coletasSumidas.map(card => (
+                                    <div key={card.id} style={{
+                                        background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)',
+                                        borderRadius: '10px', padding: '10px 14px',
+                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                    }}>
+                                        <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>
+                                                {card.motorista}
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>
+                                                {card.placa1}{card.placa2 ? ` / ${card.placa2}` : ''} · Coleta: {card.coleta || '—'}
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#64748b' }}>{card.operacao}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                            <button
+                                                onClick={async () => {
+                                                    if (excluindoId) return;
+                                                    setExcluindoId(card.id);
+                                                    try { await api.delete(`/veiculos/${card.id}`); } catch { /* ignorar */ }
+                                                    setExcluindoId(null);
+                                                    resolverSumida(card.id, lotes);
+                                                }}
+                                                disabled={!!excluindoId}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '7px', border: 'none',
+                                                    background: excluindoId ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.15)',
+                                                    color: excluindoId ? '#64748b' : '#fca5a5',
+                                                    fontSize: '11px', fontWeight: '700',
+                                                    cursor: excluindoId ? 'not-allowed' : 'pointer'
+                                                }}
+                                            >
+                                                {excluindoId === card.id ? '...' : 'Excluída'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setReprogramarCard(card); setNovaDataRepro(dataPrevista); }}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '7px', border: 'none',
+                                                    background: 'rgba(59,130,246,0.15)', color: '#93c5fd',
+                                                    fontSize: '11px', fontWeight: '700', cursor: 'pointer'
+                                                }}
+                                            >
+                                                Reprogramada
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sub-overlay Reprogramar */}
+                    {reprogramarCard && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 11, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.98)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
+                        }}>
+                            <CalendarPlus size={36} color="#60a5fa" style={{ marginBottom: '16px' }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px' }}>
+                                Nova data para esta coleta
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>
+                                {reprogramarCard.motorista} · <span style={{ fontFamily: 'monospace' }}>{reprogramarCard.placa1}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#60a5fa', marginBottom: '20px', fontFamily: 'monospace' }}>
+                                Coleta: {reprogramarCard.coleta || '—'}
+                            </div>
+                            <input
+                                type="date"
+                                className="input-internal"
+                                value={novaDataRepro}
+                                onChange={e => setNovaDataRepro(e.target.value)}
+                                style={{ width: '180px', textAlign: 'center', fontSize: '13px', marginBottom: '24px' }}
+                            />
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button
+                                    onClick={async () => {
+                                        if (!novaDataRepro) return;
+                                        try {
+                                            await api.put(`/veiculos/${reprogramarCard.id}`, {
+                                                ...reprogramarCard._full,
+                                                data_prevista: novaDataRepro,
+                                                data_prevista_original: reprogramarCard._full.data_prevista_original || dataPrevista,
+                                                status_recife: reprogramarCard._full.status_recife ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
+                                                status_moreno: reprogramarCard._full.status_moreno ? 'AGUARDANDO P/ SEPARAÇÃO' : null,
+                                            });
+                                        } catch { /* falha silenciosa */ }
+                                        const idResolvido = reprogramarCard.id;
+                                        setReprogramarCard(null);
+                                        setNovaDataRepro('');
+                                        resolverSumida(idResolvido, lotes);
+                                    }}
+                                    disabled={!novaDataRepro}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
+                                        background: novaDataRepro ? 'linear-gradient(135deg,#2563eb,#3b82f6)' : 'rgba(59,130,246,0.3)',
+                                        color: 'white', fontWeight: '700', fontSize: '13px',
+                                        cursor: novaDataRepro ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    Confirmar
+                                </button>
+                                <button
+                                    onClick={() => { setReprogramarCard(null); setNovaDataRepro(''); }}
+                                    style={{
+                                        padding: '12px 28px', borderRadius: '10px',
+                                        border: '1px solid rgba(255,255,255,0.12)',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        color: '#94a3b8', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -735,7 +1033,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                     </div>
                 )}
             </div>
-        </div>
+        </ModalWrapper>
 
         {/* Modal de Registrar Viagem para veículos de frota */}
         {provisaoAtual && (

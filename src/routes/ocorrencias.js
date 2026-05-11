@@ -1,25 +1,21 @@
 const express = require('express');
 const { dbRun, dbAll, dbGet } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 module.exports = function createOcorrenciasRouter(registrarLog, io) {
     const router = express.Router();
 
-    router.get('/api/veiculos/:id/ocorrencias', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/veiculos/:id/ocorrencias', authMiddleware, asyncHandler(async (req, res) => {
             const ocorrencias = await dbAll(
                 "SELECT * FROM operacao_ocorrencias WHERE veiculo_id = ? ORDER BY data_criacao DESC",
                 [req.params.id]
             );
             res.json({ success: true, ocorrencias });
-        } catch (e) {
-            console.error('Erro ao buscar ocorrências:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar ocorrências.' });
-        }
-    });
+        }));
 
     // ── POST Nova Ocorrência ─────────────────────────
-    router.post('/api/veiculos/:id/ocorrencias', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.post('/api/veiculos/:id/ocorrencias', authMiddleware, authorize(['Conferente', 'Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             const { descricao, foto_base64, midias_json, motorista } = req.body;
             const veiculo_id = req.params.id;
 
@@ -49,15 +45,10 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
             }
 
             res.json({ success: true, id: result.lastID });
-        } catch (e) {
-            console.error('Erro ao buscar ocorrências:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar ocorrências.' });
-        }
-    });
+        }));
 
     // ── GET Todas as Ocorrências (com dados do veículo) ──
-    router.get('/api/ocorrencias', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/ocorrencias', authMiddleware, asyncHandler(async (req, res) => {
             const ocorrencias = await dbAll(`
             SELECT o.*, v.placa, v.operacao, v.coleta, v.unidade,
                    v.coletaRecife, v.coletaMoreno
@@ -76,15 +67,10 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
                 } catch (_) { return o; }
             });
             res.json({ success: true, ocorrencias: ocorrenciasLeves });
-        } catch (e) {
-            console.error('Erro ao buscar ocorrências:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar ocorrências.' });
-        }
-    });
+        }));
 
     // ── GET Mídias completas de uma ocorrência (inclui vídeo base64) ──
-    router.get('/api/ocorrencias/:id/midias', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/ocorrencias/:id/midias', authMiddleware, asyncHandler(async (req, res) => {
             const o = await dbGet("SELECT midias_json FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
             if (!o) return res.status(404).json({ success: false });
             let midias = [];
@@ -92,25 +78,17 @@ module.exports = function createOcorrenciasRouter(registrarLog, io) {
                 try { midias = typeof o.midias_json === 'string' ? JSON.parse(o.midias_json) : o.midias_json; } catch (_) {}
             }
             res.json({ success: true, midias });
-        } catch (e) {
-            res.status(500).json({ success: false, message: e.message });
-        }
-    });
+        }));
 
     // ── DELETE Ocorrência ─────────────────────────────
-    router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-        try {
+    router.delete('/api/ocorrencias/:id', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
             await dbRun("DELETE FROM operacao_ocorrencias WHERE id = ?", [req.params.id]);
             if (io) {
                 io.emit('receber_atualizacao', { tipo: 'ocorrencia_deletada', id: req.params.id });
                 io.emit('ocorrencias_update');
             }
             res.json({ success: true });
-        } catch (e) {
-            console.error('Erro ao buscar ocorrências:', e);
-            res.status(500).json({ success: false, message: 'Erro ao buscar ocorrências.' });
-        }
-    });
+        }));
 
 
     return router;

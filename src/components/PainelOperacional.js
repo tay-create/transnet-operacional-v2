@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useApiCall } from '../hooks/useApiCall';
 import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
@@ -18,12 +19,8 @@ import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
+import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno } from '../utils/operacaoUtils';
 
-
-
-const ehOperacaoInterestadual = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
-const ehOperacaoRecife = (op) => op && !ehOperacaoInterestadual(op) && op.includes('RECIFE');
-const ehOperacaoMoreno = (op) => op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 
 const SUB_STYLES_CARD = {
     plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO' },
@@ -1409,11 +1406,22 @@ export default function PainelOperacional({
                                                         <Truck size={11} color="#64748b" />
                                                         <span style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 'bold', fontFamily: 'monospace' }}>{placaExibida}</span>
                                                         {placa2Exibida && <><span style={{ color: '#475569', fontSize: '11px' }}>/</span><span style={{ fontSize: '12px', color: '#94a3b8', fontFamily: 'monospace' }}>{placa2Exibida}</span></>}
-                                                        {podEditarPlaca && (
-                                                            <button onClick={() => setEditandoPlaca(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px', marginLeft: 'auto', display: 'flex', alignItems: 'center' }} title="Editar placa">
-                                                                <Edit2 size={12} />
-                                                            </button>
-                                                        )}
+                                                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {itemTemPlacaNoProvisionamento(item) && (
+                                                                <button
+                                                                    onClick={() => checarPlacaProvisaoCard(item.placa1Motorista || item.placa || '', item)}
+                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#3b82f6', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                                                    title="Registrar datas no Provisionamento"
+                                                                >
+                                                                    <CalendarPlus size={12} />
+                                                                </button>
+                                                            )}
+                                                            {podEditarPlaca && (
+                                                                <button onClick={() => setEditandoPlaca(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '2px', display: 'flex', alignItems: 'center' }} title="Editar placa">
+                                                                    <Edit2 size={12} />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })()}
@@ -2388,8 +2396,7 @@ export default function PainelOperacional({
 function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
     const unidade = origem.toLowerCase();
     const [motivo, setMotivo] = useState('');
-    const [salvando, setSalvando] = useState(false);
-    const [erro, setErro] = useState('');
+    const { loading: salvando, erro, execute } = useApiCall();
 
     const veiculosAtivos = lista.filter(v => {
         const s = v[origem === 'Recife' ? 'status_recife' : 'status_moreno'];
@@ -2403,9 +2410,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
 
     const handleConfirmar = async () => {
         if (!algumPausado && !motivo.trim()) return;
-        setSalvando(true);
-        setErro('');
-        try {
+        try { await execute(async () => {
             const endpoint = algumPausado ? 'retomar' : 'pausar';
             const body = algumPausado ? { unidade, fonte: 'operacao' } : { motivo, unidade, fonte: 'operacao' };
             const veiculosAlvo = algumPausado
@@ -2422,11 +2427,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
                 api.post(`/api/veiculos/${v.id}/${endpoint}`, body)
             ));
             onSucesso(algumPausado ? `${veiculosAlvo.length} veículo(s) retomado(s)` : `${veiculosAlvo.length} veículo(s) pausado(s)`);
-        } catch (e) {
-            setErro(e?.response?.data?.message || 'Erro ao processar.');
-        } finally {
-            setSalvando(false);
-        }
+        }); } catch (_) {} // erro já tratado pelo useApiCall
     };
 
     return (

@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { dbRun, dbGet, dbAll } = require('../database/db');
 const { authMiddleware, authorize } = require('../../middleware/authMiddleware');
+const { asyncHandler } = require('../../middleware/asyncHandler');
+const { ROLES } = require('../../middleware/roles');
 
 module.exports = (io) => {
     // Listar todos os chamados
-    router.get('/api/chamados', authMiddleware, async (req, res) => {
-        try {
+    router.get('/api/chamados', authMiddleware, asyncHandler(async (req, res) => {
             const chamados = await dbAll(`
                 SELECT c.*,
                     COALESCE(json_agg(ci.imagem ORDER BY ci.criado_em) FILTER (WHERE ci.id IS NOT NULL), '[]') as imagens,
@@ -20,15 +21,10 @@ module.exports = (io) => {
                 ORDER BY c.criado_em DESC
             `, []);
             res.json({ success: true, chamados });
-        } catch (e) {
-            console.error('[chamados] GET erro:', e);
-            res.status(500).json({ success: false, message: e.message });
-        }
-    });
+        }));
 
     // Criar novo chamado
-    router.post('/api/chamados', authMiddleware, async (req, res) => {
-        try {
+    router.post('/api/chamados', authMiddleware, asyncHandler(async (req, res) => {
             const { titulo, descricao, tipo = 'ajuste', imagens = [] } = req.body;
             if (!titulo?.trim() || !descricao?.trim()) {
                 return res.status(400).json({ success: false, message: 'Título e descrição são obrigatórios.' });
@@ -69,15 +65,10 @@ module.exports = (io) => {
 
             io.emit('chamado_novo', chamado);
             res.json({ success: true, chamado });
-        } catch (e) {
-            console.error('[chamados] POST erro:', e);
-            res.status(500).json({ success: false, message: e.message });
-        }
-    });
+        }));
 
     // Atualizar status — apenas Desenvolvedor
-    router.patch('/api/chamados/:id/status', authMiddleware, authorize(['Desenvolvedor']), async (req, res) => {
-        try {
+    router.patch('/api/chamados/:id/status', authMiddleware, authorize(['Desenvolvedor']), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { status } = req.body;
             const STATUS_VALIDOS = ['Analisando', 'Em andamento', 'Concluído'];
@@ -112,11 +103,7 @@ module.exports = (io) => {
 
             io.emit('chamado_status', atualizado);
             res.json({ success: true, chamado: atualizado });
-        } catch (e) {
-            console.error('[chamados] PATCH status erro:', e);
-            res.status(500).json({ success: false, message: e.message });
-        }
-    });
+        }));
 
     return router;
 };

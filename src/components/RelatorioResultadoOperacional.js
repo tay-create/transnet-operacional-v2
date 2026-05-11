@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useApiCall } from '../hooks/useApiCall';
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
-import { BarChart3, RefreshCw, Printer, TrendingUp } from 'lucide-react';
+import { RefreshCw, Printer, TrendingUp } from 'lucide-react';
 import api from '../services/apiService';
 import 'leaflet/dist/leaflet.css';
 
@@ -274,8 +275,7 @@ function gerarSvgMapaBrasil(geojson, regioes, totalEntregas) {
 
 export default function RelatorioResultadoOperacional() {
     const [dados, setDados] = useState(null);
-    const [carregando, setCarregando] = useState(false);
-    const [erro, setErro] = useState(null);
+    const { loading: carregando, erro, execute } = useApiCall();
     const [regiaoFiltro, setRegiaoFiltro] = useState(null);
     const geojsonCacheRef = useRef(null);
     const [mes, setMes] = useState(() => {
@@ -285,57 +285,200 @@ export default function RelatorioResultadoOperacional() {
     });
 
     const buscar = useCallback(async () => {
-        setCarregando(true);
-        setErro(null);
-        try {
-            const res = await api.get('/api/resultado-operacional');
-            setDados(res.data);
-        } catch (e) {
-            setErro(e.response?.data?.message || 'Erro ao carregar dados');
-        } finally {
-            setCarregando(false);
-        }
-    }, []);
+        const res = await execute(() => api.get('/api/resultado-operacional'));
+        if (res) setDados(res.data);
+    }, [execute]);
 
-    useEffect(() => { buscar(); }, [buscar]);
+    useEffect(() => { buscar().catch(() => {}); }, [buscar]);
 
     const imprimir = () => {
         if (!dados) return;
         const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
         const mapaSvg = gerarSvgMapaBrasil(geojsonCacheRef.current, dados.regioes, dados.totais.entregas);
 
-        const veiculoRows = [
-            { label: 'CARRETA', val: dados.veiculos.carreta, cor: COR_VEICULO.carreta },
-            { label: 'TRUCK', val: dados.veiculos.truck, cor: COR_VEICULO.truck },
-            { label: '3/4', val: dados.veiculos.tresQuartos, cor: COR_VEICULO.tresQuartos },
+        // Padrões SVG (hachuras) para distinguir categorias em P&B mantendo cores na tela
+        const defsPatterns = `
+          <defs>
+            <pattern id="pat-carreta" patternUnits="userSpaceOnUse" width="6" height="6"><rect width="6" height="6" fill="${COR_VEICULO.carreta}"/></pattern>
+            <pattern id="pat-truck" patternUnits="userSpaceOnUse" width="8" height="8"><rect width="8" height="8" fill="${COR_VEICULO.truck}"/><path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#1a1a1a" stroke-width="1.4"/></pattern>
+            <pattern id="pat-trqu" patternUnits="userSpaceOnUse" width="6" height="6"><rect width="6" height="6" fill="${COR_VEICULO.tresQuartos}"/><circle cx="3" cy="3" r="1.2" fill="#1a1a1a"/></pattern>
+            <pattern id="pat-plastico" patternUnits="userSpaceOnUse" width="6" height="6"><rect width="6" height="6" fill="${COR_MIX.plastico}"/></pattern>
+            <pattern id="pat-consolidado" patternUnits="userSpaceOnUse" width="8" height="8"><rect width="8" height="8" fill="${COR_MIX.consolidado}"/><rect x="0" y="0" width="4" height="4" fill="#1a1a1a" opacity="0.55"/><rect x="4" y="4" width="4" height="4" fill="#1a1a1a" opacity="0.55"/></pattern>
+            <pattern id="pat-porcelana" patternUnits="userSpaceOnUse" width="6" height="6"><rect width="6" height="6" fill="${COR_MIX.porcelana}"/><line x1="0" y1="2" x2="6" y2="2" stroke="#1a1a1a" stroke-width="1.2"/></pattern>
+            <pattern id="pat-eletrik" patternUnits="userSpaceOnUse" width="6" height="6"><rect width="6" height="6" fill="${COR_MIX.eletrik}"/><line x1="2" y1="0" x2="2" y2="6" stroke="#1a1a1a" stroke-width="1.2"/></pattern>
+          </defs>
+        `;
+
+        // ─── TABELAS (página 1) ─────────────────────────────────────────────────
+        const veiculoTable = [
+            { label: 'CARRETA', val: dados.veiculos.carreta, key: 'carreta' },
+            { label: 'TRUCK',   val: dados.veiculos.truck,   key: 'truck' },
+            { label: '3/4',     val: dados.veiculos.tresQuartos, key: 'tresQuartos' },
         ].map(r => {
             const p = pct(r.val, dados.veiculos.total);
-            return `<tr><td><span class="dot" style="background:${r.cor}"></span>${r.label}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${r.cor}"></div></div></td><td class="num">${r.val}</td><td class="pct">${p}%</td></tr>`;
+            return `<tr><td>${r.label}</td><td class="num">${r.val}</td><td class="pct">${p}%</td></tr>`;
         }).join('');
 
-        const mixRows = [
-            { label: 'PLÁSTICO', val: dados.mix.plastico, cor: COR_MIX.plastico },
-            { label: 'CONSOLIDADO', val: dados.mix.consolidado, cor: COR_MIX.consolidado },
-            { label: 'PORCELANA', val: dados.mix.porcelana, cor: COR_MIX.porcelana },
-            { label: 'ELETRIK', val: dados.mix.eletrik, cor: COR_MIX.eletrik },
+        const mixTable = [
+            { label: 'PLÁSTICO',    val: dados.mix.plastico,    key: 'plastico' },
+            { label: 'CONSOLIDADO', val: dados.mix.consolidado, key: 'consolidado' },
+            { label: 'PORCELANA',   val: dados.mix.porcelana,   key: 'porcelana' },
+            { label: 'ELETRIK',     val: dados.mix.eletrik,     key: 'eletrik' },
         ].map(r => {
             const p = pct(r.val, dados.mix.total);
-            return `<tr><td><span class="dot" style="background:${r.cor}"></span>${r.label}</td><td><div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${r.cor}"></div></div></td><td class="num">${r.val}</td><td class="pct">${p}%</td></tr>`;
+            return `<tr><td>${r.label}</td><td class="num">${r.val}</td><td class="pct">${p}%</td></tr>`;
         }).join('');
 
-        const regiaoRows = dados.regioes.map(r => {
-            const cor = COR_REGIAO[r.regiao] || '#3b82f6';
+        const regioesOrdenadas = [...dados.regioes].sort((a,b)=>b.entregas-a.entregas);
+
+        const regiaoPctTable = regioesOrdenadas.map(r => {
             const p = pct(r.entregas, dados.totais.entregas);
             return `<tr>
-                <td style="font-weight:700;color:#1e3a5f">${r.regiao}</td>
+                <td style="font-weight:700">${r.regiao}</td>
                 <td class="num">${r.entregas}</td>
-                <td class="num" style="color:#3b82f6">${r.carreta}</td>
-                <td class="num" style="color:#f59e0b">${r.truck}</td>
-                <td class="num" style="color:#8b5cf6">${r.tresQuartos}</td>
-                <td><div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${cor}"></div></div></td>
+                <td class="pct" style="font-weight:700">${p}%</td>
+            </tr>`;
+        }).join('');
+
+        const regiaoVeicTable = regioesOrdenadas.map(r => {
+            const p = pct(r.entregas, dados.totais.entregas);
+            return `<tr>
+                <td style="font-weight:700">${r.regiao}</td>
+                <td class="num">${r.entregas}</td>
+                <td class="num">${r.carreta}</td>
+                <td class="num">${r.truck}</td>
+                <td class="num">${r.tresQuartos}</td>
                 <td class="pct">${p}%</td>
             </tr>`;
         }).join('');
+
+        // ─── GRÁFICOS SVG (página 2) ────────────────────────────────────────────
+
+        // Pizza genérica com hachuras
+        const gerarPizza = (itens, totalKey) => {
+            const W = 260, H = 220, cx = 110, cy = 110, r = 88;
+            const total = itens.reduce((s, i) => s + i.val, 0);
+            if (total === 0) return `<svg viewBox="0 0 ${W} ${H}"></svg>`;
+            let angAtual = -Math.PI / 2;
+            let slices = '';
+            let labels = '';
+            itens.filter(i => i.val > 0).forEach(it => {
+                const frac = it.val / total;
+                const ang = frac * Math.PI * 2;
+                const x1 = cx + r * Math.cos(angAtual);
+                const y1 = cy + r * Math.sin(angAtual);
+                const x2 = cx + r * Math.cos(angAtual + ang);
+                const y2 = cy + r * Math.sin(angAtual + ang);
+                const large = ang > Math.PI ? 1 : 0;
+                const d = `M${cx},${cy} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`;
+                slices += `<path d="${d}" fill="url(#${it.pat})" stroke="#0f172a" stroke-width="1"/>`;
+                // label de % no centro da fatia (só se >= 5%)
+                const p = (frac * 100);
+                if (p >= 5) {
+                    const angMeio = angAtual + ang / 2;
+                    const lx = cx + (r * 0.62) * Math.cos(angMeio);
+                    const ly = cy + (r * 0.62) * Math.sin(angMeio);
+                    labels += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="900" fill="#fff" stroke="#1a1a1a" stroke-width="0.4" paint-order="stroke">${p.toFixed(1)}%</text>`;
+                }
+                angAtual += ang;
+            });
+            // Legenda lateral
+            const legendaX = 215;
+            let leg = '';
+            itens.forEach((it, i) => {
+                const y = 28 + i * 26;
+                const p = total ? ((it.val / total) * 100).toFixed(1) : '0.0';
+                leg += `
+                    <rect x="${legendaX}" y="${y}" width="14" height="14" fill="url(#${it.pat})" stroke="#0f172a" stroke-width="0.8"/>
+                    <text x="${legendaX + 20}" y="${y + 7}" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" fill="#1e293b">${it.label}</text>
+                    <text x="${legendaX + 20}" y="${y + 17}" font-family="Segoe UI,Arial,sans-serif" font-size="8.5" fill="#475569">${it.val} · ${p}%</text>
+                `;
+            });
+            return `<svg viewBox="0 0 460 ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">${defsPatterns}${slices}${labels}${leg}</svg>`;
+        };
+
+        const pizzaVeiculo = gerarPizza([
+            { label: 'CARRETA', val: dados.veiculos.carreta,     pat: 'pat-carreta' },
+            { label: 'TRUCK',   val: dados.veiculos.truck,       pat: 'pat-truck' },
+            { label: '3/4',     val: dados.veiculos.tresQuartos, pat: 'pat-trqu' },
+        ]);
+
+        const pizzaMix = gerarPizza([
+            { label: 'PLÁSTICO',    val: dados.mix.plastico,    pat: 'pat-plastico' },
+            { label: 'CONSOLIDADO', val: dados.mix.consolidado, pat: 'pat-consolidado' },
+            { label: 'PORCELANA',   val: dados.mix.porcelana,   pat: 'pat-porcelana' },
+            { label: 'ELETRIK',     val: dados.mix.eletrik,     pat: 'pat-eletrik' },
+        ]);
+
+        // Régua (barras horizontais) — entregas por região
+        const gerarRegua = () => {
+            const maxV = Math.max(...regioesOrdenadas.map(r => r.entregas), 1);
+            const barH = 22, gap = 10, padTop = 14, padLeft = 90, padRight = 80;
+            const W = 520;
+            const H = padTop + regioesOrdenadas.length * (barH + gap);
+            const larguraDisponivel = W - padLeft - padRight;
+            let bars = '';
+            regioesOrdenadas.forEach((r, i) => {
+                const y = padTop + i * (barH + gap);
+                const w = (r.entregas / maxV) * larguraDisponivel;
+                const p = pct(r.entregas, dados.totais.entregas);
+                bars += `
+                    <text x="${padLeft - 8}" y="${y + barH / 2 + 4}" text-anchor="end" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="700" fill="#1e293b">${r.regiao}</text>
+                    <rect x="${padLeft}" y="${y}" width="${larguraDisponivel}" height="${barH}" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.5"/>
+                    <rect x="${padLeft}" y="${y}" width="${w.toFixed(1)}" height="${barH}" fill="url(#pat-carreta)" stroke="#0f172a" stroke-width="0.8"/>
+                    <text x="${padLeft + w + 6}" y="${y + barH / 2 + 4}" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="700" fill="#1e40af">${r.entregas} · ${p}%</text>
+                `;
+            });
+            return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">${defsPatterns}${bars}</svg>`;
+        };
+
+        // Barras agrupadas: região × tipo de veículo
+        const gerarBarrasAgrupadas = () => {
+            const grupos = regioesOrdenadas;
+            const subBarW = 14, gapSub = 2, gapGrupo = 22;
+            const padTop = 18, padBottom = 36, padLeft = 30, padRight = 12;
+            const grupoW = subBarW * 3 + gapSub * 2 + gapGrupo;
+            const W = padLeft + padRight + grupos.length * grupoW;
+            const H = 180;
+            const chartH = H - padTop - padBottom;
+            const maxV = Math.max(...grupos.flatMap(g => [g.carreta, g.truck, g.tresQuartos]), 1);
+            let content = '';
+            // eixo Y leve
+            content += `<line x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + chartH}" stroke="#cbd5e1" stroke-width="0.6"/>`;
+            content += `<line x1="${padLeft}" y1="${padTop + chartH}" x2="${W - padRight}" y2="${padTop + chartH}" stroke="#cbd5e1" stroke-width="0.6"/>`;
+            grupos.forEach((g, i) => {
+                const gx = padLeft + 8 + i * grupoW;
+                [
+                    { val: g.carreta, pat: 'pat-carreta' },
+                    { val: g.truck, pat: 'pat-truck' },
+                    { val: g.tresQuartos, pat: 'pat-trqu' },
+                ].forEach((b, j) => {
+                    const h = (b.val / maxV) * chartH;
+                    const x = gx + j * (subBarW + gapSub);
+                    const y = padTop + chartH - h;
+                    content += `<rect x="${x}" y="${y.toFixed(1)}" width="${subBarW}" height="${h.toFixed(1)}" fill="url(#${b.pat})" stroke="#0f172a" stroke-width="0.6"/>`;
+                    if (b.val > 0) content += `<text x="${(x + subBarW / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="8" font-weight="700" fill="#1e293b">${b.val}</text>`;
+                });
+                content += `<text x="${(gx + (subBarW * 3 + gapSub * 2) / 2).toFixed(1)}" y="${(padTop + chartH + 14).toFixed(1)}" text-anchor="middle" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" fill="#1e293b">${g.regiao}</text>`;
+            });
+            // legenda
+            const legY = padTop + chartH + 24;
+            const itensLeg = [
+                { lbl: 'CARRETA', pat: 'pat-carreta' },
+                { lbl: 'TRUCK', pat: 'pat-truck' },
+                { lbl: '3/4', pat: 'pat-trqu' },
+            ];
+            let xLeg = padLeft;
+            itensLeg.forEach(it => {
+                content += `<rect x="${xLeg}" y="${legY - 8}" width="10" height="10" fill="url(#${it.pat})" stroke="#0f172a" stroke-width="0.5"/>`;
+                content += `<text x="${xLeg + 14}" y="${legY}" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="700" fill="#1e293b">${it.lbl}</text>`;
+                xLeg += 70;
+            });
+            return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">${defsPatterns}${content}</svg>`;
+        };
+
+        const reguaSvg = gerarRegua();
+        const barrasAgrupSvg = gerarBarrasAgrupadas();
 
         const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -344,54 +487,49 @@ export default function RelatorioResultadoOperacional() {
 <title>Resultado Operacional</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 12px; }
-  .page { padding: 28px 36px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { padding: 18px 24px; }
   .page-break { page-break-before: always; }
-  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
-  .header-left h1 { font-size: 24px; font-weight: 900; color: #1e40af; letter-spacing: -0.5px; }
-  .header-left h2 { font-size: 14px; font-weight: 700; color: #3b82f6; margin-top: 2px; }
-  .header-right { text-align: right; font-size: 10px; color: #94a3b8; line-height: 1.6; }
-  .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; margin-top: 18px; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-  .kpi-box { background: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #1e40af; border-radius: 8px; padding: 14px 18px; }
-  .kpi-num { font-size: 40px; font-weight: 900; color: #1e40af; line-height: 1; }
-  .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 4px; }
-  .kpi-sub { font-size: 11px; color: #64748b; margin-top: 6px; line-height: 1.8; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e40af; padding-bottom: 10px; margin-bottom: 14px; }
+  .header-left h1 { font-size: 22px; font-weight: 900; color: #1e40af; letter-spacing: -0.5px; }
+  .header-left h2 { font-size: 13px; font-weight: 700; color: #3b82f6; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 9.5px; color: #64748b; line-height: 1.5; }
+  .section-title { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #475569; margin-bottom: 8px; margin-top: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .kpi-box { background: #f0f9ff; border: 1px solid #bae6fd; border-left: 4px solid #1e40af; border-radius: 6px; padding: 10px 14px; }
+  .kpi-num { font-size: 32px; font-weight: 900; color: #1e40af; line-height: 1; }
+  .kpi-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .kpi-sub { font-size: 10px; color: #475569; margin-top: 4px; line-height: 1.5; }
   .kpi-sub b { color: #1e40af; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { padding: 7px 10px; text-align: left; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
-  td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
-  td.num { font-weight: 700; color: #1e40af; text-align: right; width: 45px; }
-  td.pct { color: #64748b; text-align: right; width: 48px; }
-  .bar-wrap { background: #e2e8f0; border-radius: 4px; height: 10px; width: 100%; }
-  .bar-fill { height: 10px; border-radius: 4px; min-width: 2px; }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-  .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
-  @media print { @page { margin: 10mm 8mm; size: A4 landscape; } }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  th { padding: 5px 8px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; border-bottom: 2px solid #cbd5e1; background: #f8fafc; }
+  td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; color: #1e293b; vertical-align: middle; }
+  td.num { font-weight: 700; color: #1e40af; text-align: right; }
+  td.pct { color: #475569; text-align: right; font-weight: 600; }
+  .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
+  .chart-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; background: #fff; }
+  .legenda-pat { font-size: 8.5px; color: #64748b; margin-top: 4px; font-style: italic; }
+  @media print { @page { margin: 8mm 7mm; size: A4 landscape; } body { font-size: 10.5px; } }
 </style>
 </head>
 <body>
 
-<!-- PÁGINA 1: KPIs + Veículos + Mix -->
+<!-- PÁGINA 1: KPIs + Tabelas (Veículo, Mix, Região %, Região × Veículo) -->
 <div class="page">
   <div class="header">
     <div class="header-left">
       <h1>RESULTADO OPERACIONAL</h1>
       <h2>${mes}</h2>
     </div>
-    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span>Página 1 de 2</span></div>
+    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span>Página 1 de 2 — Dados</span></div>
   </div>
 
-  <div class="grid-3" style="margin-bottom:20px">
+  <div class="grid-3" style="margin-bottom:14px">
     <div class="kpi-box">
       <div class="kpi-label">Total de Embarques</div>
       <div class="kpi-num">${dados.veiculos.total}</div>
-      <div class="kpi-sub">
-        <b>${dados.veiculos.carreta}</b> Carreta &nbsp;·&nbsp;
-        <b>${dados.veiculos.truck}</b> Truck &nbsp;·&nbsp;
-        <b>${dados.veiculos.tresQuartos}</b> 3/4
-      </div>
+      <div class="kpi-sub"><b>${dados.veiculos.carreta}</b> Carreta · <b>${dados.veiculos.truck}</b> Truck · <b>${dados.veiculos.tresQuartos}</b> 3/4</div>
     </div>
     <div class="kpi-box">
       <div class="kpi-label">Total de Entregas</div>
@@ -401,12 +539,7 @@ export default function RelatorioResultadoOperacional() {
     <div class="kpi-box">
       <div class="kpi-label">Mix de Operação</div>
       <div class="kpi-num">${dados.mix.total}</div>
-      <div class="kpi-sub">
-        <b>${dados.mix.plastico}</b> Plástico &nbsp;·&nbsp;
-        <b>${dados.mix.consolidado}</b> Consol. &nbsp;·&nbsp;
-        <b>${dados.mix.porcelana}</b> Porc. &nbsp;·&nbsp;
-        <b>${dados.mix.eletrik}</b> Eletrik
-      </div>
+      <div class="kpi-sub"><b>${dados.mix.plastico}</b> Plást · <b>${dados.mix.consolidado}</b> Cons · <b>${dados.mix.porcelana}</b> Porc · <b>${dados.mix.eletrik}</b> Elet</div>
     </div>
   </div>
 
@@ -414,15 +547,47 @@ export default function RelatorioResultadoOperacional() {
     <div>
       <div class="section-title">Tipo de Veículo</div>
       <table>
-        <thead><tr><th>Veículo</th><th></th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
-        <tbody>${veiculoRows}</tbody>
+        <thead><tr><th>Veículo</th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
+        <tbody>${veiculoTable}
+          <tr style="background:#f1f5f9"><td style="font-weight:900">TOTAL</td><td class="num">${dados.veiculos.total}</td><td class="pct" style="font-weight:900">100%</td></tr>
+        </tbody>
       </table>
     </div>
     <div>
       <div class="section-title">Mix de Operação</div>
       <table>
-        <thead><tr><th>Operação</th><th></th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
-        <tbody>${mixRows}</tbody>
+        <thead><tr><th>Operação</th><th style="text-align:right">Qtd</th><th style="text-align:right">%</th></tr></thead>
+        <tbody>${mixTable}
+          <tr style="background:#f1f5f9"><td style="font-weight:900">TOTAL</td><td class="num">${dados.mix.total}</td><td class="pct" style="font-weight:900">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:12px">
+    <div>
+      <div class="section-title">% por Região</div>
+      <table>
+        <thead><tr><th>Região</th><th style="text-align:right">Entregas</th><th style="text-align:right">%</th></tr></thead>
+        <tbody>${regiaoPctTable}
+          <tr style="background:#f1f5f9"><td style="font-weight:900">TOTAL</td><td class="num">${dados.totais.entregas}</td><td class="pct" style="font-weight:900">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="section-title">Entregas por Região × Tipo de Veículo</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Região</th>
+            <th style="text-align:right">Entregas</th>
+            <th style="text-align:right">Carreta</th>
+            <th style="text-align:right">Truck</th>
+            <th style="text-align:right">3/4</th>
+            <th style="text-align:right">%</th>
+          </tr>
+        </thead>
+        <tbody>${regiaoVeicTable}</tbody>
       </table>
     </div>
   </div>
@@ -433,58 +598,45 @@ export default function RelatorioResultadoOperacional() {
   </div>
 </div>
 
-<!-- PÁGINA 2: Entregas por Região -->
+<!-- PÁGINA 2: Gráficos -->
 <div class="page page-break">
   <div class="header">
     <div class="header-left">
       <h1>RESULTADO OPERACIONAL</h1>
       <h2>${mes}</h2>
     </div>
-    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span>Página 2 de 2</span></div>
+    <div class="header-right">Transnet Logística<br/>Gerado em ${geradoEm}<br/><span>Página 2 de 2 — Gráficos</span></div>
   </div>
 
-  ${mapaSvg ? `
-  <div style="display:grid;grid-template-columns: 1.05fr 1fr; gap: 24px; align-items: start; margin-bottom: 14px">
-    <div>
-      <div class="section-title">Distribuição por Região</div>
-      ${mapaSvg}
+  <div class="grid-2">
+    <div class="chart-box">
+      <div class="section-title" style="margin-top:0">Tipo de Veículo</div>
+      ${pizzaVeiculo}
+      <div class="legenda-pat">Padrões: sólido = Carreta · diagonais = Truck · pontos = 3/4</div>
     </div>
-    <div>
-      <div class="section-title">% por Região</div>
-      <table>
-        <thead><tr><th>Região</th><th style="text-align:right">Entregas</th><th></th><th style="text-align:right">%</th></tr></thead>
-        <tbody>
-          ${[...dados.regioes].sort((a,b)=>b.entregas-a.entregas).map(r => {
-            const p = pct(r.entregas, dados.totais.entregas);
-            const cor = COR_REGIAO[r.regiao] || '#3b82f6';
-            return `<tr>
-              <td style="font-weight:700;color:#1e3a5f">${r.regiao}</td>
-              <td class="num">${r.entregas}</td>
-              <td><div class="bar-wrap"><div class="bar-fill" style="width:${p}%;background:${cor}"></div></div></td>
-              <td class="pct" style="color:#1e40af;font-weight:700">${p}%</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
+    <div class="chart-box">
+      <div class="section-title" style="margin-top:0">Mix de Operação</div>
+      ${pizzaMix}
+      <div class="legenda-pat">Padrões: sólido = Plástico · xadrez = Consolidado · linhas — = Porcelana · linhas | = Eletrik</div>
     </div>
   </div>
-  ` : ''}
 
-  <div class="section-title">Entregas por Região × Tipo de Veículo</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Região</th>
-        <th style="text-align:right">Entregas</th>
-        <th style="text-align:right;color:#3b82f6">Carreta</th>
-        <th style="text-align:right;color:#f59e0b">Truck</th>
-        <th style="text-align:right;color:#8b5cf6">3/4</th>
-        <th></th>
-        <th style="text-align:right">%</th>
-      </tr>
-    </thead>
-    <tbody>${regiaoRows}</tbody>
-  </table>
+  <div class="grid-2" style="margin-top:12px">
+    <div class="chart-box">
+      <div class="section-title" style="margin-top:0">Distribuição por Região (mapa)</div>
+      ${mapaSvg || '<div style="padding:20px;text-align:center;color:#94a3b8">mapa indisponível</div>'}
+    </div>
+    <div class="chart-box">
+      <div class="section-title" style="margin-top:0">Entregas por Região</div>
+      ${reguaSvg}
+      <div class="legenda-pat">Barras ordenadas por volume — número absoluto · % do total geral</div>
+    </div>
+  </div>
+
+  <div class="chart-box" style="margin-top:12px">
+    <div class="section-title" style="margin-top:0">Entregas por Região × Tipo de Veículo</div>
+    ${barrasAgrupSvg}
+  </div>
 
   <div class="footer">
     <span>Transnet Logística — Resultado Operacional</span>

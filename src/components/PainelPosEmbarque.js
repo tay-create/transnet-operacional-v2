@@ -1,87 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import api from '../services/apiService';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Plus, Search, Clock, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, FileText, ChevronDown, ExternalLink, X, Download, Filter } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { formatDataBR } from '../utils/dateFormatter';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Plus, Search, AlertTriangle, CheckCircle, Archive, Edit2, Trash2, Image as ImageIcon, ExternalLink, X, Download, Filter } from 'lucide-react';
 import ModalConfirm from './ModalConfirm';
 import { gerarPDFPosEmbarque } from '../utils/pdfGenerator';
-
-// ──────────── Helpers ────────────────────────────────────
-const formatData = (d) => {
-    if (!d) return '—';
-    const s = typeof d === 'string' && d.length === 10 ? d + 'T12:00:00-03:00' : d;
-    return new Date(s).toLocaleDateString('pt-BR');
-};
-
-function parseDatetimeBRT(data, hora) {
-    const d = (data || '').substring(0, 10);
-    const h = (hora || '00:00').substring(0, 5);
-    return new Date(`${d}T${h}:00-03:00`);
-}
-
-function calcularHorasAtraso(oc) {
-    const inicio = parseDatetimeBRT(oc.data_ocorrencia, oc.hora_ocorrencia);
-    const fim = oc.situacao === 'RESOLVIDO'
-        ? (oc.resolved_at ? new Date(oc.resolved_at) : parseDatetimeBRT(oc.data_conclusao, oc.hora_conclusao))
-        : new Date();
-    return (fim - inicio) / (60 * 60 * 1000);
-}
-
-function verificarAtraso(oc) {
-    return calcularHorasAtraso(oc) > 24;
-}
-
-function getLabelAtraso(oc) {
-    const horas = calcularHorasAtraso(oc);
-    if (horas <= 24) return null;
-    const dias = Math.floor(horas / 24);
-    const horasRestantes = Math.floor(horas % 24);
-    if (dias >= 1) {
-        return `${dias}d ${horasRestantes}h atrasado`;
-    }
-    return `${Math.floor(horas)}h atrasado`;
-}
-
-function getCorAtraso(oc) {
-    const horas = calcularHorasAtraso(oc);
-    if (horas > 72) return '#dc2626';  // vermelho forte
-    if (horas > 48) return '#ef4444';  // vermelho
-    if (horas > 24) return '#f59e0b';  // amarelo/laranja
-    return null;
-}
-
-function getSituacaoDisplay(oc) {
-    const horas = calcularHorasAtraso(oc);
-    if (oc.situacao === 'RESOLVIDO') {
-        return horas > 24
-            ? { texto: 'RESOLVIDO (>24H)', cor: '#d97706' }
-            : { texto: 'RESOLVIDO', cor: '#16a34a' };
-    }
-    return horas > 24
-        ? { texto: 'ATRASADO (>24H)', cor: '#dc2626' }
-        : { texto: 'EM ANDAMENTO', cor: '#64748b' };
-}
-
-function ordenarOcorrencias(lista) {
-    return [...lista].sort((a, b) => {
-        // 1. Em Andamento atrasados primeiro (mais atrasado no topo)
-        const aEmAndamento = a.situacao === 'Em Andamento';
-        const bEmAndamento = b.situacao === 'Em Andamento';
-        const aAtrasado = aEmAndamento && verificarAtraso(a);
-        const bAtrasado = bEmAndamento && verificarAtraso(b);
-
-        if (aAtrasado && !bAtrasado) return -1;
-        if (!aAtrasado && bAtrasado) return 1;
-        if (aAtrasado && bAtrasado) return calcularHorasAtraso(b) - calcularHorasAtraso(a);
-
-        // 2. Em Andamento (sem atraso) depois
-        if (aEmAndamento && !bEmAndamento) return -1;
-        if (!aEmAndamento && bEmAndamento) return 1;
-
-        // 3. Resolvidos por último
-        return 0;
-    });
-}
-
+import {
+    verificarAtraso, getLabelAtraso,
+    getCorAtraso, getSituacaoDisplay, ordenarOcorrencias,
+} from '../utils/slaUtils';
+import { usePosEmbarque } from '../hooks/usePosEmbarque';
 // ──────────── Estilos ────────────────────────────────────
 const s = {
     container: { padding: '16px', color: '#f1f5f9' },
@@ -99,20 +26,23 @@ const s = {
 
 // ──────────── Componente Principal ────────────────────────────────────
 export default function PainelPosEmbarque() {
+    const {
+        ocorrencias, listas,
+        carregarOcorrencias, carregarRelatorio,
+        criarOcorrencia, resolverOcorrencia, editarOcorrencia,
+        arquivarResolvidas, deletarOcorrencia, adicionarFoto, deletarFoto,
+    } = usePosEmbarque();
+
     const [aba, setAba] = useState('dashboard');
-    const [ocorrencias, setOcorrencias] = useState([]);
-    const [carregando, setCarregando] = useState(false);
     const [busca, setBusca] = useState('');
     const [filtroSituacao, setFiltroSituacao] = useState('');
     const [dataInicio, setDataInicio] = useState(new Date().toISOString().split('T')[0]);
     const [dataFim, setDataFim] = useState(new Date().toISOString().split('T')[0]);
-    const [listas, setListas] = useState({ motoristas: [], clientes: [], motivos: [] });
 
     // Modals
     const [modalNovaAberto, setModalNovaAberto] = useState(false);
     const [modalFotosAberto, setModalFotosAberto] = useState(false);
     const [ocorrenciaAtualId, setOcorrenciaAtualId] = useState(null);
-    const [fotoUploadBase64, setFotoUploadBase64] = useState(null);
     const [modalConfirm, setModalConfirm] = useState(null);
     const [editandoId, setEditandoId] = useState(null);
 
@@ -131,46 +61,12 @@ export default function PainelPosEmbarque() {
         link_email: ''
     });
 
-    // Carregar ocorrências
-    const carregarOcorrencias = useCallback(async () => {
-        setCarregando(true);
-        try {
-            const res = await api.get('/api/posembarque/ocorrencias', {
-                params: { busca, situacao: filtroSituacao, arquivado: 0 }
-            });
-            if (res.data.success) setOcorrencias(res.data.ocorrencias || []);
-        } catch (e) {
-            console.error('Erro ao carregar ocorrências:', e);
-        } finally {
-            setCarregando(false);
-        }
-    }, [busca, filtroSituacao]);
-
     useEffect(() => {
-        carregarOcorrencias();
-    }, [carregarOcorrencias]);
-
-    // Carregar listas (motoristas, clientes, motivos)
-    useEffect(() => {
-        const carregar = async () => {
-            try {
-                const res = await api.get('/api/posembarque/listas');
-                if (res.data.success) {
-                    setListas({
-                        motoristas: res.data.motoristas || [],
-                        clientes: res.data.clientes || [],
-                        motivos: res.data.motivos || []
-                    });
-                }
-            } catch (e) {
-                console.error('Erro ao carregar listas:', e);
-            }
-        };
-        carregar();
-    }, []);
+        carregarOcorrencias(busca, filtroSituacao);
+    }, [carregarOcorrencias, busca, filtroSituacao]);
 
     // ── Ações ────────────────────────────────────
-    const criarOcorrencia = async () => {
+    const handleCriarOcorrencia = async () => {
         // Validação mínima — garantir que campos essenciais estão preenchidos
         if (!form.motorista || !form.cliente || !form.motivo) {
             setModalConfirm({
@@ -181,15 +77,7 @@ export default function PainelPosEmbarque() {
             return;
         }
         try {
-            const res = await api.post('/api/posembarque/ocorrencias', form);
-            if (!res.data?.success) {
-                setModalConfirm({
-                    titulo: 'Erro ao criar',
-                    mensagem: res.data?.message || 'Erro ao criar ocorrência',
-                    variante: 'perigo'
-                });
-                return;
-            }
+            await criarOcorrencia(form);
             setForm({
                 data_ocorrencia: new Date().toISOString().split('T')[0],
                 hora_ocorrencia: new Date().toTimeString().substring(0, 5),
@@ -200,12 +88,12 @@ export default function PainelPosEmbarque() {
             setFiltroSituacao('');
             setModalNovaAberto(false);
             setAba('dashboard');
-            carregarOcorrencias();
+            carregarOcorrencias('', '');
         } catch (e) {
             console.error('Erro ao criar ocorrência:', e);
             setModalConfirm({
                 titulo: 'Erro ao criar',
-                mensagem: e?.response?.data?.message || 'Erro ao criar ocorrência',
+                mensagem: e?.message || e?.response?.data?.message || 'Erro ao criar ocorrência',
                 variante: 'perigo'
             });
         }
@@ -213,8 +101,8 @@ export default function PainelPosEmbarque() {
 
     const resolver = async (id) => {
         try {
-            await api.post(`/api/posembarque/ocorrencias/${id}/resolver`);
-            carregarOcorrencias();
+            await resolverOcorrencia(id);
+            carregarOcorrencias(busca, filtroSituacao);
         } catch (e) {
             console.error('Erro ao resolver:', e);
         }
@@ -248,15 +136,7 @@ export default function PainelPosEmbarque() {
             return;
         }
         try {
-            const res = await api.put(`/api/posembarque/ocorrencias/${editandoId}`, form);
-            if (!res.data?.success) {
-                setModalConfirm({
-                    titulo: 'Erro ao salvar',
-                    mensagem: res.data?.message || 'Erro ao atualizar ocorrência',
-                    variante: 'perigo'
-                });
-                return;
-            }
+            await editarOcorrencia(editandoId, form);
             setEditandoId(null);
             setForm({
                 data_ocorrencia: new Date().toISOString().split('T')[0],
@@ -264,18 +144,18 @@ export default function PainelPosEmbarque() {
                 motorista: '', modalidade: '', cte: '', operacao: '', nfs: '', cliente: '', cidade: '', motivo: '', link_email: ''
             });
             setAba('dashboard');
-            carregarOcorrencias();
+            carregarOcorrencias(busca, filtroSituacao);
         } catch (e) {
             console.error('Erro ao atualizar ocorrência:', e);
             setModalConfirm({
                 titulo: 'Erro ao salvar',
-                mensagem: e?.response?.data?.message || 'Erro ao atualizar ocorrência',
+                mensagem: e?.message || e?.response?.data?.message || 'Erro ao atualizar ocorrência',
                 variante: 'perigo'
             });
         }
     };
 
-    const arquivarResolvidas = () => {
+    const handleArquivarResolvidas = () => {
         const resolvidas = ocorrencias.filter(o => o.situacao === 'RESOLVIDO');
         if (resolvidas.length === 0) return;
         setModalConfirm({
@@ -286,10 +166,8 @@ export default function PainelPosEmbarque() {
             onConfirm: async () => {
                 setModalConfirm(null);
                 try {
-                    for (const oc of resolvidas) {
-                        await api.post(`/api/posembarque/ocorrencias/${oc.id}/arquivar`);
-                    }
-                    carregarOcorrencias();
+                    await arquivarResolvidas(resolvidas);
+                    carregarOcorrencias(busca, filtroSituacao);
                 } catch (e) {
                     console.error('Erro ao arquivar:', e);
                     setModalConfirm({
@@ -311,8 +189,8 @@ export default function PainelPosEmbarque() {
             onConfirm: async () => {
                 setModalConfirm(null);
                 try {
-                    await api.delete(`/api/posembarque/ocorrencias/${id}`);
-                    carregarOcorrencias();
+                    await deletarOcorrencia(id);
+                    carregarOcorrencias(busca, filtroSituacao);
                 } catch (e) {
                     console.error('Erro ao deletar:', e);
                     setModalConfirm({
@@ -325,43 +203,14 @@ export default function PainelPosEmbarque() {
         });
     };
 
-    const adicionarFoto = async () => {
-        if (!fotoUploadBase64 || !ocorrenciaAtualId) return;
-        try {
-            await api.post(`/api/posembarque/ocorrencias/${ocorrenciaAtualId}/fotos`, {
-                base64: fotoUploadBase64,
-                nome: `foto_${Date.now()}.jpg`
-            });
-            setFotoUploadBase64(null);
-            carregarOcorrencias();
-        } catch (e) {
-            console.error('Erro ao adicionar foto:', e);
-        }
-    };
-
     const removerFoto = async (id, index) => {
         try {
-            await api.delete(`/api/posembarque/ocorrencias/${id}/fotos/${index}`);
-            carregarOcorrencias();
+            await deletarFoto(id, index);
+            carregarOcorrencias(busca, filtroSituacao);
         } catch (e) {
             console.error('Erro ao remover foto:', e);
         }
     };
-
-    // ── Dados para Relatório ────────────────────────────────────
-    const carregarRelatorio = useCallback(async () => {
-        try {
-            const res = await api.get('/api/posembarque/relatorio', {
-                params: { de: dataInicio, ate: dataFim }
-            });
-            if (res.data.success) {
-                return res.data;
-            }
-        } catch (e) {
-            console.error('Erro ao carregar relatório:', e);
-        }
-        return null;
-    }, [dataInicio, dataFim]);
 
     // ── Renderizar ────────────────────────────────────
     return (
@@ -411,7 +260,7 @@ export default function PainelPosEmbarque() {
                         {ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length > 0 && (
                             <button
                                 style={{ ...s.btn, background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}
-                                onClick={arquivarResolvidas}
+                                onClick={handleArquivarResolvidas}
                             >
                                 <Archive size={16} /> Arquivar Resolvidas ({ocorrencias.filter(o => o.situacao === 'RESOLVIDO').length})
                             </button>
@@ -504,7 +353,7 @@ export default function PainelPosEmbarque() {
                                                 }}>
                                                     {oc.situacao === 'RESOLVIDO' ? 'Resolvido' : atraso ? 'Em Andamento (Atrasado)' : 'Em Andamento'}
                                                 </span>
-                                                {oc.data_ocorrencia && <span> • {formatData(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
+                                                {oc.data_ocorrencia && <span> • {formatDataBR(oc.data_ocorrencia)} {oc.hora_ocorrencia}</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -615,7 +464,7 @@ export default function PainelPosEmbarque() {
                         <input type="text" placeholder="Link Email" style={{ ...s.input, gridColumn: '1 / -1' }} value={form.link_email} onChange={e => setForm({ ...form, link_email: e.target.value })} />
                     </div>
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                        <button style={{ ...s.btn, ...s.btnPrimary }} onClick={editandoId ? salvarEdicao : criarOcorrencia}>
+                        <button style={{ ...s.btn, ...s.btnPrimary }} onClick={editandoId ? salvarEdicao : handleCriarOcorrencia}>
                             {editandoId ? 'Salvar Alterações' : 'Criar Ocorrência'}
                         </button>
                         {editandoId && (
@@ -636,7 +485,7 @@ export default function PainelPosEmbarque() {
             )}
 
             {/* ABA RELATÓRIOS */}
-            {aba === 'relatorio' && <RelatorioAba dataInicio={dataInicio} setDataInicio={setDataInicio} dataFim={dataFim} setDataFim={setDataFim} s={s} listas={listas} />}
+            {aba === 'relatorio' && <RelatorioAba dataInicio={dataInicio} setDataInicio={setDataInicio} dataFim={dataFim} setDataFim={setDataFim} s={s} listas={listas} carregarRelatorio={carregarRelatorio} />}
 
             {/* MODAL - NOVA OCORRÊNCIA */}
             {modalNovaAberto && (
@@ -648,7 +497,7 @@ export default function PainelPosEmbarque() {
                             <input type="time" style={s.input} value={form.hora_ocorrencia} onChange={e => setForm({ ...form, hora_ocorrencia: e.target.value })} />
                             {/* ... outros inputs ... */}
                         </div>
-                        <button style={{ ...s.btn, ...s.btnPrimary, marginTop: '16px' }} onClick={criarOcorrencia}>
+                        <button style={{ ...s.btn, ...s.btnPrimary, marginTop: '16px' }} onClick={handleCriarOcorrencia}>
                             Criar
                         </button>
                         <button style={{ ...s.btn, background: 'transparent', color: '#94a3b8', marginTop: '8px' }} onClick={() => setModalNovaAberto(false)}>
@@ -660,7 +509,7 @@ export default function PainelPosEmbarque() {
 
             {/* MODAL - FOTOS */}
             {modalFotosAberto && ocorrenciaAtualId && (
-                <ModalFotos id={ocorrenciaAtualId} onClose={() => setModalFotosAberto(false)} ocorrencias={ocorrencias} removerFoto={removerFoto} s={s} />
+                <ModalFotos id={ocorrenciaAtualId} onClose={() => setModalFotosAberto(false)} ocorrencias={ocorrencias} removerFoto={removerFoto} adicionarFoto={adicionarFoto} s={s} />
             )}
 
             {/* MODAL - CONFIRMAÇÃO / ALERTA */}
@@ -680,7 +529,7 @@ export default function PainelPosEmbarque() {
 }
 
 // ──────────── Componente Relatório ────────────────────────────────────
-function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, listas }) {
+function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, listas, carregarRelatorio }) {
     const [relatorio, setRelatorio] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [gerandoPDF, setGerandoPDF] = useState(false);
@@ -703,14 +552,14 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
         try {
             const params = { de: dataInicio, ate: dataFim };
             Object.entries(filtros).forEach(([k, v]) => { if (v) params[k] = v; });
-            const res = await api.get('/api/posembarque/relatorio', { params });
-            if (res.data.success) setRelatorio(res.data);
+            const data = await carregarRelatorio(params);
+            if (data) setRelatorio(data);
         } catch (e) {
             console.error('Erro ao carregar relatório:', e);
         } finally {
             setCarregando(false);
         }
-    }, [dataInicio, dataFim, filtros]);
+    }, [dataInicio, dataFim, filtros, carregarRelatorio]);
 
     useEffect(() => {
         carregar();
@@ -870,13 +719,13 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
                                     const situ = getSituacaoDisplay(oc);
                                     const dash = (v) => (v === null || v === undefined || v === '') ? '—' : v;
                                     const dataFim = oc.situacao === 'RESOLVIDO'
-                                        ? (oc.data_conclusao ? formatData(oc.data_conclusao) : (oc.resolved_at ? formatData(String(oc.resolved_at).substring(0, 10)) : '—'))
+                                        ? (oc.data_conclusao ? formatDataBR(oc.data_conclusao) : (oc.resolved_at ? formatDataBR(String(oc.resolved_at).substring(0, 10)) : '—'))
                                         : '—';
                                     const horaFim = oc.situacao === 'RESOLVIDO' ? dash(oc.hora_conclusao) : '—';
                                     const rowBg = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)';
                                     return (
                                         <tr key={oc.id} style={{ background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{formatData(oc.data_ocorrencia)}</td>
+                                            <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{formatDataBR(oc.data_ocorrencia)}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dash(oc.hora_ocorrencia)}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{dataFim}</td>
                                             <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{horaFim}</td>
@@ -910,16 +759,16 @@ function RelatorioAba({ dataInicio, setDataInicio, dataFim, setDataFim, s, lista
 }
 
 // ──────────── Component Modal Fotos ────────────────────────────────────
-function ModalFotos({ id, onClose, ocorrencias, removerFoto, s }) {
+function ModalFotos({ id, onClose, ocorrencias, removerFoto, adicionarFoto, s }) {
     const oc = ocorrencias.find(o => o.id === id);
     const fotos = oc && oc.fotos_json ? JSON.parse(oc.fotos_json) : [];
     const [upload, setUpload] = useState(null);
     const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
-    const adicionarFoto = async () => {
+    const handleAdicionarFoto = async () => {
         if (!upload) return;
         try {
-            await api.post(`/api/posembarque/ocorrencias/${id}/fotos`, { base64: upload, nome: `foto_${Date.now()}.jpg` });
+            await adicionarFoto(id, upload);
             setUpload(null);
             window.location.reload();
         } catch (e) {
@@ -969,7 +818,7 @@ function ModalFotos({ id, onClose, ocorrencias, removerFoto, s }) {
                             reader.onload = (ev) => setUpload(ev.target.result.split(',')[1]);
                             reader.readAsDataURL(e.target.files[0]);
                         }} style={s.input} />
-                        <button style={{ ...s.btn, ...s.btnPrimary, marginTop: '8px' }} onClick={adicionarFoto}>Adicionar Foto</button>
+                        <button style={{ ...s.btn, ...s.btnPrimary, marginTop: '8px' }} onClick={handleAdicionarFoto}>Adicionar Foto</button>
                     </div>
                 )}
                 <button style={{ ...s.btn, background: 'transparent', color: '#94a3b8', marginTop: '12px' }} onClick={onClose}>Fechar</button>

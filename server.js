@@ -16,6 +16,8 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const cron = require('node-cron');
 const { authMiddleware, authorize, generateToken } = require('./middleware/authMiddleware');
+const { asyncHandler } = require('./middleware/asyncHandler');
+const { ROLES } = require('./middleware/roles');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('./src/services/emailService');
 
 const tokenHash = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -219,22 +221,18 @@ const tramontinaRouter = require('./src/routes/tramontina')(io);
 app.use('/', tramontinaRouter);
 
 // Reset de senha por Coordenador (gera senha padrão "123" e força troca)
-app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-    try {
-        const usuario = await dbGet("SELECT id, nome, email FROM usuarios WHERE id = ?", [req.params.id]);
-        if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        const senhaTemp = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
-        const hashedPassword = await bcrypt.hash(senhaTemp, 10);
-        await dbRun("UPDATE usuarios SET senha = ? WHERE id = ?", [hashedPassword, req.params.id]);
-        // [FIX-6] Não loga email em produção — apenas ID para auditoria
-        logger.audit('RESET_SENHA', `ID:${req.params.id}`);
-        res.json({ success: true, message: `Senha de ${usuario.nome} resetada.`, senhaTemp });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.post('/usuarios/:id/reset-senha', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
+    const usuario = await dbGet("SELECT id, nome, email FROM usuarios WHERE id = ?", [req.params.id]);
+    if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+    const senhaTemp = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+    const hashedPassword = await bcrypt.hash(senhaTemp, 10);
+    await dbRun("UPDATE usuarios SET senha = ? WHERE id = ?", [hashedPassword, req.params.id]);
+    // [FIX-6] Não loga email em produção — apenas ID para auditoria
+    logger.audit('RESET_SENHA', `ID:${req.params.id}`);
+    res.json({ success: true, message: `Senha de ${usuario.nome} resetada.`, senhaTemp });
+}));
 
-app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
+app.put('/usuarios/:id/avatar', authMiddleware, asyncHandler(async (req, res) => {
     const { avatarUrl } = req.body;
     const userId = Number(req.params.id);
 
@@ -259,44 +257,36 @@ app.put('/usuarios/:id/avatar', authMiddleware, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Acesso negado' });
     }
 
-    try {
-        // No PostgreSQL, avatarUrl se torna avatarurl se não for citado
-        await dbRun("UPDATE usuarios SET avatarUrl = ? WHERE id = ?", [avatarUrl, userId]);
+    // No PostgreSQL, avatarUrl se torna avatarurl se não for citado
+    await dbRun("UPDATE usuarios SET avatarUrl = ? WHERE id = ?", [avatarUrl, userId]);
 
-        logger.audit('AVATAR_ATUALIZADO', `ID:${userId}`);
+    logger.audit('AVATAR_ATUALIZADO', `ID:${userId}`);
 
-        io.emit('receber_atualizacao', {
-            tipo: 'avatar_mudou',
-            userId: userId,
-            newUrl: avatarUrl
-        });
+    io.emit('receber_atualizacao', {
+        tipo: 'avatar_mudou',
+        userId: userId,
+        newUrl: avatarUrl
+    });
 
-        res.json({ success: true });
-    } catch (e) {
-        logger.error("❌ [Avatar] Erro ao salvar foto:", e);
-        res.status(500).json({ success: false, message: 'Erro ao salvar foto no servidor' });
-    }
-});
+    res.json({ success: true });
+}));
 
 // ==================== MARCAÇÃO DE PLACAS ====================
 
 // Gestão de tokens (links de motorista)
-app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Direção', 'Adm Frota', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque', 'Encarregado']), async (req, res) => {
-    try {
-        const rows = await dbAll("SELECT * FROM tokens_motoristas ORDER BY data_criacao DESC");
-        res.json({ success: true, tokens: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/tokens', authMiddleware, authorize(['Coordenador', 'Direção', 'Adm Frota', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque', 'Encarregado']), asyncHandler(async (req, res) => {
+    const rows = await dbAll("SELECT * FROM tokens_motoristas ORDER BY data_criacao DESC");
+    res.json({ success: true, tokens: rows });
+}));
 
-app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        let telefone = (req.body.telefone || '').replace(/\D/g, '');
-        if (telefone.length <= 11) telefone = '55' + telefone;
-        if (telefone.length < 12 || telefone.length > 13) {
-            return res.status(400).json({ success: false, message: 'Telefone inválido.' });
-        }
-        // Bloqueia se já existe qualquer link para este número (pelos 8 últimos dígitos)
-        const ultimos8 = telefone.slice(-8);
+app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    let telefone = (req.body.telefone || '').replace(/\D/g, '');
+    if (telefone.length <= 11) telefone = '55' + telefone;
+    if (telefone.length < 12 || telefone.length > 13) {
+        return res.status(400).json({ success: false, message: 'Telefone inválido.' });
+    }
+    // Bloqueia se já existe qualquer link para este número (pelos 8 últimos dígitos)
+    const ultimos8 = telefone.slice(-8);
         const duplicado = await dbGet(
             "SELECT id, status FROM tokens_motoristas WHERE RIGHT(telefone, 8) = $1 LIMIT 1",
             [ultimos8]
@@ -317,8 +307,7 @@ app.post('/api/tokens', authMiddleware, authorize(['Coordenador', 'Planejamento'
         io.emit('receber_alerta', { tipo: 'nova_marcacao_coord', mensagem: `${criador} criou um link de cadastro`, criador, data_criacao: new Date().toISOString() });
         io.emit('marcacao_atualizada', { tipo: 'token_criado' });
         res.json({ success: true, token: novo });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // Auto-registro via QR Code — sem autenticação, rate limit por IP
 const autoTokenLimiter = rateLimit({
@@ -328,34 +317,32 @@ const autoTokenLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
-app.post('/api/tokens/auto', autoTokenLimiter, async (req, res) => {
-    try {
-        let telefone = (req.body.telefone || '').replace(/\D/g, '');
-        if (telefone.length < 10 || telefone.length > 11) {
-            return res.status(400).json({ success: false, message: 'Telefone inválido.' });
-        }
-        if (telefone.length <= 11) telefone = '55' + telefone;
+app.post('/api/tokens/auto', autoTokenLimiter, asyncHandler(async (req, res) => {
+    let telefone = (req.body.telefone || '').replace(/\D/g, '');
+    if (telefone.length < 10 || telefone.length > 11) {
+        return res.status(400).json({ success: false, message: 'Telefone inválido.' });
+    }
+    if (telefone.length <= 11) telefone = '55' + telefone;
 
-        const ultimos8 = telefone.slice(-8);
-        const existente = await dbGet(
-            "SELECT token, status, data_expiracao FROM tokens_motoristas WHERE RIGHT(telefone, 8) = $1 AND status = 'ativo' AND data_expiracao > NOW() LIMIT 1",
-            [ultimos8]
-        );
-        if (existente) {
-            return res.json({ success: true, token: existente.token });
-        }
+    const ultimos8 = telefone.slice(-8);
+    const existente = await dbGet(
+        "SELECT token, status, data_expiracao FROM tokens_motoristas WHERE RIGHT(telefone, 8) = $1 AND status = 'ativo' AND data_expiracao > NOW() LIMIT 1",
+        [ultimos8]
+    );
+    if (existente) {
+        return res.json({ success: true, token: existente.token });
+    }
 
-        const token = require('crypto').randomUUID();
-        const expiracao = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        await dbRun(
-            "INSERT INTO tokens_motoristas (telefone, token, data_expiracao) VALUES (?, ?, ?)",
-            [telefone, token, expiracao]
-        );
-        await registrarLog('TOKEN_AUTO', 'QR Code', null, 'token', null, null, `Auto-token para tel ${telefone}`);
-        io.emit('marcacao_atualizada', { tipo: 'token_criado' });
-        res.json({ success: true, token });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+    const token = require('crypto').randomUUID();
+    const expiracao = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await dbRun(
+        "INSERT INTO tokens_motoristas (telefone, token, data_expiracao) VALUES (?, ?, ?)",
+        [telefone, token, expiracao]
+    );
+    await registrarLog('TOKEN_AUTO', 'QR Code', null, 'token', null, null, `Auto-token para tel ${telefone}`);
+    io.emit('marcacao_atualizada', { tipo: 'token_criado' });
+    res.json({ success: true, token });
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTO-ATENDIMENTO DE STATUS — MOTORISTA INTERESTADUAL (LEÃO SP / ELETRIK SUL)
@@ -367,53 +354,46 @@ app.post('/api/tokens/auto', autoTokenLimiter, async (req, res) => {
 const STATUS_MOTORISTA = ['LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO', 'CARREGADO'];
 
 // (a) Qualquer usuário autenticado pode gerar o link (sem restrição de cargo)
-app.post('/api/operacao-motorista/gerar', authMiddleware, async (req, res) => {
-    try {
-        const { veiculo_id } = req.body;
-        if (!veiculo_id) return res.status(400).json({ success: false, message: 'veiculo_id obrigatório.' });
+app.post('/api/operacao-motorista/gerar', authMiddleware, asyncHandler(async (req, res) => {
+    const { veiculo_id } = req.body;
+    if (!veiculo_id) return res.status(400).json({ success: false, message: 'veiculo_id obrigatório.' });
 
-        const v = await dbGet("SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife FROM veiculos WHERE id = ?", [veiculo_id]);
-        if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
-        if (v.operacao !== 'LEÃO - SP' && v.operacao !== 'ELETRIK SUL') {
-            return res.status(400).json({ success: false, message: 'Disponível apenas para Leão SP / Eletrik Sul.' });
-        }
-        if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') {
-            return res.status(400).json({ success: false, message: 'Carga já concluída — não é possível gerar link.' });
-        }
-
-        const token = require('crypto').randomBytes(16).toString('hex');
-        const expira = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        await dbRun(
-            "UPDATE veiculos SET token_operacao_motorista = $1, token_operacao_expira_em = $2 WHERE id = $3",
-            [token, expira, veiculo_id]
-        );
-        const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
-        res.json({ success: true, token, url: `${origin}/operacao/${token}`, expira_em: expira });
-    } catch (e) {
-        console.error('Erro ao gerar token motorista:', e);
-        res.status(500).json({ success: false, message: 'Erro ao gerar link.' });
+    const v = await dbGet("SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife FROM veiculos WHERE id = ?", [veiculo_id]);
+    if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado.' });
+    if (v.operacao !== 'LEÃO - SP' && v.operacao !== 'ELETRIK SUL') {
+        return res.status(400).json({ success: false, message: 'Disponível apenas para Leão SP / Eletrik Sul.' });
     }
-});
+    if (v.status_recife === 'CARREGADO' || v.status_recife === 'LIBERADO P/ CT-e') {
+        return res.status(400).json({ success: false, message: 'Carga já concluída — não é possível gerar link.' });
+    }
+
+    const token = require('crypto').randomBytes(16).toString('hex');
+    const expira = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await dbRun(
+        "UPDATE veiculos SET token_operacao_motorista = $1, token_operacao_expira_em = $2 WHERE id = $3",
+        [token, expira, veiculo_id]
+    );
+    const origin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    res.json({ success: true, token, url: `${origin}/operacao/${token}`, expira_em: expira });
+}));
 
 // (b) GET público — info do card pra o motorista confirmar
-app.get('/api/operacao-motorista/:token', async (req, res) => {
-    try {
-        const v = await dbGet(
-            "SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
-            [req.params.token]
-        );
-        if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
-        if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
-            return res.status(410).json({ success: false, message: 'Link expirado.' });
-        }
-        res.json({
-            success: true,
-            motorista: v.motorista || '',
-            operacao: v.operacao,
-            status_atual: v.status_recife || 'LIBERADO P/ CARREGAMENTO',
-        });
-    } catch (e) { res.status(500).json({ success: false, message: 'Erro ao validar link.' }); }
-});
+app.get('/api/operacao-motorista/:token', asyncHandler(async (req, res) => {
+    const v = await dbGet(
+        "SELECT id, operacao, motorista, status_recife, coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+        [req.params.token]
+    );
+    if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
+    if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
+        return res.status(410).json({ success: false, message: 'Link expirado.' });
+    }
+    res.json({
+        success: true,
+        motorista: v.motorista || '',
+        operacao: v.operacao,
+        status_atual: v.status_recife || 'LIBERADO P/ CARREGAMENTO',
+    });
+}));
 
 // Helper: extrai todas as coletas (separadas por vírgula no TagInput) e normaliza removendo zeros à esquerda
 function extrairColetasNumero(raw) {
@@ -424,34 +404,31 @@ function extrairColetasNumero(raw) {
 }
 
 // (c) Confirmar coleta — motorista digita o número
-app.post('/api/operacao-motorista/:token/confirmar', async (req, res) => {
-    try {
-        const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
-        if (!coletaDigitada) return res.status(400).json({ success: false, message: 'Informe o número da coleta.' });
+app.post('/api/operacao-motorista/:token/confirmar', asyncHandler(async (req, res) => {
+    const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
+    if (!coletaDigitada) return res.status(400).json({ success: false, message: 'Informe o número da coleta.' });
 
-        const v = await dbGet(
-            "SELECT coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
-            [req.params.token]
-        );
-        if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
-        if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
-            return res.status(410).json({ success: false, message: 'Link expirado.' });
-        }
-        const coletasCard = [
-            ...extrairColetasNumero(v.coletainterestadual),
-            ...extrairColetasNumero(v.coletarecife),
-        ];
-        if (coletasCard.length === 0 || !coletasCard.includes(coletaDigitada)) {
-            return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
-        }
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: 'Erro ao confirmar coleta.' }); }
-});
+    const v = await dbGet(
+        "SELECT coletainterestadual, coletarecife, token_operacao_expira_em FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
+        [req.params.token]
+    );
+    if (!v) return res.status(404).json({ success: false, message: 'Link inválido.' });
+    if (!v.token_operacao_expira_em || new Date(v.token_operacao_expira_em).getTime() < Date.now()) {
+        return res.status(410).json({ success: false, message: 'Link expirado.' });
+    }
+    const coletasCard = [
+        ...extrairColetasNumero(v.coletainterestadual),
+        ...extrairColetasNumero(v.coletarecife),
+    ];
+    if (coletasCard.length === 0 || !coletasCard.includes(coletaDigitada)) {
+        return res.status(403).json({ success: false, message: 'Número da coleta não confere.' });
+    }
+    res.json({ success: true });
+}));
 
 // (d) Avançar status — linear, valida coleta de novo
-app.post('/api/operacao-motorista/:token/avancar', async (req, res) => {
-    try {
-        const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
+app.post('/api/operacao-motorista/:token/avancar', asyncHandler(async (req, res) => {
+    const coletaDigitada = String(req.body.coleta_digitada || '').trim().replace(/^0+/, '');
         const v = await dbGet(
             "SELECT id, motorista, status_recife, coletainterestadual, coletarecife, token_operacao_expira_em, timestamps_status, tempos_recife FROM veiculos WHERE token_operacao_motorista = $1 LIMIT 1",
             [req.params.token]
@@ -519,74 +496,63 @@ app.post('/api/operacao-motorista/:token/avancar', async (req, res) => {
         });
 
         res.json({ success: true, novo_status: proximo, concluido: proximo === 'CARREGADO' });
-    } catch (e) {
-        console.error('Erro ao avançar status motorista:', e);
-        res.status(500).json({ success: false, message: 'Erro ao avançar status.' });
+}));
+
+app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);
+    const criador = req.user?.nome || '?';
+    await registrarLog('TOKEN_DELETADO', criador, req.params.id, 'token', null, null, null);
+    io.emit('marcacao_atualizada', { tipo: 'token_deletado', id: req.params.id });
+    res.json({ success: true });
+}));
+
+app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { status, telefone } = req.body;
+    if (status) {
+        if (status === 'ativo') {
+            const novaExpiracao = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+            await dbRun("UPDATE tokens_motoristas SET status = ?, data_expiracao = ? WHERE id = ?", [status, novaExpiracao, req.params.id]);
+        } else {
+            await dbRun("UPDATE tokens_motoristas SET status = ? WHERE id = ?", [status, req.params.id]);
+        }
     }
-});
-
-app.delete('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM tokens_motoristas WHERE id = ?", [req.params.id]);
-        const criador = req.user?.nome || '?';
-        await registrarLog('TOKEN_DELETADO', criador, req.params.id, 'token', null, null, null);
-        io.emit('marcacao_atualizada', { tipo: 'token_deletado', id: req.params.id });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
-
-app.put('/api/tokens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { status, telefone } = req.body;
-        if (status) {
-            if (status === 'ativo') {
-                const novaExpiracao = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
-                await dbRun("UPDATE tokens_motoristas SET status = ?, data_expiracao = ? WHERE id = ?", [status, novaExpiracao, req.params.id]);
-            } else {
-                await dbRun("UPDATE tokens_motoristas SET status = ? WHERE id = ?", [status, req.params.id]);
-            }
-        }
-        if (telefone) {
-            let tel = telefone.replace(/\D/g, '');
-            if (!tel.startsWith('55')) tel = '55' + tel;
-            await dbRun("UPDATE tokens_motoristas SET telefone = ? WHERE id = ?", [tel, req.params.id]);
-        }
-        const criador = req.user?.nome || '?';
-        await registrarLog('TOKEN_ATUALIZADO', criador, req.params.id, 'token', null, null, JSON.stringify(req.body));
-        io.emit('marcacao_atualizada', { tipo: 'token_atualizado', id: req.params.id });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+    if (telefone) {
+        let tel = telefone.replace(/\D/g, '');
+        if (!tel.startsWith('55')) tel = '55' + tel;
+        await dbRun("UPDATE tokens_motoristas SET telefone = ? WHERE id = ?", [tel, req.params.id]);
+    }
+    const criador = req.user?.nome || '?';
+    await registrarLog('TOKEN_ATUALIZADO', criador, req.params.id, 'token', null, null, JSON.stringify(req.body));
+    io.emit('marcacao_atualizada', { tipo: 'token_atualizado', id: req.params.id });
+    res.json({ success: true });
+}));
 
 // Validação pública do token (sem auth — chamada pelo form do motorista)
-app.get('/api/marcacoes/validar/:token', async (req, res) => {
-    try {
-        const row = await dbGet(
-            "SELECT id, telefone, status, data_expiracao FROM tokens_motoristas WHERE token = ?",
-            [req.params.token]
-        );
-        if (!row) {
-            return res.status(403).json({ success: false, message: 'Link inválido.' });
-        }
-        if (row.status === 'utilizado') {
-            return res.status(403).json({ success: false, message: 'Este link já foi utilizado.' });
-        }
-        if (row.status !== 'ativo') {
-            return res.status(403).json({ success: false, message: 'Link inativo.' });
-        }
-        if (row.data_expiracao && new Date() > new Date(row.data_expiracao)) {
-            // Marca como inativo para não precisar recalcular nas próximas tentativas
-            await dbRun("UPDATE tokens_motoristas SET status = 'inativo' WHERE id = ?", [row.id]);
-            return res.status(403).json({ success: false, message: 'Link expirado. Solicite um novo link ao operador.' });
-        }
-        res.json({ success: true, telefone: row.telefone, tokenId: row.id });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/marcacoes/validar/:token', asyncHandler(async (req, res) => {
+    const row = await dbGet(
+        "SELECT id, telefone, status, data_expiracao FROM tokens_motoristas WHERE token = ?",
+        [req.params.token]
+    );
+    if (!row) {
+        return res.status(403).json({ success: false, message: 'Link inválido.' });
+    }
+    if (row.status === 'utilizado') {
+        return res.status(403).json({ success: false, message: 'Este link já foi utilizado.' });
+    }
+    if (row.status !== 'ativo') {
+        return res.status(403).json({ success: false, message: 'Link inativo.' });
+    }
+    if (row.data_expiracao && new Date() > new Date(row.data_expiracao)) {
+        // Marca como inativo para não precisar recalcular nas próximas tentativas
+        await dbRun("UPDATE tokens_motoristas SET status = 'inativo' WHERE id = ?", [row.id]);
+        return res.status(403).json({ success: false, message: 'Link expirado. Solicite um novo link ao operador.' });
+    }
+    res.json({ success: true, telefone: row.telefone, tokenId: row.id });
+}));
 
 // Submissão pública do formulário (sem auth) — UPSERT por telefone
-app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
-    try {
-        const {
+app.post('/api/marcacoes', marcacaoPublicaLimiter, asyncHandler(async (req, res) => {
+    const {
             token_id, nome_motorista, telefone, placa1, placa2,
             tipo_veiculo, altura, largura, comprimento,
             estados_destino, ja_carregou,
@@ -720,8 +686,7 @@ app.post('/api/marcacoes', marcacaoPublicaLimiter, async (req, res) => {
         }
 
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ── Auto-delete: remove marcações de terceiros com 15+ dias sem sair de Disponível ──
 let ultimaLimpezaMarcacoes = 0;
@@ -745,9 +710,8 @@ async function limparMarcacoesAntigas() {
 }
 
 // ── Stats endpoint para DashboardMarcacoes ────────────────────────────────────
-app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const mes = req.query.mes || new Date().toISOString().slice(0, 7); // YYYY-MM
+app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const mes = req.query.mes || new Date().toISOString().slice(0, 7); // YYYY-MM
         const [anoStr, mesStr] = mes.split('-');
         const ano = parseInt(anoStr);
         const mesNum = parseInt(mesStr);
@@ -831,14 +795,12 @@ app.get('/api/marcacoes/stats', authMiddleware, authorize(['Coordenador', 'Plane
                 contratado: parseInt(r.contratado || 0),
             })),
         });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // Leitura de todas as marcações (autenticado) — com paginação e projeção de colunas
-app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        // Auto-delete de registros antigos (max 1x/hora)
-        limparMarcacoesAntigas();
+app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    // Auto-delete de registros antigos (max 1x/hora)
+    limparMarcacoesAntigas();
 
         const limite = Math.min(parseInt(req.query.limit) || 50, 200);
         const pagina = Math.max(parseInt(req.query.page) || 1, 1);
@@ -953,30 +915,26 @@ app.get('/api/marcacoes', authMiddleware, authorize(['Coordenador', 'Planejament
                 indisponiveis: parseInt(c.indisponiveis || 0),
             }
         });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // Motoristas por UF de destino
-app.get('/api/marcacoes/por-uf/:uf', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const uf = req.params.uf.toUpperCase();
-        const rows = await dbAll(`
-            SELECT nome_motorista, placa1, tipo_veiculo, status_operacional, disponibilidade, telefone, data_marcacao, data_contratacao
-            FROM marcacoes_placas
-            WHERE (is_frota IS NULL OR is_frota = 0)
-              AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
-              AND disponibilidade != 'Indisponível'
-              AND estados_destino::text ILIKE $1
-            ORDER BY nome_motorista
-        `, [`%"${uf}"%`]);
-        res.json({ success: true, uf, motoristas: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/marcacoes/por-uf/:uf', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const uf = req.params.uf.toUpperCase();
+    const rows = await dbAll(`
+        SELECT nome_motorista, placa1, tipo_veiculo, status_operacional, disponibilidade, telefone, data_marcacao, data_contratacao
+        FROM marcacoes_placas
+        WHERE (is_frota IS NULL OR is_frota = 0)
+          AND (status_operacional IS NULL OR status_operacional = 'DISPONIVEL')
+          AND disponibilidade != 'Indisponível'
+          AND estados_destino::text ILIKE $1
+        ORDER BY nome_motorista
+    `, [`%"${uf}"%`]);
+    res.json({ success: true, uf, motoristas: rows });
+}));
 
 // Motoristas disponíveis (status DISPONIVEL, últimos 7 dias)
-app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const semFiltroUnidade = ['Coordenador', 'Direção', 'Planejamento', 'Encarregado'].includes(req.user.cargo);
+app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const semFiltroUnidade = ['Coordenador', 'Direção', 'Planejamento', 'Encarregado'].includes(req.user.cargo);
         const cidade = req.user.cidade;
         const cidadeFilter = (!semFiltroUnidade && cidade)
             ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
@@ -1000,52 +958,44 @@ app.get('/api/marcacoes/disponiveis', authMiddleware, authorize(['Coordenador', 
             estados_destino: (() => { try { return JSON.parse(r.estados_destino || '[]'); } catch { return []; } })()
         }));
         res.json({ success: true, motoristas });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // Toggle favorito / tag_motorista
-app.put('/api/marcacoes/:id/tag', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { favorito, tag_motorista } = req.body;
-        const campos = [];
-        const params = [];
-        if (favorito !== undefined) { params.push(favorito ? 1 : 0); campos.push(`favorito = $${params.length}`); }
-        if (tag_motorista !== undefined) { params.push(tag_motorista || null); campos.push(`tag_motorista = $${params.length}`); }
-        if (campos.length === 0) return res.status(400).json({ success: false, message: 'Nenhum campo a atualizar' });
-        params.push(req.params.id);
-        await dbRun(`UPDATE marcacoes_placas SET ${campos.join(', ')} WHERE id = $${params.length}`, params);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.put('/api/marcacoes/:id/tag', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { favorito, tag_motorista } = req.body;
+    const campos = [];
+    const params = [];
+    if (favorito !== undefined) { params.push(favorito ? 1 : 0); campos.push(`favorito = $${params.length}`); }
+    if (tag_motorista !== undefined) { params.push(tag_motorista || null); campos.push(`tag_motorista = $${params.length}`); }
+    if (campos.length === 0) return res.status(400).json({ success: false, message: 'Nenhum campo a atualizar' });
+    params.push(req.params.id);
+    await dbRun(`UPDATE marcacoes_placas SET ${campos.join(', ')} WHERE id = $${params.length}`, params);
+    res.json({ success: true });
+}));
 
-app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
-        const criador = req.user?.nome || '?';
-        await registrarLog('MARCACAO_DELETADA', criador, req.params.id, 'marcacao', null, null, null);
-        io.emit('receber_alerta', { tipo: 'nova_marcacao', mensagem: `Marcação removida por ${criador}`, criador, data_criacao: new Date().toISOString() });
-        io.emit('marcacao_atualizada', { tipo: 'marcacao_removida', id: req.params.id });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.delete('/api/marcacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM marcacoes_placas WHERE id = ?", [req.params.id]);
+    const criador = req.user?.nome || '?';
+    await registrarLog('MARCACAO_DELETADA', criador, req.params.id, 'marcacao', null, null, null);
+    io.emit('receber_alerta', { tipo: 'nova_marcacao', mensagem: `Marcação removida por ${criador}`, criador, data_criacao: new Date().toISOString() });
+    io.emit('marcacao_atualizada', { tipo: 'marcacao_removida', id: req.params.id });
+    res.json({ success: true });
+}));
 
 // ── PUT: Foto do motorista ────────────────────────────────────────
-app.put('/api/marcacoes/:id/foto', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { foto } = req.body;
-        if (foto && (!foto.startsWith('data:image/') || foto.length > 2 * 1024 * 1024)) {
-            return res.status(400).json({ success: false, message: 'Imagem inválida ou muito grande (máx 2MB).' });
-        }
-        await dbRun('UPDATE marcacoes_placas SET foto = $1 WHERE id = $2', [foto || null, req.params.id]);
-        io.emit('marcacao_atualizada', { tipo: 'foto_atualizada', id: Number(req.params.id) });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.put('/api/marcacoes/:id/foto', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { foto } = req.body;
+    if (foto && (!foto.startsWith('data:image/') || foto.length > 2 * 1024 * 1024)) {
+        return res.status(400).json({ success: false, message: 'Imagem inválida ou muito grande (máx 2MB).' });
+    }
+    await dbRun('UPDATE marcacoes_placas SET foto = $1 WHERE id = $2', [foto || null, req.params.id]);
+    io.emit('marcacao_atualizada', { tipo: 'foto_atualizada', id: Number(req.params.id) });
+    res.json({ success: true });
+}));
 
 // ── PUT: Alterar Status de Disponibilidade (Fila) ────────────────
-app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { status, status_operacional } = req.body;
+app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { status, status_operacional } = req.body;
 
         // Modo 1: status_operacional (fluxo Disponível → Em Operação → Contratado)
         if (status_operacional !== undefined) {
@@ -1080,15 +1030,11 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
         await registrarLog('MARCACAO_STATUS', req.user?.nome || '?', req.params.id, 'marcacao', null, status, null);
         io.emit('marcacao_atualizada');
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+}));
 
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
-app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
-    try {
-        const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
+app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
         const cidade = req.user.cidade;
         const cidadeFilter = (!isCoordenador && cidade)
             ? "AND (origem_cidade_uf ILIKE $1 OR origem_cidade_uf IS NULL OR origem_cidade_uf = '')"
@@ -1108,29 +1054,25 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'D
             ORDER BY data_marcacao DESC
         `, params);
         res.json({ success: true, motoristas: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ── Frota Própria: listar motoristas de frota para o PainelCadastro ──
-app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
-    try {
-        const rows = await dbAll(`
-            SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
-                   data_marcacao, data_contratacao,
-                   seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
-                   is_frota, foto
-            FROM marcacoes_placas
-            WHERE is_frota = 1
-            ORDER BY nome_motorista ASC
-        `);
-        res.json({ success: true, motoristas: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
+    const rows = await dbAll(`
+        SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
+               data_marcacao, data_contratacao,
+               seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
+               is_frota, foto
+        FROM marcacoes_placas
+        WHERE is_frota = 1
+        ORDER BY nome_motorista ASC
+    `);
+    res.json({ success: true, motoristas: rows });
+}));
 
 // ── Frota Própria: atualizar liberação ──
-app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
-    try {
-        const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;
+app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
+    const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;
         // data pode vir como data_liberacao_cad ou data_liberacao_manual (compatibilidade com frontend)
         const data_liberacao_cad = req.body.data_liberacao_cad || (data_liberacao_manual ? new Date(data_liberacao_manual).toISOString() : null) || null;
 
@@ -1156,21 +1098,17 @@ app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Di
         );
         await registrarLog('FROTA_LIBERACAO', req.user?.nome || '?', req.params.id, 'frota', null, situacao_cad, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao: situacao_cad, data_liberacao_cad: data_liberacao_cad || null });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ── Frota Própria: excluir motorista de frota ──
-app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM marcacoes_placas WHERE id = ? AND is_frota = 1", [req.params.id]);
-        await registrarLog('FROTA_DELETADO', req.user?.nome || '?', req.params.id, 'frota', null, null, null);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.delete('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM marcacoes_placas WHERE id = ? AND is_frota = 1", [req.params.id]);
+    await registrarLog('FROTA_DELETADO', req.user?.nome || '?', req.params.id, 'frota', null, null, null);
+    res.json({ success: true });
+}));
 
-app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), async (req, res) => {
-    try {
-        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, seguradora_cad, num_liberacao_cad, origem_cad, destino_uf_cad, destino_cidade_cad, data_liberacao_manual } = req.body;
+app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
+    const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, seguradora_cad, num_liberacao_cad, origem_cad, destino_uf_cad, destino_cidade_cad, data_liberacao_manual } = req.body;
         const atual = await dbGet("SELECT num_liberacao_cad, data_liberacao_cad FROM marcacoes_placas WHERE id = ?", [req.params.id]);
         if (!atual) return res.status(404).json({ success: false, message: 'Motorista não encontrado.' });
 
@@ -1261,13 +1199,11 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
 
         await registrarLog('MOTORISTA_CADASTRO', req.user?.nome || '?', req.params.id, 'marcacao', null, situacao, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao, data_liberacao_cad: novaDataLib });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ── Cadastro: motoristas já lançados na operação (tabela veiculos) ────────────
-app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Conhecimento']), async (req, res) => {
-    try {
-        const { dataInicio, dataFim, excluirProv } = req.query;
+app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { dataInicio, dataFim, excluirProv } = req.query;
         const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
         const dInicio = dataInicio || hoje;
         const dFim = dataFim || hoje;
@@ -1335,12 +1271,10 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             };
         });
         res.json({ success: true, veiculos });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
-app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Coordenador', 'Cadastro', 'Conhecimento']), async (req, res) => {
-    try {
-        const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual, seguradora_cad, origem_cad, destino_uf_cad, destino_cidade_cad } = req.body;
+app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Coordenador', 'Cadastro', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { chk_cnh_cad, chk_antt_cad, chk_tacografo_cad, chk_crlv_cad, num_liberacao_cad, data_liberacao_manual, seguradora_cad, origem_cad, destino_uf_cad, destino_cidade_cad } = req.body;
 
         // Calcular situação automaticamente
         const todosChk = !!(chk_cnh_cad && chk_antt_cad && chk_tacografo_cad && chk_crlv_cad);
@@ -1469,17 +1403,15 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
 
         await registrarLog('VEICULO_CADASTRO', req.user?.nome || '?', req.params.id, 'veiculo', null, situacao, `Liberação: ${num_liberacao_cad || '-'}`);
         res.json({ success: true, situacao, data_liberacao_cad: novaDataLib });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Cadastro direto de motorista da frota própria (sem token)
 // Requer apenas nome e telefone — placas são vinculadas no despacho
-app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
-    try {
-        const { nome_motorista, telefone } = req.body;
-        if (!nome_motorista || !telefone)
-            return res.status(400).json({ success: false, message: 'Nome e Telefone são obrigatórios.' });
+app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { nome_motorista, telefone } = req.body;
+    if (!nome_motorista || !telefone)
+        return res.status(400).json({ success: false, message: 'Nome e Telefone são obrigatórios.' });
 
         let tel = telefone.replace(/\D/g, '');
         if (!tel.startsWith('55')) tel = '55' + tel;
@@ -1503,17 +1435,15 @@ app.post('/api/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'P
         }
         io.emit('marcacao_atualizada');
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ==================== FIM MARCAÇÃO DE PLACAS ====================
 
 // ==================== HISTÓRICO DE LIBERAÇÕES ====================
 
 // GET - Listar estrutura (letras → motoristas → registros)
-app.get('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { letra, motorista } = req.query;
+app.get('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { letra, motorista } = req.query;
         if (motorista) {
             // Retorna todos os registros do motorista específico
             const rows = await dbAll(
@@ -1536,13 +1466,11 @@ app.get('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', '
              FROM historico_liberacoes GROUP BY primeira_letra ORDER BY primeira_letra`
         );
         res.json({ success: true, letras: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // POST - Salvar registro de liberação usada
-app.post('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id } = req.body;
+app.post('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { motorista_nome, num_coleta, num_liberacao, datetime_cte, origem, destino_uf, destino_cidade, placa, operacao, veiculo_id } = req.body;
         if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
 
         const nomeLimpo = (motorista_nome || '').trim().toUpperCase();
@@ -1571,120 +1499,104 @@ app.post('/api/historico-liberacoes', authMiddleware, authorize(['Coordenador', 
         }
 
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // ==================== HISTÓRICO FROTA PRÓPRIA ====================
 
-app.get('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { letra, motorista } = req.query;
-        if (motorista) {
-            const rows = await dbAll(
-                `SELECT * FROM historico_frota WHERE motorista_nome = ? ORDER BY data_viagem DESC`,
-                [motorista]
-            );
-            return res.json({ success: true, registros: rows });
-        }
-        if (letra) {
-            const rows = await dbAll(
-                `SELECT DISTINCT motorista_nome FROM historico_frota WHERE primeira_letra = ? ORDER BY motorista_nome`,
-                [letra.toUpperCase()]
-            );
-            return res.json({ success: true, motoristas: rows.map(r => r.motorista_nome) });
-        }
+app.get('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { letra, motorista } = req.query;
+    if (motorista) {
         const rows = await dbAll(
-            `SELECT primeira_letra, COUNT(DISTINCT motorista_nome) as total_motoristas, COUNT(*) as total_viagens
-             FROM historico_frota GROUP BY primeira_letra ORDER BY primeira_letra`
+            `SELECT * FROM historico_frota WHERE motorista_nome = ? ORDER BY data_viagem DESC`,
+            [motorista]
         );
-        res.json({ success: true, letras: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
-
-app.post('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), async (req, res) => {
-    try {
-        const { motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem } = req.body;
-        if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
-
-        const nomeLimpo = (motorista_nome || '').trim().toUpperCase();
-        const primeira_letra = nomeLimpo[0] || '#';
-
-        await dbRun(
-            `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [primeira_letra, nomeLimpo, placa || '', origem || '', destino || '', operacao || '', veiculo_id || null, data_viagem || new Date().toISOString()]
+        return res.json({ success: true, registros: rows });
+    }
+    if (letra) {
+        const rows = await dbAll(
+            `SELECT DISTINCT motorista_nome FROM historico_frota WHERE primeira_letra = ? ORDER BY motorista_nome`,
+            [letra.toUpperCase()]
         );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+        return res.json({ success: true, motoristas: rows.map(r => r.motorista_nome) });
+    }
+    const rows = await dbAll(
+        `SELECT primeira_letra, COUNT(DISTINCT motorista_nome) as total_motoristas, COUNT(*) as total_viagens
+         FROM historico_frota GROUP BY primeira_letra ORDER BY primeira_letra`
+    );
+    res.json({ success: true, letras: rows });
+}));
+
+app.post('/api/historico-frota', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Cadastro', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const { motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem } = req.body;
+    if (!motorista_nome) return res.status(400).json({ success: false, message: 'motorista_nome é obrigatório' });
+
+    const nomeLimpo = (motorista_nome || '').trim().toUpperCase();
+    const primeira_letra = nomeLimpo[0] || '#';
+
+    await dbRun(
+        `INSERT INTO historico_frota (primeira_letra, motorista_nome, placa, origem, destino, operacao, veiculo_id, data_viagem)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [primeira_letra, nomeLimpo, placa || '', origem || '', destino || '', operacao || '', veiculo_id || null, data_viagem || new Date().toISOString()]
+    );
+    res.json({ success: true });
+}));
 
 // ==================== FIM HISTÓRICO DE LIBERAÇÕES ====================
 
-app.get('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
-    try {
-        const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
-        const cidade = req.user.cidade;
-        let rows;
-        if (isCoordenador) {
-            rows = await dbAll("SELECT * FROM fila ORDER BY id ASC");
-        } else {
-            rows = await dbAll("SELECT * FROM fila WHERE unidade = ? OR unidade IS NULL ORDER BY id ASC", [cidade]);
-        }
-        const fila = rows.map(row => ({ id: row.id, unidade: row.unidade, ...JSON.parse(row.dados_json) }));
-        res.json({ success: true, fila });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
-app.post('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
-    try {
-        const item = req.body;
-        const unidade = item.unidade || req.user.cidade || 'Recife';
-        // Bloquear duplicata pelo número de coleta
-        if (item.coleta) {
-            const existente = await dbAll('SELECT id, dados_json FROM fila');
-            const jaExiste = existente.some(row => {
-                try { return JSON.parse(row.dados_json).coleta == item.coleta; } catch { return false; }
-            });
-            if (jaExiste) return res.json({ success: true, duplicata: true });
-        }
-        const result = await dbRun(`INSERT INTO fila (dados_json, unidade) VALUES (?, ?)`, [JSON.stringify(item), unidade]);
-        const novo = { id: result.lastID, unidade, ...item };
-        await registrarLog('FILA_CRIADA', req.user?.nome || '?', result.lastID, 'fila', null, null, `Unidade: ${unidade}`);
-        io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo });
-        res.json({ success: true, id: result.lastID });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
+app.get('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
+    const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
+    const cidade = req.user.cidade;
+    let rows;
+    if (isCoordenador) {
+        rows = await dbAll("SELECT * FROM fila ORDER BY id ASC");
+    } else {
+        rows = await dbAll("SELECT * FROM fila WHERE unidade = ? OR unidade IS NULL ORDER BY id ASC", [cidade]);
+    }
+    const fila = rows.map(row => ({ id: row.id, unidade: row.unidade, ...JSON.parse(row.dados_json) }));
+    res.json({ success: true, fila });
+}));
+app.post('/fila', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
+    const item = req.body;
+    const unidade = item.unidade || req.user.cidade || 'Recife';
+    // Bloquear duplicata pelo número de coleta
+    if (item.coleta) {
+        const existente = await dbAll('SELECT id, dados_json FROM fila');
+        const jaExiste = existente.some(row => {
+            try { return JSON.parse(row.dados_json).coleta == item.coleta; } catch { return false; }
+        });
+        if (jaExiste) return res.json({ success: true, duplicata: true });
+    }
+    const result = await dbRun(`INSERT INTO fila (dados_json, unidade) VALUES (?, ?)`, [JSON.stringify(item), unidade]);
+    const novo = { id: result.lastID, unidade, ...item };
+    await registrarLog('FILA_CRIADA', req.user?.nome || '?', result.lastID, 'fila', null, null, `Unidade: ${unidade}`);
+    io.emit('receber_atualizacao', { tipo: 'novo_fila', dados: novo });
+    res.json({ success: true, id: result.lastID });
+}));
 // ATENÇÃO: /fila/reordenar deve vir ANTES de /fila/:id para evitar conflito de rota
-app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
-    try {
-        const { ordem } = req.body;
-        if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
-        await Promise.all(ordem.map(item => dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(item), item.id])));
-        await registrarLog('FILA_REORDENADA', req.user?.nome || '?', null, 'fila', null, null, null);
-        io.emit('receber_atualizacao', { tipo: 'reordenar_fila', ordem });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
-app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), async (req, res) => {
-    try {
-        await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]);
-        await registrarLog('FILA_ATUALIZADA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
-        io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
-app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM fila WHERE id = ?", [req.params.id]);
-        await registrarLog('FILA_REMOVIDA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
-        io.emit('receber_atualizacao', { tipo: 'remove_fila', id: Number(req.params.id) });
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
+app.put('/fila/reordenar', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
+    const { ordem } = req.body;
+    if (!Array.isArray(ordem)) return res.status(400).json({ success: false });
+    await Promise.all(ordem.map(item => dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(item), item.id])));
+    await registrarLog('FILA_REORDENADA', req.user?.nome || '?', null, 'fila', null, null, null);
+    io.emit('receber_atualizacao', { tipo: 'reordenar_fila', ordem });
+    res.json({ success: true });
+}));
+app.put('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Aux. Operacional', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
+    await dbRun(`UPDATE fila SET dados_json = ? WHERE id = ?`, [JSON.stringify(req.body), req.params.id]);
+    await registrarLog('FILA_ATUALIZADA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
+    io.emit('receber_atualizacao', { tipo: 'atualiza_fila', id: Number(req.params.id), ...req.body });
+    res.json({ success: true });
+}));
+app.delete('/fila/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM fila WHERE id = ?", [req.params.id]);
+    await registrarLog('FILA_REMOVIDA', req.user?.nome || '?', req.params.id, 'fila', null, null, null);
+    io.emit('receber_atualizacao', { tipo: 'remove_fila', id: Number(req.params.id) });
+    res.json({ success: true });
+}));
 
 // Reenviar notificação de CT-e pendente para um operador específico
-app.post('/api/cte/reenviar-notificacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Direção', 'Desenvolvedor']), async (req, res) => {
-    try {
-        const { veiculoId, destinatarioId, destinatarioNome, origem } = req.body;
+app.post('/api/cte/reenviar-notificacao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Direção', 'Desenvolvedor']), asyncHandler(async (req, res) => {
+    const { veiculoId, destinatarioId, destinatarioNome, origem } = req.body;
         if (!veiculoId || !destinatarioId) return res.status(400).json({ success: false, message: 'veiculoId e destinatarioId são obrigatórios.' });
 
         const veiculo = await dbGet('SELECT * FROM veiculos WHERE id = $1', [veiculoId]);
@@ -1709,12 +1621,10 @@ app.post('/api/cte/reenviar-notificacao', authMiddleware, authorize(['Coordenado
 
         await registrarLog('CTE_REENVIO', req.user?.nome || '?', veiculoId, 'veiculos', null, null, `Reenvio para ${destinatarioNome || destinatarioId}`);
         res.json({ success: true, notificacao: notif });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
-app.get('/notificacoes', authMiddleware, async (req, res) => {
-    try {
-        const meuCargo = req.user?.cargo || '';
+app.get('/notificacoes', authMiddleware, asyncHandler(async (req, res) => {
+    const meuCargo = req.user?.cargo || '';
         const minhaCidade = req.user?.cidade || '';
         const userId = req.user?.id;
         // Exclui notificações que este usuário já dispensou
@@ -1752,40 +1662,33 @@ app.get('/notificacoes', authMiddleware, async (req, res) => {
             return true;
         });
         res.json({ success: true, notificacoes: lista });
-    } catch (e) {
-        console.error("Erro na rota /notificacoes:", e);
-        res.json({ success: true, notificacoes: [] });
-    }
-});
-app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const userId = req.user && req.user.id;
-        const global = req.query.global === 'true'; // ex: aceitar CT-e remove para todos
-        if (!isNaN(id)) {
-            if (global) {
-                // Remoção global (CT-e aceito, etc): deleta do banco + avisa todos
-                await dbRun("DELETE FROM notificacoes WHERE id = $1", [id]);
-                await dbRun("DELETE FROM notificacoes_lidas WHERE notificacao_id = $1", [id]);
-                io.emit('notificacao_removida', { id });
-            } else if (userId) {
-                // Per-user dismissal: marca como lida para este usuário apenas
-                await dbRun(
-                    "INSERT INTO notificacoes_lidas (notificacao_id, user_id) VALUES ($1, $2) ON CONFLICT (notificacao_id, user_id) DO NOTHING",
-                    [id, userId]
-                );
-            }
+}));
+app.delete('/notificacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Cadastro', 'Conhecimento', 'Pos Embarque']), asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const userId = req.user && req.user.id;
+    const global = req.query.global === 'true'; // ex: aceitar CT-e remove para todos
+    if (!isNaN(id)) {
+        if (global) {
+            // Remoção global (CT-e aceito, etc): deleta do banco + avisa todos
+            await dbRun("DELETE FROM notificacoes WHERE id = $1", [id]);
+            await dbRun("DELETE FROM notificacoes_lidas WHERE notificacao_id = $1", [id]);
+            io.emit('notificacao_removida', { id });
+        } else if (userId) {
+            // Per-user dismissal: marca como lida para este usuário apenas
+            await dbRun(
+                "INSERT INTO notificacoes_lidas (notificacao_id, user_id) VALUES ($1, $2) ON CONFLICT (notificacao_id, user_id) DO NOTHING",
+                [id, userId]
+            );
         }
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
+    }
+    res.json({ success: true });
+}));
 
 // --- ROTAS DE CT-E ATIVOS ---
 
 // Listar todos os CT-es ativos
-app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Conhecimento', 'Dashboard Viewer']), async (req, res) => {
-    try {
-        const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
+app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Conhecimento', 'Dashboard Viewer']), asyncHandler(async (req, res) => {
+    const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
         const dataInicio = req.query.dataInicio || hoje;
         const dataFim = req.query.dataFim || hoje;
         // Busca por data_criacao OU por data_entrada_cte no JSON (que pode ser avançada pelo Finalizar)
@@ -1826,16 +1729,11 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
             }
         });
         res.json({ success: true, ctes: lista });
-    } catch (e) {
-        console.error("Erro ao carregar CT-es ativos:", e);
-        res.json({ success: true, ctes: [] });
-    }
-});
+}));
 
 // Criar novo CT-e ativo
-app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
-    try {
-        const { origem, dados } = req.body;
+app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { origem, dados } = req.body;
 
         // Proteção contra duplicatas: mesmo motorista + número de liberação com status ativo
         if (dados.motorista && dados.numero_liberacao) {
@@ -1872,16 +1770,11 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
         await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${coletaFinal || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
-    } catch (e) {
-        console.error("Erro ao criar CT-e ativo:", e);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+}));
 
 // Atualizar CT-e ativo
-app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
-    try {
-        const { dados, origem } = req.body;
+app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { dados, origem } = req.body;
         const status = dados.status || 'Aguardando Emissão';
         const origemCte = origem || dados.origem || 'Recife';
         await dbRun(
@@ -1951,64 +1844,44 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
         await registrarLog('CTE_ATUALIZADO', req.user?.nome || '?', req.params.id, 'cte', null, status, `Motorista: ${dados.motorista || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'atualiza_cte', id: Number(req.params.id), status, ...dados });
         res.json({ success: true });
-    } catch (e) {
-        console.error("Erro ao atualizar CT-e ativo:", e);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+}));
 
 // Remover CT-e ativo (apos arquivar no historico)
-app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
-        await registrarLog('CTE_DELETADO', req.user?.nome || '?', req.params.id, 'cte', null, null, null);
-        io.emit('receber_atualizacao', { tipo: 'remove_cte', id: Number(req.params.id) });
-        res.json({ success: true });
-    } catch (e) {
-        console.error("Erro ao remover CT-e ativo:", e);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.delete('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM ctes_ativos WHERE id = ?", [req.params.id]);
+    await registrarLog('CTE_DELETADO', req.user?.nome || '?', req.params.id, 'cte', null, null, null);
+    io.emit('receber_atualizacao', { tipo: 'remove_cte', id: Number(req.params.id) });
+    res.json({ success: true });
+}));
 // --- ROTAS DE CHECKLIST DA CARRETA ---
-app.get('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const cubagens = await dbAll("SELECT * FROM cubagens ORDER BY data_criacao DESC");
-        if (cubagens.length === 0) return res.json({ success: true, cubagens: [] });
+app.get('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    const cubagens = await dbAll("SELECT * FROM cubagens ORDER BY data_criacao DESC");
+    if (cubagens.length === 0) return res.json({ success: true, cubagens: [] });
 
-        const ids = cubagens.map(c => c.id);
-        const placeholders = ids.map(() => '?').join(',');
-        const todosItens = await dbAll(`SELECT * FROM cubagem_itens WHERE cubagem_id IN (${placeholders})`, ids);
+    const ids = cubagens.map(c => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const todosItens = await dbAll(`SELECT * FROM cubagem_itens WHERE cubagem_id IN (${placeholders})`, ids);
 
-        const itensPorCubagem = {};
-        for (const item of todosItens) {
-            if (!itensPorCubagem[item.cubagem_id]) itensPorCubagem[item.cubagem_id] = [];
-            itensPorCubagem[item.cubagem_id].push(item);
-        }
-        for (const c of cubagens) c.itens = itensPorCubagem[c.id] || [];
-
-        res.json({ success: true, cubagens });
-    } catch (e) {
-        console.error('Erro ao listar cubagens:', e);
-        res.status(500).json({ success: false });
+    const itensPorCubagem = {};
+    for (const item of todosItens) {
+        if (!itensPorCubagem[item.cubagem_id]) itensPorCubagem[item.cubagem_id] = [];
+        itensPorCubagem[item.cubagem_id].push(item);
     }
-});
+    for (const c of cubagens) c.itens = itensPorCubagem[c.id] || [];
 
-app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente', 'Adm Frota', 'Conhecimento']), async (req, res) => {
-    try {
-        const cubagem = await dbGet("SELECT * FROM cubagens WHERE numero_coleta = ?", [req.params.numero]);
-        if (cubagem) {
-            cubagem.itens = await dbAll("SELECT * FROM cubagem_itens WHERE cubagem_id = ?", [cubagem.id]);
-        }
-        res.json({ success: true, cubagem });
-    } catch (e) {
-        console.error('Erro ao buscar cubagem por coleta:', e);
-        res.status(500).json({ success: false });
+    res.json({ success: true, cubagens });
+}));
+
+app.get('/cubagens/coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conferente', 'Adm Frota', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const cubagem = await dbGet("SELECT * FROM cubagens WHERE numero_coleta = ?", [req.params.numero]);
+    if (cubagem) {
+        cubagem.itens = await dbAll("SELECT * FROM cubagem_itens WHERE cubagem_id = ?", [cubagem.id]);
     }
-});
+    res.json({ success: true, cubagem });
+}));
 
-app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(cubagemSchema), async (req, res) => {
-    try {
-        const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total, valor_total, peso_total } = req.body;
+app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(cubagemSchema), asyncHandler(async (req, res) => {
+    const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total, valor_total, peso_total } = req.body;
 
         const cubagemId = await dbTransaction(async ({ run }) => {
             const result = await run(
@@ -2048,15 +1921,10 @@ app.post('/cubagens', authMiddleware, authorize(['Coordenador', 'Planejamento', 
 
         await registrarLog('CUBAGEM_CRIADA', req.user?.nome || '?', cubagemId, 'cubagem', null, null, `Coleta: ${numero_coleta} | Motorista: ${motorista}`);
         res.json({ success: true, id: cubagemId });
-    } catch (e) {
-        console.error('Erro ao salvar cubagem:', e);
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
+}));
 
-app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(cubagemSchema), async (req, res) => {
-    try {
-        const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total } = req.body;
+app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), validate(cubagemSchema), asyncHandler(async (req, res) => {
+    const { numero_coleta, motorista, cliente, redespacho, nome_redespacho, destino, volume, data, faturado, tipo, itens, metragem_total, valor_mix_total, valor_kit_total } = req.body;
         const id = req.params.id;
 
         await dbTransaction(async ({ run }) => {
@@ -2094,122 +1962,95 @@ app.put('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento
 
         await registrarLog('CUBAGEM_ATUALIZADA', req.user?.nome || '?', id, 'cubagem', null, null, `Coleta: ${numero_coleta}`);
         res.json({ success: true });
-    } catch (e) {
-        console.error('Erro ao atualizar cubagem:', e);
-        res.status(500).json({ success: false });
-    }
-});
+}));
 
-app.delete('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM cubagem_itens WHERE cubagem_id = ?", [req.params.id]);
-        await dbRun("DELETE FROM cubagens WHERE id = ?", [req.params.id]);
-        await registrarLog('CUBAGEM_DELETADA', req.user?.nome || '?', req.params.id, 'cubagem', null, null, null);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false });
-    }
-});
+app.delete('/cubagens/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM cubagem_itens WHERE cubagem_id = ?", [req.params.id]);
+    await dbRun("DELETE FROM cubagens WHERE id = ?", [req.params.id]);
+    await registrarLog('CUBAGEM_DELETADA', req.user?.nome || '?', req.params.id, 'cubagem', null, null, null);
+    res.json({ success: true });
+}));
 // loginLimiter aplicado diretamente no handler em src/routes/auth.js
 app.use('/', require('./src/routes/auth'));
-app.get('/configuracoes', authMiddleware, async (req, res) => { try { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); enviarNotificacao('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas', data_criacao: new Date().toISOString() }); res.json({ success: true }); });
-app.get('/solicitacoes', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { try { const s = await dbAll("SELECT * FROM solicitacoes"); res.json({ success: true, solicitacoes: s }); } catch (e) { res.status(500).json({ success: false }); } });
-app.post('/solicitacoes', solicitacoesLimiter, async (req, res) => {
-    try {
-        const { nome, emailPrefix, unidade, senha } = req.body;
-        if (!nome || !emailPrefix || !senha) {
-            return res.status(400).json({ success: false, message: 'Campos obrigatórios faltando.' });
-        }
-        if (!/^[a-zA-Z0-9._+-]+$/.test(emailPrefix)) {
-            return res.status(400).json({ success: false, message: 'Prefixo de e-mail inválido.' });
-        }
-        const senhaHash = await bcrypt.hash(senha, 10);
-        await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
-            ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, obterDataHoraBrasilia()]);
-        enviarNotificacao('receber_alerta', { tipo: 'admin_cadastro', mensagem: `Novo cadastro: ${nome}`, data_criacao: new Date().toISOString() });
-        res.json({ success: true });
-    } catch (e) {
-        console.error("❌ [/solicitacoes] Erro ao processar cadastro:", e);
-        res.status(500).json({ success: false, message: 'Erro interno ao processar cadastro. Verifique a conexão com o banco.' });
+app.get('/configuracoes', authMiddleware, asyncHandler(async (req, res) => { const a = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_acesso'"); const b = await dbGet("SELECT valor FROM configuracoes WHERE chave='permissoes_edicao'"); res.json({ success: true, acesso: JSON.parse(a.valor), edicao: JSON.parse(b.valor) }); }));
+app.post('/configuracoes', authMiddleware, authorize(['Coordenador']), asyncHandler(async (req, res) => { const { acesso, edicao } = req.body; if (acesso) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_acesso'", [JSON.stringify(acesso)]); if (edicao) await dbRun("UPDATE configuracoes SET valor=? WHERE chave='permissoes_edicao'", [JSON.stringify(edicao)]); enviarNotificacao('receber_alerta', { tipo: 'admin_config_mudou', mensagem: 'Permissões atualizadas', data_criacao: new Date().toISOString() }); res.json({ success: true }); }));
+app.get('/solicitacoes', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => { const s = await dbAll("SELECT * FROM solicitacoes"); res.json({ success: true, solicitacoes: s }); }));
+app.post('/solicitacoes', solicitacoesLimiter, asyncHandler(async (req, res) => {
+    const { nome, emailPrefix, unidade, senha } = req.body;
+    if (!nome || !emailPrefix || !senha) {
+        return res.status(400).json({ success: false, message: 'Campos obrigatórios faltando.' });
     }
-});
-app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); });
+    if (!/^[a-zA-Z0-9._+-]+$/.test(emailPrefix)) {
+        return res.status(400).json({ success: false, message: 'Prefixo de e-mail inválido.' });
+    }
+    const senhaHash = await bcrypt.hash(senha, 10);
+    await dbRun("INSERT INTO solicitacoes (tipo, nome, email, unidade, senha, data_criacao) VALUES (?,?,?,?,?,?)",
+        ['CADASTRO', nome, emailPrefix + '@tnetlog.com.br', unidade, senhaHash, obterDataHoraBrasilia()]);
+    enviarNotificacao('receber_alerta', { tipo: 'admin_cadastro', mensagem: `Novo cadastro: ${nome}`, data_criacao: new Date().toISOString() });
+    res.json({ success: true });
+}));
+app.delete('/solicitacoes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => { await dbRun("DELETE FROM solicitacoes WHERE id=?", [req.params.id]); res.json({ success: true }); }));
 
 // Listar operadores com cargo Conhecimento (para modal de seleção CT-e)
 // Query param incluirPlanejamento=1 → também retorna usuários com cargo Planejamento
 // (usado em operações interestaduais Leão - SP e Eletrik Sul, onde Planejamento também recebe sininho)
-app.get('/api/usuarios/conhecimento', authMiddleware, async (req, res) => {
-    try {
-        const incluirPlanejamento = req.query.incluirPlanejamento === '1' || req.query.incluirPlanejamento === 'true';
-        const cargos = incluirPlanejamento ? ['Conhecimento', 'Planejamento'] : ['Conhecimento'];
-        const placeholders = cargos.map((_, i) => `$${i + 1}`).join(', ');
-        const rows = await dbAll(`SELECT id, nome, cidade, cargo FROM usuarios WHERE cargo IN (${placeholders}) ORDER BY cargo, nome`, cargos);
-        res.json({ success: true, usuarios: rows || [] });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
+app.get('/api/usuarios/conhecimento', authMiddleware, asyncHandler(async (req, res) => {
+    const incluirPlanejamento = req.query.incluirPlanejamento === '1' || req.query.incluirPlanejamento === 'true';
+    const cargos = incluirPlanejamento ? ['Conhecimento', 'Planejamento'] : ['Conhecimento'];
+    const placeholders = cargos.map((_, i) => `$${i + 1}`).join(', ');
+    const rows = await dbAll(`SELECT id, nome, cidade, cargo FROM usuarios WHERE cargo IN (${placeholders}) ORDER BY cargo, nome`, cargos);
+    res.json({ success: true, usuarios: rows || [] });
+}));
 
 // Buscar usuário por nome (usado no fluxo de recuperação de senha — retorna apenas id e nome)
-app.get('/usuarios/buscar', async (req, res) => {
-    try {
-        const { nome } = req.query;
-        if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
-        const usuario = await dbGet("SELECT id, nome, email_pessoal_verificado FROM usuarios WHERE LOWER(nome) LIKE LOWER($1)", [`%${nome.trim()}%`]);
-        if (!usuario) return res.json({ success: false, message: 'Usuário não encontrado.' });
-        res.json({ success: true, id: usuario.id, nome: usuario.nome, temEmailPessoal: !!usuario.email_pessoal_verificado });
-    } catch (e) {
-        res.status(500).json({ success: false });
-    }
-});
+app.get('/usuarios/buscar', asyncHandler(async (req, res) => {
+    const { nome } = req.query;
+    if (!nome || nome.trim().length < 3) return res.status(400).json({ success: false, message: 'Nome muito curto.' });
+    const usuario = await dbGet("SELECT id, nome, email_pessoal_verificado FROM usuarios WHERE LOWER(nome) LIKE LOWER($1)", [`%${nome.trim()}%`]);
+    if (!usuario) return res.json({ success: false, message: 'Usuário não encontrado.' });
+    res.json({ success: true, id: usuario.id, nome: usuario.nome, temEmailPessoal: !!usuario.email_pessoal_verificado });
+}));
 
 // Salvar telefone WhatsApp do usuário (próprio usuário ou Coordenador)
-app.post('/usuarios/:id/telefone', authMiddleware, async (req, res) => {
-    try {
-        const idAlvo = Number(req.params.id);
-        const { telefone } = req.body;
-        if (!telefone || telefone.replace(/\D/g, '').length < 10) {
-            return res.status(400).json({ success: false, message: 'Telefone inválido. Informe DDD + número.' });
-        }
-        // Só o próprio usuário ou um Coordenador/Direção pode salvar
-        if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
-            return res.status(403).json({ success: false, message: 'Sem permissão.' });
-        }
-        const tel = telefone.replace(/\D/g, '');
-        await dbRun("UPDATE usuarios SET telefone = $1 WHERE id = $2", [tel, idAlvo]);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+app.post('/usuarios/:id/telefone', authMiddleware, asyncHandler(async (req, res) => {
+    const idAlvo = Number(req.params.id);
+    const { telefone } = req.body;
+    if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+        return res.status(400).json({ success: false, message: 'Telefone inválido. Informe DDD + número.' });
     }
-});
+    // Só o próprio usuário ou um Coordenador/Direção pode salvar
+    if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
+        return res.status(403).json({ success: false, message: 'Sem permissão.' });
+    }
+    const tel = telefone.replace(/\D/g, '');
+    await dbRun("UPDATE usuarios SET telefone = $1 WHERE id = $2", [tel, idAlvo]);
+    res.json({ success: true });
+}));
 
 // Gerar token de reset de senha (só Coordenador) — retorna código para enviar via WhatsApp
-app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordenador', 'Direção']), async (req, res) => {
-    try {
-        const idAlvo = Number(req.params.id);
-        const usuario = await dbGet("SELECT id, nome, telefone FROM usuarios WHERE id = $1", [idAlvo]);
-        if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        if (!usuario.telefone) return res.status(400).json({ success: false, message: 'Usuário sem telefone cadastrado.' });
+app.post('/usuarios/:id/gerar-token-reset', authMiddleware, authorize(['Coordenador', 'Direção']), asyncHandler(async (req, res) => {
+    const idAlvo = Number(req.params.id);
+    const usuario = await dbGet("SELECT id, nome, telefone FROM usuarios WHERE id = $1", [idAlvo]);
+    if (!usuario) return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+    if (!usuario.telefone) return res.status(400).json({ success: false, message: 'Usuário sem telefone cadastrado.' });
 
-        // Invalida tokens anteriores do usuário
-        await dbRun("UPDATE reset_tokens SET usado = 1 WHERE usuario_id = $1", [idAlvo]);
+    // Invalida tokens anteriores do usuário
+    await dbRun("UPDATE reset_tokens SET usado = 1 WHERE usuario_id = $1", [idAlvo]);
 
-        // Gera código de 6 dígitos criptograficamente seguro e salva com TTL de 15 min
-        const token = require('crypto').randomInt(100000, 1000000).toString();
-        await dbRun(
-            "INSERT INTO reset_tokens (usuario_id, token, expira_em) VALUES ($1, $2, NOW() + interval '15 minutes')",
-            [idAlvo, token]
-        );
-        logger.audit('GERAR_TOKEN_RESET', `ID:${idAlvo}`);
-        res.json({ success: true, token, telefone: usuario.telefone, nome: usuario.nome });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+    // Gera código de 6 dígitos criptograficamente seguro e salva com TTL de 15 min
+    const token = require('crypto').randomInt(100000, 1000000).toString();
+    await dbRun(
+        "INSERT INTO reset_tokens (usuario_id, token, expira_em) VALUES ($1, $2, NOW() + interval '15 minutes')",
+        [idAlvo, token]
+    );
+    logger.audit('GERAR_TOKEN_RESET', `ID:${idAlvo}`);
+    res.json({ success: true, token, telefone: usuario.telefone, nome: usuario.nome });
+}));
 
 // Trocar senha usando token recebido via WhatsApp (sem auth — usuário ainda não está logado)
 // Rota /reset-senha-token removida — fluxo WhatsApp substituído por e-mail automático (/solicitar-reset-senha)
 // ── Logout server-side (revoga sessão no banco) ───────────────────────────────
-app.post('/logout', authMiddleware, async (req, res) => {
+app.post('/logout', authMiddleware, asyncHandler(async (req, res) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
         if (token) {
@@ -2219,58 +2060,49 @@ app.post('/logout', authMiddleware, async (req, res) => {
     } catch (_) {
         res.json({ success: true }); // sempre retorna sucesso para não travar o cliente
     }
-});
+}));
 
 // ── E-mail pessoal para recuperação de senha ──────────────────────────────────
-app.post('/usuarios/:id/email-pessoal', authMiddleware, async (req, res) => {
-    try {
-        const idAlvo = Number(req.params.id);
-        if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
-            return res.status(403).json({ success: false, message: 'Sem permissão.' });
-        }
-        const { email_pessoal } = req.body;
-        if (!email_pessoal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_pessoal)) {
-            return res.status(400).json({ success: false, message: 'E-mail inválido.' });
-        }
-        await dbRun('UPDATE usuarios SET email_pessoal = $1, email_pessoal_verificado = 0 WHERE id = $2',
-            [email_pessoal.toLowerCase(), idAlvo]);
-        // Invalida tokens de verificação anteriores
-        await dbRun("UPDATE email_verification_tokens SET usado = 1 WHERE usuario_id = $1 AND tipo = 'verificacao'", [idAlvo]);
-        const token = crypto.randomUUID();
-        const expira = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        await dbRun(
-            'INSERT INTO email_verification_tokens (usuario_id, token, tipo, expira_em) VALUES ($1, $2, $3, $4)',
-            [idAlvo, token, 'verificacao', expira]
-        );
-        await sendVerificationEmail(email_pessoal, token);
-        res.json({ success: true, message: 'E-mail de verificação enviado.' });
-    } catch (e) {
-        console.error('❌ [/email-pessoal]:', e);
-        res.status(500).json({ success: false, message: 'Erro ao salvar e-mail.' });
+app.post('/usuarios/:id/email-pessoal', authMiddleware, asyncHandler(async (req, res) => {
+    const idAlvo = Number(req.params.id);
+    if (req.user.id !== idAlvo && !['Coordenador', 'Direção'].includes(req.user.cargo)) {
+        return res.status(403).json({ success: false, message: 'Sem permissão.' });
     }
-});
+    const { email_pessoal } = req.body;
+    if (!email_pessoal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_pessoal)) {
+        return res.status(400).json({ success: false, message: 'E-mail inválido.' });
+    }
+    await dbRun('UPDATE usuarios SET email_pessoal = $1, email_pessoal_verificado = 0 WHERE id = $2',
+        [email_pessoal.toLowerCase(), idAlvo]);
+    // Invalida tokens de verificação anteriores
+    await dbRun("UPDATE email_verification_tokens SET usado = 1 WHERE usuario_id = $1 AND tipo = 'verificacao'", [idAlvo]);
+    const token = crypto.randomUUID();
+    const expira = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await dbRun(
+        'INSERT INTO email_verification_tokens (usuario_id, token, tipo, expira_em) VALUES ($1, $2, $3, $4)',
+        [idAlvo, token, 'verificacao', expira]
+    );
+    await sendVerificationEmail(email_pessoal, token);
+    res.json({ success: true, message: 'E-mail de verificação enviado.' });
+}));
 
 // Confirmar e-mail pessoal via link (rota pública — acessada pelo link no Gmail)
-app.get('/verificar-email', async (req, res) => {
-    try {
-        const { token } = req.query;
-        if (!token) return res.status(400).send(htmlSimples('❌ Token não fornecido.', 'error'));
-        const reg = await dbGet(
-            "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'verificacao' AND usado = 0", [token]
-        );
-        if (!reg || new Date(reg.expira_em) < new Date()) {
-            return res.send(htmlSimples('⚠️ Link inválido ou expirado. Solicite um novo e-mail de verificação.', 'warn'));
-        }
-        await dbRun('UPDATE usuarios SET email_pessoal_verificado = 1 WHERE id = $1', [reg.usuario_id]);
-        await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
-        res.send(htmlSimples('✅ E-mail confirmado! Você já pode usar este e-mail para recuperar sua senha.', 'success'));
-    } catch (e) {
-        res.status(500).send(htmlSimples('Erro interno. Tente novamente.', 'error'));
+app.get('/verificar-email', asyncHandler(async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.status(400).send(htmlSimples('❌ Token não fornecido.', 'error'));
+    const reg = await dbGet(
+        "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'verificacao' AND usado = 0", [token]
+    );
+    if (!reg || new Date(reg.expira_em) < new Date()) {
+        return res.send(htmlSimples('⚠️ Link inválido ou expirado. Solicite um novo e-mail de verificação.', 'warn'));
     }
-});
+    await dbRun('UPDATE usuarios SET email_pessoal_verificado = 1 WHERE id = $1', [reg.usuario_id]);
+    await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
+    res.send(htmlSimples('✅ E-mail confirmado! Você já pode usar este e-mail para recuperar sua senha.', 'success'));
+}));
 
 // Solicitar reset de senha por e-mail (público — substitui fluxo WhatsApp)
-app.post('/solicitar-reset-senha', resetSenhaLimiter, async (req, res) => {
+app.post('/solicitar-reset-senha', resetSenhaLimiter, asyncHandler(async (req, res) => {
     const MSG = 'Se o e-mail estiver cadastrado e verificado, você receberá um link em breve.';
     try {
         const { email } = req.body;
@@ -2294,36 +2126,31 @@ app.post('/solicitar-reset-senha', resetSenhaLimiter, async (req, res) => {
         console.error('❌ [/solicitar-reset-senha]:', e);
         res.json({ success: true, message: MSG }); // não revelar erro para evitar enumeração
     }
-});
+}));
 
 // Confirmar reset de senha via token do link de e-mail (público)
-app.post('/confirmar-reset-senha', resetSenhaLimiter, async (req, res) => {
-    try {
-        const { token, novaSenha } = req.body;
-        if (!token || !novaSenha) {
-            return res.status(400).json({ success: false, message: 'Campos obrigatórios: token e novaSenha.' });
-        }
-        if (novaSenha.length < 8) {
-            return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 8 caracteres.' });
-        }
-        const reg = await dbGet(
-            "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'reset' AND usado = 0", [token]
-        );
-        if (!reg || new Date(reg.expira_em) < new Date()) {
-            return res.status(400).json({ success: false, message: 'Link inválido ou expirado.' });
-        }
-        const hash = await bcrypt.hash(novaSenha, 10);
-        await dbRun('UPDATE usuarios SET senha = $1 WHERE id = $2', [hash, reg.usuario_id]);
-        await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
-        // Revogar todas as sessões ativas do usuário após reset de senha
-        await dbRun('UPDATE sessoes SET ativa = FALSE WHERE usuario_id = $1', [reg.usuario_id]);
-        logger.audit('CONFIRMAR_RESET_EMAIL', `ID:${reg.usuario_id}`);
-        res.json({ success: true, message: 'Senha alterada com sucesso! Faça login.' });
-    } catch (e) {
-        console.error('❌ [/confirmar-reset-senha]:', e);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+app.post('/confirmar-reset-senha', resetSenhaLimiter, asyncHandler(async (req, res) => {
+    const { token, novaSenha } = req.body;
+    if (!token || !novaSenha) {
+        return res.status(400).json({ success: false, message: 'Campos obrigatórios: token e novaSenha.' });
     }
-});
+    if (novaSenha.length < 8) {
+        return res.status(400).json({ success: false, message: 'Senha deve ter no mínimo 8 caracteres.' });
+    }
+    const reg = await dbGet(
+        "SELECT * FROM email_verification_tokens WHERE token = $1 AND tipo = 'reset' AND usado = 0", [token]
+    );
+    if (!reg || new Date(reg.expira_em) < new Date()) {
+        return res.status(400).json({ success: false, message: 'Link inválido ou expirado.' });
+    }
+    const hash = await bcrypt.hash(novaSenha, 10);
+    await dbRun('UPDATE usuarios SET senha = $1 WHERE id = $2', [hash, reg.usuario_id]);
+    await dbRun('UPDATE email_verification_tokens SET usado = 1 WHERE id = $1', [reg.id]);
+    // Revogar todas as sessões ativas do usuário após reset de senha
+    await dbRun('UPDATE sessoes SET ativa = FALSE WHERE usuario_id = $1', [reg.usuario_id]);
+    logger.audit('CONFIRMAR_RESET_EMAIL', `ID:${reg.usuario_id}`);
+    res.json({ success: true, message: 'Senha alterada com sucesso! Faça login.' });
+}));
 
 // ── Admin de sessões (force-logout — protegido por ADMIN_MASTER_PASSWORD) ─────
 const adminAuth = (req, res, next) => {
@@ -2370,18 +2197,14 @@ const gerarHtmlSessoes = (sessoes, key) => {
     </body></html>`;
 };
 
-app.get('/admin/sessoes', adminAuth, async (req, res) => {
-    try {
-        const sessoes = await dbAll(`
-            SELECT s.id, s.usuario_id, u.nome, u.cargo, s.ip, s.criada_em, s.ultima_atividade
-            FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
-            WHERE s.ativa = TRUE ORDER BY s.ultima_atividade DESC
-        `);
-        res.send(gerarHtmlSessoes(sessoes, req.query.key));
-    } catch (e) {
-        res.status(500).send(htmlSimples('Erro ao carregar sessões.', 'error'));
-    }
-});
+app.get('/admin/sessoes', adminAuth, asyncHandler(async (req, res) => {
+    const sessoes = await dbAll(`
+        SELECT s.id, s.usuario_id, u.nome, u.cargo, s.ip, s.criada_em, s.ultima_atividade
+        FROM sessoes s JOIN usuarios u ON u.id = s.usuario_id
+        WHERE s.ativa = TRUE ORDER BY s.ultima_atividade DESC
+    `);
+    res.send(gerarHtmlSessoes(sessoes, req.query.key));
+}));
 
 app.post('/admin/sessoes/revogar', adminAuth, express.urlencoded({ extended: false }), async (req, res) => {
     const { sessao_id } = req.body;
@@ -2395,24 +2218,21 @@ app.post('/admin/sessoes/revogar-usuario', adminAuth, express.urlencoded({ exten
     res.redirect(`/admin/sessoes?key=${req.query.key}`);
 });
 
-app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); });
-app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); });
-app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), async (req, res) => {
-    try {
-        const { dataInicio, dataFim } = req.query;
-        const rows = await dbAll("SELECT dados_json FROM historico_cte ORDER BY id DESC");
-        let registros = rows.map(r => { try { return JSON.parse(r.dados_json); } catch (_) { return null; } }).filter(Boolean);
-        if (dataInicio) registros = registros.filter(r => r.data_registro >= dataInicio);
-        if (dataFim) registros = registros.filter(r => r.data_registro <= dataFim);
-        res.json({ success: true, registros });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/relatorios', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => { const rows = await dbAll("SELECT dados_json FROM historico"); res.json({ historico: rows.map(r => JSON.parse(r.dados_json)) }); }));
+app.post('/historico_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => { await dbRun("INSERT INTO historico_cte (dados_json) VALUES (?)", [JSON.stringify(req.body)]); res.json({ success: true }); }));
+app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { dataInicio, dataFim } = req.query;
+    const rows = await dbAll("SELECT dados_json FROM historico_cte ORDER BY id DESC");
+    let registros = rows.map(r => { try { return JSON.parse(r.dados_json); } catch (_) { return null; } }).filter(Boolean);
+    if (dataInicio) registros = registros.filter(r => r.data_registro >= dataInicio);
+    if (dataFim) registros = registros.filter(r => r.data_registro <= dataFim);
+    res.json({ success: true, registros });
+}));
 
 // Relatório CT-e — histórico_liberacoes com métricas de tempo, turno, heatmap e ociosidade
-app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), async (req, res) => {
-    try {
-        const { de, ate } = req.query;
-        if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
+app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), asyncHandler(async (req, res) => {
+    const { de, ate } = req.query;
+    if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
         const rows = await dbAll(`
             SELECT
@@ -2490,16 +2310,11 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             heatmap: heatmapRows,
             ociosidade,
         });
-    } catch (e) {
-        console.error('Erro ao buscar relatório CT-e:', e);
-        res.status(500).json({ success: false, message: 'Erro interno.' });
-    }
-});
+}));
 
 // Endpoint para atualizar status de CT-e com auditoria
-app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento']), async (req, res) => {
-    try {
-        const { cteId, statusAntigo, statusNovo, origem, coleta } = req.body;
+app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento']), asyncHandler(async (req, res) => {
+    const { cteId, statusAntigo, statusNovo, origem, coleta } = req.body;
 
         // Resolve o veículo correspondente ao CT-e (cteId é id da ctes_ativos, não de veiculos)
         const cteRowBase = await dbGet("SELECT motorista FROM ctes_ativos WHERE id = $1", [cteId]);
@@ -2666,59 +2481,43 @@ app.put('/cte/status', authMiddleware, authorize(['Coordenador', 'Planejamento',
         }
 
         res.json({ success: true });
-    } catch (e) {
-        console.error('Erro ao registrar status CT-e:', e);
-        res.status(500).json({ success: false });
-    }
-});
+}));
 
 // Endpoint de Logs com Paginação
-app.get('/logs', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const offset = (page - 1) * limit;
+app.get('/logs', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
-        // Contar total de logs
-        const countResult = await dbGet("SELECT COUNT(*) as total FROM logs");
-        const totalLogs = countResult.total;
+    // Contar total de logs
+    const countResult = await dbGet("SELECT COUNT(*) as total FROM logs");
+    const totalLogs = countResult.total;
 
-        // Buscar logs da página atual (ordenados do mais recente para o mais antigo)
-        const logs = await dbAll(
-            "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, data_hora AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo' as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
-            [limit, offset]
-        );
+    // Buscar logs da página atual (ordenados do mais recente para o mais antigo)
+    const logs = await dbAll(
+        "SELECT id, acao, usuario, alvo_id, alvo_tipo, valor_antigo, valor_novo, detalhes, data_hora AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo' as data_hora FROM logs ORDER BY id DESC LIMIT ? OFFSET ?",
+        [limit, offset]
+    );
 
-        res.json({
-            success: true,
-            logs,
-            pagination: {
-                currentPage: page,
-                totalPages: Math.ceil(totalLogs / limit),
-                totalLogs,
-                limit
-            }
-        });
-    } catch (e) {
-        console.error("Erro ao buscar logs:", e);
-        res.status(500).json({ success: false, message: 'Erro ao buscar logs' });
-    }
-});
+    res.json({
+        success: true,
+        logs,
+        pagination: {
+            currentPage: page,
+            totalPages: Math.ceil(totalLogs / limit),
+            totalLogs,
+            limit
+        }
+    });
+}));
 
 // Endpoint para criar um novo log
-app.post('/logs', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { acao, alvoId, alvoTipo, valorAntigo, valorNovo, detalhes } = req.body;
-        const usuario = req.user.nome;
-
-        await registrarLog(acao, usuario, alvoId, alvoTipo, valorAntigo, valorNovo, detalhes);
-
-        res.json({ success: true });
-    } catch (e) {
-        console.error("Erro ao criar log:", e);
-        res.status(500).json({ success: false, message: 'Erro ao criar log' });
-    }
-});
+app.post('/logs', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { acao, alvoId, alvoTipo, valorAntigo, valorNovo, detalhes } = req.body;
+    const usuario = req.user.nome;
+    await registrarLog(acao, usuario, alvoId, alvoTipo, valorAntigo, valorNovo, detalhes);
+    res.json({ success: true });
+}));
 
 // ============================================================
 // MÓDULO DE FROTA E TELEMETRIA
@@ -2736,83 +2535,71 @@ function verificarBloqueioFimDeSemana(modePlantao) {
 }
 
 // ── Nova Rota de Checklist (Operacional / Doca) ───────────────────
-app.post('/api/checklists', authMiddleware, authorize(['Conferente', 'Coordenador']), async (req, res) => {
-    try {
-        const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
-        if (!veiculo_id || !placa_carreta || !assinatura) {
-            return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando.' });
-        }
-
-        // Bloquear checklist duplicado — conferente não pode enviar novo sem reset do Coordenador
-        const chkExistente = await dbGet(
-            "SELECT id, status FROM checklists_carreta WHERE veiculo_id = ? AND status IN ('PENDENTE', 'APROVADO') LIMIT 1",
-            [veiculo_id]
-        );
-        if (chkExistente) {
-            return res.status(400).json({
-                success: false,
-                message: chkExistente.status === 'APROVADO'
-                    ? 'Este veículo já possui checklist aprovado.'
-                    : 'Este veículo já possui checklist pendente de aprovação. Aguarde a revisão.'
-            });
-        }
-
-        // Auto-aprovação: condições perfeitas dispensam revisão manual do Coordenador
-        const autoAprovado =
-            placa_confere === true &&
-            condicao_bau === 'Limpo e Intacto' &&
-            !foto_vazamento;
-        const status = autoAprovado ? 'APROVADO' : 'PENDENTE';
-
-        const created_at = obterDataHoraBrasilia();
-        const result = await dbRun(
-            `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at, status]
-        );
-
-        await registrarLog('CHECKLIST_CRIADO', req.user?.nome || '?', veiculo_id, 'veiculo', null, status, `Placa: ${placa_carreta} | Conferente: ${conferente_nome || '-'}`);
-        // Se auto-aprovado, dispara socket para atualizar a fila operacional sem precisar de refresh
-        if (autoAprovado) {
-            io.emit('receber_atualizacao');
-        }
-
-        res.json({ success: true, id: result.lastID, status });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+app.post('/api/checklists', authMiddleware, authorize(['Conferente', 'Coordenador']), asyncHandler(async (req, res) => {
+    const { veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome } = req.body;
+    if (!veiculo_id || !placa_carreta || !assinatura) {
+        return res.status(400).json({ success: false, message: 'Dados obrigatórios faltando.' });
     }
-});
+
+    // Bloquear checklist duplicado — conferente não pode enviar novo sem reset do Coordenador
+    const chkExistente = await dbGet(
+        "SELECT id, status FROM checklists_carreta WHERE veiculo_id = ? AND status IN ('PENDENTE', 'APROVADO') LIMIT 1",
+        [veiculo_id]
+    );
+    if (chkExistente) {
+        return res.status(400).json({
+            success: false,
+            message: chkExistente.status === 'APROVADO'
+                ? 'Este veículo já possui checklist aprovado.'
+                : 'Este veículo já possui checklist pendente de aprovação. Aguarde a revisão.'
+        });
+    }
+
+    // Auto-aprovação: condições perfeitas dispensam revisão manual do Coordenador
+    const autoAprovado =
+        placa_confere === true &&
+        condicao_bau === 'Limpo e Intacto' &&
+        !foto_vazamento;
+    const status = autoAprovado ? 'APROVADO' : 'PENDENTE';
+
+    const created_at = obterDataHoraBrasilia();
+    const result = await dbRun(
+        `INSERT INTO checklists_carreta (veiculo_id, motorista_nome, placa_carreta, placa_confere, condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome, created_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [veiculo_id, motorista_nome, placa_carreta, placa_confere ? 1 : 0, condicao_bau || null, cordas || 0, foto_vazamento || null, assinatura, conferente_nome || null, created_at, status]
+    );
+
+    await registrarLog('CHECKLIST_CRIADO', req.user?.nome || '?', veiculo_id, 'veiculo', null, status, `Placa: ${placa_carreta} | Conferente: ${conferente_nome || '-'}`);
+    // Se auto-aprovado, dispara socket para atualizar a fila operacional sem precisar de refresh
+    if (autoAprovado) {
+        io.emit('receber_atualizacao');
+    }
+
+    res.json({ success: true, id: result.lastID, status });
+}));
 
 // ── GET: Checklists (Painel do Coordenador) ────────────────────
-app.get('/api/checklists', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Aux. Operacional', 'Encarregado']), async (req, res) => {
-    try {
-        const rows = await dbAll(`
-            SELECT id, veiculo_id, motorista_nome, placa_carreta, placa_confere,
-                   condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
-                   status, created_at
-            FROM checklists_carreta
-            ORDER BY created_at DESC
-        `);
-        res.json({ success: true, checklists: rows });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.get('/api/checklists', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Aux. Operacional', 'Encarregado']), asyncHandler(async (req, res) => {
+    const rows = await dbAll(`
+        SELECT id, veiculo_id, motorista_nome, placa_carreta, placa_confere,
+               condicao_bau, cordas, foto_vazamento, assinatura, conferente_nome,
+               status, created_at
+        FROM checklists_carreta
+        ORDER BY created_at DESC
+    `);
+    res.json({ success: true, checklists: rows });
+}));
 
 // ── PUT: Aprovar/Reprovar Checklist ──────────────────────────────
-app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { status } = req.body;
-        if (!['APROVADO', 'RECUSADO', 'PENDENTE'].includes(status)) {
-            return res.status(400).json({ success: false, message: 'Status inválido.' });
-        }
-        await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
-        await registrarLog('CHECKLIST_STATUS', req.user?.nome || '?', req.params.id, 'checklist', null, status, null);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
+app.put('/api/checklists/:id/status', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { status } = req.body;
+    if (!['APROVADO', 'RECUSADO', 'PENDENTE'].includes(status)) {
+        return res.status(400).json({ success: false, message: 'Status inválido.' });
     }
-});
+    await dbRun("UPDATE checklists_carreta SET status = ? WHERE id = ?", [status, req.params.id]);
+    await registrarLog('CHECKLIST_STATUS', req.user?.nome || '?', req.params.id, 'checklist', null, status, null);
+    res.json({ success: true });
+}));
 
 // Socket.io
 io.on('connection', (socket) => {
@@ -3118,33 +2905,25 @@ cron.schedule('0 3 1,15 * *', () => {
 }, { scheduled: true, timezone: "America/Sao_Paulo" });
 
 // Rota GET para o front-end consultar o histórico
-app.get('/api/programacao-diaria', authMiddleware, async (req, res) => {
-    try {
-        const rows = await dbAll('SELECT * FROM frota_programacao_diaria ORDER BY id DESC LIMIT 50');
-        const programas = rows.map(r => ({
-            id: r.id,
-            data_referencia: r.data_referencia,
-            turno: r.turno,
-            dados_json: (() => { try { return JSON.parse(r.dados_json || '{}'); } catch { return {}; } })()
-        }));
-        res.json({ success: true, programacoes: programas });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.get('/api/programacao-diaria', authMiddleware, asyncHandler(async (req, res) => {
+    const rows = await dbAll('SELECT * FROM frota_programacao_diaria ORDER BY id DESC LIMIT 50');
+    const programas = rows.map(r => ({
+        id: r.id,
+        data_referencia: r.data_referencia,
+        turno: r.turno,
+        dados_json: (() => { try { return JSON.parse(r.dados_json || '{}'); } catch { return {}; } })()
+    }));
+    res.json({ success: true, programacoes: programas });
+}));
 
-app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), async (req, res) => {
+app.post('/api/programacao-diaria/gerar', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
     const { turno } = req.body;
     if (turno !== 'Inicial' && turno !== 'Final') {
         return res.status(400).json({ success: false, message: "turno deve ser 'Inicial' ou 'Final'" });
     }
-    try {
-        const resultado = await gerarProgramacaoDiaria(turno);
-        res.json({ success: true, turno: resultado.turno, data_referencia: resultado.data_referencia });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+    const resultado = await gerarProgramacaoDiaria(turno);
+    res.json({ success: true, turno: resultado.turno, data_referencia: resultado.data_referencia });
+}));
 
 // ── CRON: Limpar fila de separação à meia-noite ──────────────────────────────
 // Remove itens cuja coleta já passou: veiculo_id com data_prevista < hoje,
@@ -3222,10 +3001,9 @@ async function lerRangeTramontina(sheets, range, aba) {
     return resp.data.values || [];
 }
 
-app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
-    try {
-        if (tramontinaCache.data && Date.now() - tramontinaCache.ts < 30000)
-            return res.json(tramontinaCache.data);
+app.get('/api/tramontina-dashboard', authMiddleware, asyncHandler(async (req, res) => {
+    if (tramontinaCache.data && Date.now() - tramontinaCache.ts < 30000)
+        return res.json(tramontinaCache.data);
 
         const auth = new google.auth.GoogleAuth({
             keyFile: path.join(__dirname, 'google-credentials.json'),
@@ -3326,47 +3104,37 @@ app.get('/api/tramontina-dashboard', authMiddleware, async (req, res) => {
         };
         tramontinaCache = { data: resultado, ts: Date.now() };
         res.json(resultado);
-    } catch (e) {
-        console.error('Erro tramontina-dashboard:', e.message);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+}));
 
 // ── GeoJSON Brasil proxy (evita CSP) ─────────────────────────────────────────
 
 let geojsonBrasilCache = { data: null, ts: 0 };
 
-app.get('/api/geojson-brasil', async (req, res) => {
-    try {
-        if (geojsonBrasilCache.data && Date.now() - geojsonBrasilCache.ts < 86400000)
-            return res.json(geojsonBrasilCache.data);
-        const codigos = ['1', '2', '3', '4', '5'];
-        const features = await Promise.all(codigos.map(async cod => {
-            const r = await fetch(`https://servicodados.ibge.gov.br/api/v3/malhas/regioes/${cod}?formato=application/vnd.geo+json&qualidade=intermediaria`);
-            const j = await r.json();
-            const f = (j.features || [])[0];
-            if (!f) return null;
-            f.properties = { ...(f.properties || {}), codarea: cod };
-            return f;
-        }));
-        const data = { type: 'FeatureCollection', features: features.filter(Boolean) };
-        geojsonBrasilCache = { data, ts: Date.now() };
-        res.json(data);
-    } catch (e) {
-        console.error('Erro geojson-brasil:', e.message);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.get('/api/geojson-brasil', asyncHandler(async (req, res) => {
+    if (geojsonBrasilCache.data && Date.now() - geojsonBrasilCache.ts < 86400000)
+        return res.json(geojsonBrasilCache.data);
+    const codigos = ['1', '2', '3', '4', '5'];
+    const features = await Promise.all(codigos.map(async cod => {
+        const r = await fetch(`https://servicodados.ibge.gov.br/api/v3/malhas/regioes/${cod}?formato=application/vnd.geo+json&qualidade=intermediaria`);
+        const j = await r.json();
+        const f = (j.features || [])[0];
+        if (!f) return null;
+        f.properties = { ...(f.properties || {}), codarea: cod };
+        return f;
+    }));
+    const data = { type: 'FeatureCollection', features: features.filter(Boolean) };
+    geojsonBrasilCache = { data, ts: Date.now() };
+    res.json(data);
+}));
 
 // ── Resultado Operacional (Google Sheets) ────────────────────────────────────
 
 const RESULTADO_SHEET_ID = '1-9TPCUJX2JPsAYeOjLPgzXLiB_1IjIKIU4olfCrj9sw';
 let resultadoCache = { data: null, ts: 0 };
 
-app.get('/api/resultado-operacional', authMiddleware, async (req, res) => {
-    try {
-        if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
-            return res.json(resultadoCache.data);
+app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, res) => {
+    if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
+        return res.json(resultadoCache.data);
 
         const auth = new google.auth.GoogleAuth({
             keyFile: path.join(__dirname, 'google-credentials.json'),
@@ -3441,11 +3209,7 @@ app.get('/api/resultado-operacional', authMiddleware, async (req, res) => {
 
         resultadoCache = { data: resultado, ts: Date.now() };
         res.json(resultado);
-    } catch (e) {
-        console.error('Erro resultado-operacional:', e.message);
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+}));
 
 // ── Provisionamento de Frota ─────────────────────────────────────────────────
 
@@ -3453,60 +3217,51 @@ const PROV_EDITORES = ['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 
 const STATUS_VIAGEM_PROV = ['EM_VIAGEM', 'EM_VIAGEM_FRETE_RETORNO', 'AGUARDANDO_FRETE_RETORNO', 'RETORNANDO', 'CARREGANDO', 'PUXADA', 'TRANSFERENCIA', 'PROJETO_SUL', 'PROJETO_SP'];
 
 // GET /api/provisionamento/veiculos — listar veículos ativos
-app.get('/api/provisionamento/veiculos', authMiddleware, async (req, res) => {
-    try {
-        const rows = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1 ORDER BY ordem ASC, id ASC');
-        res.json({ success: true, veiculos: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/provisionamento/veiculos', authMiddleware, asyncHandler(async (req, res) => {
+    const rows = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1 ORDER BY ordem ASC, id ASC');
+    res.json({ success: true, veiculos: rows });
+}));
 
 // POST /api/provisionamento/veiculos — cadastrar veículo
-app.post('/api/provisionamento/veiculos', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
-    try {
-        const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
-        const placaNorm = (placa || '').trim().toUpperCase() || null;
-        const carretaNorm = (carreta || '').trim().toUpperCase() || null;
-        if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
-            return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
-        }
-        const r = await dbRun(
-            'INSERT INTO prov_veiculos (placa, carreta, tipo_veiculo, modelo, motorista, ordem) VALUES ($1,$2,$3,$4,$5,$6)',
-            [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0]
-        );
-        res.json({ success: true, id: r.lastID || r.insertId });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.post('/api/provisionamento/veiculos', authMiddleware, authorize(PROV_EDITORES), asyncHandler(async (req, res) => {
+    const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
+    const placaNorm = (placa || '').trim().toUpperCase() || null;
+    const carretaNorm = (carreta || '').trim().toUpperCase() || null;
+    if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
+        return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
+    }
+    const r = await dbRun(
+        'INSERT INTO prov_veiculos (placa, carreta, tipo_veiculo, modelo, motorista, ordem) VALUES ($1,$2,$3,$4,$5,$6)',
+        [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0]
+    );
+    res.json({ success: true, id: r.lastID || r.insertId });
+}));
 
 // PUT /api/provisionamento/veiculos/:id — editar veículo
-app.put('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
-    try {
-        const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
-        const placaNorm = (placa || '').trim().toUpperCase() || null;
-        const carretaNorm = (carreta || '').trim().toUpperCase() || null;
-        if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
-            return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
-        }
-        await dbRun(
-            'UPDATE prov_veiculos SET placa=$1, carreta=$2, tipo_veiculo=$3, modelo=$4, motorista=$5, ordem=$6 WHERE id=$7',
-            [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0, req.params.id]
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.put('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), asyncHandler(async (req, res) => {
+    const { placa, carreta, tipo_veiculo, modelo, motorista, ordem } = req.body;
+    const placaNorm = (placa || '').trim().toUpperCase() || null;
+    const carretaNorm = (carreta || '').trim().toUpperCase() || null;
+    if (!tipo_veiculo || (!placaNorm && !carretaNorm)) {
+        return res.status(400).json({ success: false, message: 'Informe ao menos placa ou carreta, e tipo_veiculo.' });
+    }
+    await dbRun(
+        'UPDATE prov_veiculos SET placa=$1, carreta=$2, tipo_veiculo=$3, modelo=$4, motorista=$5, ordem=$6 WHERE id=$7',
+        [placaNorm, carretaNorm, tipo_veiculo, modelo || null, motorista || null, ordem || 0, req.params.id]
+    );
+    res.json({ success: true });
+}));
 
 // DELETE /api/provisionamento/veiculos/:id — inativar (soft delete)
-app.delete('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
-    try {
-        await dbRun('UPDATE prov_veiculos SET ativo = 0 WHERE id = $1', [req.params.id]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.delete('/api/provisionamento/veiculos/:id', authMiddleware, authorize(PROV_EDITORES), asyncHandler(async (req, res) => {
+    await dbRun('UPDATE prov_veiculos SET ativo = 0 WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+}));
 
 // GET /api/provisionamento/semana?inicio=YYYY-MM-DD — grade completa da semana
-app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
-    try {
-        const { inicio } = req.query;
-        if (!inicio) return res.status(400).json({ success: false, message: 'Parâmetro inicio (YYYY-MM-DD) obrigatório.' });
+app.get('/api/provisionamento/semana', authMiddleware, asyncHandler(async (req, res) => {
+    const { inicio } = req.query;
+    if (!inicio) return res.status(400).json({ success: false, message: 'Parâmetro inicio (YYYY-MM-DD) obrigatório.' });
 
         // Calcular os 7 dias
         const dias = [];
@@ -3580,14 +3335,12 @@ app.get('/api/provisionamento/semana', authMiddleware, async (req, res) => {
         }
 
         res.json({ success: true, veiculos, dias, programacao, totais });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // PUT /api/provisionamento/status — UPSERT status de uma célula
-app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES), async (req, res) => {
-    try {
-        const { veiculo_id, data, status, destino } = req.body;
-        if (!veiculo_id || !data || !status) return res.status(400).json({ success: false, message: 'veiculo_id, data e status são obrigatórios.' });
+app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES), asyncHandler(async (req, res) => {
+    const { veiculo_id, data, status, destino } = req.body;
+    if (!veiculo_id || !data || !status) return res.status(400).json({ success: false, message: 'veiculo_id, data e status são obrigatórios.' });
         await dbRun(
             `INSERT INTO prov_programacao (veiculo_id, data, status, destino)
              VALUES ($1, $2, $3, $4)
@@ -3648,17 +3401,15 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
         }
 
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // POST /api/provisionamento/viagem — Registra dias EM_VIAGEM para um veículo do provisionamento
 // body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }] }
-app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
-    try {
-        const { veiculo_id, motorista, data_saida, data_retorno, entradas } = req.body;
-        if (!veiculo_id || !data_saida || !Array.isArray(entradas) || entradas.length === 0) {
-            return res.status(400).json({ success: false, message: 'veiculo_id, data_saida e entradas são obrigatórios.' });
-        }
+app.post('/api/provisionamento/viagem', authMiddleware, asyncHandler(async (req, res) => {
+    const { veiculo_id, motorista, data_saida, data_retorno, entradas } = req.body;
+    if (!veiculo_id || !data_saida || !Array.isArray(entradas) || entradas.length === 0) {
+        return res.status(400).json({ success: false, message: 'veiculo_id, data_saida e entradas são obrigatórios.' });
+    }
         // Determinar intervalo de viagem: data_saida até max(entradas[].data)
         const datasEntrega = entradas.map(e => e.data).filter(Boolean).sort();
         const dataFimViagem = datasEntrega[datasEntrega.length - 1] || data_saida;
@@ -3720,79 +3471,70 @@ app.post('/api/provisionamento/viagem', authMiddleware, async (req, res) => {
         }
 
         res.json({ success: true, dias_afetados: diasViagem.length + diasRetorno });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+}));
 
 // GET /api/provisionamento/dashboard?data=YYYY-MM-DD — contagens por status e tipo para o dia
-app.get('/api/provisionamento/dashboard', authMiddleware, async (req, res) => {
-    try {
-        const data = req.query.data || new Date().toISOString().substring(0, 10);
-        const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1');
-        const progs = await dbAll(
-            'SELECT veiculo_id, status, destino, destinos_json, motorista, observacao FROM prov_programacao WHERE data = $1',
-            [data]
-        );
-        const progMap = {};
-        for (const p of progs) progMap[p.veiculo_id] = p;
+app.get('/api/provisionamento/dashboard', authMiddleware, asyncHandler(async (req, res) => {
+    const data = req.query.data || new Date().toISOString().substring(0, 10);
+    const veiculos = await dbAll('SELECT * FROM prov_veiculos WHERE ativo = 1');
+    const progs = await dbAll(
+        'SELECT veiculo_id, status, destino, destinos_json, motorista, observacao FROM prov_programacao WHERE data = $1',
+        [data]
+    );
+    const progMap = {};
+    for (const p of progs) progMap[p.veiculo_id] = p;
 
-        // Para cada veículo, determinar status efetivo no dia
-        const resultado = veiculos.map(v => {
-            const p = progMap[v.id];
-            return {
-                id: v.id,
-                placa: v.placa,
-                carreta: v.carreta || null,
-                tipo_veiculo: v.tipo_veiculo,
-                motorista: p?.motorista || v.motorista || null,
-                status: p?.status || 'DISPONIVEL',
-                destino: p?.destino || null,
-                destinos_json: p?.destinos_json || null,
-                observacao: p?.observacao || '',
-            };
-        });
+    // Para cada veículo, determinar status efetivo no dia
+    const resultado = veiculos.map(v => {
+        const p = progMap[v.id];
+        return {
+            id: v.id,
+            placa: v.placa,
+            carreta: v.carreta || null,
+            tipo_veiculo: v.tipo_veiculo,
+            motorista: p?.motorista || v.motorista || null,
+            status: p?.status || 'DISPONIVEL',
+            destino: p?.destino || null,
+            destinos_json: p?.destinos_json || null,
+            observacao: p?.observacao || '',
+        };
+    });
 
-        res.json({ success: true, data, veiculos: resultado });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+    res.json({ success: true, data, veiculos: resultado });
+}));
 
 // PUT /api/provisionamento/obs — observação por veículo/dia
-app.put('/api/provisionamento/obs', authMiddleware, async (req, res) => {
-    try {
-        const { veiculo_id, data, observacao } = req.body;
-        if (!veiculo_id || !data) return res.status(400).json({ success: false, message: 'veiculo_id e data obrigatórios' });
-        await dbRun(
-            `INSERT INTO prov_programacao (veiculo_id, data, status, observacao)
-             VALUES ($1, $2, 'DISPONIVEL', $3)
-             ON CONFLICT (veiculo_id, data) DO UPDATE SET observacao = $3`,
-            [veiculo_id, data, observacao || '']
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.put('/api/provisionamento/obs', authMiddleware, asyncHandler(async (req, res) => {
+    const { veiculo_id, data, observacao } = req.body;
+    if (!veiculo_id || !data) return res.status(400).json({ success: false, message: 'veiculo_id e data obrigatórios' });
+    await dbRun(
+        `INSERT INTO prov_programacao (veiculo_id, data, status, observacao)
+         VALUES ($1, $2, 'DISPONIVEL', $3)
+         ON CONFLICT (veiculo_id, data) DO UPDATE SET observacao = $3`,
+        [veiculo_id, data, observacao || '']
+    );
+    res.json({ success: true });
+}));
 
 // GET /api/frota/obs-dia?data=YYYY-MM-DD — observação geral do dia para programação da frota
-app.get('/api/frota/obs-dia', authMiddleware, async (req, res) => {
-    try {
-        const data = req.query.data || new Date().toISOString().slice(0, 10);
-        const row = await dbGet('SELECT observacao FROM frota_obs_diarias WHERE data_referencia = $1', [data]);
-        res.json({ success: true, observacao: row?.observacao || '' });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/frota/obs-dia', authMiddleware, asyncHandler(async (req, res) => {
+    const data = req.query.data || new Date().toISOString().slice(0, 10);
+    const row = await dbGet('SELECT observacao FROM frota_obs_diarias WHERE data_referencia = $1', [data]);
+    res.json({ success: true, observacao: row?.observacao || '' });
+}));
 
 // PUT /api/frota/obs-dia — salvar/atualizar observação do dia
-app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planejamento']), async (req, res) => {
-    try {
-        const { data, observacao } = req.body;
-        if (!data) return res.status(400).json({ success: false, message: 'data obrigatória.' });
-        await dbRun(
-            `INSERT INTO frota_obs_diarias (data_referencia, observacao, atualizada_em)
-             VALUES ($1, $2, NOW())
-             ON CONFLICT (data_referencia) DO UPDATE SET observacao = $2, atualizada_em = NOW()`,
-            [data, observacao || '']
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.put('/api/frota/obs-dia', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { data, observacao } = req.body;
+    if (!data) return res.status(400).json({ success: false, message: 'data obrigatória.' });
+    await dbRun(
+        `INSERT INTO frota_obs_diarias (data_referencia, observacao, atualizada_em)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (data_referencia) DO UPDATE SET observacao = $2, atualizada_em = NOW()`,
+        [data, observacao || '']
+    );
+    res.json({ success: true });
+}));
 
 // ── Taxa de Usabilidade da Frota ─────────────────────────────────────────────
 const STATUS_OPERANDO = new Set(['EM_VIAGEM','EM_OPERACAO','CARREGANDO','CARREGADO','RETORNANDO','EM_VIAGEM_FRETE_RETORNO','TRANSFERENCIA','PUXADA']);
@@ -3920,38 +3662,36 @@ async function calcularUsabilidadePeriodo(inicio, fim) {
     return { taxa_periodo, status_atual, diario, por_tipo, total_frota: totalFrota, motivos_quinzena };
 }
 
-app.get('/api/frota/usabilidade', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Encarregado']), async (req, res) => {
-    try {
-        const hoje = dataRecife();
-        const qAtual = quinzenaDe(hoje);
-        const inicio = req.query.inicio || qAtual.inicio;
-        const fim = req.query.fim || qAtual.fim;
+app.get('/api/frota/usabilidade', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Adm Frota', 'Encarregado']), asyncHandler(async (req, res) => {
+    const hoje = dataRecife();
+    const qAtual = quinzenaDe(hoje);
+    const inicio = req.query.inicio || qAtual.inicio;
+    const fim = req.query.fim || qAtual.fim;
 
-        const atual = await calcularUsabilidadePeriodo(inicio, fim);
+    const atual = await calcularUsabilidadePeriodo(inicio, fim);
 
-        const anteriores = [];
-        let q = { inicio, fim };
-        for (let i = 0; i < 3; i++) {
-            q = quinzenaAnterior(q);
-            const prev = await calcularUsabilidadePeriodo(q.inicio, q.fim);
-            anteriores.push({ label: q.label, inicio: q.inicio, fim: q.fim, taxa: prev.taxa_periodo });
-        }
+    const anteriores = [];
+    let q = { inicio, fim };
+    for (let i = 0; i < 3; i++) {
+        q = quinzenaAnterior(q);
+        const prev = await calcularUsabilidadePeriodo(q.inicio, q.fim);
+        anteriores.push({ label: q.label, inicio: q.inicio, fim: q.fim, taxa: prev.taxa_periodo });
+    }
 
-        res.json({
-            success: true,
-            periodo: { inicio, fim },
-            taxa_periodo: atual.taxa_periodo,
-            taxa_meta: META_USAB,
-            taxa_alerta: ALERTA_USAB,
-            status_atual: atual.status_atual,
-            total_frota: atual.total_frota,
-            diario: atual.diario,
-            por_tipo: atual.por_tipo,
-            motivos_quinzena: atual.motivos_quinzena,
-            quinzenas_anteriores: anteriores,
-        });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+    res.json({
+        success: true,
+        periodo: { inicio, fim },
+        taxa_periodo: atual.taxa_periodo,
+        taxa_meta: META_USAB,
+        taxa_alerta: ALERTA_USAB,
+        status_atual: atual.status_atual,
+        total_frota: atual.total_frota,
+        diario: atual.diario,
+        por_tipo: atual.por_tipo,
+        motivos_quinzena: atual.motivos_quinzena,
+        quinzenas_anteriores: anteriores,
+    });
+}));
 
 // CRON: alertas de usabilidade 3x/dia (08h, 13h, 17h Recife) quando taxa ≤ 80%
 cron.schedule('0 8,13,17 * * *', async () => {
@@ -4002,152 +3742,126 @@ cron.schedule('0 8,13,17 * * *', async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Endpoints para containers bloqueando docas (por data)
-app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Dashboard Viewer']), async (req, res) => {
-    try {
-        const data = req.query.data || new Date().toISOString().slice(0, 10);
-        const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1 OR data_referencia IS NULL', [data]);
-        res.json({ success: true, docas: rows });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+app.get('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Dashboard Viewer']), asyncHandler(async (req, res) => {
+    const data = req.query.data || new Date().toISOString().slice(0, 10);
+    const rows = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1 OR data_referencia IS NULL', [data]);
+    res.json({ success: true, docas: rows });
+}));
 
-app.post('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const { unidade, data } = req.body;
-        const dataRef = data || new Date().toISOString().slice(0, 10);
-        const result = await dbRun(
-            'INSERT INTO docas_interditadas (unidade, doca, nome, data_referencia) VALUES ($1, $2, $3, $4)',
-            [unidade, 'SELECIONE', 'CONTAINER', dataRef]
-        );
-        const newCard = { id: result.lastID || result.rows?.[0]?.id, unidade, doca: 'SELECIONE', nome: 'CONTAINER', data_referencia: dataRef };
+app.post('/api/docas-interditadas', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const { unidade, data } = req.body;
+    const dataRef = data || new Date().toISOString().slice(0, 10);
+    const result = await dbRun(
+        'INSERT INTO docas_interditadas (unidade, doca, nome, data_referencia) VALUES ($1, $2, $3, $4)',
+        [unidade, 'SELECIONE', 'CONTAINER', dataRef]
+    );
+    const newCard = { id: result.lastID || result.rows?.[0]?.id, unidade, doca: 'SELECIONE', nome: 'CONTAINER', data_referencia: dataRef };
 
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
-        await registrarLog('DOCA_CRIADA', req.user?.nome || '?', newCard.id, 'doca', null, null, `Unidade: ${unidade} Data: ${dataRef}`);
-        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
-        res.json({ success: true, doca: newCard });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+    const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
+    await registrarLog('DOCA_CRIADA', req.user?.nome || '?', newCard.id, 'doca', null, null, `Unidade: ${unidade} Data: ${dataRef}`);
+    io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
+    res.json({ success: true, doca: newCard });
+}));
 
-app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const { doca } = req.body;
-        await dbRun('UPDATE docas_interditadas SET doca = $1 WHERE id = $2', [doca, id]);
+app.put('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { doca } = req.body;
+    await dbRun('UPDATE docas_interditadas SET doca = $1 WHERE id = $2', [doca, id]);
 
-        const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
-        const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
-        await registrarLog('DOCA_ATUALIZADA', req.user?.nome || '?', id, 'doca', null, doca, null);
-        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+    const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
+    const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
+    const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
+    await registrarLog('DOCA_ATUALIZADA', req.user?.nome || '?', id, 'doca', null, doca, null);
+    io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
+    res.json({ success: true });
+}));
 
-app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
-        const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
-        await dbRun('DELETE FROM docas_interditadas WHERE id = $1', [id]);
+app.delete('/api/docas-interditadas/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await dbGet('SELECT data_referencia FROM docas_interditadas WHERE id = $1', [id]);
+    const dataRef = row?.data_referencia?.toISOString?.().slice(0, 10) || row?.data_referencia || new Date().toISOString().slice(0, 10);
+    await dbRun('DELETE FROM docas_interditadas WHERE id = $1', [id]);
 
-        const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
-        await registrarLog('DOCA_DELETADA', req.user?.nome || '?', id, 'doca', null, null, null);
-        io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ success: false, message: e.message });
-    }
-});
+    const allDocas = await dbAll('SELECT * FROM docas_interditadas WHERE data_referencia = $1', [dataRef]);
+    await registrarLog('DOCA_DELETADA', req.user?.nome || '?', id, 'doca', null, null, null);
+    io.emit('docas_interditadas_update', { data: dataRef, docas: allDocas });
+    res.json({ success: true });
+}));
 
 // ==================== SALDO DE PALETES ====================
 
 // Buscar dados de um veículo pelo número de coleta para pré-preencher o lançamento manual
-app.get('/api/saldo-paletes/buscar-coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const numero = req.params.numero;
-        const v = await dbGet(
-            `SELECT motorista, placa, dados_json, placa1motorista, placa2motorista FROM veiculos
-             WHERE coleta = ? OR coletarecife = ? OR coletamoreno = ?
-             ORDER BY id DESC LIMIT 1`,
-            [numero, numero, numero]
-        );
-        if (!v) return res.json({ success: false, message: 'Coleta não encontrada.' });
-        let dj = {};
-        try { dj = typeof v.dados_json === 'string' ? JSON.parse(v.dados_json) : (v.dados_json || {}); } catch {}
-        res.json({
-            success: true,
-            motorista: v.motorista || '',
-            placa_cavalo: v.placa1motorista || dj.placa1Motorista || v.placa || '',
-            placa_carreta: v.placa2motorista || dj.placa2Motorista || '',
-        });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/saldo-paletes/buscar-coleta/:numero', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const numero = req.params.numero;
+    const v = await dbGet(
+        `SELECT motorista, placa, dados_json, placa1motorista, placa2motorista FROM veiculos
+         WHERE coleta = ? OR coletarecife = ? OR coletamoreno = ?
+         ORDER BY id DESC LIMIT 1`,
+        [numero, numero, numero]
+    );
+    if (!v) return res.json({ success: false, message: 'Coleta não encontrada.' });
+    let dj = {};
+    try { dj = typeof v.dados_json === 'string' ? JSON.parse(v.dados_json) : (v.dados_json || {}); } catch {}
+    res.json({
+        success: true,
+        motorista: v.motorista || '',
+        placa_cavalo: v.placa1motorista || dj.placa1Motorista || v.placa || '',
+        placa_carreta: v.placa2motorista || dj.placa2Motorista || '',
+    });
+}));
 
-app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
-        res.json({ success: true, registros: rows });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.get('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const rows = await dbAll("SELECT * FROM saldo_paletes ORDER BY data_entrada DESC");
+    res.json({ success: true, registros: rows });
+}));
 
-app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada_manual, numero_coleta } = req.body;
-        if (!motorista || !tipo_palete) {
-            return res.status(400).json({ success: false, message: 'Motorista e tipo de palete são obrigatórios.' });
-        }
-        if ((tipo_palete === 'PBR' || tipo_palete === 'MISTO') && !fornecedor_pbr) {
-            return res.status(400).json({ success: false, message: 'Fornecedor é obrigatório para paletes PBR.' });
-        }
-        const dataEntrada = data_entrada_manual ? new Date(data_entrada_manual).toISOString() : new Date().toISOString();
-        const result = await dbRun(
-            `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada, numero_coleta)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '', dataEntrada, numero_coleta || null]
-        );
-        await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
-        io.emit('saldo_paletes_update');
-        res.json({ success: true, id: result.lastID || result.id });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.post('/api/saldo-paletes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const { motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada_manual, numero_coleta } = req.body;
+    if (!motorista || !tipo_palete) {
+        return res.status(400).json({ success: false, message: 'Motorista e tipo de palete são obrigatórios.' });
+    }
+    if ((tipo_palete === 'PBR' || tipo_palete === 'MISTO') && !fornecedor_pbr) {
+        return res.status(400).json({ success: false, message: 'Fornecedor é obrigatório para paletes PBR.' });
+    }
+    const dataEntrada = data_entrada_manual ? new Date(data_entrada_manual).toISOString() : new Date().toISOString();
+    const result = await dbRun(
+        `INSERT INTO saldo_paletes (motorista, telefone, placa_cavalo, placa_carreta, tipo_palete, qtd_pbr, qtd_descartavel, fornecedor_pbr, observacao, unidade, data_entrada, numero_coleta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [motorista, telefone || '', placa_cavalo || '', placa_carreta || '', tipo_palete, qtd_pbr || 0, qtd_descartavel || 0, fornecedor_pbr || '', observacao || '', unidade || '', dataEntrada, numero_coleta || null]
+    );
+    await registrarLog('PALETE_CRIADO', req.user?.nome || '?', result.lastID || result.id, 'palete', null, null, `Motorista: ${motorista} | Tipo: ${tipo_palete}`);
+    io.emit('saldo_paletes_update');
+    res.json({ success: true, id: result.lastID || result.id });
+}));
 
-app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const { qtd_devolvida_pbr, qtd_devolvida_desc, total } = req.body;
-        const registro = await dbGet("SELECT * FROM saldo_paletes WHERE id = ?", [id]);
-        if (!registro) return res.status(404).json({ success: false, message: 'Registro não encontrado.' });
+app.put('/api/saldo-paletes/:id/devolucao', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const { qtd_devolvida_pbr, qtd_devolvida_desc, total } = req.body;
+    const registro = await dbGet("SELECT * FROM saldo_paletes WHERE id = ?", [id]);
+    if (!registro) return res.status(404).json({ success: false, message: 'Registro não encontrado.' });
 
-        let devPbr = qtd_devolvida_pbr || 0;
-        let devDesc = qtd_devolvida_desc || 0;
-        if (total) {
-            devPbr = registro.qtd_pbr;
-            devDesc = registro.qtd_descartavel;
-        }
-        const todosDevolvidos = (devPbr >= registro.qtd_pbr) && (devDesc >= registro.qtd_descartavel);
-        await dbRun(
-            `UPDATE saldo_paletes SET qtd_devolvida_pbr = ?, qtd_devolvida_desc = ?, devolvido = ?, data_devolucao = CURRENT_TIMESTAMP WHERE id = ?`,
-            [devPbr, devDesc, todosDevolvidos, id]
-        );
-        await registrarLog('PALETE_DEVOLUCAO', req.user?.nome || '?', id, 'palete', null, null, `PBR: ${devPbr}, Desc: ${devDesc}`);
-        io.emit('saldo_paletes_update');
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+    let devPbr = qtd_devolvida_pbr || 0;
+    let devDesc = qtd_devolvida_desc || 0;
+    if (total) {
+        devPbr = registro.qtd_pbr;
+        devDesc = registro.qtd_descartavel;
+    }
+    const todosDevolvidos = (devPbr >= registro.qtd_pbr) && (devDesc >= registro.qtd_descartavel);
+    await dbRun(
+        `UPDATE saldo_paletes SET qtd_devolvida_pbr = ?, qtd_devolvida_desc = ?, devolvido = ?, data_devolucao = CURRENT_TIMESTAMP WHERE id = ?`,
+        [devPbr, devDesc, todosDevolvidos, id]
+    );
+    await registrarLog('PALETE_DEVOLUCAO', req.user?.nome || '?', id, 'palete', null, null, `PBR: ${devPbr}, Desc: ${devDesc}`);
+    io.emit('saldo_paletes_update');
+    res.json({ success: true });
+}));
 
-app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador', 'Encarregado']), async (req, res) => {
-    try {
-        await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
-        await registrarLog('PALETE_DELETADO', req.user?.nome || '?', req.params.id, 'palete', null, null, null);
-        io.emit('saldo_paletes_update');
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
-});
+app.delete('/api/saldo-paletes/:id', authMiddleware, authorize(['Coordenador', 'Encarregado']), asyncHandler(async (req, res) => {
+    await dbRun("DELETE FROM saldo_paletes WHERE id = ?", [Number(req.params.id)]);
+    await registrarLog('PALETE_DELETADO', req.user?.nome || '?', req.params.id, 'palete', null, null, null);
+    io.emit('saldo_paletes_update');
+    res.json({ success: true });
+}));
 
 // Porta configurável via .env
 const PORT = process.env.PORT || 3001;
@@ -4166,58 +3880,52 @@ app.use((err, req, res, next) => {
 });
 
 // ── Google Sheets — Planilha Porcelana ───────────────────────────────────────
-app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), async (req, res) => {
-    try {
-        const saJson  = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-        const sheetId = process.env.SHEETS_PORCELANA_ID;
-        const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques - ABRIL 2026!A1:AJ5000';
+app.get('/api/sheets/porcelana', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), asyncHandler(async (req, res) => {
+    const saJson  = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const sheetId = process.env.SHEETS_PORCELANA_ID;
+    const range   = process.env.SHEETS_PORCELANA_RANGE || 'Embarques - ABRIL 2026!A1:AJ5000';
 
-        if (!saJson || !sheetId) {
-            return res.json({ success: true, configurado: false, linhas: [] });
-        }
-
-        const { google } = require('googleapis');
-        const auth = new google.auth.GoogleAuth({
-            credentials: JSON.parse(saJson),
-            scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
-        const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
-        const rows = resp.data.values || [];
-
-        // 4 linhas de cabeçalho → dados a partir do índice 4
-        const linhas = rows.slice(4).map((row, i) => ({
-            _idx: i,
-            cliente:        row[1]  || '',
-            cidade:         row[2]  || '',
-            uf:             row[3]  || '',
-            regiao:         row[4]  || '',
-            volumes:        parseFloat((row[6]  || '0').replace(',', '.')) || 0,
-            peso_kg:        parseFloat((row[7]  || '0').replace(',', '.')) || 0,
-            m3:             parseFloat((row[8]  || '0').replace(',', '.')) || 0,
-            valor:          parseFloat((row[9]  || '0').replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.')) || 0,
-            nf:             row[10] || '',
-            status:         row[15] || '',
-            doca:           row[16] || '',
-            rota:           row[17] || '',
-            motorista:      row[23] || '',
-            placa:          row[24] || '',
-            transportadora: row[27] || '',
-            data_coleta:    row[31] || '',
-        })).filter(r => r.cliente || r.nf);
-
-        res.json({ success: true, configurado: true, atualizado_em: new Date().toISOString(), total: linhas.length, linhas });
-    } catch (err) {
-        console.error('Sheets error:', err.message);
-        res.status(500).json({ success: false, error: err.message });
+    if (!saJson || !sheetId) {
+        return res.json({ success: true, configurado: false, linhas: [] });
     }
-});
+
+    const { google } = require('googleapis');
+    const auth = new google.auth.GoogleAuth({
+        credentials: JSON.parse(saJson),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
+    const rows = resp.data.values || [];
+
+    // 4 linhas de cabeçalho → dados a partir do índice 4
+    const linhas = rows.slice(4).map((row, i) => ({
+        _idx: i,
+        cliente:        row[1]  || '',
+        cidade:         row[2]  || '',
+        uf:             row[3]  || '',
+        regiao:         row[4]  || '',
+        volumes:        parseFloat((row[6]  || '0').replace(',', '.')) || 0,
+        peso_kg:        parseFloat((row[7]  || '0').replace(',', '.')) || 0,
+        m3:             parseFloat((row[8]  || '0').replace(',', '.')) || 0,
+        valor:          parseFloat((row[9]  || '0').replace(/R\$\s*/g, '').replace(/\./g, '').replace(',', '.')) || 0,
+        nf:             row[10] || '',
+        status:         row[15] || '',
+        doca:           row[16] || '',
+        rota:           row[17] || '',
+        motorista:      row[23] || '',
+        placa:          row[24] || '',
+        transportadora: row[27] || '',
+        data_coleta:    row[31] || '',
+    })).filter(r => r.cliente || r.nf);
+
+    res.json({ success: true, configurado: true, atualizado_em: new Date().toISOString(), total: linhas.length, linhas });
+}));
 
 // ── Relatório de Cubagem ─────────────────────────────────────────────────────
-app.get('/api/relatorio/cubagem', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), async (req, res) => {
-    try {
-        const { de, ate } = req.query;
-        if (!de || !ate) return res.status(400).json({ success: false, error: 'Parâmetros de e ate são obrigatórios' });
+app.get('/api/relatorio/cubagem', authMiddleware, authorize(['Direção', 'Coordenador', 'Adm Frota', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { de, ate } = req.query;
+    if (!de || !ate) return res.status(400).json({ success: false, error: 'Parâmetros de e ate são obrigatórios' });
 
         const cubagens = await dbAll(`
             SELECT c.id, c.numero_coleta, c.motorista, c.cliente, c.destino,
@@ -4268,11 +3976,7 @@ app.get('/api/relatorio/cubagem', authMiddleware, authorize(['Direção', 'Coord
         `, [de, ate]);
 
         res.json({ success: true, cubagens, por_regiao: porRegiao, heatmap });
-    } catch (e) {
-        console.error('Erro relatorio cubagem:', e.message);
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
+}));
 
 // ── Task Dashboard (antes do catch-all do React) ─────────────────────────────
 const tasksRouter = require('./src/routes/tasks')(adminAuth);

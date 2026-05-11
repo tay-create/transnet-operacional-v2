@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X, AlertTriangle } from 'lucide-react';
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
+import { useToast } from '../hooks/useToast';
+import { calcularTempoEspera, corDisponibilidade } from '../utils/marcacoesUtils';
+import { useMarcacoes } from '../hooks/useMarcacoes';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -43,56 +46,8 @@ const s = {
     },
     linkText: { fontSize: '11px', color: '#475569', wordBreak: 'break-all', maxWidth: '260px' },
     empty: { textAlign: 'center', padding: '40px', color: '#475569', fontSize: '14px' },
-    toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
-// ── Cálculo de tempo de espera ───────────────────────────────────────────────
-// data_marcacao e data_contratacao são gravadas no timezone de Brasília (sem Z).
-// Parseamos como hora local sem adicionar 'Z' para evitar deslocamento de 3h.
-function parseDateLocal(str) {
-    if (!str) return null;
-    // Se já vier com Z ou +offset, usa diretamente; caso contrário trata como local
-    if (str.endsWith('Z') || str.includes('+')) return new Date(str);
-    // Formato "YYYY-MM-DD HH:MM:SS" → substitui espaço por T para o parser JS
-    return new Date(str.replace(' ', 'T'));
-}
-function calcularTempoEspera(dataMarcacao, dataContratacao) {
-    if (!dataMarcacao) return null;
-    const inicio = parseDateLocal(dataMarcacao);
-    const fim = dataContratacao ? parseDateLocal(dataContratacao) : new Date();
-    if (!inicio || isNaN(inicio)) return null;
-    const diff = Math.floor((fim - inicio) / 60000);
-    return Math.max(0, diff);
-}
-
-function formatarTempo(minutos) {
-    if (minutos === null) return '—';
-    if (minutos < 60) return `${minutos}min`;
-    const totalH = Math.floor(minutos / 60);
-    const m = minutos % 60;
-    if (totalH < 24) return m > 0 ? `${totalH}h ${m}min` : `${totalH}h`;
-    const d = Math.floor(totalH / 24);
-    const h = totalH % 24;
-    if (h === 0 && m === 0) return `${d}d`;
-    if (h === 0) return `${d}d ${m}min`;
-    if (m === 0) return `${d}d ${h}h`;
-    return `${d}d ${h}h ${m}min`;
-}
-
-function corTempo(min) {
-    if (min === null) return '#64748b';
-    if (min < 60) return '#4ade80';
-    if (min < 240) return '#fbbf24';
-    return '#f87171';
-}
-
-// ── Cor da disponibilidade (localização) ─────────────────────────────────────
-function corDisponibilidade(disp) {
-    if (!disp) return '#64748b';
-    if (disp === 'NO PÁTIO') return '#4ade80';
-    if (disp === 'NO POSTO') return '#fbbf24';
-    return '#94a3b8'; // EM CASA
-}
 
 // ── Estado inicial do form de frota (apenas nome e telefone) ─────────────────
 const FORM_FROTA_INICIAL = { nome_motorista: '', telefone: '' };
@@ -108,14 +63,20 @@ const FAIXAS_TEMPO = [
 ];
 
 export default function GestaoMarcacoes({ socket }) {
+    const {
+        marcacoes, tokens, loadingTokens,
+        carregarTokens,
+        criarToken, atualizarToken, deletarToken,
+        deletarMarcacao: deletarMarcacaoHook,
+        atualizarStatus, atualizarStatusOperacional, atualizarTag,
+        setMarcacoes,
+    } = useMarcacoes();
+
     const [aba, setAba] = useState('links');
-    const [tokens, setTokens] = useState([]);
-    const [marcacoes, setMarcacoes] = useState([]);
     const [confirmar, setConfirmar] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [tel, setTel] = useState('');
     const [copiado, setCopiado] = useState(null);
-    const [toast, setToast] = useState('');
+    const { toasts, toast } = useToast();
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
@@ -129,26 +90,13 @@ export default function GestaoMarcacoes({ socket }) {
     const [contadoresMarcacoes, setContadoresMarcacoes] = useState(null);
     const ITENS_POR_PAGINA = 50;
     // Tick para atualizar cronômetros a cada minuto
+    const [loadingMarcacoes, setLoadingMarcacoes] = useState(false);
     const [tick, setTick] = useState(0);
     const [modalMarcacao, setModalMarcacao] = useState(null);
 
     useEffect(() => {
         const id = setInterval(() => setTick(t => t + 1), 60000);
         return () => clearInterval(id);
-    }, []);
-
-    const mostrarToast = (msg) => {
-        setToast(msg);
-        setTimeout(() => setToast(''), 2800);
-    };
-
-    const carregarTokens = useCallback(async () => {
-        setLoading(true);
-        try {
-            const r = await api.get('/api/tokens');
-            if (r.data.success) setTokens(r.data.tokens);
-        } catch (e) { console.error(e); mostrarToast('Erro ao carregar links.'); }
-        finally { setLoading(false); }
     }, []);
 
     // AbortController da última request — cancela requests obsoletas (evita race condition HTTP)
@@ -160,7 +108,7 @@ export default function GestaoMarcacoes({ socket }) {
         const controller = new AbortController();
         abortMarcacoesRef.current = controller;
 
-        setLoading(true);
+        setLoadingMarcacoes(true);
         try {
             const qp = new URLSearchParams({ page: pagina, limit: ITENS_POR_PAGINA });
             if (filtroDisponibilidade) qp.set('local', filtroDisponibilidade);
@@ -182,10 +130,10 @@ export default function GestaoMarcacoes({ socket }) {
             }
         } catch (e) {
             if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
-            console.error(e); mostrarToast('Erro ao carregar marcações.');
+            console.error(e); toast.error('Erro ao carregar marcações.');
         }
-        finally { setLoading(false); }
-    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]);
+        finally { setLoadingMarcacoes(false); }
+    }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo, setMarcacoes]);
 
     // Ref para socket handler — evita re-registro a cada render
     const carregarMarcacoesRef = useRef(carregarMarcacoes);
@@ -236,27 +184,22 @@ export default function GestaoMarcacoes({ socket }) {
     }, [socket, aba]); // carregarMarcacoes removido — usa ref para sempre ter a versão atual
 
     async function gerarLink() {
-        if (!tel.trim()) { mostrarToast('Informe o telefone.'); return; }
+        if (!tel.trim()) { toast.error('Informe o telefone.'); return; }
         try {
-            const r = await api.post('/api/tokens', { telefone: tel.trim() });
-            if (r.data.success) {
-                setTel('');
-                mostrarToast('Link gerado com sucesso!');
-                carregarTokens();
-            } else {
-                mostrarToast(r.data.message || 'Erro ao gerar link.');
-            }
-        } catch (e) { mostrarToast(e.response?.data?.message || 'Erro de conexão.'); }
+            await criarToken(tel.trim());
+            setTel('');
+            toast.success('Link gerado com sucesso!');
+            carregarTokens();
+        } catch (e) { toast.error(e.response?.data?.message || e.message || 'Erro de conexão.'); }
     }
 
     async function toggleStatus(token) {
         const efetivo = statusEfetivo(token);
         const novoStatus = efetivo === 'ativo' ? 'inativo' : 'ativo';
         try {
-            await api.put(`/api/tokens/${token.id}`, { status: novoStatus });
-            setTokens(prev => prev.map(t => t.id === token.id ? { ...t, status: novoStatus } : t));
-            mostrarToast(novoStatus === 'ativo' ? 'Link reativado.' : 'Link inativado.');
-        } catch (e) { mostrarToast('Erro ao atualizar.'); }
+            await atualizarToken(token.id, novoStatus);
+            toast.success(novoStatus === 'ativo' ? 'Link reativado.' : 'Link inativado.');
+        } catch (e) { toast.error('Erro ao atualizar.'); }
     }
 
     function excluirToken(id) {
@@ -266,10 +209,9 @@ export default function GestaoMarcacoes({ socket }) {
             onConfirm: async () => {
                 setConfirmar(null);
                 try {
-                    await api.delete(`/api/tokens/${id}`);
-                    setTokens(prev => prev.filter(t => t.id !== id));
-                    mostrarToast('Link excluído.');
-                } catch (e) { mostrarToast('Erro ao excluir.'); }
+                    await deletarToken(id);
+                    toast.success('Link excluído.');
+                } catch (e) { toast.error('Erro ao excluir.'); }
             }
         });
     }
@@ -281,10 +223,9 @@ export default function GestaoMarcacoes({ socket }) {
             onConfirm: async () => {
                 setConfirmar(null);
                 try {
-                    await api.delete(`/api/marcacoes/${id}`);
-                    setMarcacoes(prev => prev.filter(m => m.id !== id));
-                    mostrarToast('Marcação removida.');
-                } catch (e) { mostrarToast('Erro ao excluir.'); }
+                    await deletarMarcacaoHook(id);
+                    toast.success('Marcação removida.');
+                } catch (e) { toast.error('Erro ao excluir.'); }
             }
         });
     }
@@ -292,22 +233,14 @@ export default function GestaoMarcacoes({ socket }) {
     async function handleToggleIndisponivel(id, disponibilidadeAtual) {
         const novoStatus = disponibilidadeAtual === 'Indisponível' ? 'Disponível' : 'Indisponível';
         try {
-            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novoStatus });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
-            }
-        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
+            await atualizarStatus(id, novoStatus);
+        } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
     async function handleAtualizarLocalizacao(id, novaLocalizacao) {
         try {
-            const r = await api.put(`/api/marcacoes/${id}/status`, { status: novaLocalizacao });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novaLocalizacao } : m));
-            } else {
-                mostrarToast('Erro ao atualizar localização.');
-            }
-        } catch (e) { mostrarToast('Erro ao atualizar localização.'); }
+            await atualizarStatus(id, novaLocalizacao);
+        } catch (e) { toast.error('Erro ao atualizar localização.'); }
     }
 
     async function handleAvancarStatus(m) {
@@ -316,11 +249,8 @@ export default function GestaoMarcacoes({ socket }) {
         const fluxo = { DISPONIVEL: 'EM OPERACAO', 'EM OPERACAO': 'CONTRATADO', CONTRATADO: 'DISPONIVEL', 'EM VIAGEM': 'DISPONIVEL', 'EM ROTA': 'DISPONIVEL' };
         const novoStatus = fluxo[atual] || 'DISPONIVEL';
         try {
-            const r = await api.put(`/api/marcacoes/${m.id}/status`, { status_operacional: novoStatus });
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, status_operacional: novoStatus } : x));
-            }
-        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
+            await atualizarStatusOperacional(m.id, novoStatus);
+        } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
     async function toggleTag(m, campo) {
@@ -331,16 +261,13 @@ export default function GestaoMarcacoes({ socket }) {
             body = { tag_motorista: m.tag_motorista === 'PROBLEMÁTICO' ? null : 'PROBLEMÁTICO' };
         }
         try {
-            const r = await api.put(`/api/marcacoes/${m.id}/tag`, body);
-            if (r.data.success) {
-                setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, ...body } : x));
-            }
-        } catch (e) { mostrarToast('Erro ao atualizar tag.'); }
+            await atualizarTag(m.id, body);
+        } catch (e) { toast.error('Erro ao atualizar tag.'); }
     }
 
     function copiarLink(token) {
         const url = `${window.location.origin}/cadastro/${token.token}`;
-        const sucesso = () => { setCopiado(token.id); mostrarToast('Link copiado!'); setTimeout(() => setCopiado(null), 2000); };
+        const sucesso = () => { setCopiado(token.id); toast.success('Link copiado!'); setTimeout(() => setCopiado(null), 2000); };
         const fallback = () => {
             try {
                 const el = document.createElement('textarea');
@@ -351,7 +278,7 @@ export default function GestaoMarcacoes({ socket }) {
                 document.execCommand('copy');
                 document.body.removeChild(el);
                 sucesso();
-            } catch { mostrarToast('Erro ao copiar. Copie manualmente.'); }
+            } catch { toast.error('Erro ao copiar. Copie manualmente.'); }
         };
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(url).then(sucesso).catch(fallback);
@@ -538,7 +465,7 @@ export default function GestaoMarcacoes({ socket }) {
                         </button>
                     </div>
 
-                    {loading ? (
+                    {loadingTokens ? (
                         <div style={s.empty}>Carregando...</div>
                     ) : tokens.length === 0 ? (
                         <div style={s.empty}>Nenhum link gerado ainda.</div>
@@ -750,7 +677,7 @@ export default function GestaoMarcacoes({ socket }) {
                         </div>
                     )}
 
-                    {loading ? (
+                    {loadingMarcacoes ? (
                         <div style={s.empty}>Carregando...</div>
                     ) : marcacoes.length === 0 ? (
                         <div style={s.empty}>Nenhuma marcação registrada.</div>
@@ -775,7 +702,7 @@ export default function GestaoMarcacoes({ socket }) {
                                 <tbody>
                                     {marcacoesFiltradas.map(m => {
                                         void tick;
-                                        const tempoMin = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
+                                        const espera = calcularTempoEspera(m.data_marcacao, m.data_contratacao);
                                         const statusOp = m.status_operacional || 'DISPONIVEL';
                                         const isContratado = ['CONTRATADO', 'EM VIAGEM', 'EM ROTA'].includes(statusOp);
                                         const statusLabel = statusOp === 'DISPONIVEL' ? 'Disponível' : statusOp === 'EM OPERACAO' ? 'Em Operação' : isContratado ? 'Contratado' : statusOp;
@@ -861,8 +788,8 @@ export default function GestaoMarcacoes({ socket }) {
                                                 </td>
                                                 {/* Tempo */}
                                                 <td style={s.td}>
-                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '700', color: corTempo(tempoMin) }}>
-                                                        <Clock size={11} />{formatarTempo(tempoMin)}
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: '700', color: espera?.cor ?? '#64748b' }}>
+                                                        <Clock size={11} />{espera?.label ?? '—'}
                                                     </span>
                                                 </td>
                                                 {/* Marcado em */}
@@ -929,7 +856,19 @@ export default function GestaoMarcacoes({ socket }) {
 
 
             {modalMarcacao && <ModalDetalhes m={modalMarcacao} onClose={() => setModalMarcacao(null)} />}
-            {toast && <div style={s.toast}>{toast}</div>}
+            {toasts.map(t => (
+                <div key={t.id} style={{
+                    position: 'fixed', bottom: '24px', right: '24px',
+                    background: t.tipo === 'erro' ? '#7f1d1d' : '#1e293b',
+                    border: `1px solid ${t.tipo === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '10px', padding: '12px 20px',
+                    color: t.tipo === 'erro' ? '#f87171' : '#4ade80',
+                    fontWeight: '600', fontSize: '14px', zIndex: 9999,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                    {t.msg}
+                </div>
+            ))}
         </div>
     );
 }

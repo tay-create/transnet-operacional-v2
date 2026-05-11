@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
+import { formatDataCurta } from '../utils/dateFormatter';
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 
@@ -90,18 +91,6 @@ function BarraEtapa({ min, maxMin, cor, label }) {
             </span>
         </div>
     );
-}
-
-function formatDataBR(dataISO) {
-    if (!dataISO) return '';
-    const [ano, mes, dia] = dataISO.split('-');
-    return `${dia}/${mes}`;
-}
-
-function formatDataBRFull(dataISO) {
-    if (!dataISO) return '';
-    const [ano, mes, dia] = dataISO.split('-');
-    return `${dia}/${mes}/${ano}`;
 }
 
 function TooltipGrafico({ active, payload, label }) {
@@ -188,7 +177,7 @@ export default function RelatorioPerformance() {
         const avg = arr => arr.length ? Math.round(arr.reduce((a, v) => a + v, 0) / arr.length) : 0;
         return Object.entries(porDia)
             .map(([data, v]) => ({
-                data: formatDataBR(data),
+                data: formatDataCurta(data),
                 dataFull: data,
                 Separação: avg(v.sep),
                 'Lib. Doca': avg(v.doca),
@@ -739,7 +728,7 @@ export default function RelatorioPerformance() {
                                                     </span>
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', fontSize: '11px' }}>
-                                                    {formatDataBR(l.data)}
+                                                    {formatDataCurta(l.data)}
                                                 </td>
                                                 <td style={{ ...tdStyle, textAlign: 'center', color: corTempo(l.sep_min), fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                                                     {formatMin(l.sep_min)}
