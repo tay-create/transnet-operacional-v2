@@ -3,6 +3,7 @@ import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, 
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
 import { useToast } from '../hooks/useToast';
+import { parseDateLocal, calcularTempoEspera, formatarTempo, corTempo, corDisponibilidade } from '../utils/marcacoesUtils';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -46,53 +47,6 @@ const s = {
     empty: { textAlign: 'center', padding: '40px', color: '#475569', fontSize: '14px' },
 };
 
-// ── Cálculo de tempo de espera ───────────────────────────────────────────────
-// data_marcacao e data_contratacao são gravadas no timezone de Brasília (sem Z).
-// Parseamos como hora local sem adicionar 'Z' para evitar deslocamento de 3h.
-function parseDateLocal(str) {
-    if (!str) return null;
-    // Se já vier com Z ou +offset, usa diretamente; caso contrário trata como local
-    if (str.endsWith('Z') || str.includes('+')) return new Date(str);
-    // Formato "YYYY-MM-DD HH:MM:SS" → substitui espaço por T para o parser JS
-    return new Date(str.replace(' ', 'T'));
-}
-function calcularTempoEspera(dataMarcacao, dataContratacao) {
-    if (!dataMarcacao) return null;
-    const inicio = parseDateLocal(dataMarcacao);
-    const fim = dataContratacao ? parseDateLocal(dataContratacao) : new Date();
-    if (!inicio || isNaN(inicio)) return null;
-    const diff = Math.floor((fim - inicio) / 60000);
-    return Math.max(0, diff);
-}
-
-function formatarTempo(minutos) {
-    if (minutos === null) return '—';
-    if (minutos < 60) return `${minutos}min`;
-    const totalH = Math.floor(minutos / 60);
-    const m = minutos % 60;
-    if (totalH < 24) return m > 0 ? `${totalH}h ${m}min` : `${totalH}h`;
-    const d = Math.floor(totalH / 24);
-    const h = totalH % 24;
-    if (h === 0 && m === 0) return `${d}d`;
-    if (h === 0) return `${d}d ${m}min`;
-    if (m === 0) return `${d}d ${h}h`;
-    return `${d}d ${h}h ${m}min`;
-}
-
-function corTempo(min) {
-    if (min === null) return '#64748b';
-    if (min < 60) return '#4ade80';
-    if (min < 240) return '#fbbf24';
-    return '#f87171';
-}
-
-// ── Cor da disponibilidade (localização) ─────────────────────────────────────
-function corDisponibilidade(disp) {
-    if (!disp) return '#64748b';
-    if (disp === 'NO PÁTIO') return '#4ade80';
-    if (disp === 'NO POSTO') return '#fbbf24';
-    return '#94a3b8'; // EM CASA
-}
 
 // ── Estado inicial do form de frota (apenas nome e telefone) ─────────────────
 const FORM_FROTA_INICIAL = { nome_motorista: '', telefone: '' };
