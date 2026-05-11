@@ -2976,8 +2976,8 @@ cron.schedule('0 10 * * 1-6', async () => {
     }
 }, { timezone: 'America/Sao_Paulo' });
 
-cron.schedule('0 17 * * 1-6', async () => {
-    console.log('[CRON-PROG] 17:00 — Gerando Programação Final automática...');
+cron.schedule('0 22 * * 1-6', async () => {
+    console.log('[CRON-PROG] 22:00 — Gerando Programação Final automática...');
     try {
         const r = await gerarProgramacaoDiaria('Final');
         console.log(`[CRON-PROG] Final gerada: ${r.data_referencia}`);
@@ -2986,6 +2986,83 @@ cron.schedule('0 17 * * 1-6', async () => {
         console.error('[CRON-PROG] Erro ao gerar Final:', e.message);
     }
 }, { timezone: 'America/Sao_Paulo' });
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── CRON: Rollover diário às 23:58 ───────────────────────────────────────────
+// Vira para amanhã todos os cards com data_prevista = hoje que ainda estão em
+// fluxo ativo (AGUARDANDO P/ SEPARAÇÃO, EM SEPARAÇÃO, LIBERADO P/ CARREGAMENTO,
+// EM CARREGAMENTO) em qualquer unidade. Cards já CARREGADOS / LIBERADO P/ CT-e
+// permanecem no dia atual (cumpriram o ciclo).
+//
+// Marca foi_reprogramado = 1, mantém data_prevista_original, status, doca,
+// tempos, pausas e timestamps intactos — apenas a data muda.
+//
+// Para cards em EM CARREGAMENTO com CT-e Emitido associado, atualiza também
+// data_entrada_cte no dados_json do CT-e para que ele apareça no PainelCte
+// do dia seguinte (data_emissao real é preservada como histórico).
+cron.schedule('58 23 * * *', async () => {
+    console.log('[CRON-ROLLOVER] 23:58 — virando cards em fluxo para amanhã...');
+    try {
+        const STATUS_ATIVOS = ['AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO'];
+        const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const amanhaStr = new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const hojeBR = new Date(hojeStr + 'T12:00:00').toLocaleDateString('pt-BR'); // DD/MM/YYYY
+        const amanhaBR = new Date(amanhaStr + 'T12:00:00').toLocaleDateString('pt-BR');
+
+        const cards = await dbAll(
+            `SELECT id, status_recife, status_moreno, motorista, numero_liberacao
+             FROM veiculos
+             WHERE data_prevista = $1
+               AND (status_recife = ANY($2::text[]) OR status_moreno = ANY($2::text[]))`,
+            [hojeStr, STATUS_ATIVOS]
+        );
+
+        if (cards.length === 0) {
+            console.log('[CRON-ROLLOVER] 0 cards para rolar.');
+            return;
+        }
+
+        let cardsVirados = 0;
+        let ctesVirados = 0;
+        for (const c of cards) {
+            await dbRun(
+                'UPDATE veiculos SET data_prevista = $1, foi_reprogramado = 1 WHERE id = $2',
+                [amanhaStr, c.id]
+            );
+            cardsVirados++;
+
+            // CT-e pertinente: só para unidades em EM CARREGAMENTO com CT-e Emitido
+            for (const [statusCol, origem] of [['status_recife', 'Recife'], ['status_moreno', 'Moreno']]) {
+                if (c[statusCol] !== 'EM CARREGAMENTO') continue;
+                if (!c.motorista || !c.numero_liberacao) continue;
+                const cte = await dbGet(
+                    `SELECT id, dados_json FROM ctes_ativos
+                     WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1))
+                       AND numero_liberacao = $2
+                       AND origem = $3
+                       AND status = 'Emitido'
+                     ORDER BY data_emissao DESC LIMIT 1`,
+                    [c.motorista, c.numero_liberacao, origem]
+                );
+                if (!cte) continue;
+                try {
+                    const dados = JSON.parse(cte.dados_json || '{}');
+                    // Só vira se a data_entrada_cte for hoje (ou estiver vazia — assume que era hoje)
+                    if (dados.data_entrada_cte && dados.data_entrada_cte !== hojeBR) continue;
+                    dados.data_entrada_cte = amanhaBR;
+                    await dbRun('UPDATE ctes_ativos SET dados_json = $1 WHERE id = $2', [JSON.stringify(dados), cte.id]);
+                    ctesVirados++;
+                } catch (_) { /* JSON inválido — ignora este CT-e */ }
+            }
+        }
+
+        // refresh_geral aciona reload dos painéis Operacional + CT-e simultaneamente
+        io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
+        console.log(`[CRON-ROLLOVER] ${cardsVirados} card(s) virado(s) para ${amanhaStr} | ${ctesVirados} CT-e(s) acompanhado(s).`);
+    } catch (e) {
+        console.error('[CRON-ROLLOVER] Erro:', e);
+    }
+}, { scheduled: true, timezone: 'America/Sao_Paulo' });
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Tramontina Dashboard ─────────────────────────────────────────────────────
