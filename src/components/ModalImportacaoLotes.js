@@ -290,7 +290,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [erros, setErros] = useState({});
     const [sucessos, setSucessos] = useState({});
     const [duplicatas, setDuplicatas] = useState({});
-    const [eletrikPendente, setEletrikPendente] = useState(null);
+    const [eletrikFila, setEletrikFila] = useState([]);
+    const [eletrikAtual, setEletrikAtual] = useState(null);
+    const [eletrikResolvidos, setEletrikResolvidos] = useState([]);
     const [rotaNovaPendente, setRotaNovaPendente] = useState(null); // lotes com "ROTA NOVA" aguardando confirmação
     const [rotaNovaFila,  setRotaNovaFila]  = useState([]);
     const [rotaNovaAtual, setRotaNovaAtual] = useState(null);
@@ -472,10 +474,13 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 setDuplicatas({});
 
                 // PORCELANA/ELETRIK é sempre Moreno — só ELETRIK puro é ambíguo
-                const temEletrikAmbiguo = processados.some(l => l.operacao === 'ELETRIK');
+                const ambiguos = processados.filter(l => l.operacao === 'ELETRIK');
+                const semAmbiguidade = processados.filter(l => l.operacao !== 'ELETRIK');
 
-                if (temEletrikAmbiguo) {
-                    setEletrikPendente(processados);
+                if (ambiguos.length > 0) {
+                    setEletrikResolvidos(semAmbiguidade);
+                    setEletrikAtual(ambiguos[0]);
+                    setEletrikFila(ambiguos.slice(1));
                 } else {
                     detectarSumidas(processados);
                 }
@@ -557,7 +562,9 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setErros({});
         setSucessos({});
         setDuplicatas({});
-        setEletrikPendente(null);
+        setEletrikFila([]);
+        setEletrikAtual(null);
+        setEletrikResolvidos([]);
         setRotaNovaPendente(null);
         setRotaNovaFila([]);
         setRotaNovaAtual(null);
@@ -572,21 +579,38 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         onClose();
     };
 
-    const resolverEletrik = (tipoEletrik) => {
-        const resolvidos = eletrikPendente.map(lote => {
-            if (lote.operacao === 'ELETRIK') {
-                if (tipoEletrik === 'SUL') {
-                    // coletaMoreno é "ELET:123" — extrair o número e mover para interestadual
-                    const m = (lote.coletaMoreno || '').match(/ELET:([^|]+)/i);
-                    const coletaElet = m ? m[1].trim() : lote.coletaMoreno || '';
-                    return { ...lote, operacao: 'ELETRIK SUL', coletaMoreno: '', coletaInterestadual: coletaElet };
-                }
-                return lote; // Moreno: mantém operacao ELETRIK, coleta já está no coletaMoreno
-            }
-            return lote; // demais operações (PORCELANA/ELETRIK etc.) são sempre Moreno
-        });
-        setEletrikPendente(null);
-        detectarSumidas(resolvidos);
+    const resolverEletrikAtual = (tipoEletrik) => {
+        if (!eletrikAtual) return;
+        let resolvido;
+        if (tipoEletrik === 'SUL') {
+            // coletaMoreno é "ELET:123" — extrair o número e mover para interestadual
+            const m = (eletrikAtual.coletaMoreno || '').match(/ELET:([^|]+)/i);
+            const coletaElet = m ? m[1].trim() : eletrikAtual.coletaMoreno || '';
+            resolvido = { ...eletrikAtual, operacao: 'ELETRIK SUL', coletaMoreno: '', coletaInterestadual: coletaElet };
+        } else {
+            // MORENO: mantém ELETRIK
+            resolvido = { ...eletrikAtual };
+        }
+        const novosResolvidos = [...eletrikResolvidos, resolvido];
+        const proxima = eletrikFila[0] ?? null;
+        const novaFila = eletrikFila.slice(1);
+        if (proxima) {
+            setEletrikResolvidos(novosResolvidos);
+            setEletrikAtual(proxima);
+            setEletrikFila(novaFila);
+        } else {
+            setEletrikAtual(null);
+            setEletrikFila([]);
+            setEletrikResolvidos([]);
+            detectarSumidas(novosResolvidos);
+        }
+    };
+
+    const cancelarEletrik = () => {
+        setEletrikAtual(null);
+        setEletrikFila([]);
+        setEletrikResolvidos([]);
+        if (fileRef.current) fileRef.current.value = '';
     };
 
     const ehRecife = (op) => op && (op.includes('RECIFE') || op === 'PLÁSTICO(RECIFE X MORENO)');
@@ -685,51 +709,100 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                         </div>
                     )}
 
-                    {/* Modal Eletrik — sobrepõe o conteúdo quando há ambiguidade */}
-                    {eletrikPendente && (
-                        <div style={{
-                            position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
-                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center', padding: '40px 32px', textAlign: 'center'
-                        }}>
-                            <AlertCircle size={36} color="#f59e0b" style={{ marginBottom: '16px' }} />
-                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '8px' }}>
-                                Operação Eletrik detectada
-                            </div>
-                            <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '28px', maxWidth: '320px', lineHeight: 1.6 }}>
-                                {eletrikPendente.filter(l => l.operacao === 'ELETRIK' || l.operacao === 'PORCELANA/ELETRIK').length} lote(s) com Eletrik identificados.
-                                Qual unidade?
-                            </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
+                    {/* Modal Eletrik — passo a passo, um lote por vez */}
+                    {eletrikAtual && (() => {
+                        const coletaElet = (() => {
+                            const m = (eletrikAtual.coletaMoreno || '').match(/ELET:([^|]+)/i);
+                            return m ? m[1].trim() : (eletrikAtual.coletaMoreno || '—');
+                        })();
+                        const obsTexto = (eletrikAtual.observacao || '').toUpperCase();
+                        const provavelConsolidado = obsTexto.includes('CONSOLIDADO');
+                        const restantes = eletrikFila.length;
+                        return (
+                            <div style={{
+                                position: 'absolute', inset: 0, zIndex: 10, borderRadius: '16px',
+                                background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center', padding: '32px 28px', textAlign: 'center', overflowY: 'auto',
+                            }}>
+                                <AlertCircle size={32} color="#f59e0b" style={{ marginBottom: '12px' }} />
+                                <div style={{ fontSize: '14px', fontWeight: '700', color: '#f1f5f9', marginBottom: '4px' }}>
+                                    Operação Eletrik detectada
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px' }}>
+                                    Defina a unidade para este lote
+                                </div>
+
+                                <div style={{
+                                    width: '100%', maxWidth: '360px',
+                                    background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)',
+                                    borderRadius: '10px', padding: '12px 14px', marginBottom: '16px', textAlign: 'left',
+                                }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0', marginBottom: '4px' }}>
+                                        {eletrikAtual.motorista || '— sem motorista'}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace', marginBottom: '6px' }}>
+                                        {eletrikAtual.placa1}{eletrikAtual.placa2 ? ` / ${eletrikAtual.placa2}` : ''}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#a78bfa', fontFamily: 'monospace', marginBottom: '6px' }}>
+                                        Coleta ELET: <strong>{coletaElet}</strong>
+                                    </div>
+                                    {eletrikAtual.observacao && (
+                                        <div style={{ fontSize: '10.5px', color: '#64748b', lineHeight: 1.5, marginTop: '6px', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '6px' }}>
+                                            {eletrikAtual.observacao}
+                                        </div>
+                                    )}
+                                    {provavelConsolidado && (
+                                        <div style={{
+                                            marginTop: '8px', padding: '6px 10px',
+                                            background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)',
+                                            borderRadius: '6px', fontSize: '10.5px', color: '#fbbf24', fontWeight: '700',
+                                            display: 'flex', alignItems: 'center', gap: '5px',
+                                        }}>
+                                            <AlertCircle size={11} /> Provavelmente consolidado — sugerido Moreno
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => resolverEletrikAtual('SUL')}
+                                        style={{
+                                            padding: '10px 22px', borderRadius: '10px', border: 'none',
+                                            background: provavelConsolidado ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+                                            color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                                            opacity: provavelConsolidado ? 0.7 : 1,
+                                        }}
+                                    >
+                                        Eletrik Sul
+                                    </button>
+                                    <button
+                                        onClick={() => resolverEletrikAtual('MORENO')}
+                                        style={{
+                                            padding: '10px 22px', borderRadius: '10px',
+                                            border: provavelConsolidado ? '2px solid #f59e0b' : 'none',
+                                            background: 'linear-gradient(135deg,#d97706,#f59e0b)',
+                                            color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                                            boxShadow: provavelConsolidado ? '0 0 12px rgba(245,158,11,0.5)' : 'none',
+                                        }}
+                                    >
+                                        Eletrik Moreno
+                                    </button>
+                                </div>
+
+                                {restantes > 0 && (
+                                    <div style={{ marginTop: '14px', fontSize: '11px', color: '#475569' }}>
+                                        {restantes} lote(s) Eletrik restante(s)
+                                    </div>
+                                )}
                                 <button
-                                    onClick={() => resolverEletrik('SUL')}
-                                    style={{
-                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
-                                        background: 'linear-gradient(135deg,#7c3aed,#a78bfa)',
-                                        color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                                    }}
+                                    onClick={cancelarEletrik}
+                                    style={{ marginTop: '16px', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '11px', textDecoration: 'underline' }}
                                 >
-                                    Eletrik Sul
-                                </button>
-                                <button
-                                    onClick={() => resolverEletrik('MORENO')}
-                                    style={{
-                                        padding: '12px 28px', borderRadius: '10px', border: 'none',
-                                        background: 'linear-gradient(135deg,#d97706,#f59e0b)',
-                                        color: 'white', fontWeight: '700', fontSize: '13px', cursor: 'pointer'
-                                    }}
-                                >
-                                    Eletrik Moreno
+                                    Cancelar importação
                                 </button>
                             </div>
-                            <button
-                                onClick={() => { setEletrikPendente(null); if (fileRef.current) fileRef.current.value = ''; }}
-                                style={{ marginTop: '20px', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '12px', textDecoration: 'underline' }}
-                            >
-                                Cancelar importação
-                            </button>
-                        </div>
-                    )}
+                        );
+                    })()}
 
                     {/* Overlay ROTA NOVA — passo a passo por lote */}
                     {rotaNovaAtual && (
