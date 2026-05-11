@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Copy, CheckCircle, Ban, Truck, RefreshCw, Plus, Award, MapPin, Trash2, Clock, Star, Eye, X, AlertTriangle } from 'lucide-react';
 import api from '../services/apiService';
 import ModalConfirm from './ModalConfirm';
+import { useToast } from '../hooks/useToast';
 
 const s = {
     wrap: { padding: '10px 0' },
@@ -43,7 +44,6 @@ const s = {
     },
     linkText: { fontSize: '11px', color: '#475569', wordBreak: 'break-all', maxWidth: '260px' },
     empty: { textAlign: 'center', padding: '40px', color: '#475569', fontSize: '14px' },
-    toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
 // ── Cálculo de tempo de espera ───────────────────────────────────────────────
@@ -115,7 +115,7 @@ export default function GestaoMarcacoes({ socket }) {
     const [loading, setLoading] = useState(false);
     const [tel, setTel] = useState('');
     const [copiado, setCopiado] = useState(null);
-    const [toast, setToast] = useState('');
+    const { toasts, toast } = useToast();
     const [buscaLinks, setBuscaLinks] = useState('');
     const [buscaMarcacoes, setBuscaMarcacoes] = useState('');
     const [filtroEstado, setFiltroEstado] = useState('');
@@ -137,17 +137,12 @@ export default function GestaoMarcacoes({ socket }) {
         return () => clearInterval(id);
     }, []);
 
-    const mostrarToast = (msg) => {
-        setToast(msg);
-        setTimeout(() => setToast(''), 2800);
-    };
-
     const carregarTokens = useCallback(async () => {
         setLoading(true);
         try {
             const r = await api.get('/api/tokens');
             if (r.data.success) setTokens(r.data.tokens);
-        } catch (e) { console.error(e); mostrarToast('Erro ao carregar links.'); }
+        } catch (e) { console.error(e); toast.error('Erro ao carregar links.'); }
         finally { setLoading(false); }
     }, []);
 
@@ -182,7 +177,7 @@ export default function GestaoMarcacoes({ socket }) {
             }
         } catch (e) {
             if (e.name === 'CanceledError' || e.code === 'ERR_CANCELED') return;
-            console.error(e); mostrarToast('Erro ao carregar marcações.');
+            console.error(e); toast.error('Erro ao carregar marcações.');
         }
         finally { setLoading(false); }
     }, [filtroDisponibilidade, filtroStatusOp, buscaMarcacoes, filtroEstado, filtroTipoVeiculo, filtroTag, filtroTempo]);
@@ -236,17 +231,17 @@ export default function GestaoMarcacoes({ socket }) {
     }, [socket, aba]); // carregarMarcacoes removido — usa ref para sempre ter a versão atual
 
     async function gerarLink() {
-        if (!tel.trim()) { mostrarToast('Informe o telefone.'); return; }
+        if (!tel.trim()) { toast.error('Informe o telefone.'); return; }
         try {
             const r = await api.post('/api/tokens', { telefone: tel.trim() });
             if (r.data.success) {
                 setTel('');
-                mostrarToast('Link gerado com sucesso!');
+                toast.success('Link gerado com sucesso!');
                 carregarTokens();
             } else {
-                mostrarToast(r.data.message || 'Erro ao gerar link.');
+                toast.error(r.data.message || 'Erro ao gerar link.');
             }
-        } catch (e) { mostrarToast(e.response?.data?.message || 'Erro de conexão.'); }
+        } catch (e) { toast.error(e.response?.data?.message || 'Erro de conexão.'); }
     }
 
     async function toggleStatus(token) {
@@ -255,8 +250,8 @@ export default function GestaoMarcacoes({ socket }) {
         try {
             await api.put(`/api/tokens/${token.id}`, { status: novoStatus });
             setTokens(prev => prev.map(t => t.id === token.id ? { ...t, status: novoStatus } : t));
-            mostrarToast(novoStatus === 'ativo' ? 'Link reativado.' : 'Link inativado.');
-        } catch (e) { mostrarToast('Erro ao atualizar.'); }
+            toast.success(novoStatus === 'ativo' ? 'Link reativado.' : 'Link inativado.');
+        } catch (e) { toast.error('Erro ao atualizar.'); }
     }
 
     function excluirToken(id) {
@@ -268,8 +263,8 @@ export default function GestaoMarcacoes({ socket }) {
                 try {
                     await api.delete(`/api/tokens/${id}`);
                     setTokens(prev => prev.filter(t => t.id !== id));
-                    mostrarToast('Link excluído.');
-                } catch (e) { mostrarToast('Erro ao excluir.'); }
+                    toast.success('Link excluído.');
+                } catch (e) { toast.error('Erro ao excluir.'); }
             }
         });
     }
@@ -283,8 +278,8 @@ export default function GestaoMarcacoes({ socket }) {
                 try {
                     await api.delete(`/api/marcacoes/${id}`);
                     setMarcacoes(prev => prev.filter(m => m.id !== id));
-                    mostrarToast('Marcação removida.');
-                } catch (e) { mostrarToast('Erro ao excluir.'); }
+                    toast.success('Marcação removida.');
+                } catch (e) { toast.error('Erro ao excluir.'); }
             }
         });
     }
@@ -296,7 +291,7 @@ export default function GestaoMarcacoes({ socket }) {
             if (r.data.success) {
                 setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novoStatus } : m));
             }
-        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
+        } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
     async function handleAtualizarLocalizacao(id, novaLocalizacao) {
@@ -305,9 +300,9 @@ export default function GestaoMarcacoes({ socket }) {
             if (r.data.success) {
                 setMarcacoes(prev => prev.map(m => m.id === id ? { ...m, disponibilidade: novaLocalizacao } : m));
             } else {
-                mostrarToast('Erro ao atualizar localização.');
+                toast.error('Erro ao atualizar localização.');
             }
-        } catch (e) { mostrarToast('Erro ao atualizar localização.'); }
+        } catch (e) { toast.error('Erro ao atualizar localização.'); }
     }
 
     async function handleAvancarStatus(m) {
@@ -320,7 +315,7 @@ export default function GestaoMarcacoes({ socket }) {
             if (r.data.success) {
                 setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, status_operacional: novoStatus } : x));
             }
-        } catch (e) { mostrarToast('Erro ao atualizar status.'); }
+        } catch (e) { toast.error('Erro ao atualizar status.'); }
     }
 
     async function toggleTag(m, campo) {
@@ -335,12 +330,12 @@ export default function GestaoMarcacoes({ socket }) {
             if (r.data.success) {
                 setMarcacoes(prev => prev.map(x => x.id === m.id ? { ...x, ...body } : x));
             }
-        } catch (e) { mostrarToast('Erro ao atualizar tag.'); }
+        } catch (e) { toast.error('Erro ao atualizar tag.'); }
     }
 
     function copiarLink(token) {
         const url = `${window.location.origin}/cadastro/${token.token}`;
-        const sucesso = () => { setCopiado(token.id); mostrarToast('Link copiado!'); setTimeout(() => setCopiado(null), 2000); };
+        const sucesso = () => { setCopiado(token.id); toast.success('Link copiado!'); setTimeout(() => setCopiado(null), 2000); };
         const fallback = () => {
             try {
                 const el = document.createElement('textarea');
@@ -351,7 +346,7 @@ export default function GestaoMarcacoes({ socket }) {
                 document.execCommand('copy');
                 document.body.removeChild(el);
                 sucesso();
-            } catch { mostrarToast('Erro ao copiar. Copie manualmente.'); }
+            } catch { toast.error('Erro ao copiar. Copie manualmente.'); }
         };
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.writeText(url).then(sucesso).catch(fallback);
@@ -929,7 +924,19 @@ export default function GestaoMarcacoes({ socket }) {
 
 
             {modalMarcacao && <ModalDetalhes m={modalMarcacao} onClose={() => setModalMarcacao(null)} />}
-            {toast && <div style={s.toast}>{toast}</div>}
+            {toasts.map(t => (
+                <div key={t.id} style={{
+                    position: 'fixed', bottom: '24px', right: '24px',
+                    background: t.tipo === 'erro' ? '#7f1d1d' : '#1e293b',
+                    border: `1px solid ${t.tipo === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '10px', padding: '12px 20px',
+                    color: t.tipo === 'erro' ? '#f87171' : '#4ade80',
+                    fontWeight: '600', fontSize: '14px', zIndex: 9999,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                    {t.msg}
+                </div>
+            ))}
         </div>
     );
 }

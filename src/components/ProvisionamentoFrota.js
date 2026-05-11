@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Save, Users, Truck } from 'lucide-react';
 import api from '../services/apiService';
+import { useToast } from '../hooks/useToast';
 
 const TIPOS_VEICULO = ['TRUCK', 'CARRETA', 'CONJUNTO', '3/4'];
 
@@ -102,9 +103,7 @@ export default function ProvisionamentoFrota({ socket, user }) {
     const [loadingFrota, setLoadingFrota] = useState(false);
     const [formFrota, setFormFrota] = useState({ nome_motorista: '', telefone: '' });
     const [salvandoFrota, setSalvandoFrota] = useState(false);
-    const [toastFrota, setToastFrota] = useState('');
-
-    function mostrarToastFrota(msg) { setToastFrota(msg); setTimeout(() => setToastFrota(''), 2800); }
+    const { toasts, toast } = useToast();
 
     const carregarFrota = useCallback(async () => {
         setLoadingFrota(true);
@@ -121,16 +120,16 @@ export default function ProvisionamentoFrota({ socket, user }) {
 
     async function cadastrarFrota() {
         const { nome_motorista, telefone } = formFrota;
-        if (!nome_motorista.trim() || !telefone.trim()) { mostrarToastFrota('Preencha Nome e Telefone.'); return; }
+        if (!nome_motorista.trim() || !telefone.trim()) { toast.error('Preencha Nome e Telefone.'); return; }
         setSalvandoFrota(true);
         try {
             const r = await api.post('/api/frota', { nome_motorista, telefone });
             if (r.data.success) {
                 setFormFrota({ nome_motorista: '', telefone: '' });
-                mostrarToastFrota('Motorista adicionado à fila!');
+                toast.success('Motorista adicionado à fila!');
                 carregarFrota();
-            } else { mostrarToastFrota(r.data.message || 'Erro ao cadastrar.'); }
-        } catch (e) { mostrarToastFrota('Erro de conexão.'); }
+            } else { toast.error(r.data.message || 'Erro ao cadastrar.'); }
+        } catch (e) { toast.error('Erro de conexão.'); }
         finally { setSalvandoFrota(false); }
     }
 
@@ -138,8 +137,8 @@ export default function ProvisionamentoFrota({ socket, user }) {
         try {
             await api.delete(`/api/cadastro/frota/${id}`);
             setMotoristasFreota(prev => prev.filter(m => m.id !== id));
-            mostrarToastFrota('Motorista removido.');
-        } catch (e) { mostrarToastFrota('Erro ao remover.'); }
+            toast.success('Motorista removido.');
+        } catch (e) { toast.error('Erro ao remover.'); }
     }
 
     const [semanaInicio, setSemanaInicio] = useState(() => getHoje());
@@ -438,7 +437,19 @@ export default function ProvisionamentoFrota({ socket, user }) {
                             </tbody>
                         </table>
                     )}
-                    {toastFrota && <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999 }}>{toastFrota}</div>}
+                    {toasts.map(t => (
+                        <div key={t.id} style={{
+                            position: 'fixed', bottom: '24px', right: '24px',
+                            background: t.tipo === 'erro' ? '#7f1d1d' : '#1e293b',
+                            border: `1px solid ${t.tipo === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                            borderRadius: '10px', padding: '12px 20px',
+                            color: t.tipo === 'erro' ? '#f87171' : '#4ade80',
+                            fontWeight: '600', fontSize: '14px', zIndex: 9999,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                        }}>
+                            {t.msg}
+                        </div>
+                    ))}
                 </div>
             )}
 

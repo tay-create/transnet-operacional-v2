@@ -3,6 +3,7 @@ import { Package, RefreshCw, RotateCcw, Trash2, X, Filter, FileDown, TrendingUp,
 import api from '../services/apiService';
 import { gerarPDFPaletes } from '../utils/pdfGenerator';
 import ModalConfirm from './ModalConfirm';
+import { useToast } from '../hooks/useToast';
 
 // ── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
@@ -61,7 +62,6 @@ const s = {
         background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)'
     }),
     empty: { textAlign: 'center', padding: '60px 20px', color: '#475569', fontSize: '14px' },
-    toast: { position: 'fixed', bottom: '24px', right: '24px', background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '12px 20px', color: '#4ade80', fontWeight: '600', fontSize: '14px', zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }
 };
 
 // ── KPI Card ─────────────────────────────────────────────────────────────────
@@ -305,13 +305,11 @@ function ModalCadastroManual({ onClose, onConfirm }) {
 export default function PainelSaldoPaletes() {
     const [registros, setRegistros] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [toast, setToast] = useState('');
+    const { toasts, toast } = useToast();
     const [filtroStatus, setFiltroStatus] = useState('TODOS');
     const [modalDevolucao, setModalDevolucao] = useState(null);
     const [confirmar, setConfirmar] = useState(null);
     const [modalCadastro, setModalCadastro] = useState(false);
-
-    const mostrarToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
 
     const carregar = useCallback(async () => {
         setLoading(true);
@@ -329,11 +327,11 @@ export default function PainelSaldoPaletes() {
         try {
             const r = await api.put(`/api/saldo-paletes/${modalDevolucao.id}/devolucao`, dados);
             if (r.data.success) {
-                mostrarToast('✅ Devolução registrada!');
+                toast.success('Devolução registrada!');
                 setModalDevolucao(null);
                 carregar();
             }
-        } catch (e) { mostrarToast('Erro ao registrar devolução.'); }
+        } catch (e) { toast.error('Erro ao registrar devolução.'); }
     };
 
     const cadastrarManual = async (dados) => {
@@ -343,7 +341,7 @@ export default function PainelSaldoPaletes() {
             if (dados.devolvido_inicial) {
                 await api.put(`/api/saldo-paletes/${r.data.id}/devolucao`, { total: true }).catch(() => {});
             }
-            mostrarToast('✅ Lançamento registrado!');
+            toast.success('Lançamento registrado!');
             setModalCadastro(false);
             carregar();
         }
@@ -356,9 +354,9 @@ export default function PainelSaldoPaletes() {
                 setConfirmar(null);
                 try {
                     await api.delete(`/api/saldo-paletes/${id}`);
-                    mostrarToast('🗑️ Registro removido.');
+                    toast.success('Registro removido.');
                     carregar();
-                } catch (e) { mostrarToast('Erro ao excluir.'); }
+                } catch (e) { toast.error('Erro ao excluir.'); }
             }
         });
     };
@@ -385,12 +383,24 @@ export default function PainelSaldoPaletes() {
 
     const handleExportarPDF = () => {
         gerarPDFPaletes(registrosPbr, { totalPbr, saldoPbr, totalDevPbr, pendentes });
-        mostrarToast('📄 PDF gerado!');
+        toast.success('PDF gerado!');
     };
 
     return (
         <div style={s.wrap}>
-            {toast && <div style={s.toast}>{toast}</div>}
+            {toasts.map(t => (
+                <div key={t.id} style={{
+                    position: 'fixed', bottom: '24px', right: '24px',
+                    background: t.tipo === 'erro' ? '#7f1d1d' : '#1e293b',
+                    border: `1px solid ${t.tipo === 'erro' ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '10px', padding: '12px 20px',
+                    color: t.tipo === 'erro' ? '#f87171' : '#4ade80',
+                    fontWeight: '600', fontSize: '14px', zIndex: 9999,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                }}>
+                    {t.msg}
+                </div>
+            ))}
             {modalDevolucao && <ModalDevolucao registro={modalDevolucao} onClose={() => setModalDevolucao(null)} onConfirm={registrarDevolucao} />}
             {confirmar && <ModalConfirm mensagem={confirmar.mensagem} onConfirm={confirmar.onConfirm} onCancel={() => setConfirmar(null)} textConfirm="Excluir" />}
             {modalCadastro && <ModalCadastroManual onClose={() => setModalCadastro(false)} onConfirm={cadastrarManual} />}
