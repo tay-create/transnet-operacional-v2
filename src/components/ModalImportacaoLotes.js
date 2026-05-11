@@ -273,6 +273,13 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [provisaoFila, setProvisaoFila] = useState([]);
     const [provisaoAtual, setProvisaoAtual] = useState(null);
     const fileRef = useRef();
+    const inputRotaRef = useRef();
+
+    useEffect(() => {
+        if (rotaNovaAtual) {
+            setTimeout(() => inputRotaRef.current?.focus(), 50);
+        }
+    }, [rotaNovaAtual]);
 
     useEffect(() => {
         api.get('/api/provisionamento/veiculos').then(r => {
@@ -326,18 +333,15 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     };
 
     const avancarRotaNova = useCallback(() => {
-        setRotaNovaFila(prev => {
-            if (prev.length > 0) {
-                setRotaNovaAtual(prev[0]);
-                setRotaNovaInput('');
-                return prev.slice(1);
-            }
-            setRotaNovaAtual(null);
+        const proxima = rotaNovaFila[0] ?? null;
+        setRotaNovaFila(prev => prev.slice(1));
+        setRotaNovaAtual(proxima);
+        setRotaNovaInput('');
+        if (!proxima) {
             setPasso(2);
             verificarDuplicatas(lotes);
-            return [];
-        });
-    }, [lotes, verificarDuplicatas]);
+        }
+    }, [rotaNovaFila, lotes, verificarDuplicatas]);
 
     const handleArquivo = (e) => {
         const file = e.target.files?.[0];
@@ -653,6 +657,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                 Coleta: {rotaNovaAtual.coletaRecife || rotaNovaAtual.coletaMoreno || rotaNovaAtual.coletaInterestadual || '—'}
                             </div>
                             <input
+                                ref={inputRotaRef}
                                 className="input-internal"
                                 placeholder="Nº da Rota"
                                 value={rotaNovaInput}
@@ -660,19 +665,22 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                 onKeyDown={e => {
                                     if (e.key === 'Enter' && rotaNovaInput.trim()) {
                                         const ehRec = ehRecife(rotaNovaAtual.operacao);
-                                        atualizarLote(rotaNovaAtual._id, ehRec ? 'rotaRecife' : 'rotaMoreno', rotaNovaInput.trim());
+                                        const ehMor = ehMoreno(rotaNovaAtual.operacao);
+                                        if (ehRec) atualizarLote(rotaNovaAtual._id, 'rotaRecife', rotaNovaInput.trim());
+                                        if (ehMor) atualizarLote(rotaNovaAtual._id, 'rotaMoreno', rotaNovaInput.trim());
                                         avancarRotaNova();
                                     }
                                 }}
                                 style={{ width: '200px', textAlign: 'center', fontSize: '14px', marginBottom: '24px' }}
-                                autoFocus
                             />
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button
                                     onClick={() => {
                                         if (!rotaNovaInput.trim()) return;
                                         const ehRec = ehRecife(rotaNovaAtual.operacao);
-                                        atualizarLote(rotaNovaAtual._id, ehRec ? 'rotaRecife' : 'rotaMoreno', rotaNovaInput.trim());
+                                        const ehMor = ehMoreno(rotaNovaAtual.operacao);
+                                        if (ehRec) atualizarLote(rotaNovaAtual._id, 'rotaRecife', rotaNovaInput.trim());
+                                        if (ehMor) atualizarLote(rotaNovaAtual._id, 'rotaMoreno', rotaNovaInput.trim());
                                         avancarRotaNova();
                                     }}
                                     disabled={!rotaNovaInput.trim()}
