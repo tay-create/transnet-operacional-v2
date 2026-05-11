@@ -130,10 +130,10 @@ function TelaMonitoramentoTramontina({ dados, t, tema }) {
     const badges = [
         { label: 'TOTAL ROTAS', valor: dp.totalRotas ?? '—', cor: '#38bdf8', sub: null },
         { label: 'EMBARCADAS', valor: dp.embarcadas ?? '—', cor: '#4ade80', sub: null },
+        { label: 'PENDENTES', valor: dp.pendentes ?? '—', cor: '#f87171', sub: null },
         { label: 'PROG. HOJE', valor: dp.programadasHoje ?? '—', cor: '#facc15', sub: null },
         { label: 'REPROGRAMADAS', valor: dp.reprogramadas ?? '—', cor: '#fb923c', sub: null },
         { label: 'ELETRIK (EMBARC.)', valor: el.embarcado ?? '—', cor: '#a78bfa', sub: `TOTAL CRIADAS: ${el.total ?? '—'}` },
-        { label: 'PENDENTES', valor: dp.pendentes ?? '—', cor: '#f87171', sub: null },
     ];
 
     const operacoes = [
