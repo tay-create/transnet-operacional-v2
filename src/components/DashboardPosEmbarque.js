@@ -285,7 +285,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                         {oc.operacao && (
                                             <span style={{
-                                                padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                                padding: '4px 12px', borderRadius: 6, fontSize: 14, fontWeight: 700,
                                                 background: 'rgba(0,229,255,0.1)', color: '#00e5ff',
                                                 border: '1px solid rgba(0,229,255,0.3)',
                                                 boxShadow: '0 0 8px rgba(0,229,255,0.2)',
@@ -294,11 +294,11 @@ export default function DashboardPosEmbarque({ socket }) {
                                             </span>
                                         )}
                                         <span style={{
-                                            fontSize: 12, fontWeight: 700,
+                                            fontSize: 15, fontWeight: 700,
                                             color: isResolvido ? '#00e676' : (isAtrasado ? '#ff5252' : '#ff9100'),
                                             textShadow: `0 0 8px ${isResolvido ? 'rgba(0,230,118,0.4)' : isAtrasado ? 'rgba(255,82,82,0.4)' : 'rgba(255,145,0,0.3)'}`,
                                         }}>
-                                            <Clock size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                            <Clock size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                                             {getTempoLabel(oc)}
                                         </span>
                                     </div>
