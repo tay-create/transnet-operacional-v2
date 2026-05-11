@@ -14,6 +14,26 @@ function obterDataBrasiliaISO() {
         .split('/').reverse().join('-');
 }
 
+// Converte "11/05/2026" ou Date/serial Excel para "YYYY-MM-DD". Vazio se inválido.
+function parseDataPrevisao(valor) {
+    if (!valor) return '';
+    // xlsx pode entregar Date object quando a célula é tipada como data
+    if (valor instanceof Date && !isNaN(valor)) {
+        const y = valor.getFullYear();
+        const m = String(valor.getMonth() + 1).padStart(2, '0');
+        const d = String(valor.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    const s = String(valor).trim();
+    // dd/mm/yyyy
+    const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m1) return `${m1[3]}-${m1[2].padStart(2, '0')}-${m1[1].padStart(2, '0')}`;
+    // yyyy-mm-dd
+    const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m2) return s;
+    return '';
+}
+
 function mapearOperacao(textoCSV) {
     const t = (textoCSV || '').toUpperCase().trim();
     // LEÃO ALIMENTOS E BEBIDAS → operação interestadual Leão - SP
@@ -105,12 +125,12 @@ function gerarId() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-// Consolidar linhas com mesma placa em 1 LoteItem
+// Consolidar linhas com mesma placa+data em 1 LoteItem (placas iguais em datas diferentes viram lotes separados)
 function consolidarPorPlaca(linhasBrutas) {
-    const grupos = new Map(); // chave: placa1+placa2
+    const grupos = new Map(); // chave: placa1+placa2+data
 
     for (const linha of linhasBrutas) {
-        const chave = (linha.placa1 + '|' + (linha.placa2 || '')).toUpperCase();
+        const chave = (linha.placa1 + '|' + (linha.placa2 || '') + '|' + (linha.dataPrevista || '')).toUpperCase();
         if (!grupos.has(chave)) {
             grupos.set(chave, []);
         }
@@ -137,6 +157,7 @@ function consolidarPorPlaca(linhasBrutas) {
                 rotaRecife: l.operacaoBase.includes('RECIFE') ? l.rota : '',
                 rotaMoreno: !l.operacaoBase.includes('RECIFE') ? l.rota : '',
                 observacao: l.obsRestante,
+                dataPrevista: l.dataPrevista || '',
             });
         } else {
             // Consolidar múltiplas linhas
@@ -178,6 +199,7 @@ function consolidarPorPlaca(linhasBrutas) {
                 rotaRecife: operacaoCombinada.includes('RECIFE') ? rotaFinal : '',
                 rotaMoreno: !operacaoCombinada.includes('RECIFE') || operacaoCombinada.includes('/') ? rotaFinal : '',
                 observacao: [...obsSet].join(' - '),
+                dataPrevista: base.dataPrevista || '',
             });
         }
     }
@@ -218,6 +240,7 @@ function processarPlanilha(linhas) {
     const colPlacaC      = buscarChave('Placa Carreta', 'Placa da Carreta', 'PlacaCarreta');
     const colMotorista   = buscarChave('Motorista');
     const colTipo        = buscarChave('Tipo de Veículo', 'Tipo Veiculo', 'Tipo Veículo', 'TipoVeiculo');
+    const colDataPrev    = buscarChave('Data de Previsão', 'Data de Previsao', 'Data Previsao', 'Data Prevista', 'DataPrevisao', 'DataPrevista');
 
     console.log('[ImportarLotes] Colunas mapeadas:', { colNumeroColeta, colOperacao, colObservacao, colPlacaV, colPlacaC, colMotorista, colTipo });
 
@@ -225,6 +248,7 @@ function processarPlanilha(linhas) {
 
     for (const linha of linhas) {
         const get = (col) => col ? String(linha[col] ?? '').trim() : '';
+        const getRaw = (col) => col ? linha[col] : '';
 
         const numeroColeta = get(colNumeroColeta);
         const operacaoCSV  = get(colOperacao);
@@ -233,6 +257,7 @@ function processarPlanilha(linhas) {
         const placaCarreta = get(colPlacaC).toUpperCase();
         const motorista    = get(colMotorista);
         const tipoVeiculo  = get(colTipo);
+        const dataPrevista = parseDataPrevisao(getRaw(colDataPrev));
 
         if (!motorista && !placaVeiculo) continue; // linha realmente vazia
 
@@ -248,6 +273,7 @@ function processarPlanilha(linhas) {
             tipoVeiculo: mapearTipoVeiculo(tipoVeiculo),
             rota,
             obsRestante,
+            dataPrevista,
         });
     }
 
@@ -343,17 +369,21 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
 
             const coletasNovas = new Set();
+            const datasDosLotes = new Set();
             for (const l of lotesResolvidos) {
+                if (l.dataPrevista) datasDosLotes.add(l.dataPrevista);
                 for (const campo of [l.coletaRecife, l.coletaMoreno, l.coletaInterestadual]) {
                     (campo || '').split(',').map(t => t.trim()).filter(Boolean).forEach(t => coletasNovas.add(t));
                 }
             }
+            // Se nenhum lote tem data, usa a global (compat)
+            if (datasDosLotes.size === 0) datasDosLotes.add(dataPrevista);
 
             const sumidos = veiculos.filter(v => {
                 const recFinal = !v.status_recife || STATUS_FINAIS.includes(v.status_recife);
                 const morFinal = !v.status_moreno || STATUS_FINAIS.includes(v.status_moreno);
                 if (recFinal && morFinal) return false;
-                if ((v.data_prevista || '') !== dataPrevista) return false;
+                if (!datasDosLotes.has(v.data_prevista || '')) return false;
                 const coletas = [
                     ...(v.coletaRecife || '').split(','),
                     ...(v.coletaMoreno || '').split(','),
@@ -475,7 +505,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         for (const lote of lotes) {
             if (sucessos[lote._id]) { ok++; continue; } // já lançado
             try {
-                const res = await lancarPayloadDireto({ ...lote, data_prevista: dataPrevista });
+                const res = await lancarPayloadDireto({ ...lote, data_prevista: lote.dataPrevista || dataPrevista });
                 if (res?.atualizado) {
                     novosSucessos[lote._id] = 'atualizado';
                 } else if (res?.duplicata) {
@@ -948,14 +978,14 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                     {passo === 2 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-                            {/* Data global */}
+                            {/* Override de data — aplica em TODOS os lotes ao clicar */}
                             <div style={{
                                 display: 'flex', alignItems: 'center', gap: '12px',
                                 padding: '12px 16px', background: 'rgba(59,130,246,0.08)',
                                 border: '1px solid rgba(59,130,246,0.2)', borderRadius: '10px'
                             }}>
                                 <label style={{ fontSize: '11px', color: '#60a5fa', fontWeight: '700', whiteSpace: 'nowrap' }}>
-                                    DATA PREVISTA (todos):
+                                    SOBRESCREVER DATA:
                                 </label>
                                 <input
                                     type="date"
@@ -964,8 +994,23 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                     onChange={e => setDataPrevista(e.target.value)}
                                     style={{ width: '160px', padding: '6px 10px', fontSize: '12px' }}
                                 />
+                                <button
+                                    onClick={() => {
+                                        if (!dataPrevista) return;
+                                        setLotes(prev => prev.map(l => ({ ...l, dataPrevista })));
+                                    }}
+                                    disabled={!dataPrevista}
+                                    style={{
+                                        padding: '6px 14px', fontSize: '11px', fontWeight: '700',
+                                        background: dataPrevista ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.08)',
+                                        border: '1px solid rgba(59,130,246,0.4)', color: '#93c5fd',
+                                        borderRadius: '6px', cursor: dataPrevista ? 'pointer' : 'not-allowed'
+                                    }}
+                                >
+                                    Aplicar em todos
+                                </button>
                                 <span style={{ fontSize: '11px', color: '#475569' }}>
-                                    Aplicada a todos os lançamentos
+                                    Por padrão, cada lote usa a data do CSV
                                 </span>
                             </div>
 
@@ -1145,8 +1190,8 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
             {expandido && !sucesso && (
                 <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
-                    {/* Motorista + Placas + Tipo */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '8px' }}>
+                    {/* Motorista + Placas + Tipo + Data */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: '8px' }}>
                         <Campo label="MOTORISTA">
                             <input className="input-internal" style={{ fontSize: '11px' }}
                                 value={lote.motorista}
@@ -1168,6 +1213,11 @@ function CardLote({ lote, erro, sucesso, duplicata, onChange, onRemover, ehRecif
                                 onChange={e => onChange(lote._id, 'tipoVeiculo', e.target.value)}>
                                 {OPCOES_VEICULO.map(v => <option key={v} style={{ color: 'black' }}>{v}</option>)}
                             </select>
+                        </Campo>
+                        <Campo label="DATA PREVISTA" cor={lote.dataPrevista ? '#60a5fa' : '#f87171'}>
+                            <input type="date" className="input-internal" style={{ fontSize: '11px' }}
+                                value={lote.dataPrevista || ''}
+                                onChange={e => onChange(lote._id, 'dataPrevista', e.target.value)} />
                         </Campo>
                     </div>
 
