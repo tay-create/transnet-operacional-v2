@@ -154,9 +154,11 @@ function CardCte({ cte, realIndex, listaCtes, setListaAtual, corTema, bgBadge, i
 
     const avancarStatus = async () => {
         if (!proximoStatus || salvando) return;
-        await execute(() =>
-            updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, origemCte || (isRecife ? 'Recife' : 'Moreno'))
-        );
+        try {
+            await execute(() =>
+                updateListCte(listaCtes, setListaAtual, realIndex, 'status', proximoStatus, origemCte || (isRecife ? 'Recife' : 'Moreno'))
+            );
+        } catch (_) {} // erro já tratado pelo useApiCall
     };
 
     return (

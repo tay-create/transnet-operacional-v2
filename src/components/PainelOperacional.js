@@ -2403,7 +2403,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
 
     const handleConfirmar = async () => {
         if (!algumPausado && !motivo.trim()) return;
-        await execute(async () => {
+        try { await execute(async () => {
             const endpoint = algumPausado ? 'retomar' : 'pausar';
             const body = algumPausado ? { unidade, fonte: 'operacao' } : { motivo, unidade, fonte: 'operacao' };
             const veiculosAlvo = algumPausado
@@ -2420,7 +2420,7 @@ function ModalPausarUnidade({ origem, lista, onClose, onSucesso }) {
                 api.post(`/api/veiculos/${v.id}/${endpoint}`, body)
             ));
             onSucesso(algumPausado ? `${veiculosAlvo.length} veículo(s) retomado(s)` : `${veiculosAlvo.length} veículo(s) pausado(s)`);
-        });
+        }); } catch (_) {} // erro já tratado pelo useApiCall
     };
 
     return (

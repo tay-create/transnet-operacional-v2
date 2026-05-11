@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApiCall } from '../hooks/useApiCall';
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
-import { BarChart3, RefreshCw, Printer, TrendingUp } from 'lucide-react';
+import { RefreshCw, Printer, TrendingUp } from 'lucide-react';
 import api from '../services/apiService';
 import 'leaflet/dist/leaflet.css';
 
@@ -289,7 +289,7 @@ export default function RelatorioResultadoOperacional() {
         if (res) setDados(res.data);
     }, [execute]);
 
-    useEffect(() => { buscar(); }, [buscar]);
+    useEffect(() => { buscar().catch(() => {}); }, [buscar]);
 
     const imprimir = () => {
         if (!dados) return;
