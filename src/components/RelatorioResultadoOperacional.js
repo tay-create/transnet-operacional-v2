@@ -488,9 +488,9 @@ export default function RelatorioResultadoOperacional() {
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .page { padding: 18px 24px; }
+  .page { padding: 12px 20px; }
   .page-break { page-break-before: always; }
-  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1e40af; padding-bottom: 10px; margin-bottom: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1e40af; padding-bottom: 6px; margin-bottom: 8px; }
   .header-left h1 { font-size: 22px; font-weight: 900; color: #1e40af; letter-spacing: -0.5px; }
   .header-left h2 { font-size: 13px; font-weight: 700; color: #3b82f6; margin-top: 2px; }
   .header-right { text-align: right; font-size: 9.5px; color: #64748b; line-height: 1.5; }
@@ -508,7 +508,8 @@ export default function RelatorioResultadoOperacional() {
   td.num { font-weight: 700; color: #1e40af; text-align: right; }
   td.pct { color: #475569; text-align: right; font-weight: 600; }
   .footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 9px; color: #94a3b8; display: flex; justify-content: space-between; }
-  .chart-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; background: #fff; }
+  .chart-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; background: #fff; max-height: 200px; overflow: hidden; }
+  .chart-box svg { max-height: 165px; width: auto; max-width: 100%; display: block; margin: 0 auto; }
   .legenda-pat { font-size: 8.5px; color: #64748b; margin-top: 4px; font-style: italic; }
   @media print { @page { margin: 8mm 7mm; size: A4 landscape; } body { font-size: 10.5px; } }
 </style>
