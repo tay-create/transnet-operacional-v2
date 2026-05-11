@@ -1735,24 +1735,6 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
 app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Conhecimento']), asyncHandler(async (req, res) => {
     const { origem, dados } = req.body;
 
-        // Proteção contra duplicatas: mesmo motorista + numero_liberacao + COLETA com status ativo.
-        // Motoristas da frota têm a mesma liberação reutilizada em vários embarques, por isso
-        // a coleta entra na chave — permite múltiplos CT-es ativos do mesmo motorista com a mesma
-        // liberação, desde que sejam coletas diferentes. Bloqueia apenas duplicação real
-        // (mesma coleta sendo aceita 2x quase ao mesmo tempo). Espelha o índice unique do banco.
-        const coletaCheck = dados.coletaInterestadual || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null;
-        if (dados.motorista && dados.numero_liberacao && coletaCheck) {
-            const duplicado = await dbGet(
-                `SELECT id FROM ctes_ativos
-                 WHERE motorista = $1 AND numero_liberacao = $2 AND coleta = $3
-                 AND status != 'Emitido'`,
-                [dados.motorista, dados.numero_liberacao, coletaCheck]
-            );
-            if (duplicado) {
-                return res.status(409).json({ success: false, message: 'CT-e já registrado para este motorista, liberação e coleta.' });
-            }
-        }
-
         const status = dados.status || 'Aguardando Emissão';
         const coletaFinal = dados.coletaInterestadual || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null;
         const result = await dbRun(
