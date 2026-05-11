@@ -48,14 +48,14 @@ const TEMA = {
 // ──────────── Helpers ────────────────────────────────────
 
 function getStatusDisplay(oc) {
-    if (oc.situacao === 'RESOLVIDO') return { label: 'RESOLVIDO', color: '#22c55e', bg: 'rgba(34,197,94,0.15)' };
+    if (oc.situacao === 'RESOLVIDO') return { label: 'RESOLVIDO', color: '#22c55e', bg: 'rgba(34,197,94,0.15)', glow: '0 0 12px rgba(34,197,94,0.4)' };
     const h = calcularHorasAtraso(oc);
     if (h > 48) {
         const dias = Math.floor(h / 24);
-        return { label: `ATRASADO +${dias}D`, color: '#ff1744', bg: 'rgba(255,23,68,0.2)' };
+        return { label: `ATRASADO +${dias}D`, color: '#ff1744', bg: 'rgba(255,23,68,0.2)', glow: '0 0 16px rgba(255,23,68,0.5)' };
     }
-    if (h > 24) return { label: 'ATRASADO +24H', color: '#ff5252', bg: 'rgba(255,82,82,0.15)' };
-    return { label: 'EM ANDAMENTO', color: '#ff9100', bg: 'rgba(255,145,0,0.15)' };
+    if (h > 24) return { label: 'ATRASADO +24H', color: '#ff5252', bg: 'rgba(255,82,82,0.15)', glow: '0 0 12px rgba(255,82,82,0.4)' };
+    return { label: 'EM ANDAMENTO', color: '#ff9100', bg: 'rgba(255,145,0,0.15)', glow: '0 0 10px rgba(255,145,0,0.3)' };
 }
 
 function getTempoLabel(oc) {
@@ -74,12 +74,48 @@ function getBordaEsquerda(oc) {
     return '#ff9100';
 }
 
-function getCardGlow() {
-    return 'none';
+function getCardGlow(oc) {
+    if (oc.situacao === 'RESOLVIDO') return '0 0 20px rgba(0,230,118,0.15)';
+    const h = calcularHorasAtraso(oc);
+    if (h > 48) return '0 0 25px rgba(255,23,68,0.25), 0 0 50px rgba(255,23,68,0.1)';
+    if (h > 24) return '0 0 20px rgba(255,82,82,0.2)';
+    return '0 0 15px rgba(255,145,0,0.15)';
 }
 
 // ──────────── CSS Animações ────────────────────────────────────
-const neonCSS = ``;
+const neonCSS = `
+@keyframes spin { to { transform: rotate(360deg) } }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+@keyframes neonPulse {
+    0%, 100% { text-shadow: 0 0 10px rgba(0,229,255,0.6), 0 0 20px rgba(0,229,255,0.4), 0 0 40px rgba(0,229,255,0.2); }
+    50% { text-shadow: 0 0 20px rgba(0,229,255,0.8), 0 0 40px rgba(0,229,255,0.5), 0 0 60px rgba(0,229,255,0.3); }
+}
+@keyframes borderGlow {
+    0%, 100% { border-color: rgba(0,229,255,0.3); box-shadow: 0 0 15px rgba(0,229,255,0.1); }
+    50% { border-color: rgba(0,229,255,0.6); box-shadow: 0 0 25px rgba(0,229,255,0.2); }
+}
+@keyframes kpiGlow {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.2); }
+}
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes gradientMove {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+@keyframes cardPulseRed {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,23,68,0.15); }
+    50% { box-shadow: 0 0 35px rgba(255,23,68,0.3), 0 0 60px rgba(255,23,68,0.1); }
+}
+@keyframes cardPulseGreen {
+    0%, 100% { box-shadow: 0 0 15px rgba(0,230,118,0.1); }
+    50% { box-shadow: 0 0 25px rgba(0,230,118,0.2); }
+}
+`;
 
 // ──────────── Componente Principal ────────────────────────────────────
 export default function DashboardPosEmbarque({ socket }) {
@@ -126,8 +162,8 @@ export default function DashboardPosEmbarque({ socket }) {
         return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#00e5ff' }}>
                 <style>{neonCSS}</style>
-                <RefreshCw size={36} style={{ animation: 'spin 1s linear infinite', filter: 'none' }} />
-                <span style={{ marginLeft: 14, fontSize: 18, textShadow: 'none' }}>Carregando ocorrências...</span>
+                <RefreshCw size={36} style={{ animation: 'spin 1s linear infinite', filter: 'drop-shadow(0 0 8px rgba(0,229,255,0.6))' }} />
+                <span style={{ marginLeft: 14, fontSize: 18, textShadow: '0 0 10px rgba(0,229,255,0.5)' }}>Carregando ocorrências...</span>
             </div>
         );
     }
@@ -147,12 +183,12 @@ export default function DashboardPosEmbarque({ socket }) {
                         borderRadius: '16px',
                         padding: '22px 16px',
                         textAlign: 'center',
-                        boxShadow: `0 2px 12px rgba(0,0,0,0.06)`,
+                        boxShadow: modoClaro ? `0 2px 12px ${k.corGlow}` : `0 0 20px ${k.corGlow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
                         animation: `slideIn 0.5s ease ${i * 0.1}s both, kpiGlow 3s ease-in-out infinite`,
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8, color: k.cor, filter: 'none' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8, color: k.cor, filter: modoClaro ? 'none' : `drop-shadow(0 0 6px ${k.corGlow})` }}>
                             {k.icon}
-                            <span style={{ fontSize: 38, fontWeight: 'bold' }}>{k.valor}</span>
+                            <span style={{ fontSize: 38, fontWeight: 'bold', textShadow: modoClaro ? 'none' : `0 0 15px ${k.corGlow}` }}>{k.valor}</span>
                         </div>
                         <div style={{ fontSize: 11, fontWeight: 700, color: k.cor, letterSpacing: 2, opacity: 0.85 }}>{k.label}</div>
                     </div>
@@ -163,7 +199,7 @@ export default function DashboardPosEmbarque({ socket }) {
             <div style={{ textAlign: 'center', marginBottom: '24px', position: 'relative' }}>
                 <h1 style={{
                     fontSize: '26px', fontWeight: 'bold', margin: 0, letterSpacing: 4, color: tema.titleColor,
-                    animation: 'none',
+                    animation: tema.neonPulse ? 'neonPulse 3s ease-in-out infinite' : 'none',
                 }}>
                     PAINEL DE OCORRÊNCIAS
                 </h1>
@@ -171,7 +207,7 @@ export default function DashboardPosEmbarque({ socket }) {
                     <span style={{
                         width: 10, height: 10, borderRadius: '50%', display: 'inline-block',
                         background: '#00e676',
-                        boxShadow: 'none',
+                        boxShadow: modoClaro ? 'none' : '0 0 8px rgba(0,230,118,0.8), 0 0 16px rgba(0,230,118,0.4)',
                         animation: 'pulse 2s infinite'
                     }} />
                     <span style={{ fontSize: 13, color: '#00e676', fontWeight: 600 }}>Online — Tempo Real</span>
@@ -179,15 +215,15 @@ export default function DashboardPosEmbarque({ socket }) {
                 <div style={{
                     marginTop: 12, height: 2, maxWidth: 300, margin: '12px auto 0',
                     background: modoClaro ? '#e2e8f0' : 'linear-gradient(90deg, transparent, #00e5ff, transparent)',
-                    boxShadow: 'none',
+                    boxShadow: modoClaro ? 'none' : '0 0 10px rgba(0,229,255,0.5)',
                 }} />
             </div>
 
             {/* ── GRID DE CARDS ── */}
             {ocorrencias.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 0', color: '#00e5ff' }}>
-                    <AlertCircle size={52} style={{ marginBottom: 14, opacity: 0.5, filter: 'none' }} />
-                    <p style={{ fontSize: 17, textShadow: 'none' }}>Nenhuma ocorrência ativa</p>
+                    <AlertCircle size={52} style={{ marginBottom: 14, opacity: 0.5, filter: 'drop-shadow(0 0 10px rgba(0,229,255,0.5))' }} />
+                    <p style={{ fontSize: 17, textShadow: '0 0 10px rgba(0,229,255,0.3)' }}>Nenhuma ocorrência ativa</p>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
@@ -215,7 +251,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                 e.currentTarget.style.transform = 'translateY(-4px) scale(1.01)';
                                 e.currentTarget.style.boxShadow = modoClaro
                                     ? `0 8px 24px ${bordaCor}55`
-                                    : 'none';
+                                    : `0 0 35px ${bordaCor}44, 0 12px 40px rgba(0,0,0,0.5)`;
                             }}
                             onMouseLeave={e => {
                                 e.currentTarget.style.transform = '';
@@ -249,20 +285,20 @@ export default function DashboardPosEmbarque({ socket }) {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                                         {oc.operacao && (
                                             <span style={{
-                                                padding: '4px 12px', borderRadius: 6, fontSize: 14, fontWeight: 700,
+                                                padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                                                 background: 'rgba(0,229,255,0.1)', color: '#00e5ff',
                                                 border: '1px solid rgba(0,229,255,0.3)',
-                                                boxShadow: 'none',
+                                                boxShadow: '0 0 8px rgba(0,229,255,0.2)',
                                             }}>
                                                 OP: {oc.operacao}
                                             </span>
                                         )}
                                         <span style={{
-                                            fontSize: 15, fontWeight: 700,
+                                            fontSize: 12, fontWeight: 700,
                                             color: isResolvido ? '#00e676' : (isAtrasado ? '#ff5252' : '#ff9100'),
-                                            textShadow: 'none',
+                                            textShadow: `0 0 8px ${isResolvido ? 'rgba(0,230,118,0.4)' : isAtrasado ? 'rgba(255,82,82,0.4)' : 'rgba(255,145,0,0.3)'}`,
                                         }}>
-                                            <Clock size={16} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                                            <Clock size={13} style={{ verticalAlign: 'middle', marginRight: 4 }} />
                                             {getTempoLabel(oc)}
                                         </span>
                                     </div>
@@ -271,7 +307,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     <div style={{
                                         fontSize: 17, fontWeight: 'bold', color: tema.textCliente, marginBottom: 8,
                                         textTransform: 'uppercase', letterSpacing: 0.5,
-                                        textShadow: 'none',
+                                        textShadow: modoClaro ? 'none' : '0 0 6px rgba(0,229,255,0.15)',
                                     }}>
                                         {oc.cliente || '—'}
                                     </div>
@@ -279,7 +315,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     {/* Cidade */}
                                     {oc.cidade && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, color: '#80cbc4', fontSize: 13 }}>
-                                            <MapPin size={14} style={{ filter: 'none' }} /> {oc.cidade}
+                                            <MapPin size={14} style={{ filter: 'drop-shadow(0 0 4px rgba(0,229,255,0.3))' }} /> {oc.cidade}
                                         </div>
                                     )}
 
@@ -312,14 +348,14 @@ export default function DashboardPosEmbarque({ socket }) {
                                     {/* Motorista + Modalidade */}
                                     {oc.motorista && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13, color: tema.textMotorista }}>
-                                            <Truck size={15} style={{ color: '#ff9100', filter: 'none' }} />
+                                            <Truck size={15} style={{ color: '#ff9100', filter: 'drop-shadow(0 0 4px rgba(255,145,0,0.4))' }} />
                                             <span style={{ fontWeight: 500 }}>{oc.motorista}</span>
                                             {oc.modalidade && (
                                                 <span style={{
                                                     marginLeft: 6, padding: '2px 8px', borderRadius: 6, fontSize: 10,
                                                     background: 'rgba(124,77,255,0.15)', color: '#b388ff', fontWeight: 700,
                                                     border: '1px solid rgba(124,77,255,0.3)',
-                                                    boxShadow: 'none',
+                                                    boxShadow: '0 0 6px rgba(124,77,255,0.2)',
                                                 }}>
                                                     {oc.modalidade}
                                                 </span>
@@ -330,7 +366,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                     {/* Motivo */}
                                     {oc.motivo && (
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8, fontSize: 13, color: '#ff8a80' }}>
-                                            <AlertCircle size={14} style={{ marginTop: 2, flexShrink: 0, filter: 'none' }} />
+                                            <AlertCircle size={14} style={{ marginTop: 2, flexShrink: 0, filter: 'drop-shadow(0 0 3px rgba(255,82,82,0.4))' }} />
                                             <span>{oc.motivo}</span>
                                         </div>
                                     )}
