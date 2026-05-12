@@ -23,6 +23,7 @@ import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizar
 import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
 import { usePainelModais } from '../hooks/painel/usePainelModais';
 import { usePainelConfirmacoes } from '../hooks/painel/usePainelConfirmacoes';
+import { useCteOperadores } from '../hooks/painel/useCteOperadores';
 
 
 const SUB_STYLES_CARD = {
@@ -271,29 +272,14 @@ export default function PainelOperacional({
         confirmarCopiaColeta, setConfirmarCopiaColeta,
         finalizando, setFinalizando,
     } = usePainelConfirmacoes();
-    const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
-    const [operadorSelecionado, setOperadorSelecionado] = useState(null);
-    const [reenviarCte, setReenviarCte] = useState(null); // { item, origem }
-    const [operadorReenvio, setOperadorReenvio] = useState(null);
+    const {
+        operadoresConhecimento,
+        operadorSelecionado, setOperadorSelecionado,
+        reenviarCte, setReenviarCte,
+        operadorReenvio, setOperadorReenvio,
+    } = useCteOperadores({ confirmarLiberadoCte });
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const qtdMotoristasPrev = useRef(null);
-
-    useEffect(() => {
-        api.get('/api/usuarios/conhecimento').then(r => {
-            if (r.data?.success) setOperadoresConhecimento(r.data.usuarios);
-        }).catch(() => {});
-    }, []);
-
-    // Em operações interestaduais (Leão - SP / Eletrik Sul), incluir cargo Planejamento na lista
-    // de operadores que podem receber o CT-e — recarrega quando o modal abre
-    useEffect(() => {
-        if (!confirmarLiberadoCte) return;
-        const op = confirmarLiberadoCte.operacao || '';
-        const eInterestadual = op === 'LEÃO - SP' || op === 'ELETRIK SUL';
-        api.get(`/api/usuarios/conhecimento${eInterestadual ? '?incluirPlanejamento=1' : ''}`).then(r => {
-            if (r.data?.success) setOperadoresConhecimento(r.data.usuarios);
-        }).catch(() => {});
-    }, [confirmarLiberadoCte]);
 
     useEffect(() => {
         api.get(`/api/docas-interditadas?data=${dataInicio}`).then(r => {
