@@ -134,41 +134,48 @@ function App({ socket }) {
     const aceitandoCteIds = useRef(new Set());
 
     // === LÓGICA DE VIRADA DE DATA À MEIA-NOITE ===
+    // Sincroniza data_prevista/filtros APENAS quando a data BR realmente muda (meia-noite
+    // ou volta de inatividade longa). Não toca em filtros se o usuário ainda está no
+    // mesmo dia — preserva alterações manuais (ex: filtrar CT-e por uma data passada).
     useEffect(() => {
         let timeoutId = null;
+        let ultimaDataConhecida = obterDataBrasilia();
 
-        const sincronizarData = (motivo) => {
+        const sincronizarSeMudou = (motivo) => {
             const novaData = obterDataBrasilia();
-            // Só reage se a data realmente mudou (evita re-render desnecessário)
+            if (novaData === ultimaDataConhecida) return; // mesmo dia: não mexe em nada
+            console.log(`[App] Data BR mudou ${ultimaDataConhecida} -> ${novaData} (motivo: ${motivo})`);
+            ultimaDataConhecida = novaData;
+            // Só nesse caso (passou a meia-noite) atualizamos os filtros que estavam
+            // apontando para o dia anterior. Filtros movidos manualmente para datas
+            // passadas/futuras pelo usuário ficam intocados.
             setFormLanca(prev => prev.data_prevista !== novaData ? { ...prev, data_prevista: novaData } : prev);
             setFiltroDataInicio(prev => prev !== novaData ? novaData : prev);
             setFiltroDataFim(prev => prev !== novaData ? novaData : prev);
             setFiltroDataInicioCte(prev => prev !== novaData ? novaData : prev);
             setFiltroDataFimCte(prev => prev !== novaData ? novaData : prev);
-            if (motivo) console.log(`[App] Sincronizando data para ${novaData} (motivo: ${motivo})`);
         };
 
         const agendarVirada = () => {
-            // Calcula ms até a próxima meia-noite em Brasília. Usar diff entre dois Date com
-            // toLocaleString em America/Sao_Paulo evita problema de timezone da máquina.
+            // ms até a próxima meia-noite em Brasília (independe do TZ da máquina)
             const agoraUTC = Date.now();
             const agoraBR = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
             const proximaMeiaNoiteBR = new Date(agoraBR);
             proximaMeiaNoiteBR.setHours(24, 0, 5, 0); // 5 segundos de folga após meia-noite
             const msRestantes = proximaMeiaNoiteBR.getTime() - agoraBR.getTime();
-            // agoraUTC + msRestantes = momento UTC equivalente à próxima meia-noite BR
             const delay = Math.max(1000, (agoraUTC + msRestantes) - Date.now());
 
             timeoutId = setTimeout(() => {
-                sincronizarData('meia-noite');
+                sincronizarSeMudou('meia-noite');
                 agendarVirada();
             }, delay);
         };
 
         const onVisibilityOrFocus = () => {
             if (document.visibilityState === 'visible') {
-                sincronizarData('volta de inatividade');
-                // Reagenda o timer caso o setTimeout tenha sido suspenso
+                // Só atualiza se a data realmente passou (laptop suspenso, aba inativa longa).
+                // No fluxo normal (alt+tab para outra janela e voltar), nada muda.
+                sincronizarSeMudou('volta de inatividade');
                 if (timeoutId) clearTimeout(timeoutId);
                 agendarVirada();
             }
