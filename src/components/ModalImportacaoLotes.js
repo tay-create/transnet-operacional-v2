@@ -412,6 +412,11 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 const morFinal = !v.status_moreno || STATUS_FINAIS.includes(v.status_moreno);
                 if (recFinal && morFinal) return false;
                 if (!datasDosLotes.has(v.data_prevista || '')) return false;
+                // Cards reprogramados de outro dia não devem aparecer como 'sumidos' —
+                // eles foram movidos automaticamente (rollover ou reprogramação manual),
+                // não se espera que estejam na planilha do dia destino.
+                const dataOrig = v.data_prevista_original || '';
+                if (v.foi_reprogramado && dataOrig && dataOrig !== v.data_prevista) return false;
                 const coletas = [
                     ...extrairNumerosColeta(v.coletaRecife),
                     ...extrairNumerosColeta(v.coletaMoreno),
