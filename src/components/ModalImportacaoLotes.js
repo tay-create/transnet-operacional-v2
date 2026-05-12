@@ -58,7 +58,9 @@ function mapearOperacao(textoCSV) {
 
 function mapearTipoVeiculo(textoCSV) {
     const t = (textoCSV || '').toUpperCase().trim();
+    if (t.includes('3/4') || t === '3/4') return '3/4';
     if (t.includes('CARRETA')) return 'CARRETA';
+    if (t.includes('SIDER')) return 'SIDER';
     if (t.includes('TRUCK')) return 'TRUCK';
     return 'TRUCK';
 }

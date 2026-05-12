@@ -356,6 +356,18 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                         if (mudouRotaMoreno) djNovo.rotaMoreno = novaRotaMoreno;
                         if (mudouObs)        djNovo.observacao  = novaObs;
                         if (mudouData)       djNovo.data_prevista = novaData;
+
+                        // Só zerar checklist se motorista mudou DE FATO e card ainda não embarcou.
+                        // Edição de rota/obs/data não invalida conferência já feita.
+                        const STATUS_POS_LIBERACAO = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
+                        const jaEmbarcou = STATUS_POS_LIBERACAO.includes(existente.status_recife) ||
+                                           STATUS_POS_LIBERACAO.includes(existente.status_moreno);
+                        const deveResetar = mudouMotorista && !jaEmbarcou;
+
+                        const setChecklist = deveResetar
+                            ? `, chk_cnh = 0, chk_antt = 0, chk_tacografo = 0, chk_crlv = 0, situacao_cadastro = 'NÃO CONFERIDO'`
+                            : ``;
+
                         await dbRun(
                             `UPDATE veiculos SET
                                 motorista     = COALESCE(NULLIF(?, ''), motorista),
@@ -365,13 +377,30 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                                 rota_moreno   = COALESCE(NULLIF(?, ''), rota_moreno),
                                 observacao    = COALESCE(NULLIF(?, ''), observacao),
                                 data_prevista = COALESCE(NULLIF(?, ''), data_prevista),
-                                dados_json    = ?,
-                                chk_cnh = 0, chk_antt = 0, chk_tacografo = 0, chk_crlv = 0,
-                                situacao_cadastro = 'NÃO CONFERIDO'
+                                dados_json    = ?${setChecklist}
                              WHERE id = ?`,
                             [novoMotorista, novaPlaca1, novoModelo,
                              novaRotaRecife, novaRotaMoreno, novaObs, novaData,
                              JSON.stringify(djNovo), existente.id]
+                        );
+
+                        await registrarLog(
+                            'EDIÇÃO',
+                            req.user?.nome || '?',
+                            existente.id,
+                            'veiculo',
+                            null,
+                            null,
+                            `Atualização via POST/coleta. Mudou: ${[
+                                mudouMotorista && 'motorista',
+                                mudouPlaca1 && 'placa1',
+                                mudouPlaca2 && 'placa2',
+                                mudouModelo && 'modelo',
+                                mudouRotaRecife && 'rota_recife',
+                                mudouRotaMoreno && 'rota_moreno',
+                                mudouObs && 'observacao',
+                                mudouData && 'data_prevista',
+                            ].filter(Boolean).join(', ')}${deveResetar ? ' | Checklist resetado (motorista trocado, card pré-embarque)' : (mudouMotorista && jaEmbarcou ? ' | Checklist PRESERVADO (card já em carregamento)' : '')}`
                         );
                         const veicAtualizado = await dbGet(`
                             SELECT v.*,
@@ -802,10 +831,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Manter campo genérico 'coleta' sincronizado (sempre sobrescrever com valor atual)
             v.coleta = v.coletaRecife || v.coletaMoreno || v.coletaInterestadual || v.coleta || '';
 
-            // Se motorista mudou, zerar campos de risco para nova conferência
+            // Se motorista mudou, zerar campos de risco para nova conferência.
+            // MAS só se o card ainda não embarcou — depois de EM CARREGAMENTO não faz
+            // sentido apagar a conferência (o motorista já está com o caminhão na doca).
             const motoristaNovo = (v.motorista || '').trim();
             const motoristaAntigo = (veiculoAntigo?.motorista || '').trim();
-            if (veiculoAntigo && motoristaNovo && motoristaAntigo && motoristaNovo !== motoristaAntigo) {
+            const STATUS_POS_LIBERACAO_PUT = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
+            const jaEmbarcouPut = STATUS_POS_LIBERACAO_PUT.includes(veiculoAntigo?.status_recife) ||
+                                  STATUS_POS_LIBERACAO_PUT.includes(veiculoAntigo?.status_moreno);
+            if (veiculoAntigo && motoristaNovo && motoristaAntigo && motoristaNovo !== motoristaAntigo && !jaEmbarcouPut) {
                 v.chk_cnh = 0;
                 v.chk_antt = 0;
                 v.chk_tacografo = 0;
@@ -817,6 +851,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.origem_cad = '';
                 v.destino_uf_cad = '';
                 v.destino_cidade_cad = '';
+            } else if (veiculoAntigo && motoristaNovo && motoristaAntigo && motoristaNovo !== motoristaAntigo && jaEmbarcouPut) {
+                // Card já em fluxo de carregamento: preservar conferência existente
+                v.chk_cnh = veiculoAntigo.chk_cnh;
+                v.chk_antt = veiculoAntigo.chk_antt;
+                v.chk_tacografo = veiculoAntigo.chk_tacografo;
+                v.chk_crlv = veiculoAntigo.chk_crlv;
+                v.numero_liberacao = v.numero_liberacao || veiculoAntigo.numero_liberacao || '';
+                v.situacao_cadastro = veiculoAntigo.situacao_cadastro || 'NÃO CONFERIDO';
+                v.data_liberacao = v.data_liberacao || veiculoAntigo.data_liberacao || null;
             }
 
             // data_inicio_patio: rebuscar marcação sempre que motorista muda.
@@ -1328,6 +1371,15 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     router.delete('/veiculos/:id/motorista', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
             const veiculo = await dbGet("SELECT * FROM veiculos WHERE id = ?", [req.params.id]);
             if (!veiculo) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+
+            // Trava: não permitir remover motorista de card que já avançou para carregamento ou além
+            const STATUS_POS_LIBERACAO_DEL = ['EM CARREGAMENTO', 'CARREGADO', 'LIBERADO P/ CT-e', 'DESPACHADO'];
+            if (STATUS_POS_LIBERACAO_DEL.includes(veiculo.status_recife) || STATUS_POS_LIBERACAO_DEL.includes(veiculo.status_moreno)) {
+                return res.status(403).json({
+                    success: false,
+                    message: `Não é possível remover o motorista: card já está em "${veiculo.status_recife || veiculo.status_moreno}". Volte o status antes.`
+                });
+            }
 
             const motoristaAnterior = veiculo.motorista;
 
