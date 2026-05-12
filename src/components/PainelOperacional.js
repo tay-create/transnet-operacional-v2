@@ -22,6 +22,7 @@ import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opT
 import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
 import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
 import { usePainelModais } from '../hooks/painel/usePainelModais';
+import { usePainelConfirmacoes } from '../hooks/painel/usePainelConfirmacoes';
 
 
 const SUB_STYLES_CARD = {
@@ -259,20 +260,22 @@ export default function PainelOperacional({
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
-    const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
+    const {
+        confirmarLiberadoCte, setConfirmarLiberadoCte,
+        confirmarFinalizar, setConfirmarFinalizar,
+        proximaDataFinalizar, setProximaDataFinalizar,
+        modalEscolhaDia, setModalEscolhaDia,
+        confirmarReprogramar, setConfirmarReprogramar,
+        confirmarMisto, setConfirmarMisto,
+        confirmarLiberarChecklist, setConfirmarLiberarChecklist,
+        confirmarCopiaColeta, setConfirmarCopiaColeta,
+        finalizando, setFinalizando,
+    } = usePainelConfirmacoes();
     const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
     const [reenviarCte, setReenviarCte] = useState(null); // { item, origem }
     const [operadorReenvio, setOperadorReenvio] = useState(null);
-    const [confirmarFinalizar, setConfirmarFinalizar] = useState(false);
-    const [proximaDataFinalizar, setProximaDataFinalizar] = useState(null); // data escolhida (sexta → sáb ou seg)
-    const [modalEscolhaDia, setModalEscolhaDia] = useState(false); // modal sexta-feira
-    const [confirmarReprogramar, setConfirmarReprogramar] = useState(null); // { lista, setLista, realIndex, proxStr }
-    const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
-    const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
-    const [confirmarCopiaColeta, setConfirmarCopiaColeta] = useState(null); // { unidadeDestino, coletaOrigem, unidadeOrigem, onConfirm, onRecusar }
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
-    const [finalizando, setFinalizando] = useState(false);
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
