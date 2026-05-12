@@ -19,7 +19,7 @@ import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
-import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, ehInterestadualOp, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
+import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
 
 
 const SUB_STYLES_CARD = {

@@ -10,12 +10,8 @@ export function ehOperacaoMoreno(op) {
     return op && !ehOperacaoInterestadual(op) && (op.includes('MORENO') || op.includes('PORCELANA') || op.includes('ELETRIK'));
 }
 
-export function ehInterestadualOp(op) {
-    return op === 'LEÃO - SP' || op === 'ELETRIK SUL';
-}
-
 export function normalizarStatusInterestadual(item, status) {
-    if (!ehInterestadualOp(item.operacao)) return status;
+    if (!ehOperacaoInterestadual(item.operacao)) return status;
     if (status === 'AGUARDANDO' || status === 'AGUARDANDO P/ SEPARAÇÃO' || status === 'EM SEPARAÇÃO' || status === 'LIBERADO P/ DOCA') {
         return 'LIBERADO P/ CARREGAMENTO';
     }
