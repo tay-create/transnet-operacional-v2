@@ -24,6 +24,7 @@ import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
 import { usePainelModais } from '../hooks/painel/usePainelModais';
 import { usePainelConfirmacoes } from '../hooks/painel/usePainelConfirmacoes';
 import { useCteOperadores } from '../hooks/painel/useCteOperadores';
+import { useDocasPainel } from '../hooks/painel/useDocasPainel';
 
 
 const SUB_STYLES_CARD = {
@@ -260,7 +261,6 @@ export default function PainelOperacional({
     const [buscaMotoristaCard, setBuscaMotoristaCard] = useState({ id: null, texto: '' }); // texto digitado no input do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
-    const [docasInterditadas, setDocasInterditadas] = useState([]);
     const {
         confirmarLiberadoCte, setConfirmarLiberadoCte,
         confirmarFinalizar, setConfirmarFinalizar,
@@ -278,29 +278,9 @@ export default function PainelOperacional({
         reenviarCte, setReenviarCte,
         operadorReenvio, setOperadorReenvio,
     } = useCteOperadores({ confirmarLiberadoCte });
+    const { docasInterditadas, addCardFulgaz, removerCardFulgaz, alterarDocaFulgaz } = useDocasPainel({ origem, dataInicio, socket });
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
     const qtdMotoristasPrev = useRef(null);
-
-    useEffect(() => {
-        api.get(`/api/docas-interditadas?data=${dataInicio}`).then(r => {
-            if (r.data && r.data.success) {
-                setDocasInterditadas(r.data.docas);
-            }
-        }).catch(() => { });
-
-        if (socket) {
-            const handleDocas = (payload) => {
-                // payload pode ser { data, docas } (novo formato) ou array legado
-                const docas = Array.isArray(payload) ? payload : (payload?.docas || []);
-                const dataPayload = Array.isArray(payload) ? null : payload?.data;
-                if (!dataPayload || dataPayload === dataInicio) {
-                    setDocasInterditadas(docas);
-                }
-            };
-            socket.on('docas_interditadas_update', handleDocas);
-            return () => socket.off('docas_interditadas_update', handleDocas);
-        }
-    }, [socket, dataInicio]);
 
     // Atualizar fotos do lacre no card via socket em tempo real
     useEffect(() => {
@@ -314,17 +294,6 @@ export default function PainelOperacional({
         socket.on('receber_atualizacao', handler);
         return () => socket.off('receber_atualizacao', handler);
     }, [socket, setLista]);
-
-    const addCardFulgaz = () => {
-        api.post('/api/docas-interditadas', { unidade: origem, data: dataInicio }).catch(() => { });
-    };
-    const removerCardFulgaz = (id) => {
-        api.delete(`/api/docas-interditadas/${id}`).catch(() => { });
-    };
-    const alterarDocaFulgaz = (id, doca) => {
-        api.put(`/api/docas-interditadas/${id}`, { doca }).catch(() => { });
-    };
-
 
     const adicionarToast = useCallback((msg, tipo = 'info') => {
         const id = Date.now();
