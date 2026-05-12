@@ -237,16 +237,39 @@ const inicializarBanco = async () => {
             { tabela: 'veiculos', coluna: 'foto_lacre_moreno', tipo: 'TEXT' },
         ];
 
-        // Backfill: cards antigos têm só data_prevista. Espelhar nas duas colunas novas
-        // para que filtros lado-a-lado funcionem desde o boot. Idempotente.
+        // Backfill: cards antigos têm só data_prevista. Preencher apenas o lado que o card usa.
+        // Idempotente.
         await dbRun(`UPDATE veiculos
                         SET data_prevista_recife = data_prevista
                       WHERE data_prevista_recife IS NULL
-                        AND data_prevista IS NOT NULL AND data_prevista <> ''`);
+                        AND data_prevista IS NOT NULL AND data_prevista <> ''
+                        AND coletarecife IS NOT NULL AND coletarecife <> ''`);
         await dbRun(`UPDATE veiculos
                         SET data_prevista_moreno = data_prevista
                       WHERE data_prevista_moreno IS NULL
-                        AND data_prevista IS NOT NULL AND data_prevista <> ''`);
+                        AND data_prevista IS NOT NULL AND data_prevista <> ''
+                        AND coletamoreno IS NOT NULL AND coletamoreno <> ''`);
+        // Fix: limpar lado incorreto gerado por backfill anterior (cards single-unit)
+        await dbRun(`UPDATE veiculos
+                        SET data_prevista_recife = NULL
+                      WHERE (coletarecife IS NULL OR coletarecife = '')
+                        AND (coletamoreno IS NOT NULL AND coletamoreno <> '')
+                        AND data_prevista_recife IS NOT NULL
+                        AND data_prevista_recife = data_prevista_moreno`);
+        await dbRun(`UPDATE veiculos
+                        SET data_prevista_moreno = NULL
+                      WHERE (coletamoreno IS NULL OR coletamoreno = '')
+                        AND (coletarecife IS NOT NULL AND coletarecife <> '')
+                        AND data_prevista_moreno IS NOT NULL
+                        AND data_prevista_moreno = data_prevista_recife`);
+        // Recalcular guarda-chuva após correção
+        await dbRun(`UPDATE veiculos
+                        SET data_prevista = COALESCE(
+                            LEAST(NULLIF(data_prevista_recife,''), NULLIF(data_prevista_moreno,'')),
+                            NULLIF(data_prevista_recife,''),
+                            NULLIF(data_prevista_moreno,''),
+                            data_prevista)
+                      WHERE data_prevista_recife IS NULL OR data_prevista_moreno IS NULL`);
 
         // Criação de Índices Otimizados
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_veiculos_status_recife ON veiculos (status_recife)`);
