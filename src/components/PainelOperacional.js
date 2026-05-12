@@ -21,6 +21,7 @@ import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
 import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
+import { usePainelModais } from '../hooks/painel/usePainelModais';
 
 
 const SUB_STYLES_CARD = {
@@ -235,17 +236,29 @@ export default function PainelOperacional({
     };
 
     const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
+    const {
+        modalColetasAberto, setModalColetasAberto,
+        modalChecklistAberto, setModalChecklistAberto,
+        veiculoSelecionado, setVeiculoSelecionado,
+        modalPausaAberto, setModalPausaAberto,
+        imagemAmpliada, setImagemAmpliada,
+        modalEntregasCard, setModalEntregasCard,
+        modalFrota, setModalFrota,
+        frotaOrigem, setFrotaOrigem,
+        frotaDestino, setFrotaDestino,
+        loadingPdf, setLoadingPdf,
+        modalLacre, setModalLacre,
+        modalLinkMotorista, setModalLinkMotorista,
+        inputColetaModal, setInputColetaModal,
+        inputColetaValor, setInputColetaValor,
+    } = usePainelModais();
     const ORDEM_STATUS = OPCOES_STATUS;
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
     const [buscaMotoristaCard, setBuscaMotoristaCard] = useState({ id: null, texto: '' }); // texto digitado no input do card
     const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
     const [toasts, setToasts] = useState([]);
-    const [modalColetasAberto, setModalColetasAberto] = useState(false);
-    const [modalChecklistAberto, setModalChecklistAberto] = useState(false);
-    const [veiculoSelecionado, setVeiculoSelecionado] = useState(null);
     const [docasInterditadas, setDocasInterditadas] = useState([]);
-    const [modalPausaAberto, setModalPausaAberto] = useState(false);
     const [confirmarLiberadoCte, setConfirmarLiberadoCte] = useState(null);
     const [operadoresConhecimento, setOperadoresConhecimento] = useState([]);
     const [operadorSelecionado, setOperadorSelecionado] = useState(null);
@@ -258,17 +271,8 @@ export default function PainelOperacional({
     const [confirmarMisto, setConfirmarMisto] = useState(null); // { conflitos: N, detalhes: [] }
     const [confirmarLiberarChecklist, setConfirmarLiberarChecklist] = useState(null); // { item }
     const [confirmarCopiaColeta, setConfirmarCopiaColeta] = useState(null); // { unidadeDestino, coletaOrigem, unidadeOrigem, onConfirm, onRecusar }
-    const [inputColetaModal, setInputColetaModal] = useState(null); // { unidadeDestino, onConfirm }
-    const [inputColetaValor, setInputColetaValor] = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
-    const [modalEntregasCard, setModalEntregasCard] = useState(null); // { veiculo, item }
     const [finalizando, setFinalizando] = useState(false);
-    const [modalFrota, setModalFrota] = useState(null); // { item, marcacao, realIndex }
-    const [frotaOrigem, setFrotaOrigem] = useState('');
-    const [frotaDestino, setFrotaDestino] = useState('');
-    const [loadingPdf, setLoadingPdf] = useState({});
-    const [modalLacre, setModalLacre] = useState(null); // { foto, motorista }
-    const [modalLinkMotorista, setModalLinkMotorista] = useState(null); // { url, motorista, gerando, copiado }
     const qtdMotoristasPrev = useRef(null);
 
     useEffect(() => {
@@ -531,8 +535,6 @@ export default function PainelOperacional({
             mostrarNotificacao?.('⚠️ Erro ao remover motorista.');
         });
     }
-
-    const [imagemAmpliada, setImagemAmpliada] = useState(null);
 
     const getEstiloRota = (valor) => ({
         background: 'transparent',
