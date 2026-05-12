@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApiCall } from '../hooks/useApiCall';
 import TagInput from './TagInput';
 import {
@@ -15,7 +15,6 @@ import ModalColetas from './ModalColetas';
 import SLATimeline from './SLATimeline';
 import ModalEntregasProvisao from './ModalEntregasProvisao';
 import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS, OPCOES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
-import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
@@ -26,6 +25,7 @@ import { usePainelConfirmacoes } from '../hooks/painel/usePainelConfirmacoes';
 import { useCteOperadores } from '../hooks/painel/useCteOperadores';
 import { useDocasPainel } from '../hooks/painel/useDocasPainel';
 import { useOperacaoActions } from '../hooks/painel/useOperacaoActions';
+import { useMotoristasPainel } from '../hooks/painel/useMotoristasPainel';
 
 
 const SUB_STYLES_CARD = {
@@ -101,11 +101,6 @@ export default function PainelOperacional({
         inputColetaValor, setInputColetaValor,
     } = usePainelModais();
     const ORDEM_STATUS = OPCOES_STATUS;
-    const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
-    const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
-    const [buscaMotoristaCard, setBuscaMotoristaCard] = useState({ id: null, texto: '' }); // texto digitado no input do card
-    const [editandoPlaca, setEditandoPlaca] = useState(null); // id do card em edição de placa
-    const [toasts, setToasts] = useState([]);
     const {
         confirmarLiberadoCte, setConfirmarLiberadoCte,
         confirmarFinalizar, setConfirmarFinalizar,
@@ -125,220 +120,20 @@ export default function PainelOperacional({
     } = useCteOperadores({ confirmarLiberadoCte });
     const { docasInterditadas, addCardFulgaz, removerCardFulgaz, alterarDocaFulgaz } = useDocasPainel({ origem, dataInicio, socket });
     const { handleOperacaoChange, reprogramarItem } = useOperacaoActions();
-    const [veiculosProvisao, setVeiculosProvisao] = useState([]);
-    const qtdMotoristasPrev = useRef(null);
-
-    // Atualizar fotos do lacre no card via socket em tempo real
-    useEffect(() => {
-        if (!socket) return;
-        const handleFotoLacre = ({ veiculoId, campo, fotos }) => {
-            setLista(prev => prev.map(item =>
-                item.id === veiculoId ? { ...item, [campo]: JSON.stringify(fotos) } : item
-            ));
-        };
-        const handler = (payload) => { if (payload?.tipo === 'foto_lacre') handleFotoLacre(payload); };
-        socket.on('receber_atualizacao', handler);
-        return () => socket.off('receber_atualizacao', handler);
-    }, [socket, setLista]);
-
-    const adicionarToast = useCallback((msg, tipo = 'info') => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, msg, tipo }]);
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
-    }, []);
-
-    // Carregar motoristas disponíveis e manter atualizado via socket
-    useEffect(() => {
-        const buscarMotoristas = () => {
-            if (!useAuthStore.getState().isAuthenticated) return;
-            api.get('/api/marcacoes/disponiveis')
-                .then(r => {
-                    if (!r.data.success) return;
-                    const lista = r.data.motoristas;
-                    setMotoristasDisponiveis(lista);
-                    // Notificar se chegou novo motorista
-                    if (qtdMotoristasPrev.current !== null && lista.length > qtdMotoristasPrev.current) {
-                        const novos = lista.slice(0, lista.length - qtdMotoristasPrev.current);
-                        novos.forEach(m => {
-                            adicionarToast(`${m.nome_motorista} — ${m.disponibilidade || 'Disponível'} `);
-                        });
-                    }
-                    qtdMotoristasPrev.current = lista.length;
-                })
-                .catch(() => { });
-        };
-        buscarMotoristas();
-        if (socket) {
-            socket.on('marcacao_atualizada', buscarMotoristas);
-            return () => socket.off('marcacao_atualizada', buscarMotoristas);
-        }
-    }, [adicionarToast, socket]);
-
-    // Carregar veículos do provisionamento para detecção de placa
-    useEffect(() => {
-        api.get('/api/provisionamento/veiculos')
-            .then(r => { if (r.data.success) setVeiculosProvisao(r.data.veiculos); })
-            .catch(() => { });
-    }, []);
-
-    function itemTemPlacaNoProvisionamento(item) {
-        if (!veiculosProvisao.length) return false;
-        const placas = [item.placa1Motorista, item.placa2Motorista, item.placa].filter(p => p && p.length >= 6);
-        return placas.some(p => {
-            const pu = p.replace(/[-\s]/g, '').toUpperCase();
-            return veiculosProvisao.some(vp =>
-                (vp.placa && vp.placa.replace(/[-\s]/g, '').toUpperCase() === pu) ||
-                (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === pu)
-            );
-        });
-    }
-
-    function checarPlacaProvisaoCard(placa, item) {
-        if (!placa || placa.length < 6) return;
-        const p = placa.replace(/[-\s]/g, '').toUpperCase();
-        const v = veiculosProvisao.find(vp => (vp.placa && vp.placa.replace(/[-\s]/g, '').toUpperCase() === p) || (vp.carreta && vp.carreta.replace(/[-\s]/g, '').toUpperCase() === p));
-        if (v) {
-            // Usar a combinação real do card (prioritária sobre o provisionamento)
-            const veiculoComCardAtual = { ...v };
-            const carretaCard = (item.placa2Motorista || '').trim();
-            if (carretaCard && carretaCard !== '-') veiculoComCardAtual.carreta = carretaCard;
-            setModalEntregasCard({ veiculo: veiculoComCardAtual, item });
-        }
-    }
-
-    function selecionarMotoristaNaEdicao(item, realIndex, m) {
-        // Se motorista é FROTA, abrir modal para informar Origem/Destino antes de salvar
-        if (m.is_frota) {
-            setModalFrota({ item, marcacao: m, realIndex });
-            setFrotaOrigem('');
-            setFrotaDestino('');
-            setEditandoMotorista(null);
-            setBuscaMotoristaCard({ id: null, texto: '' });
-            return;
-        }
-
-        salvarMotoristaNoCard(item, realIndex, m, '', '');
-    }
-
-    function salvarMotoristaNoCard(item, realIndex, m, origemFrota, destinoFrota) {
-        // Backup para reverter em caso de erro
-        const itemOriginal = { ...lista[realIndex] };
-
-        // Herda campos extras sem destruir o objeto
-        const novaLista = [...lista];
-        const itemAtual = { ...novaLista[realIndex] };
-        itemAtual.motorista = m.nome_motorista;
-        itemAtual.telefoneMotorista = m.telefone || itemAtual.telefoneMotorista;
-
-        // Se o motorista tem placa, sobrescreve. Se não tem, mantém a que já estava no card.
-        itemAtual.placa1Motorista = m.placa1 || itemAtual.placa1Motorista || itemAtual.placa || '';
-        itemAtual.placa2Motorista = m.placa2 || itemAtual.placa2Motorista || '';
-
-        itemAtual.tipoVeiculo = m.tipo_veiculo?.toUpperCase().includes('TRUCK') ? 'TRUCK'
-            : m.tipo_veiculo?.toUpperCase().includes('CARRETA') ? 'CARRETA' : itemAtual.tipoVeiculo;
-        itemAtual.disponibilidadeMotorista = m.disponibilidade || '';
-        itemAtual.isFrotaMotorista = m.is_frota ? true : false;
-        itemAtual.origemMotorista = m.origem_cidade_uf || '';
-        itemAtual.destinoMotorista = m.destino_desejado || '';
-        if (origemFrota) itemAtual.origem_frota = origemFrota;
-        if (destinoFrota) itemAtual.destino_frota = destinoFrota;
-
-        // Motorista FROTA: herdar dados de Ger. de Risco do cadastro
-        if (m.is_frota) {
-            if (m.num_liberacao_cad) itemAtual.numero_liberacao = m.num_liberacao_cad;
-            if (m.data_liberacao_cad) itemAtual.data_liberacao = m.data_liberacao_cad;
-            if (m.seguradora_cad) itemAtual.gerenciadora_risco = m.seguradora_cad;
-            if (m.situacao_cad) itemAtual.situacao_cadastro = m.situacao_cad;
-            if (m.chk_cnh_cad !== undefined) itemAtual.chk_cnh = m.chk_cnh_cad ? 1 : 0;
-            if (m.chk_antt_cad !== undefined) itemAtual.chk_antt = m.chk_antt_cad ? 1 : 0;
-            if (m.chk_tacografo_cad !== undefined) itemAtual.chk_tacografo = m.chk_tacografo_cad ? 1 : 0;
-            if (m.chk_crlv_cad !== undefined) itemAtual.chk_crlv = m.chk_crlv_cad ? 1 : 0;
-        }
-        novaLista[realIndex] = itemAtual;
-        setLista(novaLista);
-
-        // Se motorista é FROTA, sincronizar nome no prov_veiculos pelo match de placa
-        if (m.is_frota && veiculosProvisao.length > 0) {
-            const placaOp = (itemAtual.placa || '').replace(/[-\s]/g, '').toUpperCase();
-            const vProv = veiculosProvisao.find(vp =>
-                (vp.placa || '').replace(/[-\s]/g, '').toUpperCase() === placaOp ||
-                (vp.carreta || '').replace(/[-\s]/g, '').toUpperCase() === placaOp
-            );
-            if (vProv) {
-                api.put(`/api/provisionamento/veiculos/${vProv.id}`, {
-                    ...vProv,
-                    motorista: m.nome_motorista,
-                }).catch(() => {});
-            }
-        }
-
-        if (itemAtual.id) {
-            const payload = { ...itemAtual };
-            delete payload.imagens;
-            delete payload.dados_json;
-
-            api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
-                mostrarNotificacao?.(`🚛 Motorista vinculado: ${itemAtual.motorista}`);
-            }).catch((err) => {
-                console.error("Erro ao vincular motorista:", err);
-                const msg = err.response?.data?.message || "Erro ao salvar motorista.";
-                mostrarNotificacao?.(`⚠️ ${msg}`);
-
-                // Reverte o estado local em caso de erro
-                setLista(prev => {
-                    const revertida = [...prev];
-                    revertida[realIndex] = itemOriginal;
-                    return revertida;
-                });
-            });
-        }
-        setEditandoMotorista(null);
-        setBuscaMotoristaCard({ id: null, texto: '' });
-    }
-
-    function salvarMotoristaManual(item, realIndex, nome) {
-        if (!nome.trim()) { setEditandoMotorista(null); setBuscaMotoristaCard({ id: null, texto: '' }); return; }
-        const novaLista = [...lista];
-        const itemAtual = { ...novaLista[realIndex], motorista: nome.trim() };
-        novaLista[realIndex] = itemAtual;
-        setLista(novaLista);
-        if (itemAtual.id) {
-            const payload = { ...itemAtual };
-            delete payload.imagens;
-            delete payload.dados_json;
-
-            api.put(`/veiculos/${itemAtual.id}`, payload).then(() => {
-                mostrarNotificacao?.(`🚛 Motorista atualizado: ${itemAtual.motorista}`);
-            }).catch(() => { mostrarNotificacao?.('⚠️ Erro ao salvar motorista.'); });
-        }
-        setEditandoMotorista(null);
-        setBuscaMotoristaCard({ id: null, texto: '' });
-    }
-
-    function removerMotoristaDoCard(item, realIndex) {
-        if (!item.motorista || !item.motorista.trim()) return;
-        const novaLista = [...lista];
-        const itemAtual = {
-            ...novaLista[realIndex],
-            motorista: '', telefoneMotorista: '',
-            placa1Motorista: '', placa2Motorista: '',
-            isFrotaMotorista: false, disponibilidadeMotorista: '',
-            origemMotorista: '', destinoMotorista: '',
-            chk_cnh: false, chk_antt: false, chk_tacografo: false, chk_crlv: false,
-            situacao_cadastro: 'NÃO CONFERIDO',
-            numero_liberacao: '', gerenciadora_risco: '',
-            data_liberacao: '', timestamps_status: {},
-            data_inicio_patio: null
-        };
-        novaLista[realIndex] = itemAtual;
-        setLista(novaLista);
-        api.delete(`/veiculos/${item.id}/motorista`).then(() => {
-            mostrarNotificacao?.('Motorista removido — voltou para a fila.');
-        }).catch(() => {
-            setLista(prev => { const r = [...prev]; r[realIndex] = item; return r; });
-            mostrarNotificacao?.('⚠️ Erro ao remover motorista.');
-        });
-    }
+    const {
+        motoristasDisponiveis,
+        editandoMotorista, setEditandoMotorista,
+        editandoPlaca, setEditandoPlaca,
+        buscaMotoristaCard, setBuscaMotoristaCard,
+        toasts,
+        adicionarToast,
+        itemTemPlacaNoProvisionamento,
+        checarPlacaProvisaoCard,
+        selecionarMotoristaNaEdicao,
+        salvarMotoristaNoCard,
+        salvarMotoristaManual,
+        removerMotoristaDoCard,
+    } = useMotoristasPainel({ lista, setLista, socket, mostrarNotificacao, setModalEntregasCard });
 
     const getEstiloRota = (valor) => ({
         background: 'transparent',
@@ -947,7 +742,14 @@ export default function PainelOperacional({
                                                                         ).map(m => (
                                                                             <div
                                                                                 key={m.id}
-                                                                                onMouseDown={() => selecionarMotoristaNaEdicao(item, realIndex, m)}
+                                                                                onMouseDown={() => {
+                                                                                    const resultado = selecionarMotoristaNaEdicao(item, realIndex, m);
+                                                                                    if (resultado?.abrirFrota) {
+                                                                                        setModalFrota(resultado.abrirFrota);
+                                                                                        setFrotaOrigem('');
+                                                                                        setFrotaDestino('');
+                                                                                    }
+                                                                                }}
                                                                                 style={{
                                                                                     padding: '8px 10px', cursor: 'pointer', fontSize: '12px',
                                                                                     color: '#f1f5f9', borderBottom: '1px solid rgba(255,255,255,0.05)'
