@@ -8,6 +8,19 @@ const { ROLES } = require('../../middleware/roles');
 // Função centralizada de data/hora no timezone de Brasília
 const obterDataHoraBrasilia = () => new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' });
 
+// Extrai apenas os números de coleta de uma string que pode conter prefixos
+// (PLAS:, PORC:, ELET:), separadores (|, ,) e espaços.
+//   "PLAS:1216 | PORC:1304" -> ["1216", "1304"]
+//   "1318" -> ["1318"]
+//   "1213,PORC:1317" -> ["1213", "1317"]
+function extrairNumerosColeta(str) {
+    if (!str) return [];
+    return String(str)
+        .split(/[|,]/)
+        .map(p => p.trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').trim())
+        .filter(Boolean);
+}
+
 // Factory: recebe io e registrarLog do server.js
 module.exports = function createVeiculosRouter(io, registrarLog) {
     const router = express.Router();
@@ -282,22 +295,34 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.numero_coleta = tagIntIns;
             }
 
-            // Verificar coletas duplicadas em operações ativas
-            const tagsRec = (v.coletaRecife || '').split(',').map(t => t.trim()).filter(Boolean);
-            const tagsMor = (v.coletaMoreno || '').split(',').map(t => t.trim()).filter(Boolean);
-            const tagsInt = (v.coletaInterestadual || '').split(',').map(t => t.trim()).filter(Boolean);
+            // Verificar coletas duplicadas em operações ativas — comparando NÚMEROS puros
+            // (sem prefixos PLAS:/PORC:/ELET: e independente de separador | ou ,)
+            const numerosRec = extrairNumerosColeta(v.coletaRecife);
+            const numerosMor = extrairNumerosColeta(v.coletaMoreno);
+            const numerosInt = extrairNumerosColeta(v.coletaInterestadual);
             const STATUS_FINAIS = ['FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'];
             const placeholders = STATUS_FINAIS.map(() => '?').join(',');
-            for (const tag of [...tagsRec, ...tagsMor, ...tagsInt]) {
-                const existente = await dbGet(
+            for (const tag of [...numerosRec, ...numerosMor, ...numerosInt]) {
+                // Busca candidatos: LIKE pelo número puro (pega tanto "1259" quanto "PORC:1259")
+                const candidatos = await dbAll(
                     `SELECT id, motorista, placa, modelo, dados_json,
-                            rota_recife, rota_moreno, observacao, data_prevista FROM veiculos
-                     WHERE (coletaRecife LIKE ? OR coletaMoreno LIKE ? OR coletainterestadual LIKE ?)
+                            rota_recife, rota_moreno, observacao, data_prevista,
+                            coletarecife, coletamoreno, coletainterestadual FROM veiculos
+                     WHERE (coletarecife LIKE ? OR coletamoreno LIKE ? OR coletainterestadual LIKE ?)
                        AND (status_recife IS NULL OR status_recife NOT IN (${placeholders}))
-                       AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))
-                     LIMIT 1`,
+                       AND (status_moreno IS NULL OR status_moreno NOT IN (${placeholders}))`,
                     [`%${tag}%`, `%${tag}%`, `%${tag}%`, ...STATUS_FINAIS, ...STATUS_FINAIS]
                 );
+                // Validação final: o número precisa aparecer EXATAMENTE no conjunto de tokens normalizados
+                // (evita falsos positivos do LIKE — ex: tag "12" casaria com "1234")
+                const existente = candidatos.find(c => {
+                    const todosNumeros = [
+                        ...extrairNumerosColeta(c.coletarecife),
+                        ...extrairNumerosColeta(c.coletamoreno),
+                        ...extrairNumerosColeta(c.coletainterestadual),
+                    ];
+                    return todosNumeros.includes(tag);
+                });
                 if (existente) {
                     // Comparar motorista e placas — atualizar se mudou
                     const djEx = (() => { try { return JSON.parse(existente.dados_json || '{}'); } catch { return {}; } })();
