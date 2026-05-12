@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApiCall } from '../hooks/useApiCall';
-import TagInput from './TagInput';
 import {
     Package, Anchor, X, Search, Box, Calendar, ArrowRight,
     MapPin, Circle, Trash2, AlertTriangle, Image, Edit2, Bell, Lock, ShieldCheck,
@@ -12,7 +11,7 @@ import SLATimeline from './SLATimeline';
 import { OPCOES_OPERACAO, OPCOES_VEICULO, CORES_STATUS, OPCOES_STATUS, DOCAS_RECIFE_LISTA, DOCAS_MORENO_LISTA } from '../constants';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
-import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
+import { opPrecisaSplit } from '../utils/coletaMoreno';
 import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
 import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
 import { usePainelModais } from '../hooks/painel/usePainelModais';
@@ -26,42 +25,6 @@ import PainelHeader from './painel/PainelHeader';
 import PainelDocas from './painel/PainelDocas';
 import PainelModais from './painel/PainelModais';
 import CardVeiculo from './painel/CardVeiculo';
-
-
-const SUB_STYLES_CARD = {
-    plastico: { bg: 'rgba(148,163,184,0.10)', border: 'rgba(148,163,184,0.35)', badgeBg: 'rgba(148,163,184,0.22)', text: '#cbd5e1', badgeBorder: 'rgba(148,163,184,0.45)', label: 'PLÁSTICO' },
-    porcelana: { bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.3)', badgeBg: 'rgba(168,85,247,0.2)', text: '#c084fc', badgeBorder: 'rgba(168,85,247,0.4)', label: 'PORCELANA' },
-    eletrik:   { bg: 'rgba(6,182,212,0.08)', border: 'rgba(6,182,212,0.3)', badgeBg: 'rgba(6,182,212,0.2)', text: '#22d3ee', badgeBorder: 'rgba(6,182,212,0.4)', label: 'ELETRIK' },
-};
-
-function ColetaMorenoSplit({ valor, operacao, onChange, disabled }) {
-    const parsed = parseColetaMoreno(valor, operacao);
-    const showPlas = opTemPlastico(operacao);
-    const showPorc = opTemPorcelana(operacao);
-    const showElet = opTemEletrik(operacao);
-    const upd = (parte, val) => {
-        const atual = { ...parsed, [parte]: val };
-        onChange(joinColetaMoreno(atual));
-    };
-    const Sub = ({ parte }) => {
-        const s = SUB_STYLES_CARD[parte];
-        return (
-            <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: '6px', padding: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '8px', fontWeight: '800', letterSpacing: '0.4px', padding: '1px 6px', borderRadius: '3px', background: s.badgeBg, color: s.text, border: `1px solid ${s.badgeBorder}` }}>{s.label}</span>
-                </div>
-                <TagInput value={parsed[parte]} onChange={v => upd(parte, v)} disabled={disabled} />
-            </div>
-        );
-    };
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {showPlas && <Sub parte="plastico" />}
-            {showPorc && <Sub parte="porcelana" />}
-            {showElet && <Sub parte="eletrik" />}
-        </div>
-    );
-}
 
 
 export default function PainelOperacional({
