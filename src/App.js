@@ -135,31 +135,53 @@ function App({ socket }) {
 
     // === LÓGICA DE VIRADA DE DATA À MEIA-NOITE ===
     useEffect(() => {
-        const agendarVirada = () => {
-            const agora = new Date();
-            const agoraBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-            const meiaNoiteBrasilia = new Date(agoraBrasilia);
-            meiaNoiteBrasilia.setHours(24, 0, 0, 0);
-            const msRestantes = meiaNoiteBrasilia - agoraBrasilia;
+        let timeoutId = null;
 
-            return setTimeout(() => {
-                const novaData = obterDataBrasilia();
-                console.log(`[App] Virada de meia-noite detectada. Atualizando estados globais para: ${novaData}`);
-
-                setFiltroDataInicio(novaData);
-                setFiltroDataFim(novaData);
-                setFiltroDataInicioCte(novaData);
-                setFiltroDataFimCte(novaData);
-
-                // Também atualiza o formulário de novo lançamento
-                setFormLanca(prev => ({ ...prev, data_prevista: novaData }));
-
-                agendarVirada();
-            }, msRestantes);
+        const sincronizarData = (motivo) => {
+            const novaData = obterDataBrasilia();
+            // Só reage se a data realmente mudou (evita re-render desnecessário)
+            setFormLanca(prev => prev.data_prevista !== novaData ? { ...prev, data_prevista: novaData } : prev);
+            setFiltroDataInicio(prev => prev !== novaData ? novaData : prev);
+            setFiltroDataFim(prev => prev !== novaData ? novaData : prev);
+            setFiltroDataInicioCte(prev => prev !== novaData ? novaData : prev);
+            setFiltroDataFimCte(prev => prev !== novaData ? novaData : prev);
+            if (motivo) console.log(`[App] Sincronizando data para ${novaData} (motivo: ${motivo})`);
         };
 
-        const timeout = agendarVirada();
-        return () => clearTimeout(timeout);
+        const agendarVirada = () => {
+            // Calcula ms até a próxima meia-noite em Brasília. Usar diff entre dois Date com
+            // toLocaleString em America/Sao_Paulo evita problema de timezone da máquina.
+            const agoraUTC = Date.now();
+            const agoraBR = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+            const proximaMeiaNoiteBR = new Date(agoraBR);
+            proximaMeiaNoiteBR.setHours(24, 0, 5, 0); // 5 segundos de folga após meia-noite
+            const msRestantes = proximaMeiaNoiteBR.getTime() - agoraBR.getTime();
+            // agoraUTC + msRestantes = momento UTC equivalente à próxima meia-noite BR
+            const delay = Math.max(1000, (agoraUTC + msRestantes) - Date.now());
+
+            timeoutId = setTimeout(() => {
+                sincronizarData('meia-noite');
+                agendarVirada();
+            }, delay);
+        };
+
+        const onVisibilityOrFocus = () => {
+            if (document.visibilityState === 'visible') {
+                sincronizarData('volta de inatividade');
+                // Reagenda o timer caso o setTimeout tenha sido suspenso
+                if (timeoutId) clearTimeout(timeoutId);
+                agendarVirada();
+            }
+        };
+
+        agendarVirada();
+        document.addEventListener('visibilitychange', onVisibilityOrFocus);
+        window.addEventListener('focus', onVisibilityOrFocus);
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+            window.removeEventListener('focus', onVisibilityOrFocus);
+        };
     }, []);
 
     useEffect(() => {
