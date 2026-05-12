@@ -270,6 +270,17 @@ const inicializarBanco = async () => {
                             NULLIF(data_prevista_moreno,''),
                             data_prevista)
                       WHERE data_prevista_recife IS NULL OR data_prevista_moreno IS NULL`);
+        // Sincronizar dados_json com a coluna data_prevista (o JSON pode ter ficado desatualizado)
+        await dbRun(`UPDATE veiculos
+                        SET dados_json = regexp_replace(
+                            dados_json,
+                            '"data_prevista":\\s*"[0-9]{4}-[0-9]{2}-[0-9]{2}"',
+                            '"data_prevista": "' || data_prevista || '"'
+                        )
+                      WHERE dados_json IS NOT NULL AND dados_json <> ''
+                        AND dados_json LIKE '%"data_prevista"%'
+                        AND dados_json NOT LIKE '%"data_prevista":"' || data_prevista || '"%'
+                        AND dados_json NOT LIKE '%"data_prevista": "' || data_prevista || '"%'`);
 
         // Criação de Índices Otimizados
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_veiculos_status_recife ON veiculos (status_recife)`);
