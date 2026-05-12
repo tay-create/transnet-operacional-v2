@@ -2627,14 +2627,16 @@ async function gerarProgramacaoDiaria(turno) {
         };
 
         if (turno === 'Inicial') {
+            // CARREGADO e LIBERADO P/ CT-e ainda fazem parte do fluxo do dia (cumpriram pátio mas
+            // ainda precisam de CT-e/despacho). Só excluir cards que finalizaram de verdade.
             rows = await dbAll(`
                 SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao,
                        foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
-                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
-                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
+                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                   )
             `, [hojeStr]);
 
