@@ -19,7 +19,7 @@ import useAuthStore from '../store/useAuthStore';
 import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
-import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno } from '../utils/operacaoUtils';
+import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, ehInterestadualOp, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
 
 
 const SUB_STYLES_CARD = {
@@ -221,18 +221,7 @@ export default function PainelOperacional({
 }) {
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
     // Painel Leão/Eletrik Sul usa status_recife (operação única sem unidade fixa)
-    const campoStatus = (origem === 'Recife' || operacoesFixas) ? 'status_recife' : 'status_moreno';
-    // Cards interestaduais (Leão SP / Eletrik Sul) seguem fluxo restrito de 3 status —
-    // qualquer status anterior (AGUARDANDO/EM SEPARAÇÃO) é tratado como LIBERADO P/ CARREGAMENTO.
-    const ehInterestadualOp = (op) => op === 'LEÃO - SP' || op === 'ELETRIK SUL';
-    const normalizarStatusInterestadual = (item, status) => {
-        if (!ehInterestadualOp(item.operacao)) return status;
-        if (status === 'AGUARDANDO' || status === 'AGUARDANDO P/ SEPARAÇÃO' || status === 'EM SEPARAÇÃO' || status === 'LIBERADO P/ DOCA') {
-            return 'LIBERADO P/ CARREGAMENTO';
-        }
-        return status;
-    };
-    const getStatus = (item) => normalizarStatusInterestadual(item, item[campoStatus] || 'AGUARDANDO');
+    const campoStatus = getCampoStatus(origem, operacoesFixas);
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
@@ -625,7 +614,7 @@ export default function PainelOperacional({
 
         // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
         // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
-        const meuStatus = getStatus(item);
+        const meuStatus = getStatus(item, campoStatus);
 
         const buscaLower = termoBusca.toLowerCase();
         const bateuBusca = (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
@@ -1006,7 +995,7 @@ export default function PainelOperacional({
                                                     const proxStr = prox.toISOString().slice(0, 10);
                                                     const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
                                                     const dataCarregadoOutraUnidade = origem === 'Recife' ? item.data_carregado_moreno : item.data_carregado_recife;
-                                                    const statusAtualItem = getStatus(item);
+                                                    const statusAtualItem = getStatus(item, campoStatus);
                                                     const dpUnidadeBtn = origem === 'Recife'
                                                         ? (item.data_prevista_recife || item.data_prevista)
                                                         : (item.data_prevista_moreno || item.data_prevista);
