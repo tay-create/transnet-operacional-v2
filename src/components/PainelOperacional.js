@@ -175,16 +175,38 @@ const handleOperacaoChange = async (item, novaOperacao, funcoes, lista, setLista
     }
 };
 
-// Reprograma item: chama endpoint dedicado e atualiza estado local
-// foiReprogramado=1 ao avançar ou mudar data; foiReprogramado=0 ao voltar para hoje
-const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostrarNotificacao, foiReprogramado = 1) => {
+// Reprograma item: chama endpoint dedicado e atualiza estado local.
+// foiReprogramado=1 ao avançar ou mudar data; foiReprogramado=0 ao voltar para hoje.
+// unidade ('Recife'|'Moreno'|undefined): se preenchido, reprograma só o lado;
+// senão sincroniza ambos (comportamento legado).
+const reprogramarItem = async (lista, setLista, realIndex, novaData, api, mostrarNotificacao, foiReprogramado = 1, unidade) => {
     const item = lista[realIndex];
     if (!item?.id) return;
+    const ladoLower = unidade ? String(unidade).toLowerCase() : undefined;
     const novaLista = [...lista];
-    novaLista[realIndex] = { ...item, data_prevista: novaData, foi_reprogramado: foiReprogramado };
+    const itemAtualizado = { ...item, foi_reprogramado: foiReprogramado };
+    if (ladoLower === 'recife') {
+        itemAtualizado.data_prevista_recife = novaData;
+        // guarda-chuva otimista = menor das duas
+        const outraData = item.data_prevista_moreno || novaData;
+        itemAtualizado.data_prevista = (novaData < outraData) ? novaData : outraData;
+    } else if (ladoLower === 'moreno') {
+        itemAtualizado.data_prevista_moreno = novaData;
+        const outraData = item.data_prevista_recife || novaData;
+        itemAtualizado.data_prevista = (novaData < outraData) ? novaData : outraData;
+    } else {
+        itemAtualizado.data_prevista = novaData;
+        itemAtualizado.data_prevista_recife = novaData;
+        itemAtualizado.data_prevista_moreno = novaData;
+    }
+    novaLista[realIndex] = itemAtualizado;
     setLista(novaLista);
     try {
-        await api.put(`/veiculos/${item.id}/reprogramar`, { nova_data: novaData, foi_reprogramado: foiReprogramado });
+        await api.put(`/veiculos/${item.id}/reprogramar`, {
+            nova_data: novaData,
+            foi_reprogramado: foiReprogramado,
+            ...(ladoLower ? { unidade: ladoLower } : {}),
+        });
     } catch (err) {
         console.error('Erro ao reprogramar:', err);
         mostrarNotificacao?.('⚠️ Erro ao reprogramar. Recarregue a página.');
@@ -583,8 +605,12 @@ export default function PainelOperacional({
     // --- LÓGICA DE FILTROS ---
     const itensFiltrados = useMemo(() => lista.filter(item => {
         const dataCarregadoUnidade = operacoesFixas ? null : (origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno);
+        // Data prevista específica do lado (fallback no guarda-chuva pra cards pré-migração).
+        const dpUnidadeFiltro = origem === 'Recife'
+            ? (item.data_prevista_recife || item.data_prevista)
+            : (item.data_prevista_moreno || item.data_prevista);
         // Normaliza para YYYY-MM-DD (corta timestamp ISO completo se vier do banco)
-        const rawData = dataCarregadoUnidade || item.data_prevista || obterDataBrasilia();
+        const rawData = dataCarregadoUnidade || dpUnidadeFiltro || obterDataBrasilia();
         const itemData = String(rawData).substring(0, 10);
         const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
 
@@ -948,15 +974,20 @@ export default function PainelOperacional({
                                             </div>
 
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                {/* Data — visual com calendário clicável se tiver permissão */}
+                                                {/* Data — específica da unidade da coluna (fallback no guarda-chuva pra cards pré-migração) */}
+                                                {(() => {
+                                                    const dpUnidade = origem === 'Recife'
+                                                        ? (item.data_prevista_recife || item.data_prevista)
+                                                        : (item.data_prevista_moreno || item.data_prevista);
+                                                    return (
                                                 <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
                                                     <Calendar size={12} style={podeEditarNaUnidade('adiar_dia') ? { cursor: 'pointer' } : {}} />
-                                                    {item.data_prevista ? item.data_prevista.split('-').reverse().slice(0, 2).join('/') : '—'}
+                                                    {dpUnidade ? dpUnidade.split('-').reverse().slice(0, 2).join('/') : '—'}
                                                     {podeEditarNaUnidade('adiar_dia') && (
                                                         <input
                                                             type="date"
-                                                            value={item.data_prevista || ''}
-                                                            onChange={e => e.target.value && reprogramarItem(lista, setLista, realIndex, e.target.value, api, mostrarNotificacao)}
+                                                            value={dpUnidade || ''}
+                                                            onChange={e => e.target.value && reprogramarItem(lista, setLista, realIndex, e.target.value, api, mostrarNotificacao, 1, origem)}
                                                             style={{
                                                                 position: 'absolute', inset: 0, opacity: 0,
                                                                 cursor: 'pointer', width: '100%', height: '100%'
@@ -964,6 +995,8 @@ export default function PainelOperacional({
                                                         />
                                                     )}
                                                 </div>
+                                                    );
+                                                })()}
                                                 {/* Botões de reprogramação */}
                                                 {podeEditarNaUnidade('adiar_dia') && (() => {
                                                     const hoje = new Date().toISOString().slice(0, 10);
@@ -974,7 +1007,10 @@ export default function PainelOperacional({
                                                     const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
                                                     const dataCarregadoOutraUnidade = origem === 'Recife' ? item.data_carregado_moreno : item.data_carregado_recife;
                                                     const statusAtualItem = getStatus(item);
-                                                    const eHoje = item.data_prevista === hoje;
+                                                    const dpUnidadeBtn = origem === 'Recife'
+                                                        ? (item.data_prevista_recife || item.data_prevista)
+                                                        : (item.data_prevista_moreno || item.data_prevista);
+                                                    const eHoje = dpUnidadeBtn === hoje;
                                                     // Card misto: outra parada já carregou (ancorando nela), mas esta parada ainda não
                                                     // Nesse caso o data_prevista pode ser ontem — ainda assim pode avançar para amanhã
                                                     const outraParadaJaCarregou = !!(item.coletaRecife && item.coletaMoreno && dataCarregadoOutraUnidade);
@@ -984,7 +1020,7 @@ export default function PainelOperacional({
                                                             {/* Avançar para amanhã — conta como reprogramado */}
                                                             {podeAvancarDia && (
                                                                 <button
-                                                                    onClick={() => setConfirmarReprogramar({ lista, setLista, realIndex, proxStr })}
+                                                                    onClick={() => setConfirmarReprogramar({ lista, setLista, realIndex, proxStr, origem })}
                                                                     title={`Reprogramar para ${proxStr.split('-').reverse().slice(0,2).join('/')}`}
                                                                     style={{
                                                                         display: 'inline-flex', alignItems: 'center', gap: '3px',
@@ -2136,9 +2172,9 @@ export default function PainelOperacional({
                     textConfirm="Reprogramar"
                     textCancel="Cancelar"
                     onConfirm={() => {
-                        const { lista, setLista, realIndex, proxStr } = confirmarReprogramar;
+                        const { lista, setLista, realIndex, proxStr, origem: origemReprog } = confirmarReprogramar;
                         setConfirmarReprogramar(null);
-                        reprogramarItem(lista, setLista, realIndex, proxStr, api, mostrarNotificacao, 1);
+                        reprogramarItem(lista, setLista, realIndex, proxStr, api, mostrarNotificacao, 1, origemReprog);
                     }}
                     onCancel={() => setConfirmarReprogramar(null)}
                 />

@@ -268,10 +268,12 @@ export default function MobileDashboardTV({ socket }) {
         touchStartX.current = null;
     };
 
-    // Veículos do dia selecionado — apenas data_prevista (igual ao DashboardTV desktop)
-    const veiculosHoje = veiculos.filter(v =>
-        (v.data_prevista || '').split('T')[0] === dataSel
-    );
+    // Veículos do dia selecionado — qualquer um dos lados (Recife/Moreno) com data = dia
+    const veiculosHoje = veiculos.filter(v => {
+        const candidatos = [v.data_prevista_recife, v.data_prevista_moreno, v.data_prevista]
+            .filter(Boolean).map(d => String(d).split('T')[0]);
+        return candidatos.some(d => d === dataSel);
+    });
 
     // Tela 0 — Embarques: agrupa por operação
     const contOp = { delta: 0, consolidado: 0, deltaRxM: 0, porcelana: 0, eletrik: 0 };

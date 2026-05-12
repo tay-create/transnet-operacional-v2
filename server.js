@@ -1236,7 +1236,11 @@ app.get('/api/cadastro/veiculos-em-operacao', authMiddleware, authorize(['Coorde
             )
             WHERE (v.status_recife IS NULL OR v.status_recife NOT IN ('FINALIZADO'))
               AND (v.status_moreno IS NULL OR v.status_moreno NOT IN ('FINALIZADO'))
-              AND (COALESCE(v.data_prevista, v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date)
+              AND (
+                   COALESCE(v.data_prevista,        v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date
+                OR COALESCE(v.data_prevista_recife, v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date
+                OR COALESCE(v.data_prevista_moreno, v.data_criacao::date::text)::date BETWEEN $1::date AND $2::date
+              )
               ${filtroProvisionamento}
             ORDER BY v.id DESC
         `, [dInicio, dFim]);
@@ -2623,14 +2627,16 @@ async function gerarProgramacaoDiaria(turno) {
         };
 
         if (turno === 'Inicial') {
+            // CARREGADO e LIBERADO P/ CT-e ainda fazem parte do fluxo do dia (cumpriram pátio mas
+            // ainda precisam de CT-e/despacho). Só excluir cards que finalizaram de verdade.
             rows = await dbAll(`
                 SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao,
                        foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
-                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
-                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue','LIBERADO P/ CT-e','CARREGADO')
+                    COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                    AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                   )
             `, [hojeStr]);
 
@@ -2839,16 +2845,22 @@ cron.schedule('50 21 * * *', async () => {
     try {
         const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
         const veiculos = await dbAll(
-            `SELECT id, status_recife, status_moreno, pausas_status FROM veiculos
-             WHERE data_prevista = ? AND (status_recife = 'EM SEPARAÇÃO' OR status_moreno = 'EM SEPARAÇÃO')`,
-            [hoje]
+            `SELECT id, status_recife, status_moreno, pausas_status,
+                    data_prevista_recife, data_prevista_moreno, data_prevista
+               FROM veiculos
+              WHERE (COALESCE(data_prevista_recife, data_prevista) = ? AND status_recife = 'EM SEPARAÇÃO')
+                 OR (COALESCE(data_prevista_moreno, data_prevista) = ? AND status_moreno = 'EM SEPARAÇÃO')`,
+            [hoje, hoje]
         );
         let pausados = 0;
         for (const v of veiculos) {
             const pausas = JSON.parse(v.pausas_status || '[]');
             const unidades = [];
-            if (v.status_recife === 'EM SEPARAÇÃO') unidades.push('Recife');
-            if (v.status_moreno === 'EM SEPARAÇÃO') unidades.push('Moreno');
+            // Só pausa o lado cuja data prevista é hoje (consolidado pode ter outro lado em outro dia)
+            const dpR = v.data_prevista_recife || v.data_prevista;
+            const dpM = v.data_prevista_moreno || v.data_prevista;
+            if (v.status_recife === 'EM SEPARAÇÃO' && dpR === hoje) unidades.push('Recife');
+            if (v.status_moreno === 'EM SEPARAÇÃO' && dpM === hoje) unidades.push('Moreno');
             for (const unidade of unidades) {
                 const jaAtiva = pausas.find(p => p.unidade === unidade && p.fonte === 'operacao' && p.fim === null);
                 if (!jaAtiva) {
@@ -2996,11 +3008,17 @@ cron.schedule('40 23 * * *', async () => {
         const hojeBR = new Date(hojeStr + 'T12:00:00').toLocaleDateString('pt-BR'); // DD/MM/YYYY
         const amanhaBR = new Date(amanhaStr + 'T12:00:00').toLocaleDateString('pt-BR');
 
+        // Busca candidatos avaliando cada unidade independentemente.
+        // Não usa mais OR no lado errado: cada lado é considerado só se sua própria
+        // data_prevista_{unidade} = hoje E seu status está em fluxo ativo.
         const cards = await dbAll(
-            `SELECT id, status_recife, status_moreno, motorista, numero_liberacao
-             FROM veiculos
-             WHERE data_prevista = $1
-               AND (status_recife = ANY($2::text[]) OR status_moreno = ANY($2::text[]))`,
+            `SELECT id, status_recife, status_moreno,
+                    data_prevista, data_prevista_recife, data_prevista_moreno,
+                    coletarecife, coletamoreno,
+                    motorista, numero_liberacao
+               FROM veiculos
+              WHERE (data_prevista_recife = $1 AND status_recife = ANY($2::text[]))
+                 OR (data_prevista_moreno = $1 AND status_moreno = ANY($2::text[]))`,
             [hojeStr, STATUS_ATIVOS]
         );
 
@@ -3010,31 +3028,69 @@ cron.schedule('40 23 * * *', async () => {
         }
 
         let cardsVirados = 0;
+        let ladosVirados = 0;
         let ctesVirados = 0;
         for (const c of cards) {
-            await dbRun(
-                'UPDATE veiculos SET data_prevista = $1, foi_reprogramado = 1 WHERE id = $2',
-                [amanhaStr, c.id]
-            );
-            cardsVirados++;
+            const virarRecife = c.data_prevista_recife === hojeStr
+                && STATUS_ATIVOS.includes(c.status_recife)
+                && c.coletarecife && c.coletarecife !== '';
+            const virarMoreno = c.data_prevista_moreno === hojeStr
+                && STATUS_ATIVOS.includes(c.status_moreno)
+                && c.coletamoreno && c.coletamoreno !== '';
 
-            // CT-e pertinente: só para unidades em EM CARREGAMENTO com CT-e Emitido
-            for (const [statusCol, origem] of [['status_recife', 'Recife'], ['status_moreno', 'Moreno']]) {
-                if (c[statusCol] !== 'EM CARREGAMENTO') continue;
+            if (!virarRecife && !virarMoreno) continue;
+
+            const novoDpR = virarRecife ? amanhaStr : c.data_prevista_recife;
+            const novoDpM = virarMoreno ? amanhaStr : c.data_prevista_moreno;
+            // Guarda-chuva = menor das duas (quando ambas existem)
+            const novoGuarda = (novoDpR && novoDpM)
+                ? (novoDpR < novoDpM ? novoDpR : novoDpM)
+                : (novoDpR || novoDpM || c.data_prevista);
+
+            await dbRun(
+                `UPDATE veiculos
+                    SET data_prevista_recife = $1,
+                        data_prevista_moreno = $2,
+                        data_prevista = $3,
+                        foi_reprogramado = 1
+                  WHERE id = $4`,
+                [novoDpR, novoDpM, novoGuarda, c.id]
+            );
+
+            try {
+                await registrarLog(
+                    'ROLLOVER_AUTO',
+                    'sistema',
+                    c.id,
+                    'veiculo',
+                    JSON.stringify({ r: c.data_prevista_recife, m: c.data_prevista_moreno, g: c.data_prevista }),
+                    JSON.stringify({ r: novoDpR, m: novoDpM, g: novoGuarda }),
+                    `Cron 23:40 — virou ${virarRecife ? 'Recife' : ''}${(virarRecife && virarMoreno) ? '+' : ''}${virarMoreno ? 'Moreno' : ''}`
+                );
+            } catch (e) { console.error('[CRON-ROLLOVER] log falhou:', e.message); }
+
+            cardsVirados++;
+            if (virarRecife) ladosVirados++;
+            if (virarMoreno) ladosVirados++;
+
+            // CT-e: só vira o do lado que de fato foi virado (e só se status era EM CARREGAMENTO)
+            const ladosParaCte = [];
+            if (virarRecife && c.status_recife === 'EM CARREGAMENTO') ladosParaCte.push(['Recife']);
+            if (virarMoreno && c.status_moreno === 'EM CARREGAMENTO') ladosParaCte.push(['Moreno']);
+            for (const [origem] of ladosParaCte) {
                 if (!c.motorista || !c.numero_liberacao) continue;
                 const cte = await dbGet(
                     `SELECT id, dados_json FROM ctes_ativos
-                     WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1))
-                       AND numero_liberacao = $2
-                       AND origem = $3
-                       AND status = 'Emitido'
-                     ORDER BY data_emissao DESC LIMIT 1`,
+                      WHERE UPPER(TRIM(motorista)) = UPPER(TRIM($1))
+                        AND numero_liberacao = $2
+                        AND origem = $3
+                        AND status = 'Emitido'
+                      ORDER BY data_emissao DESC LIMIT 1`,
                     [c.motorista, c.numero_liberacao, origem]
                 );
                 if (!cte) continue;
                 try {
                     const dados = JSON.parse(cte.dados_json || '{}');
-                    // Só vira se a data_entrada_cte for hoje (ou estiver vazia — assume que era hoje)
                     if (dados.data_entrada_cte && dados.data_entrada_cte !== hojeBR) continue;
                     dados.data_entrada_cte = amanhaBR;
                     await dbRun('UPDATE ctes_ativos SET dados_json = $1 WHERE id = $2', [JSON.stringify(dados), cte.id]);
@@ -3043,9 +3099,8 @@ cron.schedule('40 23 * * *', async () => {
             }
         }
 
-        // refresh_geral aciona reload dos painéis Operacional + CT-e simultaneamente
         io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
-        console.log(`[CRON-ROLLOVER] ${cardsVirados} card(s) virado(s) para ${amanhaStr} | ${ctesVirados} CT-e(s) acompanhado(s).`);
+        console.log(`[CRON-ROLLOVER] ${cardsVirados} card(s) virado(s) (${ladosVirados} lado(s)) para ${amanhaStr} | ${ctesVirados} CT-e(s) acompanhado(s).`);
     } catch (e) {
         console.error('[CRON-ROLLOVER] Erro:', e);
     }
