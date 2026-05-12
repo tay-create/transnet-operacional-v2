@@ -1695,16 +1695,19 @@ app.get('/ctes', authMiddleware, authorize(['Coordenador', 'Direção', 'Planeja
     const hoje = new Date().toLocaleString('en-CA', { timeZone: 'America/Sao_Paulo' }).split(',')[0];
         const dataInicio = req.query.dataInicio || hoje;
         const dataFim = req.query.dataFim || hoje;
-        // Busca por data_criacao OU por data_entrada_cte no JSON (que pode ser avançada pelo Finalizar)
+        // Regra de data efetiva: data_entrada_cte (DD/MM/YYYY no JSON) tem prioridade —
+        // ela é a data do embarque ao qual o CT-e pertence (pode ter sido avançada
+        // pelo Finalizar). Se não existir, cai em data_criacao. Evita que CT-es criados
+        // hoje mas referentes a embarques de dias anteriores sejam contados em "hoje".
         const rows = await dbAll(
             `SELECT * FROM ctes_ativos
-             WHERE data_criacao::date BETWEEN $1::date AND $2::date
-                OR (
-                    dados_json::json->>'data_entrada_cte' IS NOT NULL
-                    AND LENGTH(dados_json::json->>'data_entrada_cte') = 10
-                    AND TO_DATE(dados_json::json->>'data_entrada_cte', 'DD/MM/YYYY') BETWEEN $1::date AND $2::date
-                )
-             ORDER BY id ASC`,
+              WHERE CASE
+                  WHEN dados_json::json->>'data_entrada_cte' IS NOT NULL
+                   AND LENGTH(dados_json::json->>'data_entrada_cte') = 10
+                  THEN TO_DATE(dados_json::json->>'data_entrada_cte', 'DD/MM/YYYY')
+                  ELSE data_criacao::date
+              END BETWEEN $1::date AND $2::date
+              ORDER BY id ASC`,
             [dataInicio, dataFim]
         );
         const lista = rows.map(row => {
