@@ -28,6 +28,7 @@ import { useOperacaoActions } from '../hooks/painel/useOperacaoActions';
 import { useMotoristasPainel } from '../hooks/painel/useMotoristasPainel';
 import PainelToasts from './painel/PainelToasts';
 import PainelHeader from './painel/PainelHeader';
+import PainelDocas from './painel/PainelDocas';
 
 
 const SUB_STYLES_CARD = {
@@ -201,40 +202,14 @@ export default function PainelOperacional({
                         </div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: '40px' }}>
-                            {docasInterditadas.filter(c => c.unidade === origem).length > 0 && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-                                    {docasInterditadas.filter(c => c.unidade === origem).map(card => (
-                                <div key={`fulgaz-${card.id}`} className="glass-panel-internal card-neon-hover" style={{ borderLeft: '4px solid #ef4444', borderRadius: '12px', overflow: 'hidden', background: 'rgba(239, 68, 68, 0.05)' }}>
-                                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ fontWeight: 'bold', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <AlertTriangle size={14} color="#ef4444" />
-                                            {card.nome || 'CONTAINER (TERCEIRO)'}
-                                        </div>
-                                        {podeEditarNaUnidade('operacao') && (
-                                            <button onClick={() => removerCardFulgaz(card.id)} title="Remover" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}>
-                                                <X size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div style={{ padding: '16px' }}>
-                                        <label className="label-tech-sm" style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <Anchor size={10} /> INTERDITAR DOCA
-                                        </label>
-                                        <select
-                                            className="input-internal"
-                                            style={{ borderColor: 'rgba(239, 68, 68, 0.5)', color: '#fca5a5', width: '100%', outline: 'none', marginTop: '4px' }}
-                                            value={card.doca || 'SELECIONE'}
-                                            onChange={(e) => alterarDocaFulgaz(card.id, e.target.value)}
-                                            disabled={!podeEditarNaUnidade('operacao')}
-                                        >
-                                            <option value="SELECIONE">SELECIONE</option>
-                                            {opcoesDocas.filter(d => d !== 'SELECIONE').map(d => <option key={d}>{d}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-                                    ))}
-                                </div>
-                            )}
+                            <PainelDocas
+                                docasInterditadas={docasInterditadas}
+                                origem={origem}
+                                opcoesDocas={opcoesDocas}
+                                podeEditarNaUnidade={podeEditarNaUnidade}
+                                onRemover={removerCardFulgaz}
+                                onAlterarDoca={alterarDocaFulgaz}
+                            />
 
                             {ORDEM_STATUS.map(status => {
                                 const campoGrupo = campoStatus;
