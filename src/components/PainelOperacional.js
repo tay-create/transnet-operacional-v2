@@ -20,6 +20,7 @@ import api from '../services/apiService';
 import { obterDataBrasilia } from '../utils/helpers';
 import { parseColetaMoreno, joinColetaMoreno, opTemPlastico, opTemPorcelana, opTemEletrik, opPrecisaSplit } from '../utils/coletaMoreno';
 import { ehOperacaoInterestadual, ehOperacaoRecife, ehOperacaoMoreno, normalizarStatusInterestadual, getCampoStatus, getStatus } from '../utils/operacaoUtils';
+import { usePainelFiltros } from '../hooks/painel/usePainelFiltros';
 
 
 const SUB_STYLES_CARD = {
@@ -220,8 +221,6 @@ export default function PainelOperacional({
     funcoes, operacoesFixas = null
 }) {
     const { podeEditar, updateList, liberarParaCte, socket, removerVeiculo, mostrarNotificacao } = funcoes;
-    // Painel Leão/Eletrik Sul usa status_recife (operação única sem unidade fixa)
-    const campoStatus = getCampoStatus(origem, operacoesFixas);
     // Verifica se o usuário pode editar baseado na unidade
     const podeEditarNaUnidade = (permissao) => {
         if (user.cargo === 'Coordenador' || user.cargo === 'Planejamento' || user.cargo === 'Desenvolvedor') {
@@ -235,32 +234,8 @@ export default function PainelOperacional({
         return podeEditar(permissao);
     };
 
-    const [dataInicio, setDataInicio] = useState(() => {
-        const salvo = localStorage.getItem('filtro_data_inicio_' + origem);
-        const hoje = obterDataBrasilia();
-        if (operacoesFixas) {
-            // Painel com operações fixas (ex: Leão/Eletrik Sul): padrão = 30 dias atrás, sem restrição de passado
-            if (salvo) return salvo;
-            const d = new Date(hoje + 'T00:00:00');
-            d.setDate(d.getDate() - 30);
-            return d.toISOString().substring(0, 10);
-        }
-        // Para Recife/Moreno: dataInicio sempre = hoje (não persiste futuro)
-        return hoje;
-    });
-    const [dataFim, setDataFim] = useState(() => {
-        const salvo = localStorage.getItem('filtro_data_fim_' + origem);
-        const hoje = obterDataBrasilia();
-        if (operacoesFixas) {
-            if (salvo) return salvo;
-            const d = new Date(hoje + 'T00:00:00');
-            d.setDate(d.getDate() + 30);
-            return d.toISOString().substring(0, 10);
-        }
-        // Para Recife/Moreno: dataFim sempre = hoje
-        return hoje;
-    });
-    const [filtroOperacao, setFiltroOperacao] = useState('');
+    const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
+    const ORDEM_STATUS = OPCOES_STATUS;
     const [motoristasDisponiveis, setMotoristasDisponiveis] = useState([]);
     const [editandoMotorista, setEditandoMotorista] = useState(null); // id do card
     const [buscaMotoristaCard, setBuscaMotoristaCard] = useState({ id: null, texto: '' }); // texto digitado no input do card
@@ -557,88 +532,7 @@ export default function PainelOperacional({
         });
     }
 
-    // Atualiza o filtro de data automaticamente na virada da meia-noite (horário de Brasília)
-    useEffect(() => {
-        const calcularMsAteMeiaNoite = () => {
-            const agora = new Date();
-            const agoraBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-            const meiaNoiteBrasilia = new Date(agoraBrasilia);
-            meiaNoiteBrasilia.setHours(24, 0, 0, 0);
-            return meiaNoiteBrasilia - agoraBrasilia;
-        };
-
-        let timeout;
-        const agendarVirada = () => {
-            const msRestantes = calcularMsAteMeiaNoite();
-            timeout = setTimeout(() => {
-                const novaData = obterDataBrasilia();
-                console.log(`[PainelOperacional] Virada de meia-noite detectada. Atualizando filtros para: ${novaData}`);
-                
-                setDataInicio(novaData);
-                setDataFim(novaData);
-                
-                // Persistir no localStorage para evitar dessincronização em refresh
-                localStorage.setItem('filtro_data_inicio_' + origem, novaData);
-                localStorage.setItem('filtro_data_fim_' + origem, novaData);
-                
-                agendarVirada(); // Reagendar para a próxima meia-noite
-            }, msRestantes);
-        };
-
-        agendarVirada();
-        return () => clearTimeout(timeout);
-    }, []);
     const [imagemAmpliada, setImagemAmpliada] = useState(null);
-
-
-    // --- LÓGICA DE FILTROS ---
-    const itensFiltrados = useMemo(() => lista.filter(item => {
-        const dataCarregadoUnidade = operacoesFixas ? null : (origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno);
-        // Data prevista específica do lado (fallback no guarda-chuva pra cards pré-migração).
-        const dpUnidadeFiltro = origem === 'Recife'
-            ? (item.data_prevista_recife || item.data_prevista)
-            : (item.data_prevista_moreno || item.data_prevista);
-        // Normaliza para YYYY-MM-DD (corta timestamp ISO completo se vier do banco)
-        const rawData = dataCarregadoUnidade || dpUnidadeFiltro || obterDataBrasilia();
-        const itemData = String(rawData).substring(0, 10);
-        const ehDataCerta = itemData >= dataInicio && itemData <= dataFim;
-
-        // Verificar se a operação do card envolve esta unidade
-        const op = item.operacao || '';
-        const operacaoEnvolveRecife = ehOperacaoRecife(op);
-        const operacaoEnvolveMoreno = ehOperacaoMoreno(op);
-        const operacaoEnvolveOrigem = origem === 'Recife' ? operacaoEnvolveRecife : operacaoEnvolveMoreno;
-
-        // Se a operação não envolve esta origem, não exibir (exceto quando há filtro fixo de operações)
-        if (!operacoesFixas && !operacaoEnvolveOrigem) return false;
-
-        // Omitindo "deveAparecer = souCriador || temColetaPraMim" porque se a operacaoEnvolveOrigem,
-        // TODOS os usuários dessa origem PRECISAM VER o card, mesmo não sendo os criadores e mesmo com coleta vazia.
-        const meuStatus = getStatus(item, campoStatus);
-
-        const buscaLower = termoBusca.toLowerCase();
-        const bateuBusca = (item.coletaRecife && item.coletaRecife.toLowerCase().includes(buscaLower)) ||
-            (item.coletaMoreno && item.coletaMoreno.toLowerCase().includes(buscaLower)) ||
-            (item.coletaInterestadual && item.coletaInterestadual.toLowerCase().includes(buscaLower)) ||
-            (item.motorista && item.motorista.toLowerCase().includes(buscaLower)) ||
-            (item.placa && item.placa.toLowerCase().includes(buscaLower)) ||
-            (meuStatus && meuStatus.toLowerCase().includes(buscaLower));
-
-
-        const bateuOperacao = operacoesFixas
-            ? operacoesFixas.includes(item.operacao || '')
-            : (!filtroOperacao || (item.operacao || '') === filtroOperacao);
-
-        return ehDataCerta && bateuBusca && bateuOperacao;
-    }), [lista, dataInicio, dataFim, termoBusca, filtroOperacao, operacoesFixas, origem]); // eslint-disable-line
-
-    const ORDEM_STATUS = OPCOES_STATUS;
-    const itensOrdenados = useMemo(() => [...itensFiltrados].sort((a, b) => {
-        const campo = campoStatus;
-        const sa = normalizarStatusInterestadual(a, a[campo] || OPCOES_STATUS[0]);
-        const sb = normalizarStatusInterestadual(b, b[campo] || OPCOES_STATUS[0]);
-        return ORDEM_STATUS.indexOf(sa) - ORDEM_STATUS.indexOf(sb);
-    }), [itensFiltrados, origem]); // eslint-disable-line
 
     const getEstiloRota = (valor) => ({
         background: 'transparent',
