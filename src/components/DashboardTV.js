@@ -254,12 +254,18 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
         esconderBarraTimer.current = setTimeout(() => setBarraVisivel(false), 3000);
     };
 
-    // Filtro para cards de hoje — data_prevista tem prioridade (é o campo editável)
-    // data_carregado_* só como fallback quando não há data_prevista
+    // Filtro para cards de hoje — qualquer um dos lados (recife/moreno) com data = hoje
+    // já conta o card (consolidado partido em datas diferentes aparece nos dois dias).
     const hoje = obterDataBrasilia();
     const veiculosHoje = listaVeiculos.filter(v => {
-        const dataCard = v.data_prevista || v.data_carregado_recife || v.data_carregado_moreno || '';
-        return dataCard.split('T')[0] === hoje;
+        const candidatos = [
+            v.data_prevista_recife,
+            v.data_prevista_moreno,
+            v.data_prevista,
+            v.data_carregado_recife,
+            v.data_carregado_moreno,
+        ].filter(Boolean).map(d => String(d).split('T')[0]);
+        return candidatos.some(d => d === hoje);
     });
 
     const totalTelas = 6;
