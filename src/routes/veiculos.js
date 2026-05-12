@@ -38,13 +38,18 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 whereClause = `WHERE v.data_criacao::date BETWEEN ? AND ?`;
                 whereParams.push(dataCriacaoInicio, dataCriacaoFim);
             } else if (dataInicio && dataFim) {
-                whereClause = 'WHERE v.data_prevista >= ? AND v.data_prevista <= ?';
-                whereParams.push(dataInicio, dataFim);
+                // Card consolidado com lados em datas diferentes precisa aparecer nos dois dias filtrados
+                whereClause = `WHERE (
+                       (v.data_prevista        BETWEEN ? AND ?)
+                    OR (v.data_prevista_recife BETWEEN ? AND ?)
+                    OR (v.data_prevista_moreno BETWEEN ? AND ?)
+                )`;
+                whereParams.push(dataInicio, dataFim, dataInicio, dataFim, dataInicio, dataFim);
             }
 
             const [rows, countRow, provVeiculos] = await Promise.all([
                 dbAll(`
-                SELECT v.id, v.dados_json, v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno, v.doca_recife, v.doca_moreno, v.coleta, v.coletarecife, v.coletamoreno, v.rota_recife, v.rota_moreno, v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista, v.data_criacao, v.tempos_recife, v.tempos_moreno, v.status_coleta, v.observacao, v.imagens, v.numero_cte, v.chave_cte, v.numero_coleta, v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv, v.gerenciadora_risco, v.status_gerenciadora, v.numero_liberacao, v.situacao_cadastro, v.data_liberacao, v.status_cte, v.timestamps_cte, v.tipoveiculo, v.telefonemotorista, v.isfrotamotorista, v.placa1motorista, v.placa2motorista, v.timestamps_status, v.pausas_status, v.seguradora_cad, v.origem_cad, v.destino_uf_cad, v.destino_cidade_cad, v.cte_antecipado_recife, v.cte_antecipado_moreno, v.data_prevista_original, v.data_inicio_patio, v.foi_reprogramado, v.data_carregado_recife, v.data_carregado_moreno, v.cte_antecipado_interestadual, v.coletainterestadual, v.token_operacao_motorista, v.token_operacao_expira_em,
+                SELECT v.id, v.dados_json, v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno, v.doca_recife, v.doca_moreno, v.coleta, v.coletarecife, v.coletamoreno, v.rota_recife, v.rota_moreno, v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista, v.data_criacao, v.tempos_recife, v.tempos_moreno, v.status_coleta, v.observacao, v.imagens, v.numero_cte, v.chave_cte, v.numero_coleta, v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv, v.gerenciadora_risco, v.status_gerenciadora, v.numero_liberacao, v.situacao_cadastro, v.data_liberacao, v.status_cte, v.timestamps_cte, v.tipoveiculo, v.telefonemotorista, v.isfrotamotorista, v.placa1motorista, v.placa2motorista, v.timestamps_status, v.pausas_status, v.seguradora_cad, v.origem_cad, v.destino_uf_cad, v.destino_cidade_cad, v.cte_antecipado_recife, v.cte_antecipado_moreno, v.data_prevista_original, v.data_inicio_patio, v.foi_reprogramado, v.data_carregado_recife, v.data_carregado_moreno, v.cte_antecipado_interestadual, v.coletainterestadual, v.token_operacao_motorista, v.token_operacao_expira_em, v.data_prevista_recife, v.data_prevista_moreno,
                        (v.foto_lacre_recife IS NOT NULL AND v.foto_lacre_recife <> '') as tem_foto_lacre_recife,
                        (v.foto_lacre_moreno IS NOT NULL AND v.foto_lacre_moreno <> '') as tem_foto_lacre_moreno,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
@@ -370,17 +375,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
                         await dbRun(
                             `UPDATE veiculos SET
-                                motorista     = COALESCE(NULLIF(?, ''), motorista),
-                                placa         = COALESCE(NULLIF(?, ''), placa),
-                                modelo        = COALESCE(NULLIF(?, ''), modelo),
-                                rota_recife   = COALESCE(NULLIF(?, ''), rota_recife),
-                                rota_moreno   = COALESCE(NULLIF(?, ''), rota_moreno),
-                                observacao    = COALESCE(NULLIF(?, ''), observacao),
-                                data_prevista = COALESCE(NULLIF(?, ''), data_prevista),
-                                dados_json    = ?${setChecklist}
+                                motorista              = COALESCE(NULLIF(?, ''), motorista),
+                                placa                  = COALESCE(NULLIF(?, ''), placa),
+                                modelo                 = COALESCE(NULLIF(?, ''), modelo),
+                                rota_recife            = COALESCE(NULLIF(?, ''), rota_recife),
+                                rota_moreno            = COALESCE(NULLIF(?, ''), rota_moreno),
+                                observacao             = COALESCE(NULLIF(?, ''), observacao),
+                                data_prevista          = COALESCE(NULLIF(?, ''), data_prevista),
+                                data_prevista_recife   = COALESCE(NULLIF(?, ''), data_prevista_recife),
+                                data_prevista_moreno   = COALESCE(NULLIF(?, ''), data_prevista_moreno),
+                                dados_json             = ?${setChecklist}
                              WHERE id = ?`,
                             [novoMotorista, novaPlaca1, novoModelo,
                              novaRotaRecife, novaRotaMoreno, novaObs, novaData,
+                             novaData, novaData,
                              JSON.stringify(djNovo), existente.id]
                         );
 
@@ -470,18 +478,20 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             doca_recife, doca_moreno, coleta, coletaRecife, coletaMoreno, coletainterestadual,
             rota_recife, rota_moreno, numero_coleta,
             unidade, operacao, inicio_rota, origem_criacao, data_prevista,
+            data_prevista_recife, data_prevista_moreno,
             data_criacao, tempos_recife, tempos_moreno, status_coleta,
             observacao, imagens,
             chk_cnh, chk_antt, chk_tacografo, chk_crlv,
             situacao_cadastro, numero_liberacao, data_liberacao,
             dados_json, data_prevista_original, data_inicio_patio
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
             const values = [
                 v.placa || 'NÃO INFORMADA', v.modelo, v.motorista, v.status_recife, v.status_moreno,
                 v.doca_recife, v.doca_moreno, v.coleta, v.coletaRecife, v.coletaMoreno, v.coletaInterestadual || '',
                 v.rotaRecife || '', v.rotaMoreno || '', v.numero_coleta || '',
                 v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista,
+                v.data_prevista, v.data_prevista,
                 data_criacao,
                 JSON.stringify(v.tempos_recife || {}),
                 JSON.stringify(v.tempos_moreno || {}),
@@ -892,12 +902,17 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 }
             }
 
+            // Data prevista por unidade: front pode mandar específicos, senão herda do guarda-chuva
+            const dpRecifeNovo = v.data_prevista_recife || v.data_prevista;
+            const dpMorenoNovo = v.data_prevista_moreno || v.data_prevista;
+
             const query = `UPDATE veiculos SET
             placa=?, modelo=?, motorista=?, status_recife=?, status_moreno=?,
             doca_recife=?, doca_moreno=?, coleta=?, coletaRecife=?, coletaMoreno=?, coletainterestadual=?, numero_coleta=?,
             rota_recife=?, rota_moreno=?,
             operacao=?, inicio_rota=?, origem_criacao=?,
-            data_prevista=?, tempos_recife=?, tempos_moreno=?, status_coleta=?,
+            data_prevista=?, data_prevista_recife=?, data_prevista_moreno=?,
+            tempos_recife=?, tempos_moreno=?, status_coleta=?,
             observacao=?, imagens=?, numero_cte=?, chave_cte=?,
             chk_cnh=?, chk_antt=?, chk_tacografo=?, chk_crlv=?,
             gerenciadora_risco=?, status_gerenciadora=?, numero_liberacao=?, situacao_cadastro=?,
@@ -913,6 +928,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                 v.rotaRecife || '', v.rotaMoreno || '',
                 v.operacao || '', v.inicio_rota || '', v.origem_criacao || '',
                 v.data_prevista,
+                dpRecifeNovo, dpMorenoNovo,
                 JSON.stringify(v.tempos_recife || {}),
                 JSON.stringify(v.tempos_moreno || {}),
                 JSON.stringify(v.status_coleta || {}),
@@ -1313,14 +1329,34 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
     router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
-            const { nova_data, foi_reprogramado = 1 } = req.body;
+            const { nova_data, foi_reprogramado = 1, unidade } = req.body;
             if (!nova_data) return res.status(400).json({ success: false, message: 'nova_data obrigatória.' });
-            await dbRun(
-                `UPDATE veiculos SET data_prevista = $1, foi_reprogramado = $2 WHERE id = $3`,
-                [nova_data, foi_reprogramado ? 1 : 0, req.params.id]
-            );
-            io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(req.params.id), data_prevista: nova_data, foi_reprogramado: foi_reprogramado ? 1 : 0 });
-            res.json({ success: true });
+            const { aplicarDataUnica, aplicarDataUnidade } = require('../utils/dataPrevistaSync');
+            const veiculoId = Number(req.params.id);
+
+            let resultado;
+            const ladoNorm = String(unidade || '').toLowerCase();
+            if (ladoNorm === 'recife' || ladoNorm === 'moreno') {
+                resultado = await aplicarDataUnidade(dbRun, dbGet, veiculoId, ladoNorm, nova_data, {
+                    registrarLog,
+                    usuario: req.user?.nome || '?',
+                    acao: 'REPROGRAMACAO',
+                    motivo: `Reprogramação manual (lado ${ladoNorm}) → ${nova_data}`,
+                });
+            } else {
+                resultado = await aplicarDataUnica(dbRun, veiculoId, nova_data);
+            }
+            await dbRun(`UPDATE veiculos SET foi_reprogramado = $1 WHERE id = $2`, [foi_reprogramado ? 1 : 0, veiculoId]);
+
+            io.emit('receber_atualizacao', {
+                tipo: 'atualiza_veiculo',
+                id: veiculoId,
+                data_prevista: resultado?.data_prevista || nova_data,
+                data_prevista_recife: resultado?.data_prevista_recife || nova_data,
+                data_prevista_moreno: resultado?.data_prevista_moreno || nova_data,
+                foi_reprogramado: foi_reprogramado ? 1 : 0,
+            });
+            res.json({ success: true, ...(resultado || {}) });
         }));
 
     router.delete('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado']), asyncHandler(async (req, res) => {
@@ -1827,6 +1863,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Se não confirmou mistos, verificar conflitos antes de avançar
             if (!confirmarMisto) {
                 const campoStatusOutro = unidade === 'Recife' ? 'status_moreno' : 'status_recife';
+                const campoDataPrevConflito = unidade === 'Recife' ? 'data_prevista_recife' : 'data_prevista_moreno';
                 const statusNaoFinalizados = ['AGUARDANDO', 'EM SEPARAÇÃO', 'LIBERADO P/ DOCA', 'EM CARREGAMENTO'];
 
                 const conflitosQuery = `
@@ -1834,7 +1871,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                            STRING_AGG(COALESCE(operacao, 'Sem operação'), ', ') as operacoes
                     FROM veiculos
                     WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
-                      AND data_prevista = ?
+                      AND ${campoDataPrevConflito} = ?
                       AND ${campoStatusOutro} IN (${statusNaoFinalizados.map(() => '?').join(',')})
                 `;
                 const conflitosResult = await dbGet(conflitosQuery, [
@@ -1856,15 +1893,34 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             // Avança apenas veículos do dia de hoje que realmente pertencem à unidade
             // (coleta da unidade preenchida — evita avançar PLÁSTICO(RECIFE) ao finalizar Moreno)
             const campoColeta = unidade === 'Recife' ? 'coletarecife' : 'coletamoreno';
-            const query = `
+            const campoDataPrev = unidade === 'Recife' ? 'data_prevista_recife' : 'data_prevista_moreno';
+            // Avança APENAS a data_prevista do lado finalizado. Card consolidado com lado oposto
+            // ainda em outro dia mantém aquela data. Guarda-chuva recalculado em seguida.
+            const idsAvancados = await dbAll(`
                 UPDATE veiculos
-                SET data_prevista = ?, foi_reprogramado = 1
-                WHERE ${campoStatus} IN (${statusParaAvancar.map(() => '?').join(',')})
-                  AND data_prevista = ?
-                  AND ${campoCarregado} IS NULL
-                  AND (${campoColeta} IS NOT NULL AND ${campoColeta} <> '')
-            `;
-            const resultado = await dbRun(query, [amanhaStr, ...statusParaAvancar, hojeStr]);
+                   SET ${campoDataPrev} = $1, foi_reprogramado = 1
+                 WHERE ${campoStatus} IN (${statusParaAvancar.map((_, i) => `$${i + 3}`).join(',')})
+                   AND ${campoDataPrev} = $2
+                   AND ${campoCarregado} IS NULL
+                   AND (${campoColeta} IS NOT NULL AND ${campoColeta} <> '')
+              RETURNING id`,
+                [amanhaStr, hojeStr, ...statusParaAvancar]
+            );
+            const resultado = { changes: idsAvancados.length };
+
+            // Recalcular data_prevista guarda-chuva (= menor das duas) pros cards afetados
+            if (idsAvancados.length > 0) {
+                const idsArr = idsAvancados.map(r => r.id);
+                await dbRun(`
+                    UPDATE veiculos
+                       SET data_prevista = COALESCE(
+                            LEAST(NULLIF(data_prevista_recife, ''), NULLIF(data_prevista_moreno, '')),
+                            data_prevista_recife,
+                            data_prevista_moreno)
+                     WHERE id = ANY($1::int[])`,
+                    [idsArr]
+                );
+            }
 
             // Avançar CT-es "Aguardando Emissão" associados — somente os de hoje e da mesma unidade
             const hojeFormatado = new Date(hojeStr + 'T12:00:00').toLocaleDateString('pt-BR'); // DD/MM/YYYY

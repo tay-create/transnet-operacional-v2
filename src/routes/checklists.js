@@ -164,14 +164,14 @@ module.exports = function createChecklistsRouter(io) {
                 const recife = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_recife as status, doca_recife as doca,
                         status_recife, status_moreno,
-                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_prevista_recife, data_prevista_moreno, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_recife as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, 'Recife' as _cidade
                      FROM veiculos WHERE status_recife IN (${placeholders})
                        AND (
-                         (status_recife != 'CARREGADO' AND data_prevista = ?)
-                         OR (status_recife = 'CARREGADO' AND COALESCE(data_carregado_recife, data_prevista) = ?)
+                         (status_recife != 'CARREGADO' AND COALESCE(data_prevista_recife, data_prevista) = ?)
+                         OR (status_recife = 'CARREGADO' AND COALESCE(data_carregado_recife, data_prevista_recife, data_prevista) = ?)
                        )
                        AND ${FILTRO_RECIFE} ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, data, data]
@@ -179,14 +179,14 @@ module.exports = function createChecklistsRouter(io) {
                 const moreno = await dbAll(
                     `SELECT id, motorista, placa, dados_json, status_moreno as status, doca_moreno as doca,
                         status_recife, status_moreno,
-                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_prevista_recife, data_prevista_moreno, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, tempos_moreno as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, 'Moreno' as _cidade
                      FROM veiculos WHERE status_moreno IN (${placeholders})
                        AND (
-                         (status_moreno != 'CARREGADO' AND data_prevista = ?)
-                         OR (status_moreno = 'CARREGADO' AND COALESCE(data_carregado_moreno, data_prevista) = ?)
+                         (status_moreno != 'CARREGADO' AND COALESCE(data_prevista_moreno, data_prevista) = ?)
+                         OR (status_moreno = 'CARREGADO' AND COALESCE(data_carregado_moreno, data_prevista_moreno, data_prevista) = ?)
                        )
                        AND ${FILTRO_MORENO} ORDER BY id DESC`,
                     [...STATUS_CONFERENTE, data, data]
@@ -197,18 +197,19 @@ module.exports = function createChecklistsRouter(io) {
                 const docaField = cidade === 'Moreno' ? 'doca_moreno' : 'doca_recife';
                 const temposField = cidade === 'Moreno' ? 'tempos_moreno' : 'tempos_recife';
                 const campoCarregado = cidade === 'Moreno' ? 'data_carregado_moreno' : 'data_carregado_recife';
+                const campoDpUnidade = cidade === 'Moreno' ? 'data_prevista_moreno' : 'data_prevista_recife';
                 const cidadeFiltro = cidade === 'Moreno' ? FILTRO_MORENO : FILTRO_RECIFE;
                 rows = await dbAll(
                     `SELECT id, motorista, placa, dados_json, ${statusField} as status, ${docaField} as doca,
                         status_recife, status_moreno,
-                        coleta, coletarecife, coletamoreno, data_prevista, data_carregado_recife, data_carregado_moreno,
+                        coleta, coletarecife, coletamoreno, data_prevista, data_prevista_recife, data_prevista_moreno, data_carregado_recife, data_carregado_moreno,
                         situacao_cadastro, ${temposField} as tempos, timestamps_status, inicio_rota,
                         chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                         numero_liberacao, gerenciadora_risco, data_liberacao, pausas_status, status_cte, ? as _cidade
                      FROM veiculos WHERE ${statusField} IN (${placeholders})
                        AND (
-                         (${statusField} != 'CARREGADO' AND data_prevista = ?)
-                         OR (${statusField} = 'CARREGADO' AND COALESCE(${campoCarregado}, data_prevista) = ?)
+                         (${statusField} != 'CARREGADO' AND COALESCE(${campoDpUnidade}, data_prevista) = ?)
+                         OR (${statusField} = 'CARREGADO' AND COALESCE(${campoCarregado}, ${campoDpUnidade}, data_prevista) = ?)
                        )
                        AND ${cidadeFiltro} ORDER BY id DESC`,
                     [cidade, ...STATUS_CONFERENTE, data, data]
