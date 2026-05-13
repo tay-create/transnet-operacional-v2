@@ -3251,12 +3251,27 @@ app.get('/api/geojson-brasil', asyncHandler(async (req, res) => {
 
 // ── Resultado Operacional (Google Sheets) ────────────────────────────────────
 
-const RESULTADO_SHEET_ID = '1-9TPCUJX2JPsAYeOjLPgzXLiB_1IjIKIU4olfCrj9sw';
 let resultadoCache = { data: null, ts: 0 };
+
+// GET sheet_id do mês atual (ou mês anterior se não houver o atual)
+async function getResultadoSheetId() {
+    const mesAtual = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+    const row = await dbGet(
+        `SELECT sheet_id FROM resultado_sheets WHERE mes = $1 ORDER BY mes DESC LIMIT 1`,
+        [mesAtual]
+    );
+    if (row) return { sheetId: row.sheet_id, mes: mesAtual };
+    // fallback: pega o mais recente cadastrado
+    const fallback = await dbGet(`SELECT sheet_id, mes FROM resultado_sheets ORDER BY mes DESC LIMIT 1`);
+    if (fallback) return { sheetId: fallback.sheet_id, mes: fallback.mes };
+    throw new Error('Nenhuma planilha de Resultado Operacional cadastrada.');
+}
 
 app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, res) => {
     if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
         return res.json(resultadoCache.data);
+
+        const { sheetId: RESULTADO_SHEET_ID } = await getResultadoSheetId();
 
         const auth = new google.auth.GoogleAuth({
             keyFile: path.join(__dirname, 'google-credentials.json'),
@@ -3331,6 +3346,26 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
 
         resultadoCache = { data: resultado, ts: Date.now() };
         res.json(resultado);
+}));
+
+// Listar planilhas cadastradas
+app.get('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+    const rows = await dbAll(`SELECT mes, sheet_id, criado_em FROM resultado_sheets ORDER BY mes DESC`);
+    res.json({ success: true, sheets: rows });
+}));
+
+// Cadastrar/atualizar planilha de um mês
+app.post('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+    const { mes, sheet_id } = req.body;
+    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) return res.status(400).json({ success: false, message: 'Mês inválido. Use o formato YYYY-MM.' });
+    if (!sheet_id || sheet_id.trim().length < 10) return res.status(400).json({ success: false, message: 'Sheet ID inválido.' });
+    await dbRun(
+        `INSERT INTO resultado_sheets (mes, sheet_id) VALUES ($1, $2) ON CONFLICT (mes) DO UPDATE SET sheet_id = EXCLUDED.sheet_id`,
+        [mes, sheet_id.trim()]
+    );
+    resultadoCache = { data: null, ts: 0 }; // invalida cache
+    await registrarLog('RESULTADO_SHEET_ATUALIZADO', req.user?.nome || '?', null, 'config', null, sheet_id.trim(), `Mês: ${mes}`);
+    res.json({ success: true });
 }));
 
 // ── Provisionamento de Frota ─────────────────────────────────────────────────

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApiCall } from '../hooks/useApiCall';
 import { PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
-import { RefreshCw, Printer, TrendingUp } from 'lucide-react';
+import { RefreshCw, Printer, TrendingUp, Settings, X, Plus, Check } from 'lucide-react';
 import api from '../services/apiService';
+import useAuthStore from '../store/useAuthStore';
 import 'leaflet/dist/leaflet.css';
 
 const COR_VEICULO = { carreta: '#3b82f6', truck: '#f59e0b', tresQuartos: '#8b5cf6' };
@@ -273,10 +274,103 @@ function gerarSvgMapaBrasil(geojson, regioes, totalEntregas) {
     return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;background:#f8fafc;border-radius:10px">${paths}${labels}${legenda}</svg>`;
 }
 
+function ModalConfigurarSheet({ onClose, onSalvo }) {
+    const [sheets, setSheets] = useState([]);
+    const [mes, setMes] = useState(() => new Date().toLocaleString('sv-SE', { timeZone: 'America/Recife' }).slice(0, 7));
+    const [sheetId, setSheetId] = useState('');
+    const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState('');
+    const [sucesso, setSucesso] = useState(false);
+
+    useEffect(() => {
+        api.get('/api/resultado-sheets').then(r => setSheets(r.data.sheets || [])).catch(() => {});
+    }, []);
+
+    const salvar = async () => {
+        setErro('');
+        setSucesso(false);
+        const id = sheetId.trim();
+        if (!id) return setErro('Cole o ID da planilha.');
+        setSalvando(true);
+        try {
+            await api.post('/api/resultado-sheets', { mes, sheet_id: id });
+            setSucesso(true);
+            setSheetId('');
+            const r = await api.get('/api/resultado-sheets');
+            setSheets(r.data.sheets || []);
+            onSalvo();
+        } catch (e) {
+            setErro(e.response?.data?.message || 'Erro ao salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={onClose}>
+            <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '28px', width: '480px', maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                    <span style={{ fontSize: '16px', fontWeight: '700', color: '#f1f5f9' }}>Planilhas de Resultado Operacional</span>
+                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={18} /></button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ flex: '0 0 130px' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>Mês</div>
+                        <input
+                            type="month"
+                            value={mes}
+                            onChange={e => setMes(e.target.value)}
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '8px 10px', color: '#f1f5f9', fontSize: '13px', outline: 'none' }}
+                        />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '6px' }}>ID da Planilha</div>
+                        <input
+                            value={sheetId}
+                            onChange={e => setSheetId(e.target.value)}
+                            placeholder="Cole o ID aqui..."
+                            style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '8px 10px', color: '#f1f5f9', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                    </div>
+                    <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'flex-end' }}>
+                        <button onClick={salvar} disabled={salvando} style={{ background: sucesso ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', border: `1px solid ${sucesso ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.4)'}`, borderRadius: '8px', padding: '8px 14px', color: sucesso ? '#10b981' : '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '600' }}>
+                            {sucesso ? <><Check size={14} /> Salvo</> : <><Plus size={14} /> Salvar</>}
+                        </button>
+                    </div>
+                </div>
+
+                {erro && <div style={{ fontSize: '12px', color: '#f87171', marginBottom: '10px' }}>{erro}</div>}
+
+                <div style={{ fontSize: '10px', color: '#64748b', marginBottom: '12px' }}>
+                    Cole só o ID — a parte entre <code style={{ color: '#94a3b8' }}>/d/</code> e <code style={{ color: '#94a3b8' }}>/edit</code> no link da planilha.
+                </div>
+
+                {sheets.length > 0 && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '14px' }}>
+                        <div style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', marginBottom: '8px' }}>Cadastradas</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                            {sheets.map(s => (
+                                <div key={s.mes} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '8px 12px' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#60a5fa', minWidth: '70px' }}>{s.mes}</span>
+                                    <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.sheet_id}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function RelatorioResultadoOperacional() {
     const [dados, setDados] = useState(null);
     const { loading: carregando, erro, execute } = useApiCall();
     const [regiaoFiltro, setRegiaoFiltro] = useState(null);
+    const { user } = useAuthStore();
+    const [modalSheet, setModalSheet] = useState(false);
+    const podeConfigurar = ['Coordenador', 'Direção', 'Planejamento'].includes(user?.cargo);
     const geojsonCacheRef = useRef(null);
     const [mes, setMes] = useState(() => {
         const d = new Date();
@@ -704,6 +798,8 @@ export default function RelatorioResultadoOperacional() {
     return (
         <div style={{ padding: '10px 0' }}>
 
+            {modalSheet && <ModalConfigurarSheet onClose={() => setModalSheet(false)} onSalvo={() => { setModalSheet(false); buscar(); }} />}
+
             {/* Título */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                 <TrendingUp size={22} color="#3b82f6" />
@@ -722,6 +818,11 @@ export default function RelatorioResultadoOperacional() {
                     <button onClick={imprimir} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '8px', padding: '7px 14px', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600' }}>
                         <Printer size={13} /> Imprimir
                     </button>
+                    {podeConfigurar && (
+                        <button onClick={() => setModalSheet(true)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }} title="Configurar planilha">
+                            <Settings size={14} />
+                        </button>
+                    )}
                 </div>
             </div>
 
