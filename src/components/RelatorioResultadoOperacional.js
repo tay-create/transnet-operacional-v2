@@ -178,6 +178,22 @@ const TooltipCustom = ({ active, payload }) => {
     );
 };
 
+// Tooltip filtrado para exibir apenas a barra hovereada (não o grupo inteiro)
+function makeTooltipFiltrado(hoveredKeyRef) {
+    return function TooltipFiltrado({ active, payload }) {
+        if (!active || !payload?.length) return null;
+        const key = hoveredKeyRef.current;
+        const item = key ? payload.find(p => p.dataKey === key) : payload[0];
+        if (!item) return null;
+        return (
+            <div style={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '8px 14px', fontSize: '12px', color: '#f1f5f9' }}>
+                <div style={{ color: '#94a3b8', fontWeight: '700' }}>{item.name}</div>
+                <div style={{ color: item.fill }}>{item.value} &nbsp;·&nbsp; {pct(item.value, item.payload?.total)}%</div>
+            </div>
+        );
+    };
+}
+
 const PizzaLegenda = ({ dados, cores }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }}>
         {dados.map(d => (
@@ -372,6 +388,8 @@ export default function RelatorioResultadoOperacional() {
     const [modalSheet, setModalSheet] = useState(false);
     const podeConfigurar = ['Coordenador', 'Direção', 'Planejamento', 'Desenvolvedor'].includes(user?.cargo);
     const geojsonCacheRef = useRef(null);
+    const hoveredBarKeyRef = useRef(null);
+    const TooltipFiltrado = useRef(makeTooltipFiltrado(hoveredBarKeyRef)).current;
     const [mes, setMes] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
@@ -919,14 +937,20 @@ export default function RelatorioResultadoOperacional() {
                         <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
                         <XAxis dataKey="regiao" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                        <Tooltip content={<TooltipCustom />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                        <Bar dataKey="carreta" name="Carreta" fill={COR_VEICULO.carreta} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                        <Tooltip content={<TooltipFiltrado />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                        <Bar dataKey="carreta" name="Carreta" fill={COR_VEICULO.carreta} radius={[4, 4, 0, 0]} maxBarSize={32}
+                            onMouseEnter={() => { hoveredBarKeyRef.current = 'carreta'; }}
+                            onMouseLeave={() => { hoveredBarKeyRef.current = null; }}>
                             <LabelList dataKey="carreta" position="top" style={{ fill: '#94a3b8', fontSize: 10, fontWeight: '700' }} />
                         </Bar>
-                        <Bar dataKey="truck" name="Truck" fill={COR_VEICULO.truck} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                        <Bar dataKey="truck" name="Truck" fill={COR_VEICULO.truck} radius={[4, 4, 0, 0]} maxBarSize={32}
+                            onMouseEnter={() => { hoveredBarKeyRef.current = 'truck'; }}
+                            onMouseLeave={() => { hoveredBarKeyRef.current = null; }}>
                             <LabelList dataKey="truck" position="top" style={{ fill: '#94a3b8', fontSize: 10, fontWeight: '700' }} />
                         </Bar>
-                        <Bar dataKey="tresQuartos" name="3/4" fill={COR_VEICULO.tresQuartos} radius={[4, 4, 0, 0]} maxBarSize={32}>
+                        <Bar dataKey="tresQuartos" name="3/4" fill={COR_VEICULO.tresQuartos} radius={[4, 4, 0, 0]} maxBarSize={32}
+                            onMouseEnter={() => { hoveredBarKeyRef.current = 'tresQuartos'; }}
+                            onMouseLeave={() => { hoveredBarKeyRef.current = null; }}>
                             <LabelList dataKey="tresQuartos" position="top" style={{ fill: '#94a3b8', fontSize: 10, fontWeight: '700' }} />
                         </Bar>
                     </BarChart>

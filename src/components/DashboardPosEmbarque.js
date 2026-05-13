@@ -23,7 +23,7 @@ const TEMA = {
         headerBg: (cor) => `linear-gradient(135deg, ${cor}11, transparent)`,
         kpiBg: 'rgba(10,15,30,0.8)',
         kpiBorder: (cor) => `1px solid ${cor}44`,
-        titleColor: '#00e5ff',
+        titleColor: '#94a3b8',
     },
     claro: {
         bg: '#f1f5f9',
@@ -75,7 +75,6 @@ function getBordaEsquerda(oc) {
 // ──────────── CSS Animações ────────────────────────────────────
 const neonCSS = `
 @keyframes spin { to { transform: rotate(360deg) } }
-@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
 @keyframes slideIn {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
@@ -120,12 +119,12 @@ export default function DashboardPosEmbarque({ socket }) {
         { label: 'EM ANDAMENTO', valor: emAndamento.length, cor: '#ff9100', corGlow: 'rgba(255,145,0,0.4)', icon: <Clock size={28} /> },
         { label: 'RESOLVIDAS', valor: resolvidas.length, cor: '#00e676', corGlow: 'rgba(0,230,118,0.4)', icon: <CheckCircle size={28} /> },
         { label: '+24 HORAS', valor: atrasadas.length, cor: '#ff1744', corGlow: 'rgba(255,23,68,0.4)', icon: <AlertTriangle size={28} /> },
-        { label: 'TOTAL GERAL', valor: ocorrencias.length, cor: '#00e5ff', corGlow: 'rgba(0,229,255,0.4)', icon: <AlertCircle size={28} /> },
+        { label: 'TOTAL GERAL', valor: ocorrencias.length, cor: '#64748b', corGlow: 'rgba(100,116,139,0.3)', icon: <AlertCircle size={28} /> },
     ];
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#00e5ff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh', color: '#94a3b8' }}>
                 <style>{neonCSS}</style>
                 <RefreshCw size={36} style={{ animation: 'spin 1s linear infinite', }} />
                 <span style={{ marginLeft: 14, fontSize: 18 }}>Carregando ocorrências...</span>
@@ -173,7 +172,7 @@ export default function DashboardPosEmbarque({ socket }) {
                         width: 10, height: 10, borderRadius: '50%', display: 'inline-block',
                         background: '#00e676',
                         
-                        animation: 'pulse 2s infinite'
+                        opacity: 1
                     }} />
                     <span style={{ fontSize: 13, color: '#00e676', fontWeight: 600 }}>Online — Tempo Real</span>
                 </div>
@@ -185,7 +184,7 @@ export default function DashboardPosEmbarque({ socket }) {
 
             {/* ── GRID DE CARDS ── */}
             {ocorrencias.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 0', color: '#00e5ff' }}>
+                <div style={{ textAlign: 'center', padding: '60px 0', color: '#94a3b8' }}>
                     <AlertCircle size={52} style={{ marginBottom: 14, opacity: 0.5,  }} />
                     <p style={{ fontSize: 17,  }}>Nenhuma ocorrência ativa</p>
                 </div>
@@ -247,7 +246,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                         {oc.operacao && (
                                             <span style={{
                                                 padding: '4px 12px', borderRadius: 6, fontSize: 14, fontWeight: 700,
-                                                background: 'rgba(0,229,255,0.1)', color: '#00e5ff',
+                                                background: 'rgba(100,116,139,0.15)', color: '#94a3b8',
                                                 border: '1px solid rgba(0,229,255,0.3)',
                                                 
                                             }}>
