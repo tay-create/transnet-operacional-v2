@@ -398,7 +398,16 @@ export default function RelatorioResultadoOperacional() {
 
     const buscar = useCallback(async () => {
         const res = await execute(() => api.get('/api/resultado-operacional'));
-        if (res) setDados(res.data);
+        if (res) {
+            setDados(res.data);
+            if (res.data?.mes) {
+                const [ano, m] = res.data.mes.split('-');
+                const label = new Date(parseInt(ano), parseInt(m) - 1, 1)
+                    .toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
+                    .toUpperCase();
+                setMes(label);
+            }
+        }
     }, [execute]);
 
     useEffect(() => { buscar().catch(() => {}); }, [buscar]);

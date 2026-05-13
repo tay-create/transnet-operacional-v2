@@ -3271,7 +3271,7 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
     if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
         return res.json(resultadoCache.data);
 
-        const { sheetId: RESULTADO_SHEET_ID } = await getResultadoSheetId();
+        const { sheetId: RESULTADO_SHEET_ID, mes: mesPlanilha } = await getResultadoSheetId();
 
         const auth = new google.auth.GoogleAuth({
             keyFile: path.join(__dirname, 'google-credentials.json'),
@@ -3344,6 +3344,7 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
         const totalEntregas = Object.values(regioes).reduce((a, r) => a + r.entregas, 0);
 
         const resultado = {
+            mes: mesPlanilha,
             regioes: REGIOES_ORDEM.map(r => ({ regiao: r, ...(regioes[r] || { total: 0, carreta: 0, truck: 0, tresQuartos: 0, entregas: 0 }) })),
             veiculos: { carreta: totalCarreta, truck: totalTruck, tresQuartos: totalTresQuartos, total: totalEmbarques },
             mix: { plastico, porcelana, consolidado, eletrik, total: plastico + porcelana + consolidado + eletrik },
