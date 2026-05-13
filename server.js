@@ -3337,10 +3337,10 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
         const plastico = Math.max(deltaTotal - porcelana - consolidado - pl, 0); // Plástico = total delta - porcelana - consolidado - PL
 
         // Totais gerais somando todas as regiões
-        const totalEmbarques = Object.values(regioes).reduce((a, r) => a + r.total, 0);
         const totalCarreta = Object.values(regioes).reduce((a, r) => a + r.carreta, 0);
         const totalTruck = Object.values(regioes).reduce((a, r) => a + r.truck, 0);
         const totalTresQuartos = Object.values(regioes).reduce((a, r) => a + r.tresQuartos, 0);
+        const totalEmbarques = totalCarreta + totalTruck + totalTresQuartos;
         const totalEntregas = Object.values(regioes).reduce((a, r) => a + r.entregas, 0);
 
         const resultado = {
