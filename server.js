@@ -3002,8 +3002,8 @@ cron.schedule('50 23 * * 1-6', async () => {
 // Para cards em EM CARREGAMENTO com CT-e Emitido associado, atualiza também
 // data_entrada_cte no dados_json do CT-e para que ele apareça no PainelCte
 // do dia seguinte (data_emissao real é preservada como histórico).
-cron.schedule('40 23 * * *', async () => {
-    console.log('[CRON-ROLLOVER] 23:40 — virando cards em fluxo para amanhã...');
+cron.schedule('30 22 * * *', async () => {
+    console.log('[CRON-ROLLOVER] 22:30 — virando cards em fluxo para amanhã...');
     try {
         const STATUS_ATIVOS = ['AGUARDANDO P/ SEPARAÇÃO', 'EM SEPARAÇÃO', 'LIBERADO P/ CARREGAMENTO', 'EM CARREGAMENTO'];
         const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
@@ -3068,7 +3068,7 @@ cron.schedule('40 23 * * *', async () => {
                     'veiculo',
                     JSON.stringify({ r: c.data_prevista_recife, m: c.data_prevista_moreno, g: c.data_prevista }),
                     JSON.stringify({ r: novoDpR, m: novoDpM, g: novoGuarda }),
-                    `Cron 23:40 — virou ${virarRecife ? 'Recife' : ''}${(virarRecife && virarMoreno) ? '+' : ''}${virarMoreno ? 'Moreno' : ''}`
+                    `Cron 22:30 — virou ${virarRecife ? 'Recife' : ''}${(virarRecife && virarMoreno) ? '+' : ''}${virarMoreno ? 'Moreno' : ''}`
                 );
             } catch (e) { console.error('[CRON-ROLLOVER] log falhou:', e.message); }
 
