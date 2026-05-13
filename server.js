@@ -3329,12 +3329,12 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
         // L20(idx7): F=P.Consolidada entregas,   Y=Plástico Consol entregas
         // L25(idx12): F=Porcelana Local entregas, Y=Plástico Local entregas
         const mixRows = await lerRange('RESULTADO DELTA-PORCELANA', 'A13:AE25');
-        const plastico = (parseInt((mixRows[1]  || [])[24]) || 0)  // Plástico 100%
-                       + (parseInt((mixRows[7]  || [])[24]) || 0)  // Plástico Consol
-                       + (parseInt((mixRows[12] || [])[24]) || 0); // Plástico Local
-        const porcelana = (parseInt((mixRows[1]  || [])[5]) || 0)  // Porcelana 100%
-                        + (parseInt((mixRows[12] || [])[5]) || 0); // Porcelana Local
-        const consolidado = parseInt((mixRows[7] || [])[5]) || 0;  // P.Consolidada
+        const plastico    = (parseInt((mixRows[1]  || [])[24]) || 0)  // Plástico 100%
+                          + (parseInt((mixRows[12] || [])[24]) || 0); // Plástico Local
+        const porcelana   = (parseInt((mixRows[1]  || [])[5])  || 0)  // Porcelana 100%
+                          + (parseInt((mixRows[12] || [])[5])  || 0); // Porcelana Local
+        const consolidado = (parseInt((mixRows[7]  || [])[5])  || 0)  // P.Consolidada
+                          + (parseInt((mixRows[7]  || [])[24]) || 0); // Plástico Consol
 
         // Totais gerais somando todas as regiões
         const totalCarreta = Object.values(regioes).reduce((a, r) => a + r.carreta, 0);
