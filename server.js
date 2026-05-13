@@ -3284,18 +3284,17 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
             return r.data.values || [];
         };
 
-        // Regiões — DELTA-PORCELANA L750:W754 (5 regiões: SUL, SUDESTE, C.OESTE, NORTE, NORDESTE)
-        const deltaPorRegiao = await lerRange('DELTA-PORCELANA', 'A750:W754');
-        // Regiões — ELETRIK L87:I91
-        const eletrikPorRegiao = await lerRange('ELETRIK', 'A87:I91');
-        // Mix operação — DELTA-PORCELANA linhas específicas
-        const mixLinhas = await lerRange('DELTA-PORCELANA', 'A758:W775');
-        // Total eletrik
-        const eletrikTotal = await lerRange('ELETRIK', 'I92');
+        // Aba "RESULTADO DELTA-PORCELANA": linhas 4-8 têm os dados por região
+        // A=região, F(idx5)=total rotas, I(idx8)=carreta, J(idx9)=truck, K(idx10)=3/4, W(idx22)=entregas
+        const deltaPorRegiao = await lerRange('RESULTADO DELTA-PORCELANA', 'A4:W8');
 
-        // Parser regiões DELTA-PORCELANA: A=região, F(idx5)=total, I(idx8)=carreta, J(idx9)=truck, K(idx10)=3/4, W(idx22)=entregas
+        // Aba "RESULTADO  ELETRIK": linhas 3-7 têm os dados por região
+        // A=região, E(idx4)=carreta, F(idx5)=truck, G(idx6)=3/4, I(idx8)=entregas
+        const eletrikPorRegiao = await lerRange('RESULTADO  ELETRIK', 'A3:I7');
+
         const regioes = {};
         const REGIOES_ORDEM = ['SUL', 'SUDESTE', 'C.OESTE', 'NORTE', 'NORDESTE'];
+
         for (const row of deltaPorRegiao) {
             const regiao = (row[0] || '').toString().trim().toUpperCase();
             if (!REGIOES_ORDEM.includes(regiao)) continue;
@@ -3308,7 +3307,6 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
             };
         }
 
-        // Somar ELETRIK por região: A=região, D(idx3)=total, E(idx4)=carreta, F(idx5)=truck, G(idx6)=3/4, I(idx8)=entregas
         for (const row of eletrikPorRegiao) {
             const regiao = (row[0] || '').toString().trim().toUpperCase();
             if (!REGIOES_ORDEM.includes(regiao)) continue;
@@ -3320,15 +3318,23 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
             regioes[regiao].entregas += parseInt(row[8]) || 0;
         }
 
-        // Mix operação — índices relativos a partir de A758 (linha 0 = L758)
-        // Plástico = W760(idx2, col22) + W771(idx13, col22)
-        // Porcelana = A760(idx2, col0) + A771(idx13, col0)
-        // Consolidado = A766(idx8, col0) + W766(idx8, col22)
-        const v = (row, col) => parseInt((mixLinhas[row] || [])[col]) || 0;
-        const plastico = v(2, 22) + v(13, 22);
-        const porcelana = v(2, 0) + v(13, 0);
-        const consolidado = v(8, 0) + v(8, 22);
-        const eletrik = parseInt((eletrikTotal[0] || [])[0]) || 0;
+        // Totais eletrik — linha 8: D(idx3)=total embarques, E(idx4)=carreta, F(idx5)=truck, G(idx6)=3/4, I(idx8)=entregas
+        const eletrikTotRow = await lerRange('RESULTADO  ELETRIK', 'A8:I8');
+        const eletrikTot = eletrikTotRow[0] || [];
+        const eletrik = parseInt(eletrikTot[3]) || 0;
+
+        // Mix delta — lê A9:W25 (linhas 9-25 da planilha = índices 0-16 no array)
+        // L9(idx0):  F(idx5)=total delta rotas (162)
+        // L14(idx5): A(idx0)=porcelana embarques (10)
+        // L20(idx11): A(idx0)=consolidado embarques (39)
+        // L25(idx16): A(idx0)=PL embarques (4)
+        // Plástico = total - porcelana - consolidado - PL
+        const mixRows = await lerRange('RESULTADO DELTA-PORCELANA', 'A9:W25');
+        const deltaTotal = parseInt((mixRows[0] || [])[5]) || 0;
+        const porcelana = parseInt((mixRows[5] || [])[0]) || 0;
+        const consolidado = parseInt((mixRows[11] || [])[0]) || 0;
+        const pl = parseInt((mixRows[16] || [])[0]) || 0;
+        const plastico = Math.max(deltaTotal - porcelana - consolidado - pl, 0); // Plástico = total delta - porcelana - consolidado - PL
 
         // Totais gerais somando todas as regiões
         const totalEmbarques = Object.values(regioes).reduce((a, r) => a + r.total, 0);
@@ -3340,7 +3346,7 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
         const resultado = {
             regioes: REGIOES_ORDEM.map(r => ({ regiao: r, ...(regioes[r] || { total: 0, carreta: 0, truck: 0, tresQuartos: 0, entregas: 0 }) })),
             veiculos: { carreta: totalCarreta, truck: totalTruck, tresQuartos: totalTresQuartos, total: totalEmbarques },
-            mix: { plastico, porcelana, consolidado, eletrik, total: plastico + porcelana + consolidado + eletrik },
+            mix: { plastico, porcelana: porcelana + pl, consolidado, eletrik, total: plastico + porcelana + pl + consolidado + eletrik },
             totais: { embarques: totalEmbarques, entregas: totalEntregas },
         };
 
