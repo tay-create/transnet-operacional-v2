@@ -134,10 +134,11 @@ export default function PainelModais({
     adicionarToast,
     mostrarNotificacao,
     funcoes,
+    reprogramarItem,
     podeEditarNaUnidade,
     updateList,
 }) {
-    const { liberarParaCte, reprogramarItem } = funcoes || {};
+    const { liberarParaCte } = funcoes || {};
 
     return (
         <>

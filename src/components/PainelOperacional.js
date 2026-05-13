@@ -275,6 +275,7 @@ export default function PainelOperacional({
                 adicionarToast={adicionarToast}
                 mostrarNotificacao={mostrarNotificacao}
                 funcoes={funcoes}
+                reprogramarItem={reprogramarItem}
                 podeEditarNaUnidade={podeEditarNaUnidade}
                 updateList={updateList}
             />
