@@ -3324,21 +3324,17 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
         const eletrik = parseInt(eletrikTot[8]) || 0; // idx8 = col I = entregas realizadas
 
         // Mix — lê A13:AE25 (linhas 13-25 da planilha = índices 0-12 no array)
-        // Entregas realizadas (col Y = idx24 para Delta; col F = idx5 para Porcelana/Consol/PL):
-        // L14(idx1): F(idx5)=porc entregas, Y(idx24)=delta100% entregas (plástico)
-        // L20(idx7): F(idx5)=p.consol entregas, Y(idx24)=delta.consol entregas
-        // L25(idx12): F(idx5)=PL porc entregas, Y(idx24)=delta local entregas
-        // Consolidado = p.consol + delta.consol (soma os dois)
-        // Porcelana   = porc + PL porc + delta local (porcelana local)
+        // col A/F = Porcelana | col W/Y = Plástico (Delta)
+        // L14(idx1): F=Porcelana 100% entregas,  Y=Plástico 100% entregas
+        // L20(idx7): F=P.Consolidada entregas,   Y=Plástico Consol entregas
+        // L25(idx12): F=Porcelana Local entregas, Y=Plástico Local entregas
         const mixRows = await lerRange('RESULTADO DELTA-PORCELANA', 'A13:AE25');
-        const plastico    = parseInt((mixRows[1]  || [])[24]) || 0; // Delta 100% entregas
-        const porcEntregas = parseInt((mixRows[1]  || [])[5])  || 0; // Porcelana entregas
-        const porcPL      = parseInt((mixRows[12] || [])[5])  || 0; // PL porcelana entregas
-        const deltaLocal  = parseInt((mixRows[12] || [])[24]) || 0; // Delta local entregas
-        const consolPorc  = parseInt((mixRows[7]  || [])[5])  || 0; // P.Consolidada entregas
-        const consolDelta = parseInt((mixRows[7]  || [])[24]) || 0; // Delta.Consol entregas
-        const porcelana   = porcEntregas + porcPL + deltaLocal;
-        const consolidado = consolPorc + consolDelta;
+        const plastico = (parseInt((mixRows[1]  || [])[24]) || 0)  // Plástico 100%
+                       + (parseInt((mixRows[7]  || [])[24]) || 0)  // Plástico Consol
+                       + (parseInt((mixRows[12] || [])[24]) || 0); // Plástico Local
+        const porcelana = (parseInt((mixRows[1]  || [])[5]) || 0)  // Porcelana 100%
+                        + (parseInt((mixRows[12] || [])[5]) || 0); // Porcelana Local
+        const consolidado = parseInt((mixRows[7] || [])[5]) || 0;  // P.Consolidada
 
         // Totais gerais somando todas as regiões
         const totalCarreta = Object.values(regioes).reduce((a, r) => a + r.carreta, 0);
