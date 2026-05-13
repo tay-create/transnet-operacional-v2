@@ -123,9 +123,11 @@ function extrairColetas(operacaoBase, numeroColeta) {
     const ehMoreno = op === 'PLÁSTICO(MORENO)';
     const ehPorcelana = op === 'PORCELANA' || op === 'PORCELANA/ELETRIK';
     const ehEletrik = op === 'ELETRIK';
+    const ehInterestadual = op === 'LEÃO - SP' || op === 'ELETRIK SUL';
 
     return {
         coletaRecife: ehRecife ? coleta : '',
+        coletaInterestadual: ehInterestadual ? coleta : '',
         slots: {
             plastico: ehMoreno ? coleta : '',
             porcelana: ehPorcelana ? coleta : '',
@@ -169,7 +171,7 @@ function consolidarPorPlaca(linhasBrutas) {
     for (const [, grupo] of grupos) {
         if (grupo.length === 1) {
             const l = grupo[0];
-            const { coletaRecife, slots } = extrairColetas(l.operacaoBase, l.numeroColeta);
+            const { coletaRecife, coletaInterestadual: coletaInt, slots } = extrairColetas(l.operacaoBase, l.numeroColeta);
             const coletaMoreno = joinColetaMoreno(slots);
             lotes.push({
                 _id: gerarId(),
@@ -180,7 +182,7 @@ function consolidarPorPlaca(linhasBrutas) {
                 operacao: l.operacaoBase,
                 coletaRecife,
                 coletaMoreno,
-                coletaInterestadual: '',
+                coletaInterestadual: coletaInt || '',
                 rotaRecife: l.operacaoBase.includes('RECIFE') ? l.rota : '',
                 rotaMoreno: !l.operacaoBase.includes('RECIFE') ? l.rota : '',
                 observacao: l.obsRestante,
@@ -191,6 +193,7 @@ function consolidarPorPlaca(linhasBrutas) {
             const base = grupo[0];
             let slotsAcumulados = { plastico: '', porcelana: '', eletrik: '' };
             let coletaRecifeAcum = '';
+            let coletaInterestadualAcum = '';
             let operacaoCombinada = base.operacaoBase;
             const rotaSet = new Set();
             const obsSet = new Set();
@@ -199,8 +202,9 @@ function consolidarPorPlaca(linhasBrutas) {
                 if (l.rota) rotaSet.add(l.rota);
                 if (l.obsRestante) obsSet.add(l.obsRestante);
 
-                const { coletaRecife, slots } = extrairColetas(l.operacaoBase, l.numeroColeta);
+                const { coletaRecife, coletaInterestadual: coletaInt, slots } = extrairColetas(l.operacaoBase, l.numeroColeta);
                 if (coletaRecife) coletaRecifeAcum = coletaRecifeAcum ? coletaRecifeAcum + ',' + coletaRecife : coletaRecife;
+                if (coletaInt) coletaInterestadualAcum = coletaInterestadualAcum ? coletaInterestadualAcum + ',' + coletaInt : coletaInt;
                 for (const [k, v] of Object.entries(slots)) {
                     if (v) slotsAcumulados[k] = slotsAcumulados[k] ? slotsAcumulados[k] + ',' + v : v;
                 }
@@ -222,7 +226,7 @@ function consolidarPorPlaca(linhasBrutas) {
                 operacao: operacaoCombinada,
                 coletaRecife: coletaRecifeAcum,
                 coletaMoreno,
-                coletaInterestadual: '',
+                coletaInterestadual: coletaInterestadualAcum,
                 rotaRecife: operacaoCombinada.includes('RECIFE') ? rotaFinal : '',
                 rotaMoreno: !operacaoCombinada.includes('RECIFE') || operacaoCombinada.includes('/') ? rotaFinal : '',
                 observacao: [...obsSet].join(' - '),
