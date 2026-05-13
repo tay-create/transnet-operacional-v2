@@ -3267,27 +3267,29 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Ler col C e E da aba DELTA-PORCELANA (linhas 10 a 300)
+    // Ler cols C..F da aba DELTA-PORCELANA: C=P(prog), D=E(embarcado), E=coleta
+    // row[0]=C, row[1]=D, row[2]=E, row[3]=F
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!C9:E670`,
+        range: `'DELTA-PORCELANA'!C9:F670`,
     });
     const rows = resp.data.values || [];
 
     // Normaliza números de coleta do xlsx (remove zeros à esquerda e espaços)
     const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
 
-    // Extrair números de uma célula (podem vir separados por espaços)
-    const extrairNums = (str) => String(str || '').split(/\s+/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+    // Extrair números de uma célula (podem vir separados por espaços ou vírgulas)
+    const extrairNums = (str) => String(str || '').split(/[\s,]+/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
 
     const updates = [];
     rows.forEach((row, idx) => {
         if (idx === 0) return; // pula cabeçalho (L9)
-        const colC = (row[0] || '').toString().trim().toLowerCase();
-        const colE = row[2] || '';
-        if (!colE) return;
-        if (colC === 'x') return; // já marcado
-        const nums = extrairNums(colE);
+        const colC = (row[0] || '').toString().trim().toLowerCase(); // P = Programado
+        const colD = (row[1] || '').toString().trim().toLowerCase(); // E = Embarcado
+        const coleta = row[2] || ''; // COLETA
+        if (!coleta) return;
+        if (colC === 'x' || colD === 'x') return; // já programado ou embarcado
+        const nums = extrairNums(coleta);
         const bate = nums.some(n => setColetas.has(n));
         if (bate) {
             const linhaPlanilha = idx + 9; // idx 0 = linha 9
