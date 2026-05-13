@@ -331,6 +331,8 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
     const [rotaNovaInput, setRotaNovaInput] = useState('');
     const [coletasSumidas,  setColetasSumidas]  = useState(null);
     const [excluindoId, setExcluindoId] = useState(null);
+    const [liberarCteLotes, setLiberarCteLotes] = useState(null); // lotes com LIBERAR CTE na obs
+    const [liberarCteExcluidos, setLiberarCteExcluidos] = useState(new Set());
     const [reprogramarCard, setReprogramarCard] = useState(null);
     const [novaDataRepro,   setNovaDataRepro]   = useState('');
     const [veiculosProvisao, setVeiculosProvisao] = useState([]);
@@ -382,6 +384,8 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         }
     }, []);
 
+    const REGEX_LIBERAR_CTE = /liber[a-z]*\s*c\.?\s*[t-]\.?\s*[e-]?/i;
+
     const avancarParaRotaNova = (lotesResolvidos) => {
         const comRotaNova = lotesResolvidos.filter(l =>
             /rota\s*nova/i.test(l.observacao || '')
@@ -394,6 +398,23 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             setPasso(2);
             verificarDuplicatas(lotesResolvidos);
         }
+    };
+
+    const verificarLiberarCte = (lotesResolvidos) => {
+        const comCte = lotesResolvidos.filter(l => REGEX_LIBERAR_CTE.test(l.observacao || ''));
+        if (comCte.length > 0) {
+            setLotes(lotesResolvidos);
+            setLiberarCteExcluidos(new Set());
+            setLiberarCteLotes(comCte);
+        } else {
+            avancarParaRotaNova(lotesResolvidos);
+        }
+    };
+
+    const confirmarLiberarCte = () => {
+        const lotesFinais = lotes.filter(l => !liberarCteExcluidos.has(l._id));
+        setLiberarCteLotes(null);
+        avancarParaRotaNova(lotesFinais);
     };
 
     const detectarSumidas = useCallback(async (lotesResolvidos) => {
@@ -443,21 +464,21 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
             if (sumidos.length > 0) {
                 setColetasSumidas(sumidos);
             } else {
-                avancarParaRotaNova(lotesResolvidos);
+                verificarLiberarCte(lotesResolvidos);
             }
         } catch {
             setLotes(lotesResolvidos);
-            avancarParaRotaNova(lotesResolvidos);
+            verificarLiberarCte(lotesResolvidos);
         }
     }, [dataPrevista, avancarParaRotaNova]);
 
-    const resolverSumida = useCallback((idResolvido, lotesParaRotaNova) => {
+    const resolverSumida = useCallback((idResolvido, lotesParaProximo) => {
         const novaLista = (coletasSumidas || []).filter(c => c.id !== idResolvido);
         setColetasSumidas(novaLista.length > 0 ? novaLista : null);
         if (novaLista.length === 0) {
-            avancarParaRotaNova(lotesParaRotaNova);
+            verificarLiberarCte(lotesParaProximo);
         }
-    }, [coletasSumidas, avancarParaRotaNova]);
+    }, [coletasSumidas, verificarLiberarCte]);
 
     const avancarRotaNova = useCallback(() => {
         const proxima = rotaNovaFila[0] ?? null;
@@ -1047,6 +1068,76 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                                     Cancelar
                                 </button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Overlay LIBERAR CTE */}
+                    {liberarCteLotes && (
+                        <div style={{
+                            position: 'absolute', inset: 0, zIndex: 12, borderRadius: '16px',
+                            background: 'rgba(15,23,42,0.97)', display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', padding: '40px 32px', overflowY: 'auto',
+                        }}>
+                            <AlertCircle size={36} color="#f59e0b" style={{ marginBottom: '16px', flexShrink: 0 }} />
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#f1f5f9', marginBottom: '6px', textAlign: 'center' }}>
+                                Coletas com "LIBERAR CTE" na observação
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '20px', maxWidth: '400px', lineHeight: 1.6, textAlign: 'center' }}>
+                                Decida individualmente quais serão importadas. As marcadas para remover não entrarão no painel.
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '460px', marginBottom: '24px' }}>
+                                {liberarCteLotes.map(lote => {
+                                    const excluido = liberarCteExcluidos.has(lote._id);
+                                    return (
+                                        <div key={lote._id} style={{
+                                            background: excluido ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)',
+                                            border: `1px solid ${excluido ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.2)'}`,
+                                            borderRadius: '10px', padding: '10px 14px',
+                                            display: 'flex', alignItems: 'center', gap: '10px',
+                                            opacity: excluido ? 0.6 : 1,
+                                        }}>
+                                            <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '700', color: '#e2e8f0' }}>
+                                                    {lote.motorista || '—'} · <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{lote.placa1 || lote.placa || ''}</span>
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                                                    Coleta: {lote.coletaRecife || lote.coletaMoreno || lote.coletaInterestadual || '—'} · {lote.operacao || ''}
+                                                </div>
+                                                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', fontStyle: 'italic' }}>
+                                                    {(lote.observacao || '').slice(0, 80)}{(lote.observacao || '').length > 80 ? '…' : ''}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setLiberarCteExcluidos(prev => {
+                                                    const novo = new Set(prev);
+                                                    if (novo.has(lote._id)) novo.delete(lote._id);
+                                                    else novo.add(lote._id);
+                                                    return novo;
+                                                })}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '7px', border: 'none',
+                                                    background: excluido ? 'rgba(100,116,139,0.2)' : 'rgba(239,68,68,0.15)',
+                                                    color: excluido ? '#94a3b8' : '#fca5a5',
+                                                    fontSize: '11px', fontWeight: '700', cursor: 'pointer', flexShrink: 0,
+                                                }}
+                                            >
+                                                {excluido ? 'Incluir' : 'Remover'}
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <button
+                                onClick={confirmarLiberarCte}
+                                style={{
+                                    padding: '12px 36px', borderRadius: '10px', border: 'none',
+                                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                    color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer',
+                                }}
+                            >
+                                Continuar importação
+                                {liberarCteExcluidos.size > 0 && ` (${liberarCteExcluidos.size} removida${liberarCteExcluidos.size > 1 ? 's' : ''})`}
+                            </button>
                         </div>
                     )}
 
