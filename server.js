@@ -3253,6 +3253,64 @@ app.get('/api/geojson-brasil', asyncHandler(async (req, res) => {
 
 let resultadoCache = { data: null, ts: 0 };
 
+// POST /api/planilha/marcar-programadas
+// Recebe array de números de coleta, lê DELTA-PORCELANA col C+E, escreve "x" nas que estão sem "x"
+app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async (req, res) => {
+    const { coletas } = req.body; // array de strings com números de coleta
+    if (!Array.isArray(coletas) || coletas.length === 0)
+        return res.json({ success: true, marcadas: 0, detalhes: [] });
+
+    const { sheetId } = await getResultadoSheetId();
+    const auth = new google.auth.GoogleAuth({
+        keyFile: path.join(__dirname, 'google-credentials.json'),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ler col C e E da aba DELTA-PORCELANA (linhas 10 a 300)
+    const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `'DELTA-PORCELANA'!C10:E300`,
+    });
+    const rows = resp.data.values || [];
+
+    // Normaliza números de coleta do xlsx (remove zeros à esquerda e espaços)
+    const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
+
+    // Extrair números de uma célula (podem vir separados por espaços)
+    const extrairNums = (str) => String(str || '').split(/\s+/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+
+    const updates = [];
+    rows.forEach((row, idx) => {
+        const colC = (row[0] || '').toString().trim().toLowerCase();
+        const colE = row[2] || '';
+        if (!colE) return;
+        if (colC === 'x') return; // já marcado
+        const nums = extrairNums(colE);
+        const bate = nums.some(n => setColetas.has(n));
+        if (bate) {
+            const linhaPlanilha = idx + 10; // idx 0 = linha 10
+            updates.push({
+                range: `'DELTA-PORCELANA'!C${linhaPlanilha}`,
+                values: [['x']],
+            });
+        }
+    });
+
+    if (updates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: sheetId,
+            requestBody: {
+                valueInputOption: 'RAW',
+                data: updates,
+            },
+        });
+    }
+
+    const detalhes = updates.map(u => u.range);
+    res.json({ success: true, marcadas: updates.length, detalhes });
+}));
+
 // GET sheet_id do mês atual (ou mês anterior se não houver o atual)
 async function getResultadoSheetId() {
     const mesAtual = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);

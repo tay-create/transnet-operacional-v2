@@ -531,6 +531,18 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 setSucessos({});
                 setDuplicatas({});
 
+                // Marcar coletas como programadas na planilha (fire-and-forget, não bloqueia o fluxo)
+                const todosNumerosColeta = [];
+                for (const l of processados) {
+                    for (const campo of [l.coletaRecife, l.coletaMoreno, l.coletaInterestadual]) {
+                        extrairNumerosColeta(campo).forEach(n => todosNumerosColeta.push(n));
+                    }
+                }
+                if (todosNumerosColeta.length > 0) {
+                    api.post('/api/planilha/marcar-programadas', { coletas: todosNumerosColeta })
+                        .catch(() => {}); // silencioso — não interrompe importação se falhar
+                }
+
                 // PORCELANA/ELETRIK é sempre Moreno — só ELETRIK puro é ambíguo
                 const ambiguos = processados.filter(l => l.operacao === 'ELETRIK');
                 const semAmbiguidade = processados.filter(l => l.operacao !== 'ELETRIK');
