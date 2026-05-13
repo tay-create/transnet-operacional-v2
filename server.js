@@ -3270,7 +3270,7 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     // Ler col C e E da aba DELTA-PORCELANA (linhas 10 a 300)
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!C10:E300`,
+        range: `'DELTA-PORCELANA'!C9:E670`,
     });
     const rows = resp.data.values || [];
 
@@ -3282,6 +3282,7 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
 
     const updates = [];
     rows.forEach((row, idx) => {
+        if (idx === 0) return; // pula cabeçalho (L9)
         const colC = (row[0] || '').toString().trim().toLowerCase();
         const colE = row[2] || '';
         if (!colE) return;
@@ -3289,7 +3290,7 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
         const nums = extrairNums(colE);
         const bate = nums.some(n => setColetas.has(n));
         if (bate) {
-            const linhaPlanilha = idx + 10; // idx 0 = linha 10
+            const linhaPlanilha = idx + 9; // idx 0 = linha 9
             updates.push({
                 range: `'DELTA-PORCELANA'!C${linhaPlanilha}`,
                 values: [['x']],
