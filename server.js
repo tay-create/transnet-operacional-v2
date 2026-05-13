@@ -3257,10 +3257,12 @@ let resultadoCache = { data: null, ts: 0 };
 // Recebe array de números de coleta, lê DELTA-PORCELANA col C+E, escreve "x" nas que estão sem "x"
 app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async (req, res) => {
     const { coletas } = req.body; // array de strings com números de coleta
+    console.log('[marcar-programadas] recebeu', Array.isArray(coletas) ? coletas.length : 0, 'coletas:', coletas);
     if (!Array.isArray(coletas) || coletas.length === 0)
         return res.json({ success: true, marcadas: 0, detalhes: [] });
 
     const { sheetId } = await getResultadoSheetId();
+    console.log('[marcar-programadas] sheetId:', sheetId);
     const auth = new google.auth.GoogleAuth({
         keyFile: path.join(__dirname, 'google-credentials.json'),
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -3311,6 +3313,7 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     }
 
     const detalhes = updates.map(u => u.range);
+    console.log('[marcar-programadas] marcadas:', updates.length, 'detalhes:', detalhes);
     res.json({ success: true, marcadas: updates.length, detalhes });
 }));
 
