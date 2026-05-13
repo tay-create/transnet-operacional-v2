@@ -609,7 +609,8 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                         setBuscaMotorista(v);
                                         setFormVeiculo(f => ({ ...f, motorista: v }));
                                     }}
-                                    onBlur={() => setTimeout(() => setBuscaMotorista(formVeiculo.motorista), 150)}
+                                    onBlur={() => setBuscaMotorista('')}
+                                    onFocus={() => setBuscaMotorista(formVeiculo.motorista || '')}
                                     placeholder="Nome do motorista (opcional)"
                                     autoComplete="off"
                                 />
@@ -633,9 +634,10 @@ export default function ProvisionamentoFrota({ socket, user }) {
                                         ).map(m => (
                                             <div
                                                 key={m.id}
-                                                onMouseDown={() => {
+                                                onMouseDown={e => {
+                                                    e.preventDefault();
                                                     setFormVeiculo(f => ({ ...f, motorista: m.nome_motorista }));
-                                                    setBuscaMotorista(m.nome_motorista);
+                                                    setBuscaMotorista('');
                                                 }}
                                                 style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '12px', color: '#f1f5f9', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(125,211,252,0.12)'}
