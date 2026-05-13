@@ -727,7 +727,12 @@ function App({ socket }) {
             doca_moreno: 'SELECIONE',
             tempos_recife: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
             tempos_moreno: { inicio_separacao: '', fim_separacao: '', inicio_carregamento: '', fim_carregamento: '', liberado_cte: '' },
-            status_coleta: { solicitado: '', liberado: '' },
+            status_coleta: {
+                solicitado_data: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' }),
+                solicitado: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Recife' }),
+                liberado: '',
+                liberado_data: '',
+            },
             coletaRecife: precisaRecife ? formLanca.coletaRecife : '',
             coletaMoreno: precisaMoreno ? formLanca.coletaMoreno : '',
             coletaInterestadual: ehOperacaoInterestadual(formLanca.operacao) ? formLanca.coletaInterestadual : '',
