@@ -332,7 +332,7 @@ module.exports = function createChecklistsRouter(io) {
                     }
                 }
 
-                if (!isFrota) {
+                if (!isFrota && !ehInterestadual) {
                     // Verificar Ger. Risco
                     if (situacao !== 'LIBERADO') {
                         console.warn(`🔒 [Conferente/${cidade}] BLOQUEADO - Veículo #${veiculoId} (${veiculo.motorista}): Ger. Risco não liberado. Situação: ${situacao}`);
