@@ -3314,6 +3314,10 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
 
 // GET sheet_id do mês atual (ou mês anterior se não houver o atual)
 async function getResultadoSheetId() {
+    if (process.env.SHEETS_ID_OVERRIDE) {
+        const mes = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+        return { sheetId: process.env.SHEETS_ID_OVERRIDE, mes };
+    }
     const mesAtual = new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
     const row = await dbGet(
         `SELECT sheet_id FROM resultado_sheets WHERE mes = $1 ORDER BY mes DESC LIMIT 1`,
