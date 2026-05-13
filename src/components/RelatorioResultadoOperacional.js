@@ -370,7 +370,7 @@ export default function RelatorioResultadoOperacional() {
     const [regiaoFiltro, setRegiaoFiltro] = useState(null);
     const { user } = useAuthStore();
     const [modalSheet, setModalSheet] = useState(false);
-    const podeConfigurar = ['Coordenador', 'Direção', 'Planejamento'].includes(user?.cargo);
+    const podeConfigurar = ['Coordenador', 'Direção', 'Planejamento', 'Desenvolvedor'].includes(user?.cargo);
     const geojsonCacheRef = useRef(null);
     const [mes, setMes] = useState(() => {
         const d = new Date();

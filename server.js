@@ -3349,13 +3349,13 @@ app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, r
 }));
 
 // Listar planilhas cadastradas
-app.get('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+app.get('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Desenvolvedor']), asyncHandler(async (req, res) => {
     const rows = await dbAll(`SELECT mes, sheet_id, criado_em FROM resultado_sheets ORDER BY mes DESC`);
     res.json({ success: true, sheets: rows });
 }));
 
 // Cadastrar/atualizar planilha de um mês
-app.post('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), asyncHandler(async (req, res) => {
+app.post('/api/resultado-sheets', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Desenvolvedor']), asyncHandler(async (req, res) => {
     const { mes, sheet_id } = req.body;
     if (!mes || !/^\d{4}-\d{2}$/.test(mes)) return res.status(400).json({ success: false, message: 'Mês inválido. Use o formato YYYY-MM.' });
     if (!sheet_id || sheet_id.trim().length < 10) return res.status(400).json({ success: false, message: 'Sheet ID inválido.' });
