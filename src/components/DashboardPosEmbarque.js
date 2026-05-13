@@ -246,7 +246,7 @@ export default function DashboardPosEmbarque({ socket }) {
                                         {oc.operacao && (
                                             <span style={{
                                                 padding: '4px 12px', borderRadius: 6, fontSize: 14, fontWeight: 700,
-                                                background: 'rgba(100,116,139,0.15)', color: '#94a3b8',
+                                                background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: '700',
                                                 border: '1px solid rgba(0,229,255,0.3)',
                                                 
                                             }}>
