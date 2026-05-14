@@ -2632,20 +2632,33 @@ async function gerarProgramacaoDiaria(turno) {
         if (turno === 'Inicial') {
             // CARREGADO e LIBERADO P/ CT-e ainda fazem parte do fluxo do dia (cumpriram pátio mas
             // ainda precisam de CT-e/despacho). Só excluir cards que finalizaram de verdade.
+            // Inclui consolidados partidos: card aparece no dia se data_prevista, data_prevista_recife
+            // ou data_prevista_moreno = hoje.
             rows = await dbAll(`
-                SELECT id, unidade, operacao, data_prevista, data_prevista_original, data_criacao,
-                       foi_reprogramado, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
+                SELECT id, unidade, operacao, data_prevista, data_prevista_recife, data_prevista_moreno,
+                       data_prevista_original, data_criacao,
+                       foi_reprogramado, status_recife, status_moreno,
+                       motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
-                WHERE LEFT(data_prevista, 10) = ?
+                WHERE (LEFT(data_prevista, 10) = ?
+                       OR LEFT(COALESCE(data_prevista_recife,''), 10) = ?
+                       OR LEFT(COALESCE(data_prevista_moreno,''), 10) = ?)
                   AND NOT (
                     COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                     AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
                   )
-            `, [hojeStr]);
+            `, [hojeStr, hojeStr, hojeStr]);
 
             rows.forEach(v => {
                 const cliente = resolverCliente(v.operacao);
-                const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
+                // Lado ativo neste dia: se data_prevista_recife = hoje, conta como Recife;
+                // se data_prevista_moreno = hoje, conta como Moreno; senão usa unidade do card.
+                const dpR = String(v.data_prevista_recife || '').slice(0, 10);
+                const dpM = String(v.data_prevista_moreno || '').slice(0, 10);
+                let un;
+                if (dpR === hojeStr) un = 'recife';
+                else if (dpM === hojeStr) un = 'moreno';
+                else un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
 
                 const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
 
@@ -2664,7 +2677,7 @@ async function gerarProgramacaoDiaria(turno) {
                     placa: [placaExibir, placa2Exibir].filter(Boolean).join(' / '),
                     operacao: v.operacao || '',
                     cliente,
-                    unidade: v.unidade || '',
+                    unidade: un === 'moreno' ? 'Moreno' : 'Recife',
                     coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
                     reprogramado: foiReprogramado ? 1 : 0,
                 });
@@ -2672,9 +2685,7 @@ async function gerarProgramacaoDiaria(turno) {
 
         } else { // Final
             rows = await dbAll(`
-                SELECT id, unidade, operacao, data_prevista, data_prevista_recife, data_prevista_moreno,
-                       foi_reprogramado, status_recife, status_moreno,
-                       motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
+                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2683,27 +2694,10 @@ async function gerarProgramacaoDiaria(turno) {
                   )
             `, [hojeStr]);
 
-            const cumpriu = (st) => ['CARREGADO', 'LIBERADO P/ CT-e', 'FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'].includes(st || '');
-
             rows.forEach(v => {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
-
-                // Reprogramado se: marcado como reprogramado, OU consolidado com lado que mudou de data,
-                // OU veículo cujo lado da unidade atual não cumpriu até o fim do dia
-                const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
-                const ladoNaoCumpriuRecife = !cumpriu(v.status_recife);
-                const ladoNaoCumpriuMoreno = !cumpriu(v.status_moreno);
-                const consolidado = (v.operacao || '').includes('/');
-                const reprogramadoFinal = foiReprogramado
-                    || (consolidado && (ladoNaoCumpriuRecife || ladoNaoCumpriuMoreno))
-                    || (!consolidado && (un === 'recife' ? ladoNaoCumpriuRecife : ladoNaoCumpriuMoreno));
-
-                if (reprogramadoFinal) {
-                    totais[cliente][`reprogramado_${un}`] += 1;
-                } else {
-                    totais[cliente][un] += 1;
-                }
+                totais[cliente][un] += 1;
 
                 let dj2 = {}; try { dj2 = JSON.parse(v.dados_json || '{}'); } catch {}
                 const placaEx2 = dj2.placa1Motorista || v.placa || '';
@@ -2716,7 +2710,7 @@ async function gerarProgramacaoDiaria(turno) {
                     cliente,
                     unidade: v.unidade || '',
                     coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
-                    reprogramado: reprogramadoFinal ? 1 : 0,
+                    reprogramado: 0,
                 });
             });
         }
