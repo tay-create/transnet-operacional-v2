@@ -38,6 +38,19 @@ export default function PainelChecklist() {
         }
     };
 
+    const abrirFotoAmpliada = async (chk) => {
+        if (chk.foto_vazamento) return setImagemAmpliada(chk.foto_vazamento);
+        try {
+            const res = await api.get(`/api/checklists/${chk.id}/detalhe`);
+            if (res.data?.success && res.data.foto_vazamento) {
+                setChecklists(prev => prev.map(c => c.id === chk.id ? { ...c, foto_vazamento: res.data.foto_vazamento } : c));
+                setImagemAmpliada(res.data.foto_vazamento);
+            }
+        } catch (e) {
+            setAviso('Erro ao carregar foto.');
+        }
+    };
+
     const handleAtualizarStatus = async (id, novoStatus) => {
         if (!podeAprovar) return;
         try {
@@ -213,16 +226,25 @@ export default function PainelChecklist() {
                                             </div>
                                         </div>
 
-                                        {/* FOTO SE HOUVER */}
-                                        {chk.foto_vazamento && (
+                                        {/* FOTO SE HOUVER (carregada sob demanda) */}
+                                        {(chk.foto_vazamento || chk.tem_foto_vazamento) && (
                                             <div style={{ marginTop: '4px' }}>
                                                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>FOTO DA AVARIA</span>
-                                                <img
-                                                    src={chk.foto_vazamento}
-                                                    alt="Avaria"
-                                                    onClick={() => setImagemAmpliada(chk.foto_vazamento)}
-                                                    style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.3)', cursor: 'zoom-in' }}
-                                                />
+                                                {chk.foto_vazamento ? (
+                                                    <img
+                                                        src={chk.foto_vazamento}
+                                                        alt="Avaria"
+                                                        onClick={() => abrirFotoAmpliada(chk)}
+                                                        style={{ width: '100%', height: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(248,113,113,0.3)', cursor: 'zoom-in' }}
+                                                    />
+                                                ) : (
+                                                    <button
+                                                        onClick={() => abrirFotoAmpliada(chk)}
+                                                        style={{ width: '100%', height: '100px', borderRadius: '8px', border: '1px dashed rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.05)', color: '#f87171', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                                                    >
+                                                        Ver foto
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
 

@@ -47,12 +47,32 @@ module.exports = function createChecklistsRouter(io) {
     const router = express.Router();
 
     router.get('/api/checklists', authMiddleware, asyncHandler(async (req, res) => {
-            const checklists = await dbAll("SELECT * FROM checklists_carreta ORDER BY id DESC");
+            // Lista enxuta — fotos/assinaturas carregadas sob demanda no detalhe
+            const checklists = await dbAll(`
+                SELECT id, veiculo_id, motorista_nome, placa_carreta, placa_confere,
+                       condicao_bau, cordas, cordas_adicionais, conferente_nome,
+                       status, created_at, is_paletizado, tipo_palete, qtd_paletes, fornecedor_pbr,
+                       (foto_vazamento IS NOT NULL AND foto_vazamento <> '') AS tem_foto_vazamento,
+                       (assinatura IS NOT NULL AND assinatura <> '') AS tem_assinatura,
+                       (midias_json IS NOT NULL AND midias_json <> '' AND midias_json <> '[]') AS tem_midias
+                FROM checklists_carreta
+                ORDER BY id DESC
+            `);
             const formatted = checklists.map(c => ({
                 ...c,
                 placa_confere: c.placa_confere === 1
             }));
             res.json({ success: true, checklists: formatted });
+        }));
+
+    // GET detalhe — foto/assinatura/mídias carregadas sob demanda
+    router.get('/api/checklists/:id/detalhe', authMiddleware, asyncHandler(async (req, res) => {
+            const row = await dbGet(
+                `SELECT foto_vazamento, assinatura, midias_json FROM checklists_carreta WHERE id = ?`,
+                [req.params.id]
+            );
+            if (!row) return res.status(404).json({ success: false, message: 'Checklist não encontrado' });
+            res.json({ success: true, ...row });
         }));
 
     router.post('/api/checklists', authMiddleware, asyncHandler(async (req, res) => {

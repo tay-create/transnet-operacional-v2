@@ -49,6 +49,17 @@ export default function ChecklistPainel({ socket, addToast }) {
         };
     }, [socket, carregar]);
 
+    const abrirFotoAmpliada = async (chk) => {
+        if (chk.foto_vazamento) return setFotoAmpliada(chk.foto_vazamento);
+        try {
+            const res = await api.get(`/api/checklists/${chk.id}/detalhe`);
+            if (res.data?.success && res.data.foto_vazamento) {
+                setChecklists(prev => prev.map(c => c.id === chk.id ? { ...c, foto_vazamento: res.data.foto_vazamento } : c));
+                setFotoAmpliada(res.data.foto_vazamento);
+            }
+        } catch { /* silencioso */ }
+    };
+
     const acao = async (id, status) => {
         try {
             await api.put(`/api/checklists/${id}/status`, { status });
@@ -132,14 +143,23 @@ export default function ChecklistPainel({ socket, addToast }) {
                                                     </span>
                                                 )}
                                             </div>
-                                            {c.foto_vazamento && (
+                                            {(c.foto_vazamento || c.tem_foto_vazamento) && (
                                                 <div style={{ marginBottom: '10px' }}>
-                                                    <img
-                                                        src={c.foto_vazamento}
-                                                        alt="vazamento"
-                                                        onClick={() => setFotoAmpliada(c.foto_vazamento)}
-                                                        style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(239,68,68,0.4)' }}
-                                                    />
+                                                    {c.foto_vazamento ? (
+                                                        <img
+                                                            src={c.foto_vazamento}
+                                                            alt="vazamento"
+                                                            onClick={() => abrirFotoAmpliada(c)}
+                                                            style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '6px', cursor: 'pointer', border: '1px solid rgba(239,68,68,0.4)' }}
+                                                        />
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => abrirFotoAmpliada(c)}
+                                                            style={{ width: '80px', height: '60px', borderRadius: '6px', cursor: 'pointer', border: '1px dashed rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.05)', color: '#f87171', fontSize: '10px', fontWeight: 'bold' }}
+                                                        >
+                                                            Ver
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                             <div style={{ display: 'flex', gap: '8px' }}>
