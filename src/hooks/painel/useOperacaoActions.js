@@ -152,6 +152,21 @@ const reprogramarItemImpl = async (lista, setLista, realIndex, novaData, api, mo
             foi_reprogramado: foiReprogramado,
             ...(ladoLower ? { unidade: ladoLower } : {}),
         });
+        // Marcar "R" na planilha (Col B) só quando reprograma de fato.
+        // foiReprogramado=0 significa volta pra hoje (desfaz reprogramação) — não marca R.
+        if (foiReprogramado === 1) {
+            const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
+                .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                .filter(Boolean);
+            const coletas = [];
+            if (!ladoLower || ladoLower === 'recife') coletas.push(...extrairNums(item.coletaRecife));
+            if (!ladoLower || ladoLower === 'moreno') coletas.push(...extrairNums(item.coletaMoreno));
+            if (coletas.length === 0) extrairNums(item.coletaInterestadual).forEach(c => coletas.push(c));
+            if (coletas.length > 0) {
+                api.post('/api/planilha/marcar-reprogramada', { coletas })
+                    .catch(err => console.error('[reprogramar] falha ao marcar R na planilha:', err?.message));
+            }
+        }
     } catch (err) {
         console.error('Erro ao reprogramar:', err);
         mostrarNotificacao?.('⚠️ Erro ao reprogramar. Recarregue a página.');

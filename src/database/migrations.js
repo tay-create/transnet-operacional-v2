@@ -748,6 +748,43 @@ const inicializarBanco = async () => {
             } catch (_) {}
         }
 
+        // Gerador de Rotas (OSM público): cache de geocode + cache de distâncias
+        await dbRun(`CREATE TABLE IF NOT EXISTS geo_cache (
+            cidade_uf TEXT PRIMARY KEY,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL,
+            display_name TEXT,
+            criado_em TIMESTAMP DEFAULT NOW()
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS dist_cache (
+            origem_key TEXT NOT NULL,
+            destino_key TEXT NOT NULL,
+            distancia_metros INTEGER NOT NULL,
+            duracao_segundos INTEGER NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (origem_key, destino_key)
+        )`);
+
+        // Seed dos pontos fixos da Transnet (CDs) — evita geocoding
+        const SEED_GEO = [
+            ['RECIFE/PE', -8.0476, -34.8770, 'Recife, Pernambuco, Brasil'],
+            ['MORENO/PE', -8.1186, -35.0922, 'Moreno, Pernambuco, Brasil'],
+        ];
+        for (const [chave, lat, lon, nome] of SEED_GEO) {
+            try {
+                await pool.query(
+                    `INSERT INTO geo_cache (cidade_uf, lat, lon, display_name)
+                     VALUES ($1, $2, $3, $4) ON CONFLICT (cidade_uf) DO NOTHING`,
+                    [chave, lat, lon, nome]
+                );
+            } catch (_) {}
+        }
+
+        // Colunas novas em veiculos para guardar destinos ordenados + origem da rota
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS destinos_json TEXT`);
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS origem_rota TEXT`);
+
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");
         if (!perm) {

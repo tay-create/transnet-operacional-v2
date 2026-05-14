@@ -25,6 +25,7 @@ import PainelHeader from './painel/PainelHeader';
 import PainelDocas from './painel/PainelDocas';
 import PainelModais from './painel/PainelModais';
 import CardVeiculo from './painel/CardVeiculo';
+import ModalRotaCard from './painel/ModalRotaCard';
 
 
 export default function PainelOperacional({
@@ -45,6 +46,12 @@ export default function PainelOperacional({
         }
         return podeEditar(permissao);
     };
+
+    const [modalRotaVeiculo, setModalRotaVeiculo] = useState(null);
+    const funcoesAmpliadas = useMemo(() => ({
+        ...funcoes,
+        abrirModalRota: (item) => setModalRotaVeiculo(item)
+    }), [funcoes]);
 
     const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
     const {
@@ -199,7 +206,7 @@ export default function PainelOperacional({
                                         opcoesDocas={opcoesDocas}
                                         user={user}
                                         podeEditarNaUnidade={podeEditarNaUnidade}
-                                        funcoes={funcoes}
+                                        funcoes={funcoesAmpliadas}
                                         motoristasDisponiveis={motoristasDisponiveis}
                                         editandoMotorista={editandoMotorista} setEditandoMotorista={setEditandoMotorista}
                                         editandoPlaca={editandoPlaca} setEditandoPlaca={setEditandoPlaca}
@@ -280,6 +287,12 @@ export default function PainelOperacional({
                 updateList={updateList}
             />
 
+            <ModalRotaCard
+                isOpen={!!modalRotaVeiculo}
+                veiculo={modalRotaVeiculo}
+                onClose={() => setModalRotaVeiculo(null)}
+                mostrarNotificacao={mostrarNotificacao}
+            />
 
         </div >
     );

@@ -201,7 +201,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Registrar rotas após io e registrarLog estarem definidos
-const veiculosRouter = require('./src/routes/veiculos')(io, registrarLog);
+const veiculosRouter = require('./src/routes/veiculos')(io, registrarLog, () => getResultadoSheetId());
 app.use('/veiculos', veiculosRouter);
 app.use('/', veiculosRouter);
 
@@ -3053,6 +3053,7 @@ cron.schedule('30 22 * * *', async () => {
         let cardsVirados = 0;
         let ladosVirados = 0;
         let ctesVirados = 0;
+        const coletasParaPlanilha = new Set();
         for (const c of cards) {
             const virarRecife = c.data_prevista_recife === hojeStr
                 && STATUS_ATIVOS.includes(c.status_recife)
@@ -3096,6 +3097,13 @@ cron.schedule('30 22 * * *', async () => {
             if (virarRecife) ladosVirados++;
             if (virarMoreno) ladosVirados++;
 
+            // Acumula coletas para escrever "x" no R da planilha (e limpar P se houver)
+            const extrair = (s) => String(s || '').split(/[\s,|]+/)
+                .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                .filter(Boolean);
+            if (virarRecife) extrair(c.coletarecife).forEach(n => coletasParaPlanilha.add(n));
+            if (virarMoreno) extrair(c.coletamoreno).forEach(n => coletasParaPlanilha.add(n));
+
             // CT-e: só vira o do lado que de fato foi virado (e só se status era EM CARREGAMENTO)
             const ladosParaCte = [];
             if (virarRecife && c.status_recife === 'EM CARREGAMENTO') ladosParaCte.push(['Recife']);
@@ -3124,6 +3132,16 @@ cron.schedule('30 22 * * *', async () => {
 
         io.emit('receber_atualizacao', { tipo: 'refresh_geral' });
         console.log(`[CRON-ROLLOVER] ${cardsVirados} card(s) virado(s) (${ladosVirados} lado(s)) para ${amanhaStr} | ${ctesVirados} CT-e(s) acompanhado(s).`);
+
+        // Marca "x" na Col B (R) da planilha + limpa "x" da Col C (P) onde houver
+        if (coletasParaPlanilha.size > 0) {
+            try {
+                const r = await marcarReprogramadaNaPlanilha([...coletasParaPlanilha]);
+                console.log(`[CRON-ROLLOVER] planilha: R marcado em ${r.marcadas} linha(s), P limpo em ${r.limpasProgramado}.`);
+            } catch (e) {
+                console.error('[CRON-ROLLOVER] falha ao marcar R na planilha:', e.message);
+            }
+        }
     } catch (e) {
         console.error('[CRON-ROLLOVER] Erro:', e);
     }
@@ -3289,11 +3307,11 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Ler cols C..F da aba DELTA-PORCELANA: C=P(prog), D=E(embarcado), E=coleta
-    // row[0]=C, row[1]=D, row[2]=E, row[3]=F
+    // Ler cols B..F da aba DELTA-PORCELANA: B=R(reprogramado), C=P(prog), D=E(embarcado), E=coleta
+    // row[0]=B, row[1]=C, row[2]=D, row[3]=E, row[4]=F
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!C9:F670`,
+        range: `'DELTA-PORCELANA'!B9:F670`,
     });
     const rows = resp.data.values || [];
 
@@ -3306,10 +3324,12 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     const updates = [];
     rows.forEach((row, idx) => {
         if (idx === 0) return; // pula cabeçalho (L9)
-        const colC = (row[0] || '').toString().trim().toLowerCase(); // P = Programado
-        const colD = (row[1] || '').toString().trim().toLowerCase(); // E = Embarcado
-        const coleta = row[2] || ''; // COLETA
+        const colB = (row[0] || '').toString().trim().toLowerCase(); // R = Reprogramado
+        const colC = (row[1] || '').toString().trim().toLowerCase(); // P = Programado
+        const colD = (row[2] || '').toString().trim().toLowerCase(); // E = Embarcado
+        const coleta = row[3] || ''; // COLETA
         if (!coleta) return;
+        if (colB === 'x') return; // reprogramado tem precedência: nunca marca como Programado
         if (colC === 'x' || colD === 'x') return; // já programado ou embarcado
         const nums = extrairNums(coleta);
         const bate = nums.some(n => setColetas.has(n));
@@ -3335,6 +3355,72 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     const detalhes = updates.map(u => u.range);
     console.log('[marcar-programadas] marcadas:', updates.length, 'detalhes:', detalhes);
     res.json({ success: true, marcadas: updates.length, detalhes });
+}));
+
+// Helper reutilizável: marca "R" na Col B da planilha DELTA-PORCELANA e limpa
+// "x" da Col C (Programado) na mesma linha, num único batchUpdate.
+// Usado pelo endpoint manual e pelo cron de rollover.
+async function marcarReprogramadaNaPlanilha(coletas) {
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return { marcadas: 0, limpasProgramado: 0, detalhes: [] };
+    }
+    const { sheetId } = await getResultadoSheetId();
+    const auth = new google.auth.GoogleAuth({
+        keyFile: path.join(__dirname, 'google-credentials.json'),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ler cols B..F: B=R, C=P, D=E, E=coleta, F=...
+    const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `'DELTA-PORCELANA'!B9:F670`,
+    });
+    const rows = resp.data.values || [];
+    const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
+    const extrairNums = (str) => String(str || '').split(/[\s,]+/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+
+    const updates = [];
+    let limpasProgramado = 0;
+    rows.forEach((row, idx) => {
+        if (idx === 0) return; // header (L9)
+        const colB = (row[0] || '').toString().trim().toLowerCase();
+        const colC = (row[1] || '').toString().trim().toLowerCase();
+        const coleta = row[3] || '';
+        if (!coleta) return;
+        if (colB === 'x') return; // já reprogramado: não sobrescreve
+        const nums = extrairNums(coleta);
+        if (!nums.some(n => setColetas.has(n))) return;
+        const linhaPlanilha = idx + 9;
+        updates.push({ range: `'DELTA-PORCELANA'!B${linhaPlanilha}`, values: [['x']] });
+        if (colC === 'x') {
+            updates.push({ range: `'DELTA-PORCELANA'!C${linhaPlanilha}`, values: [['']] });
+            limpasProgramado++;
+        }
+    });
+
+    if (updates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: sheetId,
+            requestBody: { valueInputOption: 'RAW', data: updates },
+        });
+    }
+    const detalhes = updates.map(u => u.range);
+    const marcadas = updates.length - limpasProgramado;
+    console.log('[marcar-reprogramada] marcadas:', marcadas, 'limpasProgramado:', limpasProgramado, 'detalhes:', detalhes);
+    return { marcadas, limpasProgramado, detalhes };
+}
+
+// POST /api/planilha/marcar-reprogramada
+// Marca "x" na Col B (Reprogramado) e limpa "x" da Col C (Programado) se existir.
+app.post('/api/planilha/marcar-reprogramada', authMiddleware, asyncHandler(async (req, res) => {
+    const { coletas } = req.body;
+    console.log('[marcar-reprogramada] recebeu', Array.isArray(coletas) ? coletas.length : 0, 'coletas:', coletas);
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return res.json({ success: true, marcadas: 0, limpasProgramado: 0, detalhes: [] });
+    }
+    const resultado = await marcarReprogramadaNaPlanilha(coletas);
+    res.json({ success: true, ...resultado });
 }));
 
 // ── Lead Time Operacional ────────────────────────────────────────────────

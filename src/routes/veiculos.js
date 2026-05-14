@@ -21,9 +21,10 @@ function extrairNumerosColeta(str) {
         .filter(Boolean);
 }
 
-// Factory: recebe io e registrarLog do server.js
-module.exports = function createVeiculosRouter(io, registrarLog) {
+// Factory: recebe io, registrarLog e getResultadoSheetIdFn (lazy) do server.js
+module.exports = function createVeiculosRouter(io, registrarLog, getResultadoSheetIdFn) {
     const router = express.Router();
+    const { gerarRota } = require('../utils/geradorRotas');
 
     router.get('/veiculos', authMiddleware, asyncHandler(async (req, res) => {
             const __t0 = Date.now();
@@ -410,6 +411,26 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
                                 mudouData && 'data_prevista',
                             ].filter(Boolean).join(', ')}${deveResetar ? ' | Checklist resetado (motorista trocado, card pré-embarque)' : (mudouMotorista && jaEmbarcou ? ' | Checklist PRESERVADO (card já em carregamento)' : '')}`
                         );
+                        // Regenerar rota se a coleta atualizada não tem destinos ainda OU se os destinos podem ter mudado.
+                        // mesmoConjuntoDestinos garante que se a planilha já bate, não chama OSM.
+                        try {
+                            const cur = await dbGet(`SELECT destinos_json, operacao FROM veiculos WHERE id = ?`, [existente.id]);
+                            let destinosAtuais = null;
+                            try { destinosAtuais = cur?.destinos_json ? JSON.parse(cur.destinos_json) : null; } catch {}
+                            const coletaParaBusca = primeiroTagIns(v.coletaRecife) || primeiroTagIns(v.coletaMoreno) || primeiroTagIns(v.coletaInterestadual) || tag;
+                            const { sheetId } = await getResultadoSheetIdFn();
+                            const r = await gerarRota({ coleta: coletaParaBusca, operacao: cur?.operacao || v.operacao, sheetId, destinosAtuais });
+                            if (r.destinos_json || r.origem_rota) {
+                                await dbRun(
+                                    `UPDATE veiculos SET destinos_json = $1, origem_rota = $2 WHERE id = $3`,
+                                    [r.destinos_json, r.origem_rota, existente.id]
+                                );
+                            }
+                            console.log(`[veiculos POST update] rota id=${existente.id} aviso=${r.aviso || 'ok'}`);
+                        } catch (rotaErr) {
+                            console.error('[veiculos POST update] falha ao regenerar rota:', rotaErr.message);
+                        }
+
                         const veicAtualizado = await dbGet(`
                             SELECT v.*,
                                    (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
@@ -513,6 +534,26 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             const result = await dbRun(query, values);
 
+            // Gerar rota (destinos ordenados) a partir da planilha + OSM público.
+            // Falha aqui NÃO bloqueia criação do card — registra aviso e segue.
+            let avisoRota = null;
+            try {
+                const coletaParaBusca = primeiroTagIns(v.coletaRecife) || primeiroTagIns(v.coletaMoreno) || primeiroTagIns(v.coletaInterestadual);
+                const { sheetId } = await getResultadoSheetIdFn();
+                const r = await gerarRota({ coleta: coletaParaBusca, operacao: v.operacao, sheetId });
+                avisoRota = r.aviso;
+                if (r.destinos_json || r.origem_rota) {
+                    await dbRun(
+                        `UPDATE veiculos SET destinos_json = $1, origem_rota = $2 WHERE id = $3`,
+                        [r.destinos_json, r.origem_rota, result.lastID]
+                    );
+                }
+                console.log(`[veiculos POST] rota id=${result.lastID} coleta=${coletaParaBusca} aviso=${avisoRota || 'ok'}`);
+            } catch (rotaErr) {
+                avisoRota = 'erro-gerar-rota';
+                console.error('[veiculos POST] falha ao gerar rota:', rotaErr.message);
+            }
+
             // Atualizar status da marcação para 'Contratado' ou 'EM ROTA' (congela tempo de espera informando data_contratacao)
             // Frota própria (is_frota=1) NÃO muda status — pode carregar múltiplas vezes por dia
             const agora = obterDataHoraBrasilia();
@@ -586,7 +627,7 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
             );
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
-            res.json({ success: true, id: result.lastID });
+            res.json({ success: true, id: result.lastID, aviso_rota: avisoRota });
         }));
     router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), asyncHandler(async (req, res) => {
             const v = req.body;
@@ -1326,6 +1367,39 @@ module.exports = function createVeiculosRouter(io, registrarLog) {
 
             res.json({ success: true });
         }));
+
+    // POST /veiculos/:id/rota — salva edição manual de destinos (reordenar / remover).
+    // Body: { destinos: [{ cidade, uf, lat, lon, cidade_uf, ordem, distancia_do_anterior?, duracao_do_anterior? }, ...] }
+    router.post('/veiculos/:id/rota', authMiddleware, asyncHandler(async (req, res) => {
+        const { destinos } = req.body || {};
+        if (!Array.isArray(destinos)) {
+            return res.status(400).json({ success: false, message: 'destinos deve ser array' });
+        }
+        const id = req.params.id;
+        const existente = await dbGet(`SELECT id FROM veiculos WHERE id = ?`, [id]);
+        if (!existente) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+
+        // Reescreve ordem (1..N) baseado na posição no array, ignorando o ordem que vem do client.
+        const normalizados = destinos.map((d, idx) => ({
+            cidade: String(d.cidade || ''),
+            uf: String(d.uf || '').toUpperCase(),
+            cidade_uf: d.cidade_uf || `${String(d.cidade || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase()}/${String(d.uf || '').toUpperCase()}`,
+            lat: typeof d.lat === 'number' ? d.lat : Number(d.lat) || null,
+            lon: typeof d.lon === 'number' ? d.lon : Number(d.lon) || null,
+            display_name: d.display_name || null,
+            ordem: idx + 1,
+            distancia_do_anterior: typeof d.distancia_do_anterior === 'number' ? d.distancia_do_anterior : null,
+            duracao_do_anterior: typeof d.duracao_do_anterior === 'number' ? d.duracao_do_anterior : null,
+        }));
+
+        await dbRun(`UPDATE veiculos SET destinos_json = $1 WHERE id = $2`, [JSON.stringify(normalizados), id]);
+        await registrarLog('EDIÇÃO', req.user?.nome || '?', id, 'veiculo', null, null,
+            `Rota editada manualmente: ${normalizados.length} destinos`);
+
+        io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(id), destinos_json: JSON.stringify(normalizados) });
+        res.json({ success: true, destinos: normalizados });
+    }));
+
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
     router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {
