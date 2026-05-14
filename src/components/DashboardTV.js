@@ -1016,33 +1016,24 @@ function TelaLeadTimeOperacional({ dados, t, tema }) {
     const totais = dados?.totais || { transnet: {}, tramontina: {} };
     const porUF = dados?.porUF || {};
 
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0', animation: 'fadeSlide 0.4s ease-out' }}>
-            <div style={{ textAlign: 'center', marginBottom: 4 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>
-                    LEAD TIME OPERACIONAL
-                </h2>
-                <div style={{ fontSize: 13, color: t.textDim, marginTop: 4, fontWeight: 600, letterSpacing: 1 }}>
-                    {dados?.mes ? `Mês ${dados.mes}` : '—'} · {totais.transnet?.total || 0} entregas
-                </div>
+    if (!dados) {
+        return (
+            <div style={{ textAlign: 'center', padding: 60, color: t.textMuted, fontSize: 14, animation: 'fadeSlide 0.4s ease-out' }}>
+                Carregando dados de Lead Time…
             </div>
+        );
+    }
 
-            {!dados && (
-                <div style={{ textAlign: 'center', padding: 60, color: t.textMuted, fontSize: 14 }}>
-                    Carregando dados…
-                </div>
-            )}
-            {dados && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <BarrasClassificacao titulo="Transnet (por UF)" totais={totais.transnet} height={200} />
-                        <BarrasClassificacao titulo="Tramontina (por região)" totais={totais.tramontina} height={200} />
-                    </div>
-                    <div>
-                        <MapaLeadTime porUF={porUF} height={460} />
-                    </div>
-                </div>
-            )}
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0', animation: 'fadeSlide 0.4s ease-out' }}>
+            {/* Mapa em cima */}
+            <MapaLeadTime porUF={porUF} height={420} />
+
+            {/* Barras embaixo, verticais (de baixo para cima) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <BarrasClassificacao titulo="Transnet (por UF)" totais={totais.transnet} height={240} orientacao="vertical" />
+                <BarrasClassificacao titulo="Tramontina (por região)" totais={totais.tramontina} height={240} orientacao="vertical" />
+            </div>
         </div>
     );
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
 import { TrendingUp, Truck, FileText, Filter, RefreshCw, Map as MapIcon } from 'lucide-react';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
@@ -95,34 +95,158 @@ export default function PainelLeadTime() {
         return { porUF, porRegiao };
     }, [linhasFiltradas]);
 
-    const gerarRelatorioXLSX = () => {
+    const gerarRelatorioPDF = () => {
         if (!linhasFiltradas.length) return;
-        const wb = XLSX.utils.book_new();
-        const dataRows = linhasFiltradas.map(l => ({
-            Rota: l.rota,
-            Cidade: l.cidade,
-            UF: l.uf,
-            Região: l.regiao ? NOME_REGIAO[l.regiao] || l.regiao : '',
-            'Data Embarque': l.embarque || '',
-            'Data Agendamento': l.agendamento || '',
-            'Dias Úteis': l.diasUteis ?? '',
-            'Lead Transnet': l.leadPadraoTransnet ?? '',
-            'Lead Tramontina': l.leadPadraoTramontina ?? '',
-            'Classificação Transnet': l.classTransnet,
-            'Classificação Tramontina': l.classTramontina,
-        }));
-        const ws = XLSX.utils.json_to_sheet(dataRows);
-        XLSX.utils.book_append_sheet(wb, ws, 'Lead Time');
+        // A4 paisagem, mm — 297 x 210. Uma página, gráficos + totais.
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const W = 297, H = 210;
+        const COR = { ANTECIPADO: '#22c55e', DENTRO: '#3b82f6', FORA: '#ef4444', AGUARDANDO: '#64748b' };
 
-        const totaisAba = [
-            { Categoria: 'TRANSNET', Antecipado: totaisFiltrados.transnet.antecipado, Dentro: totaisFiltrados.transnet.dentro, Fora: totaisFiltrados.transnet.fora, Aguardando: totaisFiltrados.transnet.aguardando, Total: totaisFiltrados.transnet.total, 'Média Dias': totaisFiltrados.transnet.mediaDias ?? '' },
-            { Categoria: 'TRAMONTINA', Antecipado: totaisFiltrados.tramontina.antecipado, Dentro: totaisFiltrados.tramontina.dentro, Fora: totaisFiltrados.tramontina.fora, Aguardando: totaisFiltrados.tramontina.aguardando, Total: totaisFiltrados.tramontina.total, 'Média Dias': totaisFiltrados.tramontina.mediaDias ?? '' },
+        // Header
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, W, 20, 'F');
+        doc.setTextColor(241, 245, 249);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text('LEAD TIME OPERACIONAL', 10, 13);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const sub = `${dados?.mes ? `Mês ${dados.mes}` : ''}${ufFiltro ? ` · UF ${ufFiltro}` : ''}${regiaoFiltro ? ` · Região ${NOME_REGIAO[regiaoFiltro]}` : ''}`;
+        doc.text(sub, 10, 17.5);
+        const dataGer = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        doc.text(`Gerado em ${dataGer} · ${user?.nome || ''}`, W - 10, 17.5, { align: 'right' });
+
+        // KPIs (linha de 4 caixas)
+        const kpiY = 26;
+        const kpiH = 22;
+        const kpis = [
+            { label: 'TOTAL ENTREGAS', valor: linhasFiltradas.length, cor: '#60a5fa' },
+            { label: 'ANTECIPADO (Transnet)', valor: totaisFiltrados.transnet.antecipado, cor: COR.ANTECIPADO },
+            { label: 'DENTRO (Transnet)', valor: totaisFiltrados.transnet.dentro, cor: COR.DENTRO },
+            { label: 'FORA (Transnet)', valor: totaisFiltrados.transnet.fora, cor: COR.FORA },
         ];
-        const wsTot = XLSX.utils.json_to_sheet(totaisAba);
-        XLSX.utils.book_append_sheet(wb, wsTot, 'Totais');
+        const kpiGap = 4;
+        const kpiW = (W - 20 - kpiGap * (kpis.length - 1)) / kpis.length;
+        kpis.forEach((k, i) => {
+            const x = 10 + i * (kpiW + kpiGap);
+            doc.setDrawColor(226, 232, 240);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(x, kpiY, kpiW, kpiH, 2, 2, 'FD');
+            // Barra colorida lateral
+            const c = hexToRgb(k.cor);
+            doc.setFillColor(c.r, c.g, c.b);
+            doc.rect(x, kpiY, 1.6, kpiH, 'F');
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.text(k.label, x + 4, kpiY + 5.5);
+            doc.setTextColor(c.r, c.g, c.b);
+            doc.setFontSize(18);
+            doc.text(String(k.valor), x + 4, kpiY + 16);
+        });
 
-        const nome = `lead-time-${dados?.mes || 'atual'}${ufFiltro ? `-${ufFiltro}` : ''}${regiaoFiltro ? `-${regiaoFiltro}` : ''}.xlsx`;
-        XLSX.writeFile(wb, nome);
+        // Função de desenhar barras horizontais com totais
+        const desenharGraficoBarras = (titulo, totais, x, y, w, h) => {
+            // Título
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.text(titulo, x, y);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`${totais.total || 0} entregas${totais.mediaDias != null ? ` · média ${totais.mediaDias}d` : ''}`, x + w, y, { align: 'right' });
+
+            const yTop = y + 4;
+            const itens = [
+                { label: 'ANTECIPADO', valor: totais.antecipado, cor: COR.ANTECIPADO },
+                { label: 'DENTRO',     valor: totais.dentro,     cor: COR.DENTRO },
+                { label: 'FORA',       valor: totais.fora,       cor: COR.FORA },
+                ...(totais.aguardando > 0 ? [{ label: 'AGUARDANDO', valor: totais.aguardando, cor: COR.AGUARDANDO }] : []),
+            ];
+            const totalRef = Math.max(1, ...itens.map(i => i.valor), 1);
+            const labelW = 28;
+            const barAreaW = w - labelW - 26;
+            const rowH = (h - 6) / itens.length;
+            itens.forEach((it, i) => {
+                const ry = yTop + i * rowH;
+                // Label categoria
+                doc.setTextColor(71, 85, 105);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.text(it.label, x, ry + rowH * 0.6);
+                // Trilho cinza
+                doc.setFillColor(241, 245, 249);
+                doc.rect(x + labelW, ry + rowH * 0.25, barAreaW, rowH * 0.55, 'F');
+                // Barra colorida
+                const c = hexToRgb(it.cor);
+                doc.setFillColor(c.r, c.g, c.b);
+                const barW = barAreaW * (it.valor / totalRef);
+                doc.rect(x + labelW, ry + rowH * 0.25, barW, rowH * 0.55, 'F');
+                // Valor
+                doc.setTextColor(15, 23, 42);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                const pct = totais.total > 0 ? Math.round((it.valor / totais.total) * 100) : 0;
+                doc.text(`${it.valor} (${pct}%)`, x + labelW + barAreaW + 2, ry + rowH * 0.6);
+            });
+        };
+
+        // Dois gráficos lado a lado
+        const grY = kpiY + kpiH + 8;
+        const grH = 56;
+        const grW = (W - 20 - 6) / 2;
+        desenharGraficoBarras('Transnet (por UF destino)', totaisFiltrados.transnet, 10, grY, grW, grH);
+        desenharGraficoBarras('Tramontina (por região)', totaisFiltrados.tramontina, 10 + grW + 6, grY, grW, grH);
+
+        // Tabela por região (Tramontina) — pequena, com fundo
+        const tabY = grY + grH + 10;
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text('Resumo por Região (Tramontina)', 10, tabY);
+
+        const cols = ['Região', 'Antecipado', 'Dentro', 'Fora', 'Aguard.', 'Total'];
+        const tabXs = [10, 50, 90, 130, 170, 210];
+        const tabRowH = 6;
+        const tabHeadY = tabY + 4;
+        doc.setFillColor(241, 245, 249);
+        doc.rect(10, tabHeadY, 250, tabRowH, 'F');
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(8);
+        cols.forEach((c, i) => doc.text(c, tabXs[i] + 2, tabHeadY + 4));
+
+        const regs = Object.entries(agregadosFiltrados.porRegiao).sort();
+        regs.forEach(([reg, agg], idx) => {
+            const ry = tabHeadY + tabRowH + idx * tabRowH;
+            if (idx % 2 === 0) {
+                doc.setFillColor(252, 253, 254);
+                doc.rect(10, ry, 250, tabRowH, 'F');
+            }
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.text(NOME_REGIAO[reg] || reg, tabXs[0] + 2, ry + 4);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(34, 197, 94);  doc.text(String(agg.antecipado),  tabXs[1] + 2, ry + 4);
+            doc.setTextColor(59, 130, 246); doc.text(String(agg.dentro),       tabXs[2] + 2, ry + 4);
+            doc.setTextColor(239, 68, 68);  doc.text(String(agg.fora),         tabXs[3] + 2, ry + 4);
+            doc.setTextColor(100, 116, 139); doc.text(String(agg.aguardando),  tabXs[4] + 2, ry + 4);
+            doc.setTextColor(15, 23, 42);   doc.text(String(agg.total),        tabXs[5] + 2, ry + 4);
+        });
+
+        // Rodapé com lead padrão usado
+        const fy = H - 8;
+        doc.setDrawColor(226, 232, 240);
+        doc.line(10, fy - 3, W - 10, fy - 3);
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text('Lead Transnet: dias úteis padrão por UF destino (PE→UF). Lead Tramontina: dias úteis padrão por região.', 10, fy);
+        doc.text(`Página 1/1 · Lead Time Operacional`, W - 10, fy, { align: 'right' });
+
+        const nome = `lead-time-${dados?.mes || 'atual'}${ufFiltro ? `-${ufFiltro}` : ''}${regiaoFiltro ? `-${regiaoFiltro}` : ''}.pdf`;
+        doc.save(nome);
     };
 
     const limparFiltros = () => { setUfFiltro(null); setRegiaoFiltro(null); };
@@ -158,8 +282,8 @@ export default function PainelLeadTime() {
                         <RefreshCw size={13} /> Atualizar
                     </button>
                     {podeGerarRelatorio && (
-                        <button onClick={gerarRelatorioXLSX} disabled={!linhasFiltradas.length} style={btnPrimario}>
-                            <FileText size={13} /> Gerar relatório XLSX
+                        <button onClick={gerarRelatorioPDF} disabled={!linhasFiltradas.length} style={btnPrimario}>
+                            <FileText size={13} /> Gerar relatório PDF
                         </button>
                     )}
                 </div>
@@ -173,23 +297,23 @@ export default function PainelLeadTime() {
                 <Kpi titulo="Antecipado (Transnet)" valor={totaisFiltrados.transnet.antecipado} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.antecipado / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#22c55e" />
             </div>
 
-            {/* Barras e mapa */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(420px, 1.2fr)', gap: 16, marginBottom: 16 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <BarrasClassificacao titulo="Lead Time — Transnet (por UF destino)" totais={totaisFiltrados.transnet} />
-                    <BarrasClassificacao titulo="Lead Time — Tramontina (por região)" totais={totaisFiltrados.tramontina} />
+            {/* Mapa em cima */}
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>
+                    <MapIcon size={14} /> MAPA — clique num estado para filtrar
                 </div>
-                <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: '#94a3b8', fontSize: 12, fontWeight: 700, letterSpacing: 1 }}>
-                        <MapIcon size={14} /> MAPA — clique num estado para filtrar
-                    </div>
-                    <MapaLeadTime
-                        porUF={agregadosFiltrados.porUF}
-                        ufSelecionada={ufFiltro}
-                        onClickUF={(sigla) => setUfFiltro(prev => prev === sigla ? null : sigla)}
-                        height={420}
-                    />
-                </div>
+                <MapaLeadTime
+                    porUF={agregadosFiltrados.porUF}
+                    ufSelecionada={ufFiltro}
+                    onClickUF={(sigla) => setUfFiltro(prev => prev === sigla ? null : sigla)}
+                    height={420}
+                />
+            </div>
+
+            {/* Barras embaixo (verticais — de baixo para cima) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <BarrasClassificacao titulo="Lead Time — Transnet (por UF destino)" totais={totaisFiltrados.transnet} orientacao="vertical" />
+                <BarrasClassificacao titulo="Lead Time — Tramontina (por região)" totais={totaisFiltrados.tramontina} orientacao="vertical" />
             </div>
 
             {/* Tabela região */}
@@ -252,6 +376,15 @@ function corClasse(c) {
     if (c === 'DENTRO')     return '#3b82f6';
     if (c === 'FORA')       return '#ef4444';
     return '#64748b';
+}
+
+function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    return {
+        r: parseInt(h.substring(0, 2), 16),
+        g: parseInt(h.substring(2, 4), 16),
+        b: parseInt(h.substring(4, 6), 16),
+    };
 }
 
 function Kpi({ titulo, valor, sub, cor, icone }) {
