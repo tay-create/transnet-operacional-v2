@@ -2698,9 +2698,12 @@ async function gerarProgramacaoDiaria(turno) {
             rows.forEach(v => {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
-                // Se o lado da unidade do card foi reprogramado pra outra data, ele saiu deste dia
-                const dpLado = String((un === 'recife' ? v.data_prevista_recife : v.data_prevista_moreno) || '').slice(0, 10);
-                if (dpLado && dpLado !== hojeStr) return;
+                // Só consolidados respeitam data_prevista_<lado>; não-consolidados seguem data_prevista
+                const consolidado = (v.operacao || '').includes('/');
+                if (consolidado) {
+                    const dpLado = String((un === 'recife' ? v.data_prevista_recife : v.data_prevista_moreno) || '').slice(0, 10);
+                    if (dpLado && dpLado !== hojeStr) return;
+                }
                 totais[cliente][un] += 1;
 
                 let dj2 = {}; try { dj2 = JSON.parse(v.dados_json || '{}'); } catch {}
