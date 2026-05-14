@@ -756,6 +756,17 @@ function App({ socket }) {
         try {
             const respLanca = await api.post('/veiculos', novoItem);
 
+            // Marcar coleta como programada na planilha (fire-and-forget)
+            const extrairNums = (str) => String(str || '').split(/[|,]/).map(p => p.trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').trim()).filter(Boolean);
+            const numsColeta = [
+                ...extrairNums(novoItem.coletaRecife),
+                ...extrairNums(novoItem.coletaMoreno),
+                ...extrairNums(novoItem.coletaInterestadual),
+            ];
+            if (numsColeta.length > 0) {
+                api.post('/api/planilha/marcar-programadas', { coletas: numsColeta }).catch(() => {});
+            }
+
             // Se veio da fila, remove o item original
             if (formLanca.idFilaOriginal) {
                 await removerDaFila(formLanca.idFilaOriginal);
