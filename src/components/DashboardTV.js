@@ -506,13 +506,19 @@ function TelaVisaoGeral({ veiculos, ctesRecife, ctesMoreno, ctesSP = [], t, tema
     ].filter(d => d.value > 0);
 
     // Dados para gráfico de barras de status geral (Recife + Moreno + SP separados)
+    // Em consolidados partidos (lados em datas diferentes), só conta o lado cuja data é hoje
+    const hojeIso = obterDataBrasilia();
+    const ladoEhHoje = (v, lado) => {
+        const dp = (lado === 'recife' ? v.data_prevista_recife : v.data_prevista_moreno) || v.data_prevista || '';
+        return String(dp).split('T')[0] === hojeIso;
+    };
     const dadosBarrasStatus = OPCOES_STATUS.map(s => ({
         name: s,
         fullName: s,
-        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && !ehOperacaoLeaoEletrikSul(v.operacao) &&
+        Recife: veiculos.filter(v => ehOperacaoRecife(v.operacao) && !ehOperacaoLeaoEletrikSul(v.operacao) && ladoEhHoje(v, 'recife') &&
             (s === 'LIBERADO P/ CT-e' ? !!v.cte_antecipado_recife : v.status_recife === s)
         ).length,
-        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) &&
+        Moreno: veiculos.filter(v => ehOperacaoMoreno(v.operacao) && ladoEhHoje(v, 'moreno') &&
             (s === 'LIBERADO P/ CT-e' ? !!v.cte_antecipado_moreno : v.status_moreno === s)
         ).length,
         'São Paulo': veiculos.filter(v => ehOperacaoLeaoEletrikSul(v.operacao) &&
