@@ -13,9 +13,9 @@ const CORES = {
 export default function BarrasClassificacao({ titulo, totais, height = 260, orientacao = 'vertical' }) {
     const t = totais || { antecipado: 0, dentro: 0, fora: 0, aguardando: 0, total: 0 };
     const data = [
-        { categoria: 'ANTECIPADO', valor: t.antecipado, cor: CORES.ANTECIPADO },
-        { categoria: 'DENTRO',     valor: t.dentro,     cor: CORES.DENTRO },
-        { categoria: 'FORA',       valor: t.fora,       cor: CORES.FORA },
+        { categoria: 'ANTECIPADO',           valor: t.antecipado, cor: CORES.ANTECIPADO },
+        { categoria: 'DENTRO DO LEAD TIME',  valor: t.dentro,     cor: CORES.DENTRO },
+        { categoria: 'FORA DO LEAD TIME',    valor: t.fora,       cor: CORES.FORA },
     ];
     if (t.aguardando > 0) data.push({ categoria: 'AGUARDANDO', valor: t.aguardando, cor: CORES.AGUARDANDO });
 

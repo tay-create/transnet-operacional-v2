@@ -1026,6 +1026,15 @@ function TelaLeadTimeOperacional({ dados, t, tema }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0', animation: 'fadeSlide 0.4s ease-out' }}>
+            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>
+                    LEAD TIME OPERACIONAL
+                </h2>
+                <div style={{ fontSize: 13, color: t.textDim, marginTop: 4, fontWeight: 600, letterSpacing: 1 }}>
+                    {dados?.mes ? `Mês ${dados.mes}` : '—'} · {totais.transnet?.total || 0} entregas
+                </div>
+            </div>
+
             {/* Mapa em cima */}
             <MapaLeadTime porUF={porUF} height={420} />
 

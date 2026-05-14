@@ -122,8 +122,8 @@ export default function PainelLeadTime() {
         const kpis = [
             { label: 'TOTAL ENTREGAS', valor: linhasFiltradas.length, cor: '#60a5fa' },
             { label: 'ANTECIPADO (Transnet)', valor: totaisFiltrados.transnet.antecipado, cor: COR.ANTECIPADO },
-            { label: 'DENTRO (Transnet)', valor: totaisFiltrados.transnet.dentro, cor: COR.DENTRO },
-            { label: 'FORA (Transnet)', valor: totaisFiltrados.transnet.fora, cor: COR.FORA },
+            { label: 'DENTRO DO LEAD TIME (Transnet)', valor: totaisFiltrados.transnet.dentro, cor: COR.DENTRO },
+            { label: 'FORA DO LEAD TIME (Transnet)', valor: totaisFiltrados.transnet.fora, cor: COR.FORA },
         ];
         const kpiGap = 4;
         const kpiW = (W - 20 - kpiGap * (kpis.length - 1)) / kpis.length;
@@ -159,9 +159,9 @@ export default function PainelLeadTime() {
 
             const yTop = y + 4;
             const itens = [
-                { label: 'ANTECIPADO', valor: totais.antecipado, cor: COR.ANTECIPADO },
-                { label: 'DENTRO',     valor: totais.dentro,     cor: COR.DENTRO },
-                { label: 'FORA',       valor: totais.fora,       cor: COR.FORA },
+                { label: 'ANTECIPADO',           valor: totais.antecipado, cor: COR.ANTECIPADO },
+                { label: 'DENTRO DO LEAD TIME', valor: totais.dentro,     cor: COR.DENTRO },
+                { label: 'FORA DO LEAD TIME',   valor: totais.fora,       cor: COR.FORA },
                 ...(totais.aguardando > 0 ? [{ label: 'AGUARDANDO', valor: totais.aguardando, cor: COR.AGUARDANDO }] : []),
             ];
             const totalRef = Math.max(1, ...itens.map(i => i.valor), 1);
@@ -292,8 +292,8 @@ export default function PainelLeadTime() {
             {/* KPIs topo */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
                 <Kpi titulo="Total Entregas" valor={linhasFiltradas.length} sub={dados?.mes} cor="#60a5fa" icone={<Truck size={16} />} />
-                <Kpi titulo="Fora do Lead (Transnet)" valor={totaisFiltrados.transnet.fora} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.fora / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#ef4444" />
-                <Kpi titulo="Dentro do Lead (Transnet)" valor={totaisFiltrados.transnet.dentro} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.dentro / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#3b82f6" />
+                <Kpi titulo="Fora do Lead Time (Transnet)" valor={totaisFiltrados.transnet.fora} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.fora / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#ef4444" />
+                <Kpi titulo="Dentro do Lead Time (Transnet)" valor={totaisFiltrados.transnet.dentro} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.dentro / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#3b82f6" />
                 <Kpi titulo="Antecipado (Transnet)" valor={totaisFiltrados.transnet.antecipado} sub={`${totaisFiltrados.transnet.total > 0 ? ((totaisFiltrados.transnet.antecipado / totaisFiltrados.transnet.total) * 100).toFixed(0) : 0}% do total`} cor="#22c55e" />
             </div>
 
