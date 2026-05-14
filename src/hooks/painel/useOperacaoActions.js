@@ -126,18 +126,20 @@ const reprogramarItemImpl = async (lista, setLista, realIndex, novaData, api, mo
     const item = lista[realIndex];
     if (!item?.id) return;
     const ladoLower = unidade ? String(unidade).toLowerCase() : undefined;
+    const consolidado = String(item.operacao || '').includes('/');
     const novaLista = [...lista];
     const itemAtualizado = { ...item, foi_reprogramado: foiReprogramado };
-    if (ladoLower === 'recife') {
+    if (ladoLower === 'recife' && consolidado) {
         itemAtualizado.data_prevista_recife = novaData;
         // guarda-chuva otimista = menor das duas
         const outraData = item.data_prevista_moreno || novaData;
         itemAtualizado.data_prevista = (novaData < outraData) ? novaData : outraData;
-    } else if (ladoLower === 'moreno') {
+    } else if (ladoLower === 'moreno' && consolidado) {
         itemAtualizado.data_prevista_moreno = novaData;
         const outraData = item.data_prevista_recife || novaData;
         itemAtualizado.data_prevista = (novaData < outraData) ? novaData : outraData;
     } else {
+        // Não-consolidado ou sem lado especificado: força os 3 iguais
         itemAtualizado.data_prevista = novaData;
         itemAtualizado.data_prevista_recife = novaData;
         itemAtualizado.data_prevista_moreno = novaData;
