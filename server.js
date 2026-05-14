@@ -3337,6 +3337,65 @@ app.post('/api/planilha/marcar-programadas', authMiddleware, asyncHandler(async 
     res.json({ success: true, marcadas: updates.length, detalhes });
 }));
 
+// ── Lead Time Operacional ────────────────────────────────────────────────
+let leadTimeCache = { data: null, ts: 0 };
+const LEAD_TIME_TTL_MS = 60 * 1000;
+
+app.get('/api/lead-time-operacional', authMiddleware, asyncHandler(async (req, res) => {
+    if (leadTimeCache.data && Date.now() - leadTimeCache.ts < LEAD_TIME_TTL_MS) {
+        return res.json(leadTimeCache.data);
+    }
+
+    const { sheetId, mes } = await getResultadoSheetId();
+    const auth = new google.auth.GoogleAuth({
+        keyFile: path.join(__dirname, 'google-credentials.json'),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `'DELTA-PORCELANA'!A10:AC670`,
+    });
+    const rows = resp.data.values || [];
+
+    const { parseLinhasLeadTime, classificarEntrega, agregarLeadTime } = require('./src/utils/leadTimeOperacional');
+    const { LEAD_PADRAO_TRAMONTINA_REGIAO } = require('./src/utils/tramontinaLeadTime');
+
+    // Lead Transnet por UF (mapa PE → UF destino)
+    const ufRows = await dbAll(
+        `SELECT uf_destino, dias_uteis_padrao FROM tramontina_lead_padrao_uf WHERE uf_origem = $1`,
+        ['PE']
+    );
+    const mapUF = Object.fromEntries(ufRows.map(r => [r.uf_destino, r.dias_uteis_padrao]));
+
+    // Lead Tramontina por região (fallback para constante se tabela vazia)
+    let mapRegiao;
+    try {
+        const regRows = await dbAll(`SELECT regiao, dias_uteis_padrao FROM tramontina_lead_padrao_regiao`);
+        mapRegiao = Object.fromEntries(regRows.map(r => [r.regiao, r.dias_uteis_padrao]));
+        if (Object.keys(mapRegiao).length === 0) mapRegiao = { ...LEAD_PADRAO_TRAMONTINA_REGIAO };
+    } catch (_) {
+        mapRegiao = { ...LEAD_PADRAO_TRAMONTINA_REGIAO };
+    }
+
+    const entregasParseadas = parseLinhasLeadTime(rows);
+    const entregasClassificadas = entregasParseadas.map(e => classificarEntrega(e, mapUF, mapRegiao));
+    const agregados = agregarLeadTime(entregasClassificadas);
+
+    const payload = {
+        success: true,
+        mes,
+        totais: { transnet: agregados.transnet, tramontina: agregados.tramontina },
+        porUF: agregados.porUF,
+        porRegiao: agregados.porRegiao,
+        linhas: entregasClassificadas,
+        leads: { transnetPorUF: mapUF, tramontinaPorRegiao: mapRegiao },
+    };
+    leadTimeCache = { data: payload, ts: Date.now() };
+    res.json(payload);
+}));
+
 // GET sheet_id do mês atual (ou mês anterior se não houver o atual)
 async function getResultadoSheetId() {
     if (process.env.SHEETS_ID_OVERRIDE) {

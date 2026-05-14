@@ -1,13 +1,13 @@
 const bcrypt = require('bcryptjs');
-const { dbRun, dbGet } = require('./db');
+const { dbRun, dbGet, db: pool } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
     'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes', 'painel_frota'],
     'Aux. Operacional': ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila', 'painel_frota'],
     'Conhecimento':     ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
@@ -706,7 +706,8 @@ const inicializarBanco = async () => {
             PRIMARY KEY (uf_origem, uf_destino)
         )`);
 
-        // Seed lead padrão (origem PE → destinos)
+        // Seed lead padrão Transnet (origem PE → destinos)
+        // Usa pool.query direto porque dbRun auto-injeta "RETURNING id" e a tabela tem PK composta sem coluna id
         const SEED_LEAD_PE = [
             ['PE','PE',1],['PE','AC',9],['PE','AL',1],['PE','BA',2],['PE','CE',2],
             ['PE','DF',5],['PE','ES',4],['PE','GO',6],['PE','MA',3],['PE','MT',7],
@@ -716,10 +717,33 @@ const inicializarBanco = async () => {
         ];
         for (const [orig, dest, dias] of SEED_LEAD_PE) {
             try {
-                await dbRun(
+                await pool.query(
                     `INSERT INTO tramontina_lead_padrao_uf (uf_origem, uf_destino, dias_uteis_padrao)
-                     VALUES (?, ?, ?) ON CONFLICT (uf_origem, uf_destino) DO NOTHING`,
+                     VALUES ($1, $2, $3) ON CONFLICT (uf_origem, uf_destino) DO NOTHING`,
                     [orig, dest, dias]
+                );
+            } catch (_) {}
+        }
+
+        // Tabela e seed do lead padrão Tramontina por região
+        // Códigos coerentes com REGIOES_BR em src/utils/tramontinaLeadTime.js (N, NE, CO, SE, S)
+        await dbRun(`CREATE TABLE IF NOT EXISTS tramontina_lead_padrao_regiao (
+            regiao TEXT PRIMARY KEY,
+            dias_uteis_padrao INTEGER NOT NULL
+        )`);
+        const SEED_LEAD_REGIAO = [
+            ['N', 8],   // NORTE
+            ['CO', 11], // CENTRO-OESTE
+            ['NE', 8],  // NORDESTE
+            ['S', 12],  // SUL
+            ['SE', 10], // SUDESTE
+        ];
+        for (const [regiao, dias] of SEED_LEAD_REGIAO) {
+            try {
+                await pool.query(
+                    `INSERT INTO tramontina_lead_padrao_regiao (regiao, dias_uteis_padrao)
+                     VALUES ($1, $2) ON CONFLICT (regiao) DO NOTHING`,
+                    [regiao, dias]
                 );
             } catch (_) {}
         }

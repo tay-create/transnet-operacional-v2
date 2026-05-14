@@ -43,6 +43,7 @@ const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
 const PlanejamentoTramontina = React.lazy(() => import('./components/PlanejamentoTramontina'));
+const PainelLeadTime = React.lazy(() => import('./components/PainelLeadTime'));
 const QRCodeCaminhao         = React.lazy(() => import('./components/QRCodeCaminhao'));
 
 // Modals lazy — só carregam quando abertos
@@ -1607,6 +1608,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'tramontina_planejamento' && temAcesso('tramontina_planejamento') && (
                     <PlanejamentoTramontina socket={socket} />
+                )}
+
+                {abaAtiva === 'lead_time_operacional' && temAcesso('lead_time_operacional') && (
+                    <PainelLeadTime />
                 )}
 
                 {abaAtiva === 'qrcode_caminhao' && (user?.cargo === 'Coordenador' || user?.cargo === 'Desenvolvedor') && (

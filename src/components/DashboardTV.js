@@ -7,6 +7,8 @@ import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 import useAuthStore from '../store/useAuthStore';
 import { displayColetaMoreno } from '../utils/coletaMoreno';
+import BarrasClassificacao from './lead-time/BarrasClassificacao';
+import MapaLeadTime from './lead-time/MapaLeadTime';
 
 // Telas extras (Paletes Diário e Fluxo Mensal) — mudar para true no lançamento do sistema
 const TELAS_EXTRAS_ATIVAS = false;
@@ -246,6 +248,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
     const [barraVisivel, setBarraVisivel] = useState(false);
     const esconderBarraTimer = useRef(null);
     const [tramontina, setTramontina] = useState(null);
+    const [leadTime, setLeadTime] = useState(null);
     const t = TEMAS[tema];
 
     const mostrarBarra = () => {
@@ -268,7 +271,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
         return candidatos.some(d => d === hoje);
     });
 
-    const totalTelas = 6;
+    const totalTelas = 7;
 
     useEffect(() => {
         if (pausado) return;
@@ -341,6 +344,18 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
     }, []);
 
     useEffect(() => {
+        let unmounted = false;
+        const fetchLeadTime = () => {
+            api.get('/api/lead-time-operacional').then(r => {
+                if (!unmounted && r.data?.success) setLeadTime(r.data);
+            }).catch(() => { });
+        };
+        fetchLeadTime();
+        const interval = setInterval(fetchLeadTime, 60000);
+        return () => { unmounted = true; clearInterval(interval); };
+    }, []);
+
+    useEffect(() => {
         document.documentElement.requestFullscreen?.().catch(() => { });
         return () => {
             if (document.fullscreenElement) {
@@ -362,7 +377,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
 
     // Data atual formatada no timezone de Brasília
     const dataHoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Leão / Eletrik Sul', 'Tramontina', 'Fluxo Mensal'];
+    const nomeTelas = [`Embarques da Operacao ${dataHoje}`, 'Operacao Recife', 'Operacao Moreno', 'Leão / Eletrik Sul', 'Tramontina', 'Fluxo Mensal', 'Lead Time Operacional'];
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: t.bg, color: t.text, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -451,6 +466,7 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
                 {telaAtiva === 3 && <TelaOperacaoLeaoEletrikSul veiculos={veiculosHoje} ctes={ctesSP} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
                 {telaAtiva === 4 && <TelaMonitoramentoTramontina dados={tramontina} t={t} tema={tema} />}
                 {telaAtiva === 5 && <TelaFluxoMensal veiculos={listaVeiculos} t={t} tema={tema} ocorrenciasHoje={ocorrenciasHoje} />}
+                {telaAtiva === 6 && <TelaLeadTimeOperacional dados={leadTime} t={t} tema={tema} />}
             </div>
 
 
@@ -991,6 +1007,42 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
 
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ── Lead Time Operacional (tela rotativa) ────────────────────────────────
+function TelaLeadTimeOperacional({ dados, t, tema }) {
+    const totais = dados?.totais || { transnet: {}, tramontina: {} };
+    const porUF = dados?.porUF || {};
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0', animation: 'fadeSlide 0.4s ease-out' }}>
+            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: t.textMuted, letterSpacing: 2, textTransform: 'uppercase', margin: 0 }}>
+                    LEAD TIME OPERACIONAL
+                </h2>
+                <div style={{ fontSize: 13, color: t.textDim, marginTop: 4, fontWeight: 600, letterSpacing: 1 }}>
+                    {dados?.mes ? `Mês ${dados.mes}` : '—'} · {totais.transnet?.total || 0} entregas
+                </div>
+            </div>
+
+            {!dados && (
+                <div style={{ textAlign: 'center', padding: 60, color: t.textMuted, fontSize: 14 }}>
+                    Carregando dados…
+                </div>
+            )}
+            {dados && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 16 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <BarrasClassificacao titulo="Transnet (por UF)" totais={totais.transnet} height={200} />
+                        <BarrasClassificacao titulo="Tramontina (por região)" totais={totais.tramontina} height={200} />
+                    </div>
+                    <div>
+                        <MapaLeadTime porUF={porUF} height={460} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

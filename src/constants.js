@@ -13,7 +13,8 @@ export const MODULOS_SISTEMA = [
     { id: 'performance_cte', label: 'Performance CT-e' },
     { id: 'checklist_carreta', label: 'Checklist da Carreta' },
     { id: 'cadastro', label: 'Cadastro / Ger. Risco' },
-    { id: 'historico_liberacoes', label: 'Histórico de Liberações' }
+    { id: 'historico_liberacoes', label: 'Histórico de Liberações' },
+    { id: 'lead_time_operacional', label: 'Lead Time Operacional' }
 ];
 
 export const MODULOS_EDICAO = [

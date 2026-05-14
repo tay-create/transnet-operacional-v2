@@ -3,7 +3,7 @@ import {
     Truck, Users, LogOut, BarChart3, Bell,
     FileText, PlusCircle, Monitor, TrendingUp,
     MapPin, ShieldCheck, Calendar, ClipboardCheck, AlertTriangle, FolderOpen, Package, LayoutGrid, LayoutDashboard,
-    Clock, CheckCircle, Warehouse, QrCode
+    Clock, CheckCircle, Warehouse, QrCode, Gauge
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useUIStore from '../store/useUIStore';
@@ -302,6 +302,20 @@ export default function Sidebar({
                         subItem
                         aberto={aberto}
                         onClick={() => setAbaAtiva('tramontina_planejamento')}
+                    />
+                </>
+            )}
+
+            {/* LEAD TIME OPERACIONAL */}
+            {temAcesso('lead_time_operacional') && (
+                <>
+                    <Divider label="Lead Time" aberto={aberto} />
+                    <MenuItem
+                        icon={<Gauge size={20} />}
+                        label="Lead Time Operacional"
+                        subItem
+                        aberto={aberto}
+                        onClick={() => setAbaAtiva('lead_time_operacional')}
                     />
                 </>
             )}
