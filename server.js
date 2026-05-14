@@ -2685,7 +2685,8 @@ async function gerarProgramacaoDiaria(turno) {
 
         } else { // Final
             rows = await dbAll(`
-                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
+                SELECT id, unidade, operacao, data_prevista_recife, data_prevista_moreno,
+                       motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2697,6 +2698,9 @@ async function gerarProgramacaoDiaria(turno) {
             rows.forEach(v => {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
+                // Se o lado da unidade do card foi reprogramado pra outra data, ele saiu deste dia
+                const dpLado = String((un === 'recife' ? v.data_prevista_recife : v.data_prevista_moreno) || '').slice(0, 10);
+                if (dpLado && dpLado !== hojeStr) return;
                 totais[cliente][un] += 1;
 
                 let dj2 = {}; try { dj2 = JSON.parse(v.dados_json || '{}'); } catch {}
