@@ -2672,7 +2672,9 @@ async function gerarProgramacaoDiaria(turno) {
 
         } else { // Final
             rows = await dbAll(`
-                SELECT id, unidade, operacao, motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
+                SELECT id, unidade, operacao, data_prevista, data_prevista_recife, data_prevista_moreno,
+                       foi_reprogramado, status_recife, status_moreno,
+                       motorista, placa, coletaRecife, coletaMoreno, coleta, numero_coleta, dados_json
                 FROM veiculos
                 WHERE LEFT(data_prevista, 10) = ?
                   AND NOT (
@@ -2681,10 +2683,27 @@ async function gerarProgramacaoDiaria(turno) {
                   )
             `, [hojeStr]);
 
+            const cumpriu = (st) => ['CARREGADO', 'LIBERADO P/ CT-e', 'FINALIZADO', 'Despachado', 'Em Trânsito', 'Entregue'].includes(st || '');
+
             rows.forEach(v => {
                 const cliente = resolverCliente(v.operacao);
                 const un = v.unidade === 'Moreno' ? 'moreno' : 'recife';
-                totais[cliente][un] += 1;
+
+                // Reprogramado se: marcado como reprogramado, OU consolidado com lado que mudou de data,
+                // OU veículo cujo lado da unidade atual não cumpriu até o fim do dia
+                const foiReprogramado = v.foi_reprogramado === 1 || v.foi_reprogramado === true;
+                const ladoNaoCumpriuRecife = !cumpriu(v.status_recife);
+                const ladoNaoCumpriuMoreno = !cumpriu(v.status_moreno);
+                const consolidado = (v.operacao || '').includes('/');
+                const reprogramadoFinal = foiReprogramado
+                    || (consolidado && (ladoNaoCumpriuRecife || ladoNaoCumpriuMoreno))
+                    || (!consolidado && (un === 'recife' ? ladoNaoCumpriuRecife : ladoNaoCumpriuMoreno));
+
+                if (reprogramadoFinal) {
+                    totais[cliente][`reprogramado_${un}`] += 1;
+                } else {
+                    totais[cliente][un] += 1;
+                }
 
                 let dj2 = {}; try { dj2 = JSON.parse(v.dados_json || '{}'); } catch {}
                 const placaEx2 = dj2.placa1Motorista || v.placa || '';
@@ -2697,7 +2716,7 @@ async function gerarProgramacaoDiaria(turno) {
                     cliente,
                     unidade: v.unidade || '',
                     coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
-                    reprogramado: 0,
+                    reprogramado: reprogramadoFinal ? 1 : 0,
                 });
             });
         }
