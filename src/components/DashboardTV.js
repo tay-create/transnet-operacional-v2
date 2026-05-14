@@ -254,16 +254,21 @@ export default function DashboardTV({ listaVeiculos, ctesRecife, ctesMoreno, cte
         esconderBarraTimer.current = setTimeout(() => setBarraVisivel(false), 3000);
     };
 
-    // Filtro para cards de hoje — qualquer um dos lados (recife/moreno) com data = hoje
-    // já conta o card (consolidado partido em datas diferentes aparece nos dois dias).
+    // Filtro para cards de hoje — só considera datas de pernas que a operação realmente possui.
+    // Evita que data_prevista_moreno mal preenchida em viagem só-Recife (e vice-versa) puxe a viagem
+    // para o dia errado. Consolidados (com '/') têm as duas pernas, então olham tudo.
     const hoje = obterDataBrasilia();
     const veiculosHoje = listaVeiculos.filter(v => {
+        const op = v.operacao || '';
+        const ehConsolidado = classificarOperacao(op) === 'consolidado';
+        const temRecife = ehConsolidado || ehOperacaoRecife(op);
+        const temMoreno = ehConsolidado || ehOperacaoMoreno(op);
         const candidatos = [
-            v.data_prevista_recife,
-            v.data_prevista_moreno,
             v.data_prevista,
-            v.data_carregado_recife,
-            v.data_carregado_moreno,
+            temRecife ? v.data_prevista_recife : null,
+            temMoreno ? v.data_prevista_moreno : null,
+            temRecife ? v.data_carregado_recife : null,
+            temMoreno ? v.data_carregado_moreno : null,
         ].filter(Boolean).map(d => String(d).split('T')[0]);
         return candidatos.some(d => d === hoje);
     });
