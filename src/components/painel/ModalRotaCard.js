@@ -83,11 +83,49 @@ function formatarKm(metros) {
 }
 function formatarDuracao(segundos) {
     if (typeof segundos !== 'number' || segundos <= 0) return '—';
-    const h = Math.floor(segundos / 3600);
-    const m = Math.round((segundos % 3600) / 60);
+    const totalMin = Math.round(segundos / 60);
+    const d = Math.floor(totalMin / (60 * 24));
+    const h = Math.floor((totalMin % (60 * 24)) / 60);
+    const m = totalMin % 60;
+    if (d > 0) {
+        // ≥ 1 dia: mostra dias + horas (minutos viram ruído nessa escala)
+        return h > 0 ? `${d}d ${h}h` : `${d}d`;
+    }
     if (h > 0 && m > 0) return `${h}h ${m}min`;
     if (h > 0) return `${h}h`;
     return `${m}min`;
+}
+
+// Calcula tempo total de caminhão considerando velocidade média e Lei 13.103/2015.
+// - Velocidade média de caminhão pesado em rodovia: 55 km/h (vs ~90 km/h do carro).
+// - Jornada do motorista profissional: max 8h dirigindo, depois 11h de descanso obrigatório.
+// Retorna { segundos: total, dirigindoSeg: só motor rodando, descansoSeg: total de paradas }.
+const VELOCIDADE_CAMINHAO_KMH = 55;
+const JORNADA_MAX_SEG = 8 * 3600;
+const DESCANSO_SEG = 11 * 3600;
+
+function tempoCaminhao(distanciaMetros) {
+    if (typeof distanciaMetros !== 'number' || distanciaMetros <= 0) {
+        return { segundos: 0, dirigindoSeg: 0, descansoSeg: 0 };
+    }
+    const km = distanciaMetros / 1000;
+    const dirigindoSeg = Math.round((km / VELOCIDADE_CAMINHAO_KMH) * 3600);
+    // Número de descansos = floor(dirigindo / 8h). Se for múltiplo exato, ainda assim o
+    // último trecho de 8h não precisa de descanso (chegou ao destino), então usamos
+    // floor((dirigindo - 1) / 8h) para tratar o limiar — na prática: número de jornadas
+    // completas finalizadas ANTES da última. Simplificando: descansa N-1 vezes se há N jornadas.
+    const jornadasCompletas = Math.floor(dirigindoSeg / JORNADA_MAX_SEG);
+    // Se sobra resto após as jornadas completas, ainda existe a última (parcial) — o descanso
+    // só ocorre ENTRE jornadas. Logo: descansos = jornadasCompletas (resto > 0 vira a "última")
+    // OU jornadasCompletas - 1 (resto == 0).
+    const resto = dirigindoSeg % JORNADA_MAX_SEG;
+    const descansos = resto > 0 ? jornadasCompletas : Math.max(0, jornadasCompletas - 1);
+    const descansoSeg = descansos * DESCANSO_SEG;
+    return {
+        segundos: dirigindoSeg + descansoSeg,
+        dirigindoSeg,
+        descansoSeg,
+    };
 }
 
 // Monta URL pública do Google Maps com origem + destinos na ordem.
@@ -170,16 +208,23 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
     const linhaFallback = useMemo(() => pontos.map(p => [p.lat, p.lon]), [pontos]);
 
     // Totais de distância/duração somando as pernas (OSRM).
-    const { totalKm, totalSeg } = useMemo(() => {
+    // Para o tempo: NÃO usamos o duration do OSRM (carro a ~90 km/h). Recalculamos a
+    // partir da distância usando velocidade de caminhão (55 km/h) + descanso obrigatório
+    // (Lei 13.103/2015: 11h de descanso a cada 8h dirigindo).
+    const { totalKm, totalDirigindoSeg, totalDescansoSeg, totalSeg } = useMemo(() => {
+        let metros;
         if (!Array.isArray(pernas) || pernas.length === 0) {
-            // Fallback: usa distância_do_anterior gravada nos destinos
-            const km = destinos.reduce((acc, d) => acc + (d.distancia_do_anterior || 0), 0) / 1000;
-            const seg = destinos.reduce((acc, d) => acc + (d.duracao_do_anterior || 0), 0);
-            return { totalKm: km, totalSeg: seg };
+            metros = destinos.reduce((acc, d) => acc + (d.distancia_do_anterior || 0), 0);
+        } else {
+            metros = pernas.reduce((acc, p) => acc + (p.distancia_metros || 0), 0);
         }
-        const km = pernas.reduce((acc, p) => acc + (p.distancia_metros || 0), 0) / 1000;
-        const seg = pernas.reduce((acc, p) => acc + (p.duracao_segundos || 0), 0);
-        return { totalKm: km, totalSeg: seg };
+        const t = tempoCaminhao(metros);
+        return {
+            totalKm: metros / 1000,
+            totalDirigindoSeg: t.dirigindoSeg,
+            totalDescansoSeg: t.descansoSeg,
+            totalSeg: t.segundos,
+        };
     }, [pernas, destinos]);
 
     const mover = (idx, delta) => {
@@ -312,7 +357,9 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                         {idx === 0
                                             ? `${formatarKm(d.distancia_do_anterior)} da origem`
                                             : `${formatarKm(d.distancia_do_anterior)} do anterior`}
-                                        {d.duracao_do_anterior ? ` · ${formatarDuracao(d.duracao_do_anterior)}` : ''}
+                                        {typeof d.distancia_do_anterior === 'number' && d.distancia_do_anterior > 0
+                                            ? ` · ${formatarDuracao(tempoCaminhao(d.distancia_do_anterior).segundos)}`
+                                            : ''}
                                     </div>
                                 </div>
                                 <button onClick={() => mover(idx, -1)} disabled={idx === 0}
@@ -363,20 +410,26 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                             )}
                         </MapContainer>
 
-                        {/* Card flutuante de Distância + Duração */}
+                        {/* Card flutuante de Distância + Duração (com jornada legal de caminhoneiro) */}
                         {(totalKm > 0 || totalSeg > 0) && (
                             <div style={{
                                 position: 'absolute', top: 16, right: 16, zIndex: 1000,
                                 background: 'rgba(233, 30, 99, 0.94)', color: '#fff',
                                 borderRadius: 12, padding: '12px 16px',
                                 boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                                minWidth: 180, fontWeight: 600,
+                                minWidth: 200, fontWeight: 600,
                                 pointerEvents: 'none'
                             }}>
                                 <div style={{ opacity: 0.85, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>Distância</div>
                                 <div style={{ fontSize: 20, fontWeight: 700 }}>{formatarKm(totalKm * 1000)}</div>
-                                <div style={{ opacity: 0.85, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8 }}>Duração estimada</div>
+                                <div style={{ opacity: 0.85, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8 }}>Tempo total (caminhão)</div>
                                 <div style={{ fontSize: 16, fontWeight: 700 }}>{formatarDuracao(totalSeg)}</div>
+                                {totalDescansoSeg > 0 && (
+                                    <div style={{ opacity: 0.85, fontSize: 10, marginTop: 6, lineHeight: 1.4 }}>
+                                        Dirigindo: {formatarDuracao(totalDirigindoSeg)}<br/>
+                                        Descanso obrig.: {formatarDuracao(totalDescansoSeg)}
+                                    </div>
+                                )}
                             </div>
                         )}
 
