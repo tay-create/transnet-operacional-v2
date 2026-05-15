@@ -3229,7 +3229,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, asyncHandler(async (req, re
             );
             if (abaEletrik) {
                 const nomeAba = abaEletrik.properties.title;
-                const dadosElBE = await lerRangeTramontina(sheets, 'A11:B633', nomeAba);
+                const dadosElBE = await lerRangeTramontina(sheets, 'A11:B73', nomeAba);
 
                 for (const row of dadosElBE) {
                     const colA = (row[0] || '').toString().trim();
