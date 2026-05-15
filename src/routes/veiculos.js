@@ -1491,8 +1491,10 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
     // a partir da planilha + OSRM. Útil quando OSRM oscilou na criação e o card ficou
     // sem rota, evitando ter que apagar+relançar.
     router.post('/veiculos/:id/regenerar-rota', authMiddleware, asyncHandler(async (req, res) => {
+        // Postgres devolve nomes de coluna em lowercase quando não estão entre aspas duplas.
+        // Os campos no banco são "coletarecife", "coletamoreno", "coletainterestadual".
         const v = await dbGet(
-            `SELECT id, operacao, coletaRecife, coletaMoreno, coletainterestadual FROM veiculos WHERE id = ?`,
+            `SELECT id, operacao, coletarecife, coletamoreno, coletainterestadual FROM veiculos WHERE id = ?`,
             [req.params.id]
         );
         if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
@@ -1500,7 +1502,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
         const extrair = (s) => String(s || '').split(/[\s,|]+/)
             .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
             .filter(Boolean);
-        const coleta = extrair(v.coletaRecife)[0] || extrair(v.coletaMoreno)[0] || extrair(v.coletainterestadual)[0];
+        const coleta = extrair(v.coletarecife)[0] || extrair(v.coletamoreno)[0] || extrair(v.coletainterestadual)[0];
         if (!coleta) return res.json({ success: false, aviso: 'sem-coleta' });
 
         try {
