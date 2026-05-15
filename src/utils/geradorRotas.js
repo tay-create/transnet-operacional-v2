@@ -47,7 +47,19 @@ function invalidarCache() {
     _cache = { rows: null, sheetId: null, ts: 0 };
 }
 
+// UF brasileira válida (2 letras maiúsculas dentro da lista oficial).
+const UFS_VALIDAS = new Set([
+    'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+]);
+
+// Rota válida na DELTA-PORCELANA = número puro (ex: "110", "169").
+// Tudo o que não bate (REGIÕES, NORDESTE, PORCELANA 100%, FALTA EMBARCAR, P.L, etc) é metadado.
+function ehRotaValida(s) {
+    return /^\d+$/.test(String(s || '').trim());
+}
+
 // Faz forward-fill de Rota (A) e Coleta (E) e retorna mapa coleta → { rota, destinos[] }.
+// Para no primeiro Col A que não for rota numérica (sinal de fim dos dados, início de tabelas auxiliares).
 function indexarPlanilha(rows) {
     const map = new Map();
     let rotaAtual = null;
@@ -58,9 +70,22 @@ function indexarPlanilha(rows) {
         const e = (row[4] ?? '').toString().trim();
         const cidade = (row[8] ?? '').toString().trim();
         const uf = (row[9] ?? '').toString().trim().toUpperCase();
-        if (a) rotaAtual = a;
+
+        // Se aparece um Col A não-numérico, é metadado/agregação → para o parse.
+        if (a && !ehRotaValida(a)) break;
+
+        // Nova rota: atualiza rotaAtual E reseta coletaAtual (forward-fill da coleta
+        // não pode atravessar fronteira de rota).
+        if (a) {
+            rotaAtual = a;
+            coletaAtual = null;
+        }
         if (e) coletaAtual = normalizarColeta(e);
-        if (!rotaAtual || !coletaAtual || !cidade || !uf) continue;
+
+        // Pula linhas sem rota, sem coleta, ou sem destino válido.
+        if (!rotaAtual || !coletaAtual) continue;
+        if (!cidade || !UFS_VALIDAS.has(uf)) continue;
+
         if (!map.has(coletaAtual)) {
             map.set(coletaAtual, { rota: rotaAtual, destinos: [] });
         }
