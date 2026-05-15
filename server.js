@@ -1744,11 +1744,14 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
 
         const status = dados.status || 'Aguardando Emissão';
         const coletaFinal = dados.coletaInterestadual || dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null;
+        // Higieniza: o frontend manda dadosVeiculo inteiro como base do CT-e — id e dados_json
+        // referem-se ao VEÍCULO e poluem o dados_json do CT-e (recursão e ambiguidade de id).
+        const { id: _idVeic, dados_json: _djVeic, ...dadosCte } = dados;
         const result = await dbRun(
             `INSERT INTO ctes_ativos (origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                origem, status, JSON.stringify(dados),
+                origem, status, JSON.stringify(dadosCte),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
                 coletaFinal,
@@ -1760,7 +1763,7 @@ app.post('/ctes', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Con
                 dados.usuario_aceitou || null
             ]
         );
-        const novo = { id: result.lastID, origem, status, ...dados };
+        const novo = { ...dadosCte, id: result.lastID, origem, status };
         await registrarLog('CTE_CRIADO', req.user?.nome || '?', result.lastID, 'cte', null, null, `Motorista: ${dados.motorista || '-'} | Coleta: ${coletaFinal || '-'}`);
         io.emit('receber_atualizacao', { tipo: 'novo_cte', dados: novo });
         res.json({ success: true, id: result.lastID });
@@ -1771,16 +1774,21 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
     const { dados, origem } = req.body;
         const status = dados.status || 'Aguardando Emissão';
         const origemCte = origem || dados.origem || 'Recife';
-        await dbRun(
-            `INSERT INTO ctes_ativos (id, origem, status, dados_json, motorista, placa1, coleta, numero_liberacao, data_liberacao, origem_cad, destino_uf_cad, destino_cidade_cad, usuario_aceitou, data_emissao)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CASE WHEN $3 = 'Emitido' THEN NOW() ELSE NULL END)
-             ON CONFLICT (id) DO UPDATE SET
-                status = $3, dados_json = $4, motorista = $5, placa1 = $6, coleta = $7,
+        // Higieniza: o frontend pode reenviar dadosVeiculo.id e dados_json — não devem ir pro JSON do CT-e.
+        const { id: _idVeic, dados_json: _djVeic, ...dadosCte } = dados;
+        // UPDATE puro — o frontend só chama esta rota com id de CT-e já existente.
+        // Antes era INSERT ... ON CONFLICT DO UPDATE, mas se o id da URL fosse
+        // o id do veículo (não do CT-e), uma nova linha era criada com id forçado,
+        // gerando duplicata visual no painel.
+        const result = await dbRun(
+            `UPDATE ctes_ativos SET
+                origem = $2, status = $3, dados_json = $4, motorista = $5, placa1 = $6, coleta = $7,
                 numero_liberacao = $8, data_liberacao = $9, origem_cad = $10,
                 destino_uf_cad = $11, destino_cidade_cad = $12, usuario_aceitou = $13,
-                data_emissao = CASE WHEN $3 = 'Emitido' THEN NOW() ELSE ctes_ativos.data_emissao END`,
+                data_emissao = CASE WHEN $3 = 'Emitido' AND data_emissao IS NULL THEN NOW() ELSE data_emissao END
+             WHERE id = $1`,
             [
-                req.params.id, origemCte, status, JSON.stringify(dados),
+                req.params.id, origemCte, status, JSON.stringify(dadosCte),
                 dados.motorista || null,
                 dados.placa1Motorista || null,
                 dados.coletaRecife || limparPrefixoColeta(dados.coletaMoreno) || null,
@@ -1792,6 +1800,9 @@ app.put('/ctes/:id', authMiddleware, authorize(['Coordenador', 'Planejamento', '
                 dados.usuario_aceitou || null,
             ]
         );
+        if (!result.changes) {
+            return res.status(404).json({ success: false, message: `CT-e id ${req.params.id} não encontrado.` });
+        }
         // Quando CT-e é emitido, salvar no histórico de liberações + remover do cadastro
         if (status === 'Emitido') {
             try {
