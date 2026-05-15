@@ -1131,14 +1131,34 @@ function TelaFluxoMensal({ veiculos, t, tema, ocorrenciasHoje = [] }) {
         dj.setDate(dataBrasilia.getDate() + i);
         janela5Dias.push(fmt(dj));
     }
-    const veiculosJanela = veiculos.filter(v => {
-        const dataCard = v.data_prevista || v.data_criacao || '';
-        return dataCard >= janela5Dias[0] && dataCard <= janela5Dias[4];
-    });
 
-    // Montar linhas da tabela — todos os 5 dias sempre aparecem
+    // Verifica se a viagem tem alguma perna ativa no dia (mesma lógica do filtro veiculosHoje).
+    // Só considera datas de pernas que a operação realmente possui.
+    const viagemTemPernaNoDia = (v, dia) => {
+        const op = v.operacao || '';
+        const ehConsolidado = classificarOperacao(op) === 'consolidado';
+        const temRecife = ehConsolidado || ehOperacaoRecife(op);
+        const temMoreno = ehConsolidado || ehOperacaoMoreno(op);
+        const candidatos = [
+            v.data_prevista,
+            v.data_criacao,
+            temRecife ? v.data_prevista_recife : null,
+            temMoreno ? v.data_prevista_moreno : null,
+            temRecife ? v.data_carregado_recife : null,
+            temMoreno ? v.data_carregado_moreno : null,
+        ].filter(Boolean).map(d => String(d).split('T')[0]);
+        return candidatos.some(d => d === dia);
+    };
+
+    const veiculosJanela = veiculos.filter(v =>
+        janela5Dias.some(dia => viagemTemPernaNoDia(v, dia))
+    );
+
+    // Montar linhas da tabela — todos os 5 dias sempre aparecem.
+    // Consolidados partidos em datas diferentes podem aparecer nos dois dias (perna Recife num dia,
+    // perna Moreno noutro). Isso é intencional: cada dia mostra o que está acontecendo nele.
     const linhasTabela = janela5Dias.map(dia => {
-        const veicsDia = veiculosJanela.filter(v => (v.data_prevista || v.data_criacao || '') === dia);
+        const veicsDia = veiculosJanela.filter(v => viagemTemPernaNoDia(v, dia));
         const cells = {};
         let total = 0;
         COLUNAS_OP.forEach(col => {
