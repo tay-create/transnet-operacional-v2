@@ -781,8 +781,11 @@ function TelaOperacaoRecife({ veiculos, ctesRecife, docasInterditadas = [], t, t
     OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
     veiculosRecife.forEach(v => {
         const st = v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO';
-        if (contStatus[st] !== undefined) contStatus[st]++;
-        if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
+        if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') {
+            contStatus['LIBERADO P/ CT-e']++;
+        } else if (contStatus[st] !== undefined) {
+            contStatus[st]++;
+        }
     });
     const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 
@@ -1716,8 +1719,11 @@ function TelaOperacaoMoreno({ veiculos, ctesMoreno, docasInterditadas = [], t, t
     OPCOES_STATUS.forEach(s => { contStatus[s] = 0; });
     veiculosMoreno.forEach(v => {
         const st = v.status_moreno || 'AGUARDANDO P/ SEPARAÇÃO';
-        if (contStatus[st] !== undefined) contStatus[st]++;
-        if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') contStatus['LIBERADO P/ CT-e']++;
+        if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') {
+            contStatus['LIBERADO P/ CT-e']++;
+        } else if (contStatus[st] !== undefined) {
+            contStatus[st]++;
+        }
     });
     const dadosStatus = OPCOES_STATUS.map(s => ({ name: s, value: contStatus[s], fill: CORES_STATUS[s]?.border || '#64748b' }));
 

@@ -306,16 +306,18 @@ export default function MobileDashboardTV({ socket }) {
     const statusMoreno = {};
     vRecife.forEach(v => {
         const st = v.status_recife || 'AGUARDANDO P/ SEPARAÇÃO';
-        statusRecife[st] = (statusRecife[st] || 0) + 1;
         if (v.cte_antecipado_recife && st !== 'LIBERADO P/ CT-e') {
             statusRecife['LIBERADO P/ CT-e'] = (statusRecife['LIBERADO P/ CT-e'] || 0) + 1;
+        } else {
+            statusRecife[st] = (statusRecife[st] || 0) + 1;
         }
     });
     vMoreno.forEach(v => {
         const st = v.status_moreno || 'AGUARDANDO P/ SEPARAÇÃO';
-        statusMoreno[st] = (statusMoreno[st] || 0) + 1;
         if (v.cte_antecipado_moreno && st !== 'LIBERADO P/ CT-e') {
             statusMoreno['LIBERADO P/ CT-e'] = (statusMoreno['LIBERADO P/ CT-e'] || 0) + 1;
+        } else {
+            statusMoreno[st] = (statusMoreno[st] || 0) + 1;
         }
     });
 
