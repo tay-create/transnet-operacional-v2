@@ -773,6 +773,20 @@ function App({ socket }) {
                 });
             }
 
+            // Marcar a coleta como Programada na planilha (Col C). Fire-and-forget.
+            const extrairNumsLanca = (s) => String(s || '').split(/[\s,|]+/)
+                .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                .filter(Boolean);
+            const numerosColetaLanca = [
+                ...extrairNumsLanca(novoItem.coletaRecife),
+                ...extrairNumsLanca(novoItem.coletaMoreno),
+                ...extrairNumsLanca(novoItem.coletaInterestadual),
+            ];
+            if (numerosColetaLanca.length > 0) {
+                api.post('/api/planilha/marcar-programadas', { coletas: numerosColetaLanca })
+                    .catch(() => {}); // silencioso
+            }
+
             setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', coletaInterestadual: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
             mostrarNotificacao("✅ Veículo Lançado !");
         } catch (error) {
