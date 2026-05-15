@@ -41,17 +41,38 @@ function iconeOrigem() {
 function FitBounds({ pontos, geometriaPontos }) {
     const map = useMap();
     useEffect(() => {
+        if (!map) return;
         // Se temos geometria, usa todos os vértices da polyline para enquadrar melhor.
         const fonte = (geometriaPontos && geometriaPontos.length > 0) ? geometriaPontos : pontos;
         if (!fonte || fonte.length === 0) return;
         const valid = fonte.filter(p => p && typeof p[0] === 'number' && typeof p[1] === 'number');
         if (valid.length === 0) return;
-        if (valid.length === 1) {
-            map.setView(valid[0], 10);
-        } else {
-            const bounds = L.latLngBounds(valid);
-            map.fitBounds(bounds, { padding: [40, 40] });
-        }
+
+        let cancelado = false;
+        // map.whenReady garante que panes estão inicializados.
+        // requestAnimationFrame dá ao layout uma chance de assentar antes de calcular bounds
+        // (evita "Cannot read properties of undefined (reading '_leaflet_pos')" quando o
+        // container ainda não tem altura definitiva durante transição de abertura do modal).
+        map.whenReady(() => {
+            if (cancelado) return;
+            requestAnimationFrame(() => {
+                if (cancelado) return;
+                try {
+                    // invalidateSize força o Leaflet a recalcular tamanho do container
+                    map.invalidateSize();
+                    if (valid.length === 1) {
+                        map.setView(valid[0], 10, { animate: false });
+                    } else {
+                        const bounds = L.latLngBounds(valid);
+                        map.fitBounds(bounds, { padding: [40, 40], animate: false });
+                    }
+                } catch (e) {
+                    // Operação não-crítica — não quebrar a UI se algo der errado.
+                    console.warn('[FitBounds] ignorado:', e.message);
+                }
+            });
+        });
+        return () => { cancelado = true; };
     }, [pontos, geometriaPontos, map]);
     return null;
 }
