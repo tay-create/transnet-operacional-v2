@@ -414,7 +414,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                         // Regenerar rota se a coleta atualizada não tem destinos ainda OU se os destinos podem ter mudado.
                         // mesmoConjuntoDestinos garante que se a planilha já bate, não chama OSM.
                         try {
-                            const cur = await dbGet(`SELECT destinos_json, operacao FROM veiculos WHERE id = ?`, [existente.id]);
+                            const cur = await dbGet(`SELECT destinos_json, operacao, rota_recife, rota_moreno FROM veiculos WHERE id = ?`, [existente.id]);
                             let destinosAtuais = null;
                             try { destinosAtuais = cur?.destinos_json ? JSON.parse(cur.destinos_json) : null; } catch {}
                             const coletaParaBusca = primeiroTagIns(v.coletaRecife) || primeiroTagIns(v.coletaMoreno) || primeiroTagIns(v.coletaInterestadual) || tag;
@@ -426,7 +426,20 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                                     [r.destinos_json, r.origem_rota, existente.id]
                                 );
                             }
-                            console.log(`[veiculos POST update] rota id=${existente.id} aviso=${r.aviso || 'ok'}`);
+                            // Auto-preencher rota_recife / rota_moreno se ainda estão vazios
+                            if (r.rota) {
+                                const opUpper = String(cur?.operacao || v.operacao || '').toUpperCase();
+                                const ehInter = (cur?.operacao || v.operacao) === 'LEÃO - SP' || (cur?.operacao || v.operacao) === 'ELETRIK SUL';
+                                const ladoRecife = !ehInter && opUpper.includes('RECIFE');
+                                const ladoMoreno = !ehInter && (opUpper.includes('MORENO') || opUpper.includes('PORCELANA') || opUpper.includes('ELETRIK'));
+                                if (ladoRecife && (!cur?.rota_recife || !String(cur.rota_recife).trim())) {
+                                    await dbRun(`UPDATE veiculos SET rota_recife = $1 WHERE id = $2`, [r.rota, existente.id]);
+                                }
+                                if (ladoMoreno && (!cur?.rota_moreno || !String(cur.rota_moreno).trim())) {
+                                    await dbRun(`UPDATE veiculos SET rota_moreno = $1 WHERE id = $2`, [r.rota, existente.id]);
+                                }
+                            }
+                            console.log(`[veiculos POST update] rota id=${existente.id} rota_planilha=${r.rota || '—'} aviso=${r.aviso || 'ok'}`);
                         } catch (rotaErr) {
                             console.error('[veiculos POST update] falha ao regenerar rota:', rotaErr.message);
                         }
@@ -548,7 +561,20 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                         [r.destinos_json, r.origem_rota, result.lastID]
                     );
                 }
-                console.log(`[veiculos POST] rota id=${result.lastID} coleta=${coletaParaBusca} aviso=${avisoRota || 'ok'}`);
+                // Auto-preencher rota_recife / rota_moreno se vieram vazios e a planilha trouxe rota (Col A)
+                if (r.rota) {
+                    const opUpper = String(v.operacao || '').toUpperCase();
+                    const ehInter = v.operacao === 'LEÃO - SP' || v.operacao === 'ELETRIK SUL';
+                    const ladoRecife = !ehInter && opUpper.includes('RECIFE');
+                    const ladoMoreno = !ehInter && (opUpper.includes('MORENO') || opUpper.includes('PORCELANA') || opUpper.includes('ELETRIK'));
+                    if (ladoRecife && (!v.rotaRecife || !v.rotaRecife.trim())) {
+                        await dbRun(`UPDATE veiculos SET rota_recife = $1 WHERE id = $2`, [r.rota, result.lastID]);
+                    }
+                    if (ladoMoreno && (!v.rotaMoreno || !v.rotaMoreno.trim())) {
+                        await dbRun(`UPDATE veiculos SET rota_moreno = $1 WHERE id = $2`, [r.rota, result.lastID]);
+                    }
+                }
+                console.log(`[veiculos POST] rota id=${result.lastID} coleta=${coletaParaBusca} rota_planilha=${r.rota || '—'} aviso=${avisoRota || 'ok'}`);
             } catch (rotaErr) {
                 avisoRota = 'erro-gerar-rota';
                 console.error('[veiculos POST] falha ao gerar rota:', rotaErr.message);
