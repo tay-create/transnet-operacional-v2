@@ -4,7 +4,7 @@
 // Cache permanente em Postgres (geo_cache, dist_cache) — depois dos primeiros meses
 // as chamadas externas viram raras.
 
-const { dbGet, dbRun } = require('../database/db');
+const { dbGet, db: pool } = require('../database/db');
 
 const USER_AGENT = 'Transnet-Operacional/1.0 (contato@tnetlog.com.br)';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
@@ -70,7 +70,7 @@ async function geocode(cidade, uf) {
         throw new Error(`Nominatim retornou coords inválidas para "${q}"`);
     }
 
-    await dbRun(
+    await pool.query(
         `INSERT INTO geo_cache (cidade_uf, lat, lon, display_name)
          VALUES ($1, $2, $3, $4) ON CONFLICT (cidade_uf) DO NOTHING`,
         [chave, lat, lon, display]
@@ -132,7 +132,7 @@ async function tableMatrix(pontos) {
             if (typeof dist !== 'number' || typeof dur !== 'number') continue;
             matriz[i][j] = { distancia_metros: Math.round(dist), duracao_segundos: Math.round(dur) };
             try {
-                await dbRun(
+                await pool.query(
                     `INSERT INTO dist_cache (origem_key, destino_key, distancia_metros, duracao_segundos)
                      VALUES ($1, $2, $3, $4) ON CONFLICT (origem_key, destino_key) DO NOTHING`,
                     [pontos[i].cidade_uf, pontos[j].cidade_uf, Math.round(dist), Math.round(dur)]
