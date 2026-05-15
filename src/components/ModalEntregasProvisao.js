@@ -73,8 +73,9 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
                 data_saida: dataSaidaModal,
                 data_retorno: dataRetorno || null,
                 entradas: entradas.map(e => ({ cidade: (e.cidade || '').trim(), data: e.data })),
-                // Quando origem = planilha, marcar dias entre saída e primeira entrega como CARREGADO
-                marcar_carregado_antes_primeira_entrega: origemEntradas === 'planilha',
+                // Quando origem = planilha, preservar o dia da operação como EM_OPERACAO
+                // (não sobrescrever com EM_VIAGEM). A viagem começa no dia seguinte.
+                preservar_data_saida_em_operacao: origemEntradas === 'planilha',
             });
             onConfirmar(entradas);
         } catch (e) {
@@ -192,8 +193,8 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
                             ))}
                         </div>
                         <p style={{ fontSize: 11, color: '#64748b', margin: '8px 0 0', lineHeight: 1.4 }}>
-                            Dias entre a saída e a primeira entrega serão marcados como <strong style={{ color: '#4ade80' }}>Carregado</strong>.
-                            Dias entre entregas (sem cidade) ficarão como <strong style={{ color: '#facc15' }}>Em Viagem</strong>.
+                            O dia da operação fica como <strong style={{ color: '#a78bfa' }}>Em Operação</strong> (segue o fluxo do conferente).
+                            Do dia seguinte até a última entrega, fica como <strong style={{ color: '#facc15' }}>Em Viagem</strong> — com cidade nos dias de entrega.
                         </p>
                     </div>
                 ) : (
