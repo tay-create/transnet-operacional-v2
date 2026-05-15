@@ -15,6 +15,17 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const cron = require('node-cron');
+
+// Permite desativar TODOS os crons via env var (útil em staging para evitar
+// rollover/programação automática durante testes manuais).
+if (process.env.DISABLE_CRONS === 'true' || process.env.DISABLE_CRONS === '1') {
+    cron.schedule = function (expr) {
+        console.log(`[CRON-DISABLED] schedule "${expr}" ignorado (DISABLE_CRONS=true)`);
+        return { stop: () => {}, start: () => {}, destroy: () => {} };
+    };
+    console.log('🔕 Todos os crons desativados via DISABLE_CRONS=true');
+}
+
 const { authMiddleware, authorize, generateToken } = require('./middleware/authMiddleware');
 const { asyncHandler } = require('./middleware/asyncHandler');
 const { ROLES } = require('./middleware/roles');
