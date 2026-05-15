@@ -543,6 +543,12 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                     veiculo={modalEntregas.veiculo}
                     motorista={formLanca.motorista || ''}
                     dataSaida={formLanca.data_prevista || new Date().toISOString().substring(0, 10)}
+                    coletaPrincipal={
+                        formLanca.coletaRecife
+                        || formLanca.coletaMoreno
+                        || formLanca.coletaInterestadual
+                        || ''
+                    }
                     onConfirmar={() => {
                         setEntregasConfirmadas(true);
                         setModalEntregas(null);

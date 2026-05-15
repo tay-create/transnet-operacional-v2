@@ -191,6 +191,15 @@ export default function PainelModais({
                     veiculo={modalEntregasCard.veiculo}
                     motorista={modalEntregasCard.item?.motorista || ''}
                     dataSaida={modalEntregasCard.item?.data_prevista ? modalEntregasCard.item.data_prevista.substring(0, 10) : new Date().toISOString().substring(0, 10)}
+                    coletaPrincipal={
+                        modalEntregasCard.item?.coletaRecife
+                        || modalEntregasCard.item?.coletaMoreno
+                        || modalEntregasCard.item?.coletaInterestadual
+                        || modalEntregasCard.item?.coletarecife
+                        || modalEntregasCard.item?.coletamoreno
+                        || modalEntregasCard.item?.coletainterestadual
+                        || ''
+                    }
                     onConfirmar={() => setModalEntregasCard(null)}
                     onCancelar={() => setModalEntregasCard(null)}
                 />

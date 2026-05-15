@@ -1299,6 +1299,12 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 veiculo={provisaoAtual.veiculo}
                 motorista={provisaoAtual.lote.motorista}
                 dataSaida={dataPrevista}
+                coletaPrincipal={
+                    provisaoAtual.lote?.coletaRecife
+                    || provisaoAtual.lote?.coletaMoreno
+                    || provisaoAtual.lote?.coletaInterestadual
+                    || ''
+                }
                 onConfirmar={() => {
                     if (provisaoFila.length > 0) {
                         setProvisaoAtual(provisaoFila[0]);

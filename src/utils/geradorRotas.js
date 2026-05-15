@@ -36,7 +36,7 @@ async function lerPlanilha(sheetId) {
     const sheets = google.sheets({ version: 'v4', auth });
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!A10:K1000`,
+        range: `'DELTA-PORCELANA'!A10:AC1000`,
     });
     const rows = resp.data.values || [];
     _cache = { rows, sheetId, ts: now };
@@ -192,8 +192,59 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
     return { rota, destinos_json: JSON.stringify(ordenados), origem_rota, aviso: null };
 }
 
+// Busca entregas agendadas de uma coleta na planilha. Diferente de buscarRotaPorColeta
+// (que deduplica destinos para a roteirização), aqui mantemos cada (cidade, data) — pois
+// duas entregas no mesmo destino em datas diferentes são marcadas em datas diferentes.
+//
+// Retorna { encontrada, rota, entregas: [{ cidade, uf, data: 'YYYY-MM-DD' }, ...] }
+// — entregas ordenadas por data ascendente.
+async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
+    if (!coleta) return { encontrada: false, entregas: [] };
+    const { normalizarData } = require('./leadTimeOperacional');
+    const rows = await lerPlanilha(sheetId);
+    const alvo = normalizarColeta(coleta);
+    let rotaAtual = null;
+    let coletaAtual = null;
+    let rotaDaColeta = null;
+    const entregas = [];
+    const dedup = new Set();
+    for (const row of rows) {
+        if (!row) continue;
+        const a = (row[0] ?? '').toString().trim();
+        // Para o parse no primeiro Col A não-numérico (metadado/agregação).
+        if (a && !/^\d+$/.test(a)) break;
+        if (a) {
+            rotaAtual = a;
+            coletaAtual = null;
+        }
+        const e = (row[4] ?? '').toString().trim();
+        if (e) coletaAtual = normalizarColeta(e);
+        if (!rotaAtual || coletaAtual !== alvo) continue;
+
+        const cidade = (row[8] ?? '').toString().trim();
+        const uf = (row[9] ?? '').toString().trim().toUpperCase();
+        const dataRaw = row[28];
+        if (!cidade || !UFS_VALIDAS.has(uf)) continue;
+        const data = normalizarData(dataRaw);
+        if (!data) continue;
+
+        const chave = `${cidade}|${uf}|${data}`;
+        if (dedup.has(chave)) continue;
+        dedup.add(chave);
+        if (!rotaDaColeta) rotaDaColeta = rotaAtual;
+        entregas.push({ cidade, uf, data });
+    }
+    entregas.sort((a, b) => a.data.localeCompare(b.data));
+    return {
+        encontrada: entregas.length > 0,
+        rota: rotaDaColeta,
+        entregas,
+    };
+}
+
 module.exports = {
     buscarRotaPorColeta,
+    buscarEntregasAgendadasPorColeta,
     normalizarCidadeUf,
     normalizarColeta,
     invalidarCache,

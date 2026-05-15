@@ -3811,20 +3811,37 @@ app.put('/api/provisionamento/status', authMiddleware, authorize(PROV_EDITORES),
         res.json({ success: true });
 }));
 
+// GET /api/provisionamento/entregas-da-coleta?coleta=NNNN
+// Busca entregas agendadas (cidade + data) na planilha DELTA-PORCELANA para uma coleta.
+// Usado pelo ModalEntregasProvisao para pré-preencher entradas sem o usuário digitar.
+app.get('/api/provisionamento/entregas-da-coleta', authMiddleware, asyncHandler(async (req, res) => {
+    const { coleta } = req.query;
+    if (!coleta) return res.status(400).json({ encontrada: false, message: 'coleta obrigatória' });
+    try {
+        const { sheetId } = await getResultadoSheetId();
+        const { buscarEntregasAgendadasPorColeta } = require('./src/utils/geradorRotas');
+        const r = await buscarEntregasAgendadasPorColeta(coleta, sheetId);
+        res.json({ encontrada: r.encontrada, rota: r.rota || null, entregas: r.entregas || [] });
+    } catch (err) {
+        console.error('[entregas-da-coleta] erro:', err.message);
+        res.status(500).json({ encontrada: false, message: err.message });
+    }
+}));
+
 // POST /api/provisionamento/viagem — Registra dias EM_VIAGEM para um veículo do provisionamento
-// body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }] }
+// body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }], marcar_carregado_antes_primeira_entrega? }
 app.post('/api/provisionamento/viagem', authMiddleware, asyncHandler(async (req, res) => {
-    const { veiculo_id, motorista, data_saida, data_retorno, entradas } = req.body;
+    const { veiculo_id, motorista, data_saida, data_retorno, entradas, marcar_carregado_antes_primeira_entrega } = req.body;
     if (!veiculo_id || !data_saida || !Array.isArray(entradas) || entradas.length === 0) {
         return res.status(400).json({ success: false, message: 'veiculo_id, data_saida e entradas são obrigatórios.' });
     }
         // Determinar intervalo de viagem: data_saida até max(entradas[].data)
         const datasEntrega = entradas.map(e => e.data).filter(Boolean).sort();
+        const primeiraEntrega = datasEntrega[0] || data_saida;
         const dataFimViagem = datasEntrega[datasEntrega.length - 1] || data_saida;
         const destinosJson = JSON.stringify(entradas);
 
-        // Gerar dias de viagem [data_saida, dataFimViagem] — todos EM_VIAGEM
-        // Os dias anteriores a data_saida (CARREGADO) não são tocados aqui.
+        // Gerar dias de viagem [data_saida, dataFimViagem]
         const diasViagem = [];
         const cursorV = new Date(data_saida + 'T00:00:00Z');
         const fimV = new Date(dataFimViagem + 'T00:00:00Z');
@@ -3839,13 +3856,22 @@ app.post('/api/provisionamento/viagem', authMiddleware, asyncHandler(async (req,
                 .filter(e => e.data === dia && e.cidade && e.cidade.trim())
                 .map(e => e.cidade.trim());
             const destinoDia = cidadesDoDia.length > 0 ? [...new Set(cidadesDoDia)].join(' / ') : null;
+
+            // Status do dia:
+            // - Dias entre data_saida e o dia ANTERIOR à primeira entrega (quando flag pedida): CARREGADO
+            // - A partir da primeira entrega: EM_VIAGEM (com ou sem cidade)
+            let statusDia = 'EM_VIAGEM';
+            if (marcar_carregado_antes_primeira_entrega && dia < primeiraEntrega) {
+                statusDia = 'CARREGADO';
+            }
+
             await dbRun(
                 `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino, destinos_json)
-                 VALUES ($1, $2, 'EM_VIAGEM', $3, $4, $5)
-                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = 'EM_VIAGEM', motorista = $3, destino = $4, destinos_json = $5`,
-                [veiculo_id, dia, motorista || null, destinoDia, destinosJson]
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT (veiculo_id, data) DO UPDATE SET status = $3, motorista = $4, destino = $5, destinos_json = $6`,
+                [veiculo_id, dia, statusDia, motorista || null, destinoDia, destinosJson]
             );
-            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: 'EM_VIAGEM', motorista: motorista || null, destino: destinoDia });
+            io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id, data: dia, status: statusDia, motorista: motorista || null, destino: destinoDia });
         }
 
         // Gerar dias de retorno (dia seguinte ao último destino até o dia ANTERIOR ao retorno) — RETORNANDO
