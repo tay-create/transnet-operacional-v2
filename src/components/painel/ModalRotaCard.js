@@ -120,29 +120,33 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         }
     }, [isOpen, veiculo]);
 
-    // Busca geometria por estrada ao abrir o modal (ou quando destinos mudam por edição).
+    // Função reutilizável que busca a geometria por estrada do backend.
+    // Chamada no useEffect (abertura do modal) e após regenerar/salvar.
+    const buscarGeometria = React.useCallback(async (idAlvo) => {
+        if (!idAlvo) {
+            setPernas(null);
+            return;
+        }
+        setCarregandoGeo(true);
+        try {
+            const r = await api.get(`/veiculos/${idAlvo}/rota-geometria`);
+            setPernas(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
+        } catch (err) {
+            console.error('Falha ao buscar geometria de rota:', err);
+            setPernas([]);
+        } finally {
+            setCarregandoGeo(false);
+        }
+    }, []);
+
+    // Busca ao abrir o modal.
     useEffect(() => {
         if (!isOpen || !veiculo?.id) {
             setPernas(null);
             return;
         }
-        let abortado = false;
-        setCarregandoGeo(true);
-        api.get(`/veiculos/${veiculo.id}/rota-geometria`)
-            .then(r => {
-                if (abortado) return;
-                setPernas(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
-            })
-            .catch(err => {
-                console.error('Falha ao buscar geometria de rota:', err);
-                if (abortado) return;
-                setPernas([]);
-            })
-            .finally(() => {
-                if (!abortado) setCarregandoGeo(false);
-            });
-        return () => { abortado = true; };
-    }, [isOpen, veiculo?.id]);
+        buscarGeometria(veiculo.id);
+    }, [isOpen, veiculo?.id, buscarGeometria]);
 
     const origem = veiculo?.origem_rota || 'RECIFE/PE';
     const origemCoord = COORDS_ORIGEM[origem] || COORDS_ORIGEM['RECIFE/PE'];
@@ -202,6 +206,8 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     const arr = JSON.parse(r.data.destinos_json);
                     setDestinos(Array.isArray(arr) ? arr : []);
                     mostrarNotificacao?.('✅ Rota gerada');
+                    // Re-busca geometria por estrada — só os destinos mudaram, o effect não dispara sozinho
+                    buscarGeometria(veiculo.id);
                 } catch {
                     mostrarNotificacao?.('⚠️ Rota gerada mas resposta inválida');
                 }
