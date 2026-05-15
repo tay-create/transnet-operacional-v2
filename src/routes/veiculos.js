@@ -626,12 +626,26 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                 console.error('[prov] Erro ao sincronizar EM_OPERACAO:', provErr.message);
             }
 
+            // Recarrega do banco para pegar campos preenchidos pelo pipeline de gerar rota
+            // (destinos_json, origem_rota, rota_recife/rota_moreno auto-preenchidos).
+            const recarregado = await dbGet(
+                `SELECT rota_recife, rota_moreno, destinos_json, origem_rota FROM veiculos WHERE id = ?`,
+                [result.lastID]
+            );
+
             const novo = {
                 id: result.lastID, ...v, data_criacao,
                 telefone: telefoneMotorista || '',
                 isFrotaMotorista: isFrotaMotorista || false,
                 chk_cnh, chk_antt, chk_tacografo, chk_crlv,
                 situacao_cadastro, numero_liberacao, data_liberacao,
+                // Sobrescreve com valores reais do banco (pipeline de rota pode ter alterado)
+                rotaRecife: recarregado?.rota_recife || v.rotaRecife || '',
+                rotaMoreno: recarregado?.rota_moreno || v.rotaMoreno || '',
+                rota_recife: recarregado?.rota_recife || '',
+                rota_moreno: recarregado?.rota_moreno || '',
+                destinos_json: recarregado?.destinos_json || null,
+                origem_rota: recarregado?.origem_rota || null,
                 dados_json: JSON.stringify({
                     ...v,
                     telefoneMotorista: telefoneMotorista,
