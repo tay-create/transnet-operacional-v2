@@ -5,10 +5,10 @@ import 'leaflet/dist/leaflet.css';
 import { X, MapPin, ArrowUp, ArrowDown, Trash2, Save } from 'lucide-react';
 import api from '../../services/apiService';
 
-// Origens fixas conhecidas — usadas pra desenhar o marcador da origem no mapa.
+// Origens fixas conhecidas (endereço real dos CDs, não centro da cidade).
 const COORDS_ORIGEM = {
-    'RECIFE/PE': { lat: -8.0476, lon: -34.8770, label: 'Recife/PE' },
-    'MORENO/PE': { lat: -8.1186, lon: -35.0922, label: 'Moreno/PE' },
+    'RECIFE/PE': { lat: -8.0434124, lon: -34.9542906, label: 'CD Recife (Várzea)' },
+    'MORENO/PE': { lat: -8.130545712978426, lon: -35.12564333469332, label: 'CD Moreno (Distrito Industrial)' },
 };
 
 function iconeNumerado(n, cor = '#3b82f6') {

@@ -766,20 +766,36 @@ const inicializarBanco = async () => {
             PRIMARY KEY (origem_key, destino_key)
         )`);
 
-        // Seed dos pontos fixos da Transnet (CDs) — evita geocoding
+        // Seed dos pontos fixos da Transnet (CDs) — evita geocoding.
+        // Coordenadas dos endereços reais dos CDs (não do centro da cidade).
+        // Recife: Av. Barão de Bonito, 1110 - Várzea.
+        // Moreno: Av. Industrial - Distrito Industrial.
         const SEED_GEO = [
-            ['RECIFE/PE', -8.0476, -34.8770, 'Recife, Pernambuco, Brasil'],
-            ['MORENO/PE', -8.1186, -35.0922, 'Moreno, Pernambuco, Brasil'],
+            ['RECIFE/PE', -8.0434124, -34.9542906, 'CD Transnet — Av. Barão de Bonito, 1110, Várzea, Recife/PE'],
+            ['MORENO/PE', -8.130545712978426, -35.12564333469332, 'CD Transnet — Av. Industrial, Distrito Industrial, Moreno/PE'],
         ];
         for (const [chave, lat, lon, nome] of SEED_GEO) {
             try {
+                // UPSERT (sobrescreve coords antigas se já houver — necessário para migrar
+                // ambientes que já tinham o seed antigo com coords do centro da cidade).
                 await pool.query(
                     `INSERT INTO geo_cache (cidade_uf, lat, lon, display_name)
-                     VALUES ($1, $2, $3, $4) ON CONFLICT (cidade_uf) DO NOTHING`,
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT (cidade_uf) DO UPDATE
+                     SET lat = EXCLUDED.lat, lon = EXCLUDED.lon, display_name = EXCLUDED.display_name`,
                     [chave, lat, lon, nome]
                 );
             } catch (_) {}
         }
+
+        // Limpa dist_cache de pares envolvendo RECIFE/PE ou MORENO/PE — distâncias antigas
+        // foram calculadas a partir das coords do centro da cidade. Próxima geração de rota
+        // recalcula automaticamente via OSRM.
+        try {
+            await pool.query(
+                `DELETE FROM dist_cache WHERE origem_key IN ('RECIFE/PE','MORENO/PE') OR destino_key IN ('RECIFE/PE','MORENO/PE')`
+            );
+        } catch (_) {}
 
         // Colunas novas em veiculos para guardar destinos ordenados + origem da rota
         await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS destinos_json TEXT`);
