@@ -766,6 +766,17 @@ const inicializarBanco = async () => {
             PRIMARY KEY (origem_key, destino_key)
         )`);
 
+        // Cache de geometria de rota por estrada (OSRM /route)
+        await dbRun(`CREATE TABLE IF NOT EXISTS route_cache (
+            origem_key TEXT NOT NULL,
+            destino_key TEXT NOT NULL,
+            geometry_json TEXT NOT NULL,
+            distancia_metros INTEGER NOT NULL,
+            duracao_segundos INTEGER NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (origem_key, destino_key)
+        )`);
+
         // Seed dos pontos fixos da Transnet (CDs) — evita geocoding.
         // Coordenadas dos endereços reais dos CDs (não do centro da cidade).
         // Recife: Av. Barão de Bonito, 1110 - Várzea.

@@ -1440,6 +1440,53 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
         res.json({ success: true, destinos: normalizados });
     }));
 
+    // GET /veiculos/:id/rota-geometria — calcula geometria por estrada (OSRM /route) para
+    // cada perna (origem→1, 1→2, ...). Lazy: só chamado quando o modal abre.
+    // Retorna { pernas: [{ from, to, geometry: GeoJSON LineString, distancia_metros, duracao_segundos }] }
+    router.get('/veiculos/:id/rota-geometria', authMiddleware, asyncHandler(async (req, res) => {
+        const v = await dbGet(`SELECT destinos_json, origem_rota FROM veiculos WHERE id = ?`, [req.params.id]);
+        if (!v) return res.status(404).json({ pernas: [] });
+        if (!v.destinos_json || !v.origem_rota) return res.json({ pernas: [] });
+        let destinos;
+        try { destinos = JSON.parse(v.destinos_json); } catch { return res.json({ pernas: [] }); }
+        if (!Array.isArray(destinos) || destinos.length === 0) return res.json({ pernas: [] });
+
+        const orig = await dbGet(`SELECT cidade_uf, lat, lon FROM geo_cache WHERE cidade_uf = $1`, [v.origem_rota]);
+        if (!orig) return res.json({ pernas: [] });
+
+        const pontos = [
+            { cidade_uf: orig.cidade_uf, lat: Number(orig.lat), lon: Number(orig.lon) },
+            ...destinos
+                .filter(d => typeof d.lat === 'number' && typeof d.lon === 'number' && d.cidade_uf)
+                .map(d => ({ cidade_uf: d.cidade_uf, lat: d.lat, lon: d.lon })),
+        ];
+        if (pontos.length < 2) return res.json({ pernas: [] });
+
+        const { routeGeometry } = require('../utils/osmClient');
+        const pernas = [];
+        for (let i = 0; i < pontos.length - 1; i++) {
+            try {
+                const r = await routeGeometry(pontos[i], pontos[i + 1]);
+                pernas.push({
+                    from: pontos[i].cidade_uf,
+                    to: pontos[i + 1].cidade_uf,
+                    geometry: r.geometry,
+                    distancia_metros: r.distancia_metros,
+                    duracao_segundos: r.duracao_segundos,
+                });
+            } catch (e) {
+                console.error(`[rota-geometria] perna ${pontos[i].cidade_uf} → ${pontos[i + 1].cidade_uf} falhou:`, e.message);
+                pernas.push({
+                    from: pontos[i].cidade_uf,
+                    to: pontos[i + 1].cidade_uf,
+                    geometry: null,
+                    erro: e.message,
+                });
+            }
+        }
+        res.json({ pernas });
+    }));
+
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
     router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {

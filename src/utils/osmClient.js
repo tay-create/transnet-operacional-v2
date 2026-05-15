@@ -9,6 +9,7 @@ const { dbGet, db: pool } = require('../database/db');
 const USER_AGENT = 'Transnet-Operacional/1.0 (contato@tnetlog.com.br)';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const OSRM_TABLE_URL = 'https://router.project-osrm.org/table/v1/driving';
+const OSRM_ROUTE_URL = 'https://router.project-osrm.org/route/v1/driving';
 
 // Throttle serial para Nominatim (regra de uso: 1 req/s).
 let _nominatimLock = Promise.resolve();
@@ -36,11 +37,22 @@ function normalizarCidadeUf(cidade, uf) {
 
 // Geocoda cidade+UF via Nominatim. Resultado é cacheado pra sempre em geo_cache.
 // Lança erro se Nominatim retornar HTTP != 200 ou não encontrar a cidade.
+// Retorna { cidade, uf, cidade_uf, lat, lon, display_name } — cidade/uf preservados
+// para que o frontend possa exibir "${d.cidade}/${d.uf}" sem perder informação.
 async function geocode(cidade, uf) {
     const chave = normalizarCidadeUf(cidade, uf);
+    const cidadeStr = String(cidade ?? '').trim();
+    const ufStr = String(uf ?? '').trim().toUpperCase();
     const cached = await dbGet(`SELECT cidade_uf, lat, lon, display_name FROM geo_cache WHERE cidade_uf = $1`, [chave]);
     if (cached) {
-        return { cidade_uf: cached.cidade_uf, lat: Number(cached.lat), lon: Number(cached.lon), display_name: cached.display_name };
+        return {
+            cidade: cidadeStr,
+            uf: ufStr,
+            cidade_uf: cached.cidade_uf,
+            lat: Number(cached.lat),
+            lon: Number(cached.lon),
+            display_name: cached.display_name,
+        };
     }
 
     const q = `${cidade}, ${uf}, Brazil`;
@@ -75,7 +87,14 @@ async function geocode(cidade, uf) {
          VALUES ($1, $2, $3, $4) ON CONFLICT (cidade_uf) DO NOTHING`,
         [chave, lat, lon, display]
     );
-    return { cidade_uf: chave, lat, lon, display_name: display };
+    return {
+        cidade: cidadeStr,
+        uf: ufStr,
+        cidade_uf: chave,
+        lat,
+        lon,
+        display_name: display,
+    };
 }
 
 // Matriz NxN entre todos os pares de pontos via OSRM /table.
@@ -143,4 +162,42 @@ async function tableMatrix(pontos) {
     return matriz;
 }
 
-module.exports = { geocode, tableMatrix, normalizarCidadeUf };
+// Busca a geometria de rota por estrada (OSRM /route) entre dois pontos.
+// Resultado cacheado pra sempre em route_cache. Retorna:
+//   { geometry: GeoJSON LineString, distancia_metros, duracao_segundos }
+async function routeGeometry(origem, destino) {
+    const a = origem.cidade_uf;
+    const b = destino.cidade_uf;
+    const cached = await dbGet(
+        `SELECT geometry_json, distancia_metros, duracao_segundos FROM route_cache WHERE origem_key = $1 AND destino_key = $2`,
+        [a, b]
+    );
+    if (cached) {
+        return {
+            geometry: JSON.parse(cached.geometry_json),
+            distancia_metros: cached.distancia_metros,
+            duracao_segundos: cached.duracao_segundos,
+        };
+    }
+    const url = `${OSRM_ROUTE_URL}/${origem.lon},${origem.lat};${destino.lon},${destino.lat}?overview=full&geometries=geojson`;
+    const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } });
+    if (!resp.ok) throw new Error(`OSRM route HTTP ${resp.status} (${a} → ${b})`);
+    const body = await resp.json();
+    if (body.code !== 'Ok' || !Array.isArray(body.routes) || !body.routes[0]) {
+        throw new Error(`OSRM route resposta inválida: ${body.code || 'sem code'}`);
+    }
+    const r = body.routes[0];
+    const geom = r.geometry;
+    const dist = Math.round(r.distance);
+    const dur = Math.round(r.duration);
+    try {
+        await pool.query(
+            `INSERT INTO route_cache (origem_key, destino_key, geometry_json, distancia_metros, duracao_segundos)
+             VALUES ($1, $2, $3, $4, $5) ON CONFLICT (origem_key, destino_key) DO NOTHING`,
+            [a, b, JSON.stringify(geom), dist, dur]
+        );
+    } catch (_) {}
+    return { geometry: geom, distancia_metros: dist, duracao_segundos: dur };
+}
+
+module.exports = { geocode, tableMatrix, routeGeometry, normalizarCidadeUf };

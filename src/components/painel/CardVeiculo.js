@@ -293,6 +293,7 @@ export default function CardVeiculo({
                     if (!Array.isArray(destinos) || destinos.length === 0) return null;
                     const origemLabel = item.origem_rota ? item.origem_rota.split('/')[0] : '—';
                     const totalKm = destinos.reduce((acc, d) => acc + (d.distancia_do_anterior || 0), 0);
+                    const labelDestino = (d) => (d.cidade && d.uf) ? `${d.cidade}/${d.uf}` : (d.cidade_uf || '—');
                     return (
                         <div
                             onClick={() => funcoes.abrirModalRota?.(item)}
@@ -308,7 +309,7 @@ export default function CardVeiculo({
                                 {origemLabel} →
                             </span>
                             <span style={{ fontSize: 11, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                                {destinos.map((d, i) => `${i + 1}. ${d.cidade}/${d.uf}`).join('  ·  ')}
+                                {destinos.map((d, i) => `${i + 1}. ${labelDestino(d)}`).join('  ·  ')}
                             </span>
                             {totalKm > 0 && (
                                 <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>
@@ -961,7 +962,8 @@ export default function CardVeiculo({
                                 const d = item.destinos_json ? JSON.parse(item.destinos_json) : null;
                                 if (Array.isArray(d) && d.length > 0) {
                                     totalDestinos = d.length;
-                                    primeiroDestinoLabel = `${d[0].cidade}/${d[0].uf}`;
+                                    const p = d[0];
+                                    primeiroDestinoLabel = (p.cidade && p.uf) ? `${p.cidade}/${p.uf}` : (p.cidade_uf || '—');
                                 }
                             } catch {}
                             const temRota = totalDestinos > 0;
