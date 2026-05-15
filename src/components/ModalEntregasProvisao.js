@@ -38,6 +38,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, o
                 data_retorno: dataRetorno || null,
                 entradas: entradas.map(e => ({ cidade: e.cidade.trim(), data: e.data })),
             });
+            setSalvando(false);
             onConfirmar(entradas);
         } catch (e) {
             setErro('Erro ao registrar viagem. Tente novamente.');

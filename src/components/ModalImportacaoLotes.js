@@ -1296,6 +1296,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         {/* Modal de Registrar Viagem para veículos de frota */}
         {provisaoAtual && (
             <ModalEntregasProvisao
+                key={provisaoAtual.veiculo?.id || provisaoAtual.lote?.placa1}
                 veiculo={provisaoAtual.veiculo}
                 motorista={provisaoAtual.lote.motorista}
                 dataSaida={dataPrevista}
