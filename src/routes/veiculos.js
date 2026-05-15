@@ -1487,6 +1487,40 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
         res.json({ pernas });
     }));
 
+    // POST /veiculos/:id/regenerar-rota — força regenerar destinos_json/origem_rota
+    // a partir da planilha + OSRM. Útil quando OSRM oscilou na criação e o card ficou
+    // sem rota, evitando ter que apagar+relançar.
+    router.post('/veiculos/:id/regenerar-rota', authMiddleware, asyncHandler(async (req, res) => {
+        const v = await dbGet(
+            `SELECT id, operacao, coletaRecife, coletaMoreno, coletainterestadual FROM veiculos WHERE id = ?`,
+            [req.params.id]
+        );
+        if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+
+        const extrair = (s) => String(s || '').split(/[\s,|]+/)
+            .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+            .filter(Boolean);
+        const coleta = extrair(v.coletaRecife)[0] || extrair(v.coletaMoreno)[0] || extrair(v.coletainterestadual)[0];
+        if (!coleta) return res.json({ success: false, aviso: 'sem-coleta' });
+
+        try {
+            const { sheetId } = await getResultadoSheetIdFn();
+            const r = await gerarRota({ coleta, operacao: v.operacao, sheetId });
+            if (r.destinos_json || r.origem_rota) {
+                await dbRun(
+                    `UPDATE veiculos SET destinos_json = $1, origem_rota = $2 WHERE id = $3`,
+                    [r.destinos_json, r.origem_rota, v.id]
+                );
+                io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(v.id), destinos_json: r.destinos_json, origem_rota: r.origem_rota });
+            }
+            console.log(`[regenerar-rota] id=${v.id} coleta=${coleta} aviso=${r.aviso || 'ok'}`);
+            res.json({ success: true, aviso: r.aviso, destinos_json: r.destinos_json, origem_rota: r.origem_rota });
+        } catch (err) {
+            console.error('[regenerar-rota] falha:', err.message);
+            res.json({ success: false, aviso: 'erro-gerar-rota', erro: err.message });
+        }
+    }));
+
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado
     // foi_reprogramado=1: avançou/mudou; foi_reprogramado=0: voltou para hoje
     router.put('/veiculos/:id/reprogramar', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional']), asyncHandler(async (req, res) => {

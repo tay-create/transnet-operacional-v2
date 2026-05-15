@@ -25,6 +25,34 @@ function withNominatimThrottle(fn) {
     return result;
 }
 
+// Fetch com retry exponencial (2 retries adicionais, 500ms + 1500ms).
+// Mitiga oscilações do OSRM público (router.project-osrm.org) e Nominatim que
+// ocasionalmente respondem com fetch failed / 502 / 503.
+async function fetchComRetry(url, options = {}, label = 'fetch') {
+    const tentativas = 3;
+    let ultimoErro = null;
+    for (let i = 0; i < tentativas; i++) {
+        try {
+            const resp = await fetch(url, options);
+            // 5xx do servidor é retentável; 4xx é erro permanente, propaga.
+            if (resp.status >= 500 && resp.status < 600 && i < tentativas - 1) {
+                ultimoErro = new Error(`${label} HTTP ${resp.status}`);
+                await new Promise(r => setTimeout(r, 500 + i * 1000));
+                continue;
+            }
+            return resp;
+        } catch (e) {
+            ultimoErro = e;
+            if (i < tentativas - 1) {
+                await new Promise(r => setTimeout(r, 500 + i * 1000));
+                continue;
+            }
+            throw ultimoErro;
+        }
+    }
+    throw ultimoErro || new Error(`${label}: todas as tentativas falharam`);
+}
+
 function normalizarCidadeUf(cidade, uf) {
     const c = String(cidade ?? '')
         .normalize('NFD')
@@ -65,7 +93,7 @@ async function geocode(cidade, uf) {
     const url = `${NOMINATIM_URL}?${params.toString()}`;
 
     const body = await withNominatimThrottle(async () => {
-        const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } });
+        const resp = await fetchComRetry(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } }, 'Nominatim');
         if (!resp.ok) throw new Error(`Nominatim HTTP ${resp.status} para "${q}"`);
         return resp.json();
     });
@@ -135,7 +163,7 @@ async function tableMatrix(pontos) {
     // 2) Pelo menos um par está fora do cache → chama OSRM em batch único com todos os pontos.
     const coords = pontos.map(p => `${p.lon},${p.lat}`).join(';');
     const url = `${OSRM_TABLE_URL}/${coords}?annotations=duration,distance`;
-    const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } });
+    const resp = await fetchComRetry(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } }, 'OSRM table');
     if (!resp.ok) throw new Error(`OSRM HTTP ${resp.status}`);
     const body = await resp.json();
     if (body.code !== 'Ok' || !Array.isArray(body.distances) || !Array.isArray(body.durations)) {
@@ -180,7 +208,7 @@ async function routeGeometry(origem, destino) {
         };
     }
     const url = `${OSRM_ROUTE_URL}/${origem.lon},${origem.lat};${destino.lon},${destino.lat}?overview=full&geometries=geojson`;
-    const resp = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } });
+    const resp = await fetchComRetry(url, { headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' } }, 'OSRM route');
     if (!resp.ok) throw new Error(`OSRM route HTTP ${resp.status} (${a} → ${b})`);
     const body = await resp.json();
     if (body.code !== 'Ok' || !Array.isArray(body.routes) || !body.routes[0]) {

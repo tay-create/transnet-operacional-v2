@@ -106,6 +106,7 @@ function montarUrlGoogleMaps(origemCoord, destinos) {
 export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotificacao }) {
     const [destinos, setDestinos] = useState([]);
     const [salvando, setSalvando] = useState(false);
+    const [regenerando, setRegenerando] = useState(false);
     const [pernas, setPernas] = useState(null); // null = carregando, [] = falha total, [{...}] = ok
     const [carregandoGeo, setCarregandoGeo] = useState(false);
 
@@ -191,6 +192,30 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         setDestinos(prev => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, ordem: i + 1 })));
     };
 
+    const regenerar = async () => {
+        if (!veiculo?.id) return;
+        setRegenerando(true);
+        try {
+            const r = await api.post(`/veiculos/${veiculo.id}/regenerar-rota`);
+            if (r.data?.destinos_json) {
+                try {
+                    const arr = JSON.parse(r.data.destinos_json);
+                    setDestinos(Array.isArray(arr) ? arr : []);
+                    mostrarNotificacao?.('✅ Rota gerada');
+                } catch {
+                    mostrarNotificacao?.('⚠️ Rota gerada mas resposta inválida');
+                }
+            } else {
+                mostrarNotificacao?.(`⚠️ Falhou: ${r.data?.aviso || 'erro desconhecido'}`);
+            }
+        } catch (err) {
+            mostrarNotificacao?.('❌ Falha ao gerar rota');
+            console.error(err);
+        } finally {
+            setRegenerando(false);
+        }
+    };
+
     const salvar = async () => {
         if (!veiculo?.id) return;
         setSalvando(true);
@@ -246,8 +271,21 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     {/* Lista de destinos */}
                     <div style={{ borderRight: '1px solid rgba(255,255,255,0.08)', padding: 16, overflowY: 'auto', minHeight: 0 }}>
                         {destinos.length === 0 ? (
-                            <div style={{ color: '#94a3b8', fontSize: 13, padding: 12, textAlign: 'center' }}>
-                                Sem destinos. Reimporte ou crie o card a partir de uma coleta na planilha.
+                            <div style={{ padding: 12, textAlign: 'center' }}>
+                                <div style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
+                                    Sem destinos. Possíveis causas: coleta não encontrada na planilha, ou OSRM/Nominatim instável na criação do card.
+                                </div>
+                                <button
+                                    onClick={regenerar}
+                                    disabled={regenerando}
+                                    style={{
+                                        background: COR_ROTA, color: '#fff', border: 0,
+                                        padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                                        cursor: regenerando ? 'wait' : 'pointer'
+                                    }}
+                                >
+                                    {regenerando ? 'Gerando rota…' : 'Tentar gerar rota agora'}
+                                </button>
                             </div>
                         ) : destinos.map((d, idx) => (
                             <div key={`${d.cidade_uf || d.cidade}-${idx}`} style={{
