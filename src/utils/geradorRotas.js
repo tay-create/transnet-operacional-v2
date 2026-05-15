@@ -87,10 +87,19 @@ function indexarPlanilha(rows) {
         if (!cidade || !UFS_VALIDAS.has(uf)) continue;
 
         if (!map.has(coletaAtual)) {
-            map.set(coletaAtual, { rota: rotaAtual, destinos: [] });
+            map.set(coletaAtual, { rota: rotaAtual, destinos: [], _chavesVistas: new Set() });
         }
-        map.get(coletaAtual).destinos.push({ cidade, uf, chave: normalizarCidadeUf(cidade, uf) });
+        // Deduplica destinos pela chave cidade/uf — várias entregas na mesma cidade
+        // contam como 1 ponto de parada na rota (ex: 2 linhas JOAO PESSOA/PB = 1 destino).
+        const grupo = map.get(coletaAtual);
+        const chave = normalizarCidadeUf(cidade, uf);
+        if (!grupo._chavesVistas.has(chave)) {
+            grupo._chavesVistas.add(chave);
+            grupo.destinos.push({ cidade, uf, chave });
+        }
     }
+    // Limpa o helper _chavesVistas antes de retornar
+    for (const v of map.values()) delete v._chavesVistas;
     return map;
 }
 
