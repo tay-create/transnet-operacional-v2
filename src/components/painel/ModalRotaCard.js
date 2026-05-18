@@ -341,20 +341,40 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         if (!retorno) return [];
         const pontos = [{ lat: retorno.lat, lon: retorno.lon, isRetorno: true, label: retorno.label }];
         for (const t of (remanejamento.transferencias || [])) {
+            const fallback = (!t.placa && t.prov_veiculo_id) ? veiculosFrotaIdx[t.prov_veiculo_id] : null;
+            const placaFinal = t.placa || fallback?.placa || null;
+            const carretaFinal = t.carreta || fallback?.carreta || null;
             for (const d of (t.destinos || [])) {
                 if (typeof d.lat === 'number' && typeof d.lon === 'number') {
                     pontos.push({
                         lat: d.lat, lon: d.lon, cidade: d.cidade, uf: d.uf,
                         isRemanejado: true,
-                        placa: t.placa || null,
-                        carreta: t.carreta || null,
+                        placa: placaFinal,
+                        carreta: carretaFinal,
                         motorista: t.motorista || null,
                     });
                 }
             }
         }
         return pontos;
-    }, [remanejamento]);
+    }, [remanejamento, veiculosFrotaIdx]);
+
+    // Fallback: se transferencia não tem placa salva (remanejamento antigo), busca pelo prov_veiculo_id.
+    const [veiculosFrotaIdx, setVeiculosFrotaIdx] = useState({}); // { id: {placa, carreta} }
+    useEffect(() => {
+        if (!isOpen || !remanejamento) return;
+        const precisaFallback = (remanejamento.transferencias || []).some(t => !t.placa && t.prov_veiculo_id);
+        if (!precisaFallback) return;
+        api.get('/api/provisionamento/veiculos')
+            .then(r => {
+                if (r.data?.success) {
+                    const idx = {};
+                    for (const v of (r.data.veiculos || [])) idx[v.id] = { placa: v.placa, carreta: v.carreta };
+                    setVeiculosFrotaIdx(idx);
+                }
+            })
+            .catch(() => {});
+    }, [isOpen, remanejamento]);
 
     // Segmentos OSRM tracejados: (última entrega do original → ponto de retorno) + (ponto de retorno → cada remanejado).
     const [segmentosRemanejamento, setSegmentosRemanejamento] = useState([]);
