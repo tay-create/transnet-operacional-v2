@@ -26,6 +26,7 @@ import PainelDocas from './painel/PainelDocas';
 import PainelModais from './painel/PainelModais';
 import CardVeiculo from './painel/CardVeiculo';
 import ModalRotaCard from './painel/ModalRotaCard';
+import ModalRemanejamento from './painel/ModalRemanejamento';
 
 
 export default function PainelOperacional({
@@ -48,9 +49,11 @@ export default function PainelOperacional({
     };
 
     const [modalRotaVeiculo, setModalRotaVeiculo] = useState(null);
+    const [modalRemanejamentoVeiculo, setModalRemanejamentoVeiculo] = useState(null);
     const funcoesAmpliadas = useMemo(() => ({
         ...funcoes,
-        abrirModalRota: (item) => setModalRotaVeiculo(item)
+        abrirModalRota: (item) => setModalRotaVeiculo(item),
+        abrirModalRemanejamento: (item) => setModalRemanejamentoVeiculo(item),
     }), [funcoes]);
 
     const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
@@ -292,7 +295,19 @@ export default function PainelOperacional({
                 veiculo={modalRotaVeiculo}
                 onClose={() => setModalRotaVeiculo(null)}
                 mostrarNotificacao={mostrarNotificacao}
+                onAbrirRemanejamento={(item) => setModalRemanejamentoVeiculo(item)}
             />
+
+            {modalRemanejamentoVeiculo && (
+                <ModalRemanejamento
+                    veiculo={modalRemanejamentoVeiculo}
+                    onConfirmar={() => {
+                        setModalRemanejamentoVeiculo(null);
+                        mostrarNotificacao?.('✅ Remanejamento atualizado');
+                    }}
+                    onCancelar={() => setModalRemanejamentoVeiculo(null)}
+                />
+            )}
 
         </div >
     );

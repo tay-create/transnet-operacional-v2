@@ -50,7 +50,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
 
             const [rows, countRow, provVeiculos] = await Promise.all([
                 dbAll(`
-                SELECT v.id, v.dados_json, v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno, v.doca_recife, v.doca_moreno, v.coleta, v.coletarecife, v.coletamoreno, v.rota_recife, v.rota_moreno, v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista, v.data_criacao, v.tempos_recife, v.tempos_moreno, v.status_coleta, v.observacao, v.imagens, v.numero_cte, v.chave_cte, v.numero_coleta, v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv, v.gerenciadora_risco, v.status_gerenciadora, v.numero_liberacao, v.situacao_cadastro, v.data_liberacao, v.status_cte, v.timestamps_cte, v.tipoveiculo, v.telefonemotorista, v.isfrotamotorista, v.placa1motorista, v.placa2motorista, v.timestamps_status, v.pausas_status, v.seguradora_cad, v.origem_cad, v.destino_uf_cad, v.destino_cidade_cad, v.cte_antecipado_recife, v.cte_antecipado_moreno, v.data_prevista_original, v.data_inicio_patio, v.foi_reprogramado, v.data_carregado_recife, v.data_carregado_moreno, v.cte_antecipado_interestadual, v.coletainterestadual, v.token_operacao_motorista, v.token_operacao_expira_em, v.data_prevista_recife, v.data_prevista_moreno, v.destinos_json, v.origem_rota,
+                SELECT v.id, v.dados_json, v.placa, v.modelo, v.motorista, v.status_recife, v.status_moreno, v.doca_recife, v.doca_moreno, v.coleta, v.coletarecife, v.coletamoreno, v.rota_recife, v.rota_moreno, v.unidade, v.operacao, v.inicio_rota, v.origem_criacao, v.data_prevista, v.data_criacao, v.tempos_recife, v.tempos_moreno, v.status_coleta, v.observacao, v.imagens, v.numero_cte, v.chave_cte, v.numero_coleta, v.chk_cnh, v.chk_antt, v.chk_tacografo, v.chk_crlv, v.gerenciadora_risco, v.status_gerenciadora, v.numero_liberacao, v.situacao_cadastro, v.data_liberacao, v.status_cte, v.timestamps_cte, v.tipoveiculo, v.telefonemotorista, v.isfrotamotorista, v.placa1motorista, v.placa2motorista, v.timestamps_status, v.pausas_status, v.seguradora_cad, v.origem_cad, v.destino_uf_cad, v.destino_cidade_cad, v.cte_antecipado_recife, v.cte_antecipado_moreno, v.data_prevista_original, v.data_inicio_patio, v.foi_reprogramado, v.data_carregado_recife, v.data_carregado_moreno, v.cte_antecipado_interestadual, v.coletainterestadual, v.token_operacao_motorista, v.token_operacao_expira_em, v.data_prevista_recife, v.data_prevista_moreno, v.destinos_json, v.origem_rota, v.remanejamento_json,
                        (v.foto_lacre_recife IS NOT NULL AND v.foto_lacre_recife <> '') as tem_foto_lacre_recife,
                        (v.foto_lacre_moreno IS NOT NULL AND v.foto_lacre_moreno <> '') as tem_foto_lacre_moreno,
                        (SELECT m.telefone FROM marcacoes_placas m WHERE m.nome_motorista = v.motorista AND m.nome_motorista != '' ORDER BY m.data_marcacao DESC LIMIT 1) as telefone_bd,
@@ -1566,6 +1566,126 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             console.error('[regenerar-rota] falha:', err.message);
             res.json({ success: false, aviso: 'erro-gerar-rota', erro: err.message });
         }
+    }));
+
+    // POST /veiculos/:id/remanejamento — configura transferência de destinos finais
+    // para outros veículos da frota. O card original mantém só os destinos que ele faz;
+    // os remanejados saem do destinos_json e vão para prov_programacao dos veículos menores.
+    // Body: { ponto_retorno: 'RECIFE/PE'|'MORENO/PE', transferencias: [{ prov_veiculo_id, motorista, destinos_idx_originais: [] }] }
+    router.post('/veiculos/:id/remanejamento', authMiddleware, asyncHandler(async (req, res) => {
+        const { ponto_retorno, transferencias } = req.body || {};
+        if (!['RECIFE/PE', 'MORENO/PE'].includes(ponto_retorno)) {
+            return res.status(400).json({ success: false, message: 'ponto_retorno inválido (use RECIFE/PE ou MORENO/PE)' });
+        }
+        if (!Array.isArray(transferencias) || transferencias.length === 0) {
+            return res.status(400).json({ success: false, message: 'transferencias obrigatórias' });
+        }
+
+        const v = await dbGet(`SELECT destinos_json FROM veiculos WHERE id = ?`, [req.params.id]);
+        if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+        let destinos;
+        try { destinos = JSON.parse(v.destinos_json || '[]'); } catch { destinos = []; }
+        if (destinos.length === 0) return res.status(400).json({ success: false, message: 'Veículo sem destinos' });
+
+        // Coleta todos os índices remanejados (union de todas as transferências)
+        const indicesRemanejados = new Set();
+        for (const t of transferencias) {
+            for (const idx of (t.destinos_idx_originais || [])) indicesRemanejados.add(idx);
+        }
+        if (indicesRemanejados.size === 0) {
+            return res.status(400).json({ success: false, message: 'Nenhum destino selecionado para remanejamento' });
+        }
+
+        // Monta payload do remanejamento_json com snapshot
+        const transferenciasResolvidas = transferencias.map(t => ({
+            prov_veiculo_id: t.prov_veiculo_id,
+            motorista: t.motorista || '',
+            destinos: (t.destinos_idx_originais || []).map(i => destinos[i]).filter(Boolean),
+        }));
+        const remanejamento = {
+            ponto_retorno,
+            destinos_originais: destinos,
+            transferencias: transferenciasResolvidas,
+        };
+
+        // Novo destinos_json: só os destinos que NÃO foram remanejados, ordem renumerada
+        const destinosNovos = destinos
+            .filter((_, idx) => !indicesRemanejados.has(idx))
+            .map((d, i) => ({ ...d, ordem: i + 1 }));
+
+        await dbRun(
+            `UPDATE veiculos SET destinos_json = $1, remanejamento_json = $2 WHERE id = $3`,
+            [JSON.stringify(destinosNovos), JSON.stringify(remanejamento), req.params.id]
+        );
+
+        // Popular prov_programacao para cada destino remanejado
+        for (const t of transferenciasResolvidas) {
+            for (const d of t.destinos) {
+                if (!d.data) continue;
+                await dbRun(
+                    `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
+                     VALUES ($1, $2, 'EM_VIAGEM', $3, $4)
+                     ON CONFLICT (veiculo_id, data) DO UPDATE
+                     SET status = 'EM_VIAGEM', motorista = $3, destino = $4`,
+                    [t.prov_veiculo_id, d.data, t.motorista || null, `${d.cidade}/${d.uf}`]
+                );
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: d.data, status: 'EM_VIAGEM', destino: `${d.cidade}/${d.uf}`, motorista: t.motorista || null });
+            }
+        }
+
+        await registrarLog('REMANEJAMENTO', req.user?.nome || '?', req.params.id, 'veiculo', null, null,
+            `Ponto de retorno: ${ponto_retorno}. ${transferenciasResolvidas.length} transferência(s), ${indicesRemanejados.size} destino(s) remanejado(s).`);
+
+        io.emit('receber_atualizacao', {
+            tipo: 'atualiza_veiculo',
+            id: Number(req.params.id),
+            destinos_json: JSON.stringify(destinosNovos),
+            remanejamento_json: JSON.stringify(remanejamento),
+        });
+
+        res.json({ success: true, destinos_json: destinosNovos, remanejamento_json: remanejamento });
+    }));
+
+    // DELETE /veiculos/:id/remanejamento — desfaz remanejamento, restaura destinos_json
+    // original e remove entradas de prov_programacao dos veículos menores.
+    router.delete('/veiculos/:id/remanejamento', authMiddleware, asyncHandler(async (req, res) => {
+        const v = await dbGet(`SELECT remanejamento_json FROM veiculos WHERE id = ?`, [req.params.id]);
+        if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
+        if (!v.remanejamento_json) return res.json({ success: true, nada_a_fazer: true });
+
+        let rem;
+        try { rem = JSON.parse(v.remanejamento_json); } catch {
+            return res.status(500).json({ success: false, message: 'remanejamento_json inválido' });
+        }
+
+        const destinosOriginais = rem.destinos_originais || [];
+        await dbRun(
+            `UPDATE veiculos SET destinos_json = $1, remanejamento_json = NULL WHERE id = $2`,
+            [JSON.stringify(destinosOriginais), req.params.id]
+        );
+
+        // Limpar prov_programacao dos veículos menores nas datas das transferências
+        for (const t of (rem.transferencias || [])) {
+            for (const d of (t.destinos || [])) {
+                if (!d.data) continue;
+                await dbRun(
+                    `DELETE FROM prov_programacao
+                      WHERE veiculo_id = $1 AND data = $2 AND status = 'EM_VIAGEM' AND destino = $3`,
+                    [t.prov_veiculo_id, d.data, `${d.cidade}/${d.uf}`]
+                );
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: d.data, status: 'DISPONIVEL', destino: null, motorista: null });
+            }
+        }
+
+        await registrarLog('REMANEJAMENTO_DESFEITO', req.user?.nome || '?', req.params.id, 'veiculo', null, null, '');
+        io.emit('receber_atualizacao', {
+            tipo: 'atualiza_veiculo',
+            id: Number(req.params.id),
+            destinos_json: JSON.stringify(destinosOriginais),
+            remanejamento_json: null,
+        });
+
+        res.json({ success: true, destinos_json: destinosOriginais });
     }));
 
     // Reprogramação explícita — atualiza data_prevista e flag foi_reprogramado

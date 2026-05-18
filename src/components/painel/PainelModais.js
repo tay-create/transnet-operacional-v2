@@ -200,7 +200,13 @@ export default function PainelModais({
                         || modalEntregasCard.item?.coletainterestadual
                         || ''
                     }
-                    onConfirmar={() => setModalEntregasCard(null)}
+                    onConfirmar={(_entradas, opts) => {
+                        const item = modalEntregasCard.item;
+                        setModalEntregasCard(null);
+                        if (opts?.abrirRemanejamento && funcoes?.abrirModalRemanejamento) {
+                            funcoes.abrirModalRemanejamento(item);
+                        }
+                    }}
                     onCancelar={() => setModalEntregasCard(null)}
                 />
             )}

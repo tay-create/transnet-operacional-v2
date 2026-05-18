@@ -812,6 +812,8 @@ const inicializarBanco = async () => {
         // Colunas novas em veiculos para guardar destinos ordenados + origem da rota
         await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS destinos_json TEXT`);
         await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS origem_rota TEXT`);
+        // Remanejamento: configuração de transferência de destinos a outros veículos da frota
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS remanejamento_json TEXT`);
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");

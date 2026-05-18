@@ -62,8 +62,21 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
 
     const podeSalvar = dataSaidaModal && entradas.length > 0 && entradas.every(e => e.data);
 
+    // Quando o usuário clica Confirmar, primeiro pergunta sobre remanejamento.
+    const [perguntandoRemanejamento, setPerguntandoRemanejamento] = useState(false);
+    const [aguardandoConfirmar, setAguardandoConfirmar] = useState(false);
+
     async function confirmar() {
         if (!podeSalvar) return;
+        // Se a viagem tem múltiplos destinos, pergunta antes se vai ter remanejamento.
+        if (entradas.length > 1 && !aguardandoConfirmar) {
+            setPerguntandoRemanejamento(true);
+            return;
+        }
+        await executarConfirmacao(false);
+    }
+
+    async function executarConfirmacao(comRemanejamento) {
         setSalvando(true);
         setErro('');
         try {
@@ -77,7 +90,7 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
                 // (não sobrescrever com EM_VIAGEM). A viagem começa no dia seguinte.
                 preservar_data_saida_em_operacao: origemEntradas === 'planilha',
             });
-            onConfirmar(entradas);
+            onConfirmar(entradas, { abrirRemanejamento: comRemanejamento });
         } catch (e) {
             setErro('Erro ao registrar viagem. Tente novamente.');
             setSalvando(false);
@@ -286,6 +299,54 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
                     </button>
                 </div>
             </div>
+
+            {/* Overlay de pergunta: vai ter remanejamento? */}
+            {perguntandoRemanejamento && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000
+                }} onClick={() => setPerguntandoRemanejamento(false)}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: '#0f172a', borderRadius: 12, padding: 24,
+                        maxWidth: 440, border: '1px solid rgba(167,139,250,0.4)',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                            <div style={{ background: 'rgba(167,139,250,0.18)', width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                            </div>
+                            <div style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Vai haver remanejamento?</div>
+                        </div>
+                        <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.5, margin: '0 0 18px' }}>
+                            Algumas viagens longas têm parte dos destinos finais transferidos para outros caminhões da frota.
+                            Se for o caso desta viagem, configure agora — caso contrário, prosseguir normalmente.
+                        </p>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => { setPerguntandoRemanejamento(false); setAguardandoConfirmar(true); executarConfirmacao(false); }}
+                                disabled={salvando}
+                                style={{
+                                    background: 'transparent', color: '#94a3b8',
+                                    border: '1px solid rgba(255,255,255,0.12)',
+                                    padding: '8px 16px', borderRadius: 8, fontSize: 13, cursor: 'pointer'
+                                }}
+                            >
+                                Não, prosseguir
+                            </button>
+                            <button
+                                onClick={() => { setPerguntandoRemanejamento(false); setAguardandoConfirmar(true); executarConfirmacao(true); }}
+                                disabled={salvando}
+                                style={{
+                                    background: '#a78bfa', color: '#fff', border: 0,
+                                    padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer'
+                                }}
+                            >
+                                Sim, configurar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

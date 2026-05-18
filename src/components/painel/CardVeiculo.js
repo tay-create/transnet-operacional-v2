@@ -294,6 +294,21 @@ export default function CardVeiculo({
                     const origemLabel = item.origem_rota ? item.origem_rota.split('/')[0] : '—';
                     const totalKm = destinos.reduce((acc, d) => acc + (d.distancia_do_anterior || 0), 0);
                     const labelDestino = (d) => (d.cidade && d.uf) ? `${d.cidade}/${d.uf}` : (d.cidade_uf || '—');
+
+                    // Parse do remanejamento para badge + tooltip
+                    let remanejamento = null;
+                    try {
+                        remanejamento = item.remanejamento_json
+                            ? (typeof item.remanejamento_json === 'string' ? JSON.parse(item.remanejamento_json) : item.remanejamento_json)
+                            : null;
+                    } catch {}
+                    const totalRemanejado = remanejamento
+                        ? (remanejamento.transferencias || []).reduce((acc, t) => acc + (t.destinos?.length || 0), 0)
+                        : 0;
+                    const tooltipRemanejamento = remanejamento && totalRemanejado > 0
+                        ? `Após ${labelDestino(destinos[destinos.length - 1])}, retorna para ${remanejamento.ponto_retorno?.split('/')[0] || '—'}. ${totalRemanejado} destino(s) remanejado(s).`
+                        : null;
+
                     return (
                         <div
                             onClick={() => funcoes.abrirModalRota?.(item)}
@@ -311,6 +326,18 @@ export default function CardVeiculo({
                             <span style={{ fontSize: 11, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                                 {destinos.map((d, i) => `${i + 1}. ${labelDestino(d)}`).join('  ·  ')}
                             </span>
+                            {totalRemanejado > 0 && (
+                                <span
+                                    title={tooltipRemanejamento}
+                                    style={{
+                                        background: 'rgba(167,139,250,0.18)', color: '#a78bfa',
+                                        fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                                        fontWeight: 700, letterSpacing: 0.5, whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    REMANEJADO +{totalRemanejado}
+                                </span>
+                            )}
                             {totalKm > 0 && (
                                 <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>
                                     {(totalKm / 1000).toFixed(0)} km

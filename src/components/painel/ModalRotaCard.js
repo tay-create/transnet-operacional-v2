@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { X, MapPin, ArrowUp, ArrowDown, Trash2, Save, Truck, ExternalLink } from 'lucide-react';
+import { X, MapPin, ArrowUp, ArrowDown, Trash2, Save, Truck, ExternalLink, Shuffle, Warehouse } from 'lucide-react';
 import api from '../../services/apiService';
 
 // Origens fixas conhecidas (endereço real dos CDs, não centro da cidade).
@@ -151,7 +151,7 @@ function montarUrlGoogleMaps(origemCoord, destinos) {
     return `https://www.google.com/maps/dir/${pontos.join('/')}`;
 }
 
-export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotificacao }) {
+export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotificacao, onAbrirRemanejamento }) {
     const [destinos, setDestinos] = useState([]);
     const [salvando, setSalvando] = useState(false);
     const [regenerando, setRegenerando] = useState(false);
@@ -324,6 +324,37 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         }
     };
 
+    // Remanejamento: parseia o JSON e prepara polyline tracejada do ponto de retorno → destinos remanejados.
+    // (Hooks DEVEM ser chamados antes do early return abaixo.)
+    const remanejamento = useMemo(() => {
+        if (!veiculo?.remanejamento_json) return null;
+        try {
+            return typeof veiculo.remanejamento_json === 'string'
+                ? JSON.parse(veiculo.remanejamento_json)
+                : veiculo.remanejamento_json;
+        } catch { return null; }
+    }, [veiculo]);
+
+    const pontosRemanejamento = useMemo(() => {
+        if (!remanejamento) return [];
+        const retorno = COORDS_ORIGEM[remanejamento.ponto_retorno];
+        if (!retorno) return [];
+        const pontos = [{ lat: retorno.lat, lon: retorno.lon, isRetorno: true, label: retorno.label }];
+        for (const t of (remanejamento.transferencias || [])) {
+            for (const d of (t.destinos || [])) {
+                if (typeof d.lat === 'number' && typeof d.lon === 'number') {
+                    pontos.push({ lat: d.lat, lon: d.lon, cidade: d.cidade, uf: d.uf, isRemanejado: true });
+                }
+            }
+        }
+        return pontos;
+    }, [remanejamento]);
+
+    const linhaRemanejamento = useMemo(
+        () => pontosRemanejamento.map(p => [p.lat, p.lon]),
+        [pontosRemanejamento]
+    );
+
     if (!isOpen) return null;
 
     const urlGmaps = montarUrlGoogleMaps(origemCoord, destinos);
@@ -450,6 +481,36 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                     <Polyline positions={linhaFallback} pathOptions={{ color: COR_FALLBACK, weight: 3, opacity: 0.7, dashArray: '6 4' }} />
                                 )
                             )}
+
+                            {/* REMANEJAMENTO: ponto de retorno + destinos remanejados em polyline tracejada */}
+                            {pontosRemanejamento.length >= 2 && (
+                                <Polyline
+                                    positions={linhaRemanejamento}
+                                    pathOptions={{ color: '#a78bfa', weight: 4, opacity: 0.85, dashArray: '8 6' }}
+                                />
+                            )}
+                            {pontosRemanejamento.map((p, idx) => {
+                                if (p.isRetorno) {
+                                    return (
+                                        <Marker key={`ret-${idx}`} position={[p.lat, p.lon]} icon={L.divIcon({
+                                            className: 'rota-card-marker',
+                                            html: `<div style="background:#475569;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #a78bfa;box-shadow:0 2px 6px rgba(0,0,0,.4)" title="Retorno"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 8.35V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.35A2 2 0 0 1 3.26 6.5l8-3.2a2 2 0 0 1 1.48 0l8 3.2A2 2 0 0 1 22 8.35Z"/><path d="M6 18h12"/><path d="M6 14h12"/><rect width="12" height="12" x="6" y="10"/></svg></div>`,
+                                            iconSize: [32, 32], iconAnchor: [16, 16],
+                                        })}>
+                                            <Tooltip direction="top">Retorno: {p.label}</Tooltip>
+                                        </Marker>
+                                    );
+                                }
+                                return (
+                                    <Marker key={`rem-${idx}`} position={[p.lat, p.lon]} icon={L.divIcon({
+                                        className: 'rota-card-marker',
+                                        html: `<div style="background:#a78bfa;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px dashed #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)">R${idx}</div>`,
+                                        iconSize: [28, 28], iconAnchor: [14, 14],
+                                    })}>
+                                        <Tooltip direction="top">Remanejado: {p.cidade}/{p.uf}</Tooltip>
+                                    </Marker>
+                                );
+                            })}
                         </MapContainer>
 
                         {/* Card flutuante de Distância + Duração (com jornada legal de caminhoneiro) */}
@@ -490,7 +551,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                    <div>
+                    <div style={{ display: 'flex', gap: 10 }}>
                         {urlGmaps && (
                             <a
                                 href={urlGmaps}
@@ -506,6 +567,22 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                             >
                                 <ExternalLink size={14} /> Abrir no Google Maps
                             </a>
+                        )}
+                        {onAbrirRemanejamento && (
+                            <button
+                                onClick={() => { onAbrirRemanejamento(veiculo); onClose?.(); }}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    background: veiculo?.remanejamento_json ? 'rgba(167,139,250,0.18)' : 'transparent',
+                                    color: '#a78bfa',
+                                    border: '1px solid rgba(167,139,250,0.4)',
+                                    padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                                    cursor: 'pointer'
+                                }}
+                                title={veiculo?.remanejamento_json ? 'Editar remanejamento' : 'Configurar remanejamento'}
+                            >
+                                <Shuffle size={14} /> Remanejamento
+                            </button>
                         )}
                     </div>
                     <div style={{ display: 'flex', gap: 10 }}>
