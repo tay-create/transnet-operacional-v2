@@ -46,14 +46,22 @@ async function aplicarDataUnidade(dbRun, dbGet, veiculoId, unidade, novaData, ct
     if (!d) return null;
 
     const antes = await dbGet(
-        `SELECT data_prevista, data_prevista_recife, data_prevista_moreno
+        `SELECT data_prevista, data_prevista_recife, data_prevista_moreno, operacao
            FROM veiculos WHERE id = ?`,
         [veiculoId]
     );
     if (!antes) return null;
 
-    const novoR = lado === 'recife' ? d : _norm(antes.data_prevista_recife);
-    const novoM = lado === 'moreno' ? d : _norm(antes.data_prevista_moreno);
+    // Não-consolidados: sempre força os 3 campos iguais para evitar inconsistência
+    const consolidado = String(antes.operacao || '').includes('/');
+    let novoR, novoM;
+    if (!consolidado) {
+        novoR = d;
+        novoM = d;
+    } else {
+        novoR = lado === 'recife' ? d : _norm(antes.data_prevista_recife);
+        novoM = lado === 'moreno' ? d : _norm(antes.data_prevista_moreno);
+    }
     const novoGuarda = derivarGuardaChuva(novoR, novoM) || d;
 
     await dbRun(

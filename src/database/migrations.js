@@ -1,13 +1,13 @@
 const bcrypt = require('bcryptjs');
-const { dbRun, dbGet } = require('./db');
+const { dbRun, dbGet, db: pool } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento'],
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
     'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes', 'painel_frota'],
     'Aux. Operacional': ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila', 'painel_frota'],
     'Conhecimento':     ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
@@ -706,7 +706,8 @@ const inicializarBanco = async () => {
             PRIMARY KEY (uf_origem, uf_destino)
         )`);
 
-        // Seed lead padrão (origem PE → destinos)
+        // Seed lead padrão Transnet (origem PE → destinos)
+        // Usa pool.query direto porque dbRun auto-injeta "RETURNING id" e a tabela tem PK composta sem coluna id
         const SEED_LEAD_PE = [
             ['PE','PE',1],['PE','AC',9],['PE','AL',1],['PE','BA',2],['PE','CE',2],
             ['PE','DF',5],['PE','ES',4],['PE','GO',6],['PE','MA',3],['PE','MT',7],
@@ -716,13 +717,103 @@ const inicializarBanco = async () => {
         ];
         for (const [orig, dest, dias] of SEED_LEAD_PE) {
             try {
-                await dbRun(
+                await pool.query(
                     `INSERT INTO tramontina_lead_padrao_uf (uf_origem, uf_destino, dias_uteis_padrao)
-                     VALUES (?, ?, ?) ON CONFLICT (uf_origem, uf_destino) DO NOTHING`,
+                     VALUES ($1, $2, $3) ON CONFLICT (uf_origem, uf_destino) DO NOTHING`,
                     [orig, dest, dias]
                 );
             } catch (_) {}
         }
+
+        // Tabela e seed do lead padrão Tramontina por região
+        // Códigos coerentes com REGIOES_BR em src/utils/tramontinaLeadTime.js (N, NE, CO, SE, S)
+        await dbRun(`CREATE TABLE IF NOT EXISTS tramontina_lead_padrao_regiao (
+            regiao TEXT PRIMARY KEY,
+            dias_uteis_padrao INTEGER NOT NULL
+        )`);
+        const SEED_LEAD_REGIAO = [
+            ['N', 8],   // NORTE
+            ['CO', 11], // CENTRO-OESTE
+            ['NE', 8],  // NORDESTE
+            ['S', 12],  // SUL
+            ['SE', 10], // SUDESTE
+        ];
+        for (const [regiao, dias] of SEED_LEAD_REGIAO) {
+            try {
+                await pool.query(
+                    `INSERT INTO tramontina_lead_padrao_regiao (regiao, dias_uteis_padrao)
+                     VALUES ($1, $2) ON CONFLICT (regiao) DO NOTHING`,
+                    [regiao, dias]
+                );
+            } catch (_) {}
+        }
+
+        // Gerador de Rotas (OSM público): cache de geocode + cache de distâncias
+        await dbRun(`CREATE TABLE IF NOT EXISTS geo_cache (
+            cidade_uf TEXT PRIMARY KEY,
+            lat DOUBLE PRECISION NOT NULL,
+            lon DOUBLE PRECISION NOT NULL,
+            display_name TEXT,
+            criado_em TIMESTAMP DEFAULT NOW()
+        )`);
+
+        await dbRun(`CREATE TABLE IF NOT EXISTS dist_cache (
+            origem_key TEXT NOT NULL,
+            destino_key TEXT NOT NULL,
+            distancia_metros INTEGER NOT NULL,
+            duracao_segundos INTEGER NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (origem_key, destino_key)
+        )`);
+
+        // Cache de geometria de rota por estrada (OSRM /route)
+        await dbRun(`CREATE TABLE IF NOT EXISTS route_cache (
+            origem_key TEXT NOT NULL,
+            destino_key TEXT NOT NULL,
+            geometry_json TEXT NOT NULL,
+            distancia_metros INTEGER NOT NULL,
+            duracao_segundos INTEGER NOT NULL,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (origem_key, destino_key)
+        )`);
+
+        // Seed dos pontos fixos da Transnet (CDs) — evita geocoding.
+        // Coordenadas dos endereços reais dos CDs (não do centro da cidade).
+        // Recife: Av. Barão de Bonito, 1110 - Várzea.
+        // Moreno: Av. Industrial - Distrito Industrial.
+        const SEED_GEO = [
+            ['RECIFE/PE', -8.0434124, -34.9542906, 'CD Transnet — Av. Barão de Bonito, 1110, Várzea, Recife/PE'],
+            ['MORENO/PE', -8.130545712978426, -35.12564333469332, 'CD Transnet — Av. Industrial, Distrito Industrial, Moreno/PE'],
+            ['CARLOS BARBOSA/RS', -29.28426360237548, -51.4879727918691, 'CD Transnet — Carlos Barbosa/RS (operação ELETRIK SUL)'],
+        ];
+        for (const [chave, lat, lon, nome] of SEED_GEO) {
+            try {
+                // UPSERT (sobrescreve coords antigas se já houver — necessário para migrar
+                // ambientes que já tinham o seed antigo com coords do centro da cidade).
+                await pool.query(
+                    `INSERT INTO geo_cache (cidade_uf, lat, lon, display_name)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT (cidade_uf) DO UPDATE
+                     SET lat = EXCLUDED.lat, lon = EXCLUDED.lon, display_name = EXCLUDED.display_name`,
+                    [chave, lat, lon, nome]
+                );
+            } catch (_) {}
+        }
+
+        // Limpa dist_cache de pares envolvendo RECIFE/PE ou MORENO/PE — distâncias antigas
+        // foram calculadas a partir das coords do centro da cidade. Próxima geração de rota
+        // recalcula automaticamente via OSRM.
+        try {
+            await pool.query(
+                `DELETE FROM dist_cache WHERE origem_key IN ('RECIFE/PE','MORENO/PE') OR destino_key IN ('RECIFE/PE','MORENO/PE')`
+            );
+        } catch (_) {}
+
+        // Colunas novas em veiculos para guardar destinos ordenados + origem da rota
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS destinos_json TEXT`);
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS origem_rota TEXT`);
+        // Remanejamento: configuração de transferência de destinos a outros veículos da frota
+        await dbRun(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS remanejamento_json TEXT`);
 
         // FORÇA ATUALIZAÇÃO DAS PERMISSÕES SEMPRE AO INICIAR
         const perm = await dbGet("SELECT * FROM configuracoes WHERE chave = 'permissoes_acesso'");

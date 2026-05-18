@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 
+// Remove os prefixos internos PORC:/ELET:/PLAS: para exibição. O dado armazenado
+// mantém o prefixo (necessário para ColetaMorenoSplit, badges em PainelCte, etc).
+const tagSemPrefixo = (s) => String(s || '').replace(/^(PLAS|PORC|ELET):\s*/i, '').trim();
+
 const TagInput = ({ value, onChange, disabled }) => {
     const [digitando, setDigitando] = useState('');
     const tags = value ? String(value).split(',').map(t => t.trim()).filter(Boolean) : [];
@@ -7,7 +11,11 @@ const TagInput = ({ value, onChange, disabled }) => {
     const adicionar = (texto) => {
         const limpo = texto.trim().toUpperCase();
         if (!limpo) return;
-        if (!tags.includes(limpo)) {
+        // Compara IGNORANDO prefixo (PORC:/ELET:/PLAS:) para evitar duplicata
+        // quando o usuário digita "1304" e o estado já tem "PORC:1304".
+        const limpoSemPrefixo = tagSemPrefixo(limpo);
+        const jaTem = tags.some(t => tagSemPrefixo(t).toUpperCase() === limpoSemPrefixo.toUpperCase());
+        if (!jaTem) {
             const novasTags = [...tags, limpo];
             onChange(novasTags.join(', '));
         }
@@ -42,7 +50,7 @@ const TagInput = ({ value, onChange, disabled }) => {
             {tags.map((tag, i) => (
                 <span key={i} style={{ backgroundColor: 'rgba(59,130,246,0.18)', color: '#ffffff', border: '1px solid rgba(99,179,237,0.5)', padding: '2px 6px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '3px', textShadow: '0 0 6px rgba(99,179,237,0.7)' }}>
                     <span style={{ color: '#93c5fd', fontSize: '9px', fontWeight: '600', marginRight: '1px' }}>{i + 1}ª</span>
-                    {tag}
+                    {tagSemPrefixo(tag)}
                     {!disabled && tags.length > 1 && (
                         <>
                             {i > 0 && <button onClick={() => mover(i, -1)} style={{ border: 'none', background: 'none', color: '#3b82f6', cursor: 'pointer', fontSize: '10px', padding: '0 1px', lineHeight: 1 }} title="Subir">▲</button>}

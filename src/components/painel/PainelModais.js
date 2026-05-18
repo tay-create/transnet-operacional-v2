@@ -191,7 +191,22 @@ export default function PainelModais({
                     veiculo={modalEntregasCard.veiculo}
                     motorista={modalEntregasCard.item?.motorista || ''}
                     dataSaida={modalEntregasCard.item?.data_prevista ? modalEntregasCard.item.data_prevista.substring(0, 10) : new Date().toISOString().substring(0, 10)}
-                    onConfirmar={() => setModalEntregasCard(null)}
+                    coletaPrincipal={
+                        modalEntregasCard.item?.coletaRecife
+                        || modalEntregasCard.item?.coletaMoreno
+                        || modalEntregasCard.item?.coletaInterestadual
+                        || modalEntregasCard.item?.coletarecife
+                        || modalEntregasCard.item?.coletamoreno
+                        || modalEntregasCard.item?.coletainterestadual
+                        || ''
+                    }
+                    onConfirmar={(_entradas, opts) => {
+                        const item = modalEntregasCard.item;
+                        setModalEntregasCard(null);
+                        if (opts?.abrirRemanejamento && funcoes?.abrirModalRemanejamento) {
+                            funcoes.abrirModalRemanejamento(item);
+                        }
+                    }}
                     onCancelar={() => setModalEntregasCard(null)}
                 />
             )}

@@ -25,6 +25,8 @@ import PainelHeader from './painel/PainelHeader';
 import PainelDocas from './painel/PainelDocas';
 import PainelModais from './painel/PainelModais';
 import CardVeiculo from './painel/CardVeiculo';
+import ModalRotaCard from './painel/ModalRotaCard';
+import ModalRemanejamento from './painel/ModalRemanejamento';
 
 
 export default function PainelOperacional({
@@ -45,6 +47,23 @@ export default function PainelOperacional({
         }
         return podeEditar(permissao);
     };
+
+    const [modalRotaVeiculo, setModalRotaVeiculo] = useState(null);
+    const [modalRemanejamentoVeiculo, setModalRemanejamentoVeiculo] = useState(null);
+    const funcoesAmpliadas = useMemo(() => ({
+        ...funcoes,
+        abrirModalRota: (item) => setModalRotaVeiculo(item),
+        abrirModalRemanejamento: (item) => setModalRemanejamentoVeiculo(item),
+    }), [funcoes]);
+
+    // Escuta evento global emitido pelo App.js após lançar veículo com "Sim, configurar remanejamento"
+    useEffect(() => {
+        function handler(e) {
+            if (e?.detail) setModalRemanejamentoVeiculo(e.detail);
+        }
+        window.addEventListener('abrir-remanejamento', handler);
+        return () => window.removeEventListener('abrir-remanejamento', handler);
+    }, []);
 
     const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
     const {
@@ -199,7 +218,7 @@ export default function PainelOperacional({
                                         opcoesDocas={opcoesDocas}
                                         user={user}
                                         podeEditarNaUnidade={podeEditarNaUnidade}
-                                        funcoes={funcoes}
+                                        funcoes={funcoesAmpliadas}
                                         motoristasDisponiveis={motoristasDisponiveis}
                                         editandoMotorista={editandoMotorista} setEditandoMotorista={setEditandoMotorista}
                                         editandoPlaca={editandoPlaca} setEditandoPlaca={setEditandoPlaca}
@@ -280,6 +299,24 @@ export default function PainelOperacional({
                 updateList={updateList}
             />
 
+            <ModalRotaCard
+                isOpen={!!modalRotaVeiculo}
+                veiculo={modalRotaVeiculo}
+                onClose={() => setModalRotaVeiculo(null)}
+                mostrarNotificacao={mostrarNotificacao}
+                onAbrirRemanejamento={(item) => setModalRemanejamentoVeiculo(item)}
+            />
+
+            {modalRemanejamentoVeiculo && (
+                <ModalRemanejamento
+                    veiculo={modalRemanejamentoVeiculo}
+                    onConfirmar={() => {
+                        setModalRemanejamentoVeiculo(null);
+                        mostrarNotificacao?.('✅ Remanejamento atualizado');
+                    }}
+                    onCancelar={() => setModalRemanejamentoVeiculo(null)}
+                />
+            )}
 
         </div >
     );

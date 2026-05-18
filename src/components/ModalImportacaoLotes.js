@@ -577,10 +577,12 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         const novosSucessos = {};
         let ok = 0;
 
+        const idsPorLote = {}; // _id -> veiculo_id retornado pelo backend
         for (const lote of lotes) {
             if (sucessos[lote._id]) { ok++; continue; } // já lançado
             try {
                 const res = await lancarPayloadDireto({ ...lote, data_prevista: lote.dataPrevista || dataPrevista });
+                if (res?.id) idsPorLote[lote._id] = res.id;
                 if (res?.atualizado) {
                     novosSucessos[lote._id] = 'atualizado';
                 } else if (res?.duplicata) {
@@ -610,7 +612,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                     (v.carreta || '').toUpperCase() === (l.placa1 || '').toUpperCase() ||
                     (v.placa || '').toUpperCase() === (l.placa2 || '').toUpperCase()
                 );
-                return { lote: l, veiculo };
+                return { lote: l, veiculo, veiculo_id_card: idsPorLote[l._id] || null };
             }).filter(x => x.veiculo);
 
             if (lotesFreota.length > 0) {
@@ -1300,7 +1302,27 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 veiculo={provisaoAtual.veiculo}
                 motorista={provisaoAtual.lote.motorista}
                 dataSaida={dataPrevista}
-                onConfirmar={() => {
+                coletaPrincipal={
+                    provisaoAtual.lote?.coletaRecife
+                    || provisaoAtual.lote?.coletaMoreno
+                    || provisaoAtual.lote?.coletaInterestadual
+                    || ''
+                }
+                onConfirmar={async (_entradas, opts) => {
+                    console.log('[remanejamento-lote] opts:', opts, 'veiculo_id_card:', provisaoAtual?.veiculo_id_card);
+                    // Se o usuário pediu remanejamento, busca o card e dispara evento global ANTES de avançar
+                    if (opts?.abrirRemanejamento && provisaoAtual?.veiculo_id_card) {
+                        try {
+                            const r = await api.get(`/veiculos/${provisaoAtual.veiculo_id_card}`);
+                            const cardCriado = r.data?.veiculo || r.data;
+                            console.log('[remanejamento-lote] card buscado:', cardCriado?.id);
+                            if (cardCriado) {
+                                window.dispatchEvent(new CustomEvent('abrir-remanejamento', { detail: cardCriado }));
+                            }
+                        } catch (e) {
+                            console.warn('Falha ao buscar card para remanejamento:', e);
+                        }
+                    }
                     if (provisaoFila.length > 0) {
                         setProvisaoAtual(provisaoFila[0]);
                         setProvisaoFila(prev => prev.slice(1));

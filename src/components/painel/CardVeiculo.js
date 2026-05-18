@@ -286,6 +286,67 @@ export default function CardVeiculo({
                     </div>
                 </div>
 
+                {/* Linha de destinos da rota (gerada pela planilha + OSM) */}
+                {(() => {
+                    let destinos = null;
+                    try { destinos = item.destinos_json ? JSON.parse(item.destinos_json) : null; } catch {}
+                    if (!Array.isArray(destinos) || destinos.length === 0) return null;
+                    const origemLabel = item.origem_rota ? item.origem_rota.split('/')[0] : '—';
+                    const totalKm = destinos.reduce((acc, d) => acc + (d.distancia_do_anterior || 0), 0);
+                    const labelDestino = (d) => (d.cidade && d.uf) ? `${d.cidade}/${d.uf}` : (d.cidade_uf || '—');
+
+                    // Parse do remanejamento para badge + tooltip
+                    let remanejamento = null;
+                    try {
+                        remanejamento = item.remanejamento_json
+                            ? (typeof item.remanejamento_json === 'string' ? JSON.parse(item.remanejamento_json) : item.remanejamento_json)
+                            : null;
+                    } catch {}
+                    const totalRemanejado = remanejamento
+                        ? (remanejamento.transferencias || []).reduce((acc, t) => acc + (t.destinos?.length || 0), 0)
+                        : 0;
+                    const tooltipRemanejamento = remanejamento && totalRemanejado > 0
+                        ? `Após ${labelDestino(destinos[destinos.length - 1])}, retorna para ${remanejamento.ponto_retorno?.split('/')[0] || '—'}. ${totalRemanejado} destino(s) remanejado(s).`
+                        : null;
+
+                    return (
+                        <div
+                            onClick={() => funcoes.abrirModalRota?.(item)}
+                            style={{
+                                background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.25)',
+                                borderRadius: 6, padding: '6px 10px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 6, marginTop: -4
+                            }}
+                            title="Clique para ver/editar a rota completa"
+                        >
+                            <MapPin size={13} color="#60a5fa" />
+                            <span style={{ fontSize: 10, color: '#64748b', fontWeight: 700, letterSpacing: 0.5 }}>
+                                {origemLabel} →
+                            </span>
+                            <span style={{ fontSize: 11, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                {destinos.map((d, i) => `${i + 1}. ${labelDestino(d)}`).join('  ·  ')}
+                            </span>
+                            {totalRemanejado > 0 && (
+                                <span
+                                    title={tooltipRemanejamento}
+                                    style={{
+                                        background: 'rgba(167,139,250,0.18)', color: '#a78bfa',
+                                        fontSize: 9, padding: '2px 6px', borderRadius: 4,
+                                        fontWeight: 700, letterSpacing: 0.5, whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    REMANEJADO +{totalRemanejado}
+                                </span>
+                            )}
+                            {totalKm > 0 && (
+                                <span style={{ fontSize: 10, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                                    {(totalKm / 1000).toFixed(0)} km
+                                </span>
+                            )}
+                        </div>
+                    );
+                })()}
+
                 {precisaCampoMoreno && (
                     <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(245, 158, 11, 0.3)', marginTop: '8px' }}>
 
@@ -920,6 +981,44 @@ export default function CardVeiculo({
 
                     {/* Botões de Ação */}
                     <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', alignItems: 'center' }}>
+                        {/* Botão Ver rota — abre ModalRotaCard com mapa + lista editável */}
+                        {(() => {
+                            let primeiroDestinoLabel = null;
+                            let totalDestinos = 0;
+                            try {
+                                const d = item.destinos_json ? JSON.parse(item.destinos_json) : null;
+                                if (Array.isArray(d) && d.length > 0) {
+                                    totalDestinos = d.length;
+                                    const p = d[0];
+                                    primeiroDestinoLabel = (p.cidade && p.uf) ? `${p.cidade}/${p.uf}` : (p.cidade_uf || '—');
+                                }
+                            } catch {}
+                            const temRota = totalDestinos > 0;
+                            return (
+                                <button
+                                    onClick={() => funcoes.abrirModalRota?.(item)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                        padding: '5px 10px', borderRadius: '6px',
+                                        background: temRota ? 'rgba(59,130,246,0.15)' : 'rgba(100,116,139,0.12)',
+                                        border: `1px solid ${temRota ? 'rgba(59,130,246,0.4)' : 'rgba(100,116,139,0.3)'}`,
+                                        color: temRota ? '#60a5fa' : '#94a3b8',
+                                        fontSize: '11px', fontWeight: '600', cursor: 'pointer', maxWidth: 200
+                                    }}
+                                    title={temRota
+                                        ? `Rota: ${primeiroDestinoLabel}${totalDestinos > 1 ? ` + ${totalDestinos - 1} destino(s)` : ''}`
+                                        : 'Sem rota — clique para ver/editar'}
+                                >
+                                    <MapPin size={13} />
+                                    {temRota ? (
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {primeiroDestinoLabel}{totalDestinos > 1 ? ` · +${totalDestinos - 1}` : ''}
+                                        </span>
+                                    ) : 'SEM ROTA'}
+                                </button>
+                            );
+                        })()}
+
                         {/* Botão PDF Cubagem — só para PORCELANA */}
                         {item.operacao?.includes('PORCELANA') && item.coletaMoreno && (
                             <button

@@ -53,9 +53,33 @@ function regiaoDeUF(uf) {
     return REGIOES_BR[String(uf).toUpperCase()] || null;
 }
 
+// Fallback do lead padrão Tramontina por região, usado se a tabela
+// tramontina_lead_padrao_regiao estiver vazia ou indisponível.
+const LEAD_PADRAO_TRAMONTINA_REGIAO = {
+    N: 8,
+    CO: 11,
+    NE: 8,
+    S: 12,
+    SE: 10,
+};
+
+// Normaliza string vinda da planilha (Col K) para o código de REGIOES_BR
+function normalizarRegiao(s) {
+    if (!s) return null;
+    const t = String(s).trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (t === 'N' || t === 'NORTE') return 'N';
+    if (t === 'NE' || t === 'NORDESTE') return 'NE';
+    if (t === 'CO' || t === 'C.OESTE' || t === 'CENTRO-OESTE' || t === 'CENTRO OESTE' || t === 'COESTE') return 'CO';
+    if (t === 'S' || t === 'SUL') return 'S';
+    if (t === 'SE' || t === 'SUDESTE') return 'SE';
+    return null;
+}
+
 module.exports = {
     calcularDiasUteis,
     classificarLeadTime,
     regiaoDeUF,
+    normalizarRegiao,
     REGIOES_BR,
+    LEAD_PADRAO_TRAMONTINA_REGIAO,
 };

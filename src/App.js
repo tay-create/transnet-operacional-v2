@@ -43,7 +43,9 @@ const RelatorioCte         = React.lazy(() => import('./components/RelatorioCte'
 const PainelPosEmbarque    = React.lazy(() => import('./components/PainelPosEmbarque'));
 const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosEmbarque'));
 const PlanejamentoTramontina = React.lazy(() => import('./components/PlanejamentoTramontina'));
+const PainelLeadTime = React.lazy(() => import('./components/PainelLeadTime'));
 const QRCodeCaminhao         = React.lazy(() => import('./components/QRCodeCaminhao'));
+const ModalRemanejamento     = React.lazy(() => import('./components/painel/ModalRemanejamento'));
 
 // Modals lazy — só carregam quando abertos
 const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
@@ -126,6 +128,16 @@ function App({ socket }) {
     const [emailPessoalInput, setEmailPessoalInput] = useState('');
     const [emailPessoalEnviado, setEmailPessoalEnviado] = useState(false);
     const [confirmarRemover, setConfirmarRemover] = useState(null);
+    const [modalRemanejamentoGlobal, setModalRemanejamentoGlobal] = useState(null);
+
+    // Listener global: quando lançamento solicita "Sim, configurar remanejamento", abre o modal aqui (fora das abas).
+    useEffect(() => {
+        function handler(e) {
+            if (e?.detail) setModalRemanejamentoGlobal(e.detail);
+        }
+        window.addEventListener('abrir-remanejamento', handler);
+        return () => window.removeEventListener('abrir-remanejamento', handler);
+    }, []);
 
     const userRef = useRef(user);
     const mostrarNotificacaoRef = useRef(mostrarNotificacao);
@@ -694,7 +706,7 @@ function App({ socket }) {
     };
 
     // --- LANÇAMENTO NOVO (MIGRADO PARA API) ---
-    const lancarVeiculoInteligente = async () => {
+    const lancarVeiculoInteligente = async (opts) => {
         const precisaRecife = ehOperacaoRecife(formLanca.operacao);
         const precisaMoreno = ehOperacaoMoreno(formLanca.operacao);
 
@@ -756,6 +768,17 @@ function App({ socket }) {
         try {
             const respLanca = await api.post('/veiculos', novoItem);
 
+            // Marcar coleta como programada na planilha (fire-and-forget)
+            const extrairNums = (str) => String(str || '').split(/[|,]/).map(p => p.trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').trim()).filter(Boolean);
+            const numsColeta = [
+                ...extrairNums(novoItem.coletaRecife),
+                ...extrairNums(novoItem.coletaMoreno),
+                ...extrairNums(novoItem.coletaInterestadual),
+            ];
+            if (numsColeta.length > 0) {
+                api.post('/api/planilha/marcar-programadas', { coletas: numsColeta }).catch(() => {});
+            }
+
             // Se veio da fila, remove o item original
             if (formLanca.idFilaOriginal) {
                 await removerDaFila(formLanca.idFilaOriginal);
@@ -788,7 +811,27 @@ function App({ socket }) {
             }
 
             setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', coletaInterestadual: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
-            mostrarNotificacao("✅ Veículo Lançado !");
+            // Aviso especial: a mesma coleta apareceu em mais de uma rota na planilha (provável erro de digitação).
+            if (respLanca.data?.aviso_rota === 'coleta-duplicada-em-rotas' && Array.isArray(respLanca.data?.rotas_duplicadas)) {
+                mostrarNotificacao(`⚠️ Veículo lançado SEM rota: a coleta aparece nas rotas ${respLanca.data.rotas_duplicadas.join(' e ')} da planilha. Corrija a planilha e regenere a rota pelo card.`);
+            } else {
+                mostrarNotificacao("✅ Veículo Lançado !");
+            }
+
+            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e dispara evento global.
+            console.log('[remanejamento-novo] opts:', opts, 'respLanca.id:', respLanca.data?.id);
+            if (opts?.abrirRemanejamento && respLanca.data?.id) {
+                try {
+                    const r = await api.get(`/veiculos/${respLanca.data.id}`);
+                    const cardCriado = r.data?.veiculo || r.data;
+                    console.log('[remanejamento-novo] card buscado:', cardCriado?.id);
+                    if (cardCriado) {
+                        window.dispatchEvent(new CustomEvent('abrir-remanejamento', { detail: cardCriado }));
+                    }
+                } catch (e) {
+                    console.warn('Falha ao buscar card recém-criado para abrir remanejamento:', e);
+                }
+            }
         } catch (error) {
             console.error("Erro ao lançar:", error);
             const msg = error?.response?.data?.message || "Erro ao salvar no banco.";
@@ -1347,6 +1390,17 @@ function App({ socket }) {
             {/* MODAL DE CONFIRMAÇÃO GLOBAL */}
             {confirmarRemover && <ModalConfirm titulo="Excluir veículo" mensagem={confirmarRemover.mensagem} textConfirm="Excluir" onConfirm={confirmarRemover.onConfirm} onCancel={() => setConfirmarRemover(null)} />}
 
+            {/* MODAL DE REMANEJAMENTO GLOBAL (acionado pelo lançamento) */}
+            {modalRemanejamentoGlobal && (
+                <React.Suspense fallback={null}>
+                    <ModalRemanejamento
+                        veiculo={modalRemanejamentoGlobal}
+                        onConfirmar={() => setModalRemanejamentoGlobal(null)}
+                        onCancelar={() => setModalRemanejamentoGlobal(null)}
+                    />
+                </React.Suspense>
+            )}
+
             {/* MODAL OBRIGATÓRIO — CADASTRO DE TELEFONE NO PRIMEIRO LOGIN */}
             {modalTelefone && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -1610,6 +1664,10 @@ function App({ socket }) {
 
                 {abaAtiva === 'tramontina_planejamento' && temAcesso('tramontina_planejamento') && (
                     <PlanejamentoTramontina socket={socket} />
+                )}
+
+                {abaAtiva === 'lead_time_operacional' && temAcesso('lead_time_operacional') && (
+                    <PainelLeadTime />
                 )}
 
                 {abaAtiva === 'qrcode_caminhao' && (user?.cargo === 'Coordenador' || user?.cargo === 'Desenvolvedor') && (
