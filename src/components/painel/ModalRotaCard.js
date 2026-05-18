@@ -169,15 +169,22 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
     }, [isOpen, veiculo]);
 
     // Função reutilizável que busca a geometria por estrada do backend.
-    // Chamada no useEffect (abertura do modal) e após regenerar/salvar.
-    const buscarGeometria = React.useCallback(async (idAlvo) => {
+    // - Sem destinosLocal: usa GET (lê destinos_json do banco) — para abertura inicial.
+    // - Com destinosLocal: usa POST preview (geometria calculada a partir da ordem local)
+    //   — usado quando o usuário reordena/remove destinos antes de salvar.
+    const buscarGeometria = React.useCallback(async (idAlvo, destinosLocal) => {
         if (!idAlvo) {
             setPernas(null);
             return;
         }
         setCarregandoGeo(true);
         try {
-            const r = await api.get(`/veiculos/${idAlvo}/rota-geometria`);
+            let r;
+            if (Array.isArray(destinosLocal)) {
+                r = await api.post(`/veiculos/${idAlvo}/rota-geometria-preview`, { destinos: destinosLocal });
+            } else {
+                r = await api.get(`/veiculos/${idAlvo}/rota-geometria`);
+            }
             setPernas(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
         } catch (err) {
             console.error('Falha ao buscar geometria de rota:', err);
@@ -187,7 +194,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         }
     }, []);
 
-    // Busca ao abrir o modal.
+    // Busca ao abrir o modal (GET — usa destinos do banco).
     useEffect(() => {
         if (!isOpen || !veiculo?.id) {
             setPernas(null);
@@ -195,6 +202,30 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         }
         buscarGeometria(veiculo.id);
     }, [isOpen, veiculo?.id, buscarGeometria]);
+
+    // Re-buscar geometria quando o usuário reordenar/remover destinos.
+    // Usamos uma assinatura concatenada dos destinos para detectar mudanças de ordem/composição.
+    // Debounce 300ms para não disparar a cada clique de seta rapidamente.
+    const assinaturaDestinos = useMemo(
+        () => destinos.map(d => d.cidade_uf || `${d.cidade}/${d.uf}`).join('|'),
+        [destinos]
+    );
+    const primeiraMontagem = React.useRef(true);
+    useEffect(() => {
+        if (!isOpen || !veiculo?.id) return;
+        // Pula a primeira execução (já feita pelo useEffect de abertura)
+        if (primeiraMontagem.current) { primeiraMontagem.current = false; return; }
+        const t = setTimeout(() => {
+            buscarGeometria(veiculo.id, destinos);
+        }, 300);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assinaturaDestinos]);
+
+    // Reset da flag quando o modal fecha
+    useEffect(() => {
+        if (!isOpen) primeiraMontagem.current = true;
+    }, [isOpen]);
 
     // Origem: usa origem_rota gravada no card; se faltar, deduz pela operação (não usa default RECIFE).
     const origem = veiculo?.origem_rota || deduzirOrigemPelaOperacao(veiculo?.operacao);

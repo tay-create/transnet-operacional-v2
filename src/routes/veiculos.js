@@ -1491,6 +1491,47 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
         res.json({ pernas });
     }));
 
+    // POST /veiculos/:id/rota-geometria-preview — calcula geometria a partir dos destinos
+    // enviados no body (não usa destinos_json do banco). Usado pelo modal quando o usuário
+    // reordena ou remove destinos antes de salvar — permite preview da nova polyline.
+    // Body: { destinos: [{ cidade_uf, lat, lon }, ...] }
+    router.post('/veiculos/:id/rota-geometria-preview', authMiddleware, asyncHandler(async (req, res) => {
+        const { destinos } = req.body || {};
+        if (!Array.isArray(destinos)) return res.status(400).json({ pernas: [] });
+
+        const v = await dbGet(`SELECT origem_rota FROM veiculos WHERE id = ?`, [req.params.id]);
+        if (!v?.origem_rota) return res.json({ pernas: [] });
+
+        const orig = await dbGet(`SELECT cidade_uf, lat, lon FROM geo_cache WHERE cidade_uf = $1`, [v.origem_rota]);
+        if (!orig) return res.json({ pernas: [] });
+
+        const pontos = [
+            { cidade_uf: orig.cidade_uf, lat: Number(orig.lat), lon: Number(orig.lon) },
+            ...destinos
+                .filter(d => typeof d.lat === 'number' && typeof d.lon === 'number' && d.cidade_uf)
+                .map(d => ({ cidade_uf: d.cidade_uf, lat: d.lat, lon: d.lon })),
+        ];
+        if (pontos.length < 2) return res.json({ pernas: [] });
+
+        const { routeGeometry } = require('../utils/osmClient');
+        const pernas = [];
+        for (let i = 0; i < pontos.length - 1; i++) {
+            try {
+                const r = await routeGeometry(pontos[i], pontos[i + 1]);
+                pernas.push({
+                    from: pontos[i].cidade_uf,
+                    to: pontos[i + 1].cidade_uf,
+                    geometry: r.geometry,
+                    distancia_metros: r.distancia_metros,
+                    duracao_segundos: r.duracao_segundos,
+                });
+            } catch (e) {
+                pernas.push({ from: pontos[i].cidade_uf, to: pontos[i + 1].cidade_uf, geometry: null, erro: e.message });
+            }
+        }
+        res.json({ pernas });
+    }));
+
     // POST /veiculos/:id/regenerar-rota — força regenerar destinos_json/origem_rota
     // a partir da planilha + OSRM. Útil quando OSRM oscilou na criação e o card ficou
     // sem rota, evitando ter que apagar+relançar.
