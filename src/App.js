@@ -818,15 +818,15 @@ function App({ socket }) {
                 mostrarNotificacao("✅ Veículo Lançado !");
             }
 
-            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e abre o modal global.
-            console.log('[remanejamento] opts recebido:', opts, 'respLanca.id:', respLanca.data?.id);
+            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e dispara evento global.
+            console.log('[remanejamento-novo] opts:', opts, 'respLanca.id:', respLanca.data?.id);
             if (opts?.abrirRemanejamento && respLanca.data?.id) {
                 try {
                     const r = await api.get(`/veiculos/${respLanca.data.id}`);
                     const cardCriado = r.data?.veiculo || r.data;
-                    console.log('[remanejamento] card buscado:', cardCriado?.id, 'tem destinos_json:', !!cardCriado?.destinos_json);
+                    console.log('[remanejamento-novo] card buscado:', cardCriado?.id);
                     if (cardCriado) {
-                        setModalRemanejamentoGlobal(cardCriado);
+                        window.dispatchEvent(new CustomEvent('abrir-remanejamento', { detail: cardCriado }));
                     }
                 } catch (e) {
                     console.warn('Falha ao buscar card recém-criado para abrir remanejamento:', e);
