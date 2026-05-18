@@ -1068,7 +1068,7 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'D
 }));
 
 // ── Frota Própria: listar motoristas de frota para o PainelCadastro ──
-app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
+app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Planejamento', 'Adm Frota', 'Manutenção', 'Desenvolvedor']), asyncHandler(async (req, res) => {
     const rows = await dbAll(`
         SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                data_marcacao, data_contratacao,

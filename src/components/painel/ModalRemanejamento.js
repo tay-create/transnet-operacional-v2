@@ -93,6 +93,7 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
     });
 
     const [veiculosFrota, setVeiculosFrota] = useState([]);
+    const [motoristasFrota, setMotoristasFrota] = useState([]); // de /api/cadastro/frota
     const [salvando, setSalvando] = useState(false);
     const [desfazendo, setDesfazendo] = useState(false);
     const [warning, setWarning] = useState('');
@@ -101,6 +102,9 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
         api.get('/api/provisionamento/veiculos')
             .then(r => { if (r.data?.success) setVeiculosFrota(r.data.veiculos || []); })
             .catch(err => console.warn('Falha ao carregar veículos da frota:', err));
+        api.get('/api/cadastro/frota')
+            .then(r => { if (r.data?.success) setMotoristasFrota(r.data.motoristas || []); })
+            .catch(err => console.warn('Falha ao carregar motoristas da frota:', err));
     }, []);
 
     // Toggle de "fica com original" com regra: desmarcados devem ser contíguos a partir do final.
@@ -381,17 +385,31 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
                                                     </option>
                                                 ))}
                                             </select>
-                                            <input
-                                                type="text"
+                                            <select
                                                 value={a.motorista || ''}
                                                 onChange={e => setAtribuicao(i, 'motorista', e.target.value)}
-                                                placeholder="Motorista"
                                                 style={{
                                                     background: '#1e293b', color: '#e2e8f0',
                                                     border: '1px solid rgba(255,255,255,0.1)',
                                                     borderRadius: 6, padding: '7px 10px', fontSize: 12, outline: 'none'
                                                 }}
-                                            />
+                                            >
+                                                <option value="">Selecione motorista…</option>
+                                                {/* Motorista padrão do veículo selecionado (se ainda não está na lista da frota) */}
+                                                {(() => {
+                                                    const v = veiculoFromId(a.prov_veiculo_id);
+                                                    const padrao = (v?.motorista || '').trim();
+                                                    if (padrao && !motoristasFrota.some(m => m.nome_motorista.toUpperCase() === padrao.toUpperCase())) {
+                                                        return <option value={padrao}>{padrao} (do veículo)</option>;
+                                                    }
+                                                    return null;
+                                                })()}
+                                                {motoristasFrota.map(m => (
+                                                    <option key={m.id} value={m.nome_motorista}>
+                                                        {m.nome_motorista}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     );
                                 })}
