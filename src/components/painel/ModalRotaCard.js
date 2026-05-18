@@ -414,22 +414,27 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     }
                 }
 
-                // Perna 2..N: ponto de retorno → cada destino remanejado (em sequência)
+                // Cada veículo do remanejamento sai do CD direto pro seu destino (rotas independentes, paralelas).
+                // Uma chamada separada por destino — não usa sequência (TSP).
                 const destinosRemanejados = pontosRemanejamento.slice(1).map(p => ({
                     cidade: p.cidade, uf: p.uf, lat: p.lat, lon: p.lon, cidade_uf: `${p.cidade}/${p.uf}`,
                 }));
                 if (destinosRemanejados.length > 0) {
-                    const r = await api.post(`/veiculos/${veiculo.id}/rota-geometria-preview`, {
-                        destinos: destinosRemanejados,
-                        origem_override: remanejamento.ponto_retorno,
-                    });
+                    const respostas = await Promise.all(destinosRemanejados.map(d =>
+                        api.post(`/veiculos/${veiculo.id}/rota-geometria-preview`, {
+                            destinos: [d],
+                            origem_override: remanejamento.ponto_retorno,
+                        }).catch(() => null)
+                    ));
                     if (cancel) return;
-                    for (const p of (r.data?.pernas || [])) {
-                        if (p.geometry?.coordinates) {
-                            segmentos.push({
-                                coords: p.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
-                                tipo: 'remanejado',
-                            });
+                    for (const r of respostas) {
+                        for (const p of (r?.data?.pernas || [])) {
+                            if (p.geometry?.coordinates) {
+                                segmentos.push({
+                                    coords: p.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+                                    tipo: 'remanejado',
+                                });
+                            }
                         }
                     }
                 }
