@@ -14,6 +14,18 @@ function normalizarColeta(s) {
     return String(s ?? '').trim().replace(/^0+/, '');
 }
 
+// Algumas células da Col E têm MÚLTIPLAS coletas separadas por espaços, tabs ou quebras
+// de linha (ex: "1216                   1304" ou "1339\t1340"). Retorna array de números
+// já normalizados (sem zeros à esquerda, sem espaços).
+function extrairColetasDaCelula(s) {
+    const raw = String(s ?? '').trim();
+    if (!raw) return [];
+    return raw
+        .split(/[\s,;|]+/)
+        .map(t => t.replace(/^0+/, '').trim())
+        .filter(t => /^\d+$/.test(t));
+}
+
 function normalizarCidadeUf(cidade, uf) {
     const c = String(cidade ?? '')
         .normalize('NFD')
@@ -60,10 +72,12 @@ function ehRotaValida(s) {
 
 // Faz forward-fill de Rota (A) e Coleta (E) e retorna mapa coleta → { rota, destinos[] }.
 // Para no primeiro Col A que não for rota numérica (sinal de fim dos dados, início de tabelas auxiliares).
+// Suporta células de Col E com MÚLTIPLAS coletas (ex: "1216  1304"): cada coleta é
+// registrada separadamente com a mesma lista de destinos do grupo.
 function indexarPlanilha(rows) {
     const map = new Map();
     let rotaAtual = null;
-    let coletaAtual = null;
+    let coletasAtuais = [];
     for (const row of rows) {
         if (!row) continue;
         const a = (row[0] ?? '').toString().trim();
@@ -74,32 +88,46 @@ function indexarPlanilha(rows) {
         // Se aparece um Col A não-numérico, é metadado/agregação → para o parse.
         if (a && !ehRotaValida(a)) break;
 
-        // Nova rota: atualiza rotaAtual E reseta coletaAtual (forward-fill da coleta
-        // não pode atravessar fronteira de rota).
+        // Nova rota: atualiza rotaAtual E reseta coletas (forward-fill não atravessa fronteira).
         if (a) {
             rotaAtual = a;
-            coletaAtual = null;
+            coletasAtuais = [];
         }
-        if (e) coletaAtual = normalizarColeta(e);
+        if (e) {
+            const lista = extrairColetasDaCelula(e);
+            if (lista.length > 0) coletasAtuais = lista;
+        }
 
-        // Pula linhas sem rota, sem coleta, ou sem destino válido.
-        if (!rotaAtual || !coletaAtual) continue;
+        // Pula linhas sem rota, sem coletas, ou sem destino válido.
+        if (!rotaAtual || coletasAtuais.length === 0) continue;
         if (!cidade || !UFS_VALIDAS.has(uf)) continue;
 
-        if (!map.has(coletaAtual)) {
-            map.set(coletaAtual, { rota: rotaAtual, destinos: [], _chavesVistas: new Set() });
-        }
-        // Deduplica destinos pela chave cidade/uf — várias entregas na mesma cidade
-        // contam como 1 ponto de parada na rota (ex: 2 linhas JOAO PESSOA/PB = 1 destino).
-        const grupo = map.get(coletaAtual);
         const chave = normalizarCidadeUf(cidade, uf);
-        if (!grupo._chavesVistas.has(chave)) {
-            grupo._chavesVistas.add(chave);
-            grupo.destinos.push({ cidade, uf, chave });
+        // Registra destino em CADA coleta da célula (múltiplas coletas compartilham a rota).
+        for (const col of coletasAtuais) {
+            if (!map.has(col)) {
+                map.set(col, { rota: rotaAtual, destinos: [], _chavesVistas: new Set(), _rotasDistintas: new Set([rotaAtual]) });
+            } else {
+                // Se a mesma coleta já existia com OUTRA rota, é erro de digitação na planilha.
+                const grupo = map.get(col);
+                grupo._rotasDistintas.add(rotaAtual);
+            }
+            const grupo = map.get(col);
+            // Dedup por cidade/uf dentro do grupo.
+            if (!grupo._chavesVistas.has(chave)) {
+                grupo._chavesVistas.add(chave);
+                grupo.destinos.push({ cidade, uf, chave });
+            }
         }
     }
-    // Limpa o helper _chavesVistas antes de retornar
-    for (const v of map.values()) delete v._chavesVistas;
+    // Limpa helpers e marca coletas duplicadas em rotas distintas.
+    for (const [k, v] of map.entries()) {
+        if (v._rotasDistintas && v._rotasDistintas.size > 1) {
+            v.duplicadaEmRotas = Array.from(v._rotasDistintas);
+        }
+        delete v._chavesVistas;
+        delete v._rotasDistintas;
+    }
     return map;
 }
 
@@ -150,6 +178,16 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
     }
     if (!dadosPlanilha || !Array.isArray(dadosPlanilha.destinos) || dadosPlanilha.destinos.length === 0) {
         return { rota: null, destinos_json: null, origem_rota: null, aviso: 'coleta-nao-encontrada' };
+    }
+    // Mesma coleta em mais de uma rota → erro de digitação na planilha. Não gera rota.
+    if (Array.isArray(dadosPlanilha.duplicadaEmRotas) && dadosPlanilha.duplicadaEmRotas.length > 1) {
+        return {
+            rota: null,
+            destinos_json: null,
+            origem_rota: null,
+            aviso: 'coleta-duplicada-em-rotas',
+            rotas_duplicadas: dadosPlanilha.duplicadaEmRotas,
+        };
     }
 
     const origem_rota = determinarOrigem(operacao);
@@ -204,8 +242,9 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
     const rows = await lerPlanilha(sheetId);
     const alvo = normalizarColeta(coleta);
     let rotaAtual = null;
-    let coletaAtual = null;
+    let coletasAtuais = [];
     let rotaDaColeta = null;
+    const rotasOndeAlvoApareceu = new Set();
     const entregas = [];
     const dedup = new Set();
     for (const row of rows) {
@@ -215,11 +254,16 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
         if (a && !/^\d+$/.test(a)) break;
         if (a) {
             rotaAtual = a;
-            coletaAtual = null;
+            coletasAtuais = [];
         }
         const e = (row[4] ?? '').toString().trim();
-        if (e) coletaAtual = normalizarColeta(e);
-        if (!rotaAtual || coletaAtual !== alvo) continue;
+        if (e) {
+            const lista = extrairColetasDaCelula(e);
+            if (lista.length > 0) coletasAtuais = lista;
+        }
+        // Filtra linhas que NÃO pertencem à coleta alvo (precisamos que `alvo` esteja entre as coletas atuais).
+        if (!rotaAtual || !coletasAtuais.includes(alvo)) continue;
+        rotasOndeAlvoApareceu.add(rotaAtual);
 
         const cidade = (row[8] ?? '').toString().trim();
         const uf = (row[9] ?? '').toString().trim().toUpperCase();
@@ -234,6 +278,14 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
         if (!rotaDaColeta) rotaDaColeta = rotaAtual;
         entregas.push({ cidade, uf, data });
     }
+    // Coleta presente em rotas distintas = erro de digitação na planilha.
+    if (rotasOndeAlvoApareceu.size > 1) {
+        return {
+            encontrada: false,
+            duplicada_em_rotas: Array.from(rotasOndeAlvoApareceu),
+            entregas: [],
+        };
+    }
     entregas.sort((a, b) => a.data.localeCompare(b.data));
     return {
         encontrada: entregas.length > 0,
@@ -247,6 +299,7 @@ module.exports = {
     buscarEntregasAgendadasPorColeta,
     normalizarCidadeUf,
     normalizarColeta,
+    extrairColetasDaCelula,
     invalidarCache,
     determinarOrigem,
     mesmoConjuntoDestinos,

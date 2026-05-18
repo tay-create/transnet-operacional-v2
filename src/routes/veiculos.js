@@ -550,11 +550,15 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             // Gerar rota (destinos ordenados) a partir da planilha + OSM público.
             // Falha aqui NÃO bloqueia criação do card — registra aviso e segue.
             let avisoRota = null;
+            let rotasDuplicadasPlanilha = null;
             try {
                 const coletaParaBusca = primeiroTagIns(v.coletaRecife) || primeiroTagIns(v.coletaMoreno) || primeiroTagIns(v.coletaInterestadual);
                 const { sheetId } = await getResultadoSheetIdFn();
                 const r = await gerarRota({ coleta: coletaParaBusca, operacao: v.operacao, sheetId });
                 avisoRota = r.aviso;
+                if (r.aviso === 'coleta-duplicada-em-rotas') {
+                    rotasDuplicadasPlanilha = r.rotas_duplicadas;
+                }
                 if (r.destinos_json || r.origem_rota) {
                     await dbRun(
                         `UPDATE veiculos SET destinos_json = $1, origem_rota = $2 WHERE id = $3`,
@@ -667,7 +671,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             );
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
-            res.json({ success: true, id: result.lastID, aviso_rota: avisoRota });
+            res.json({ success: true, id: result.lastID, aviso_rota: avisoRota, rotas_duplicadas: rotasDuplicadasPlanilha });
         }));
     router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), asyncHandler(async (req, res) => {
             const v = req.body;

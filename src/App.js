@@ -800,7 +800,12 @@ function App({ socket }) {
             }
 
             setFormLanca({ ...formLanca, coletaRecife: '', coletaMoreno: '', coletaInterestadual: '', rotaRecife: '', rotaMoreno: '', motorista: '', telefoneMotorista: '', placa1Motorista: '', placa2Motorista: '', observacao: '', imagens: [], chk_cnh: 0, chk_antt: 0, chk_tacografo: 0, chk_crlv: 0, situacao_cadastro: 'NÃO CONFERIDO', numero_liberacao: '', data_liberacao: null, idFilaOriginal: null, id_marcacao: null });
-            mostrarNotificacao("✅ Veículo Lançado !");
+            // Aviso especial: a mesma coleta apareceu em mais de uma rota na planilha (provável erro de digitação).
+            if (respLanca.data?.aviso_rota === 'coleta-duplicada-em-rotas' && Array.isArray(respLanca.data?.rotas_duplicadas)) {
+                mostrarNotificacao(`⚠️ Veículo lançado SEM rota: a coleta aparece nas rotas ${respLanca.data.rotas_duplicadas.join(' e ')} da planilha. Corrija a planilha e regenere a rota pelo card.`);
+            } else {
+                mostrarNotificacao("✅ Veículo Lançado !");
+            }
         } catch (error) {
             console.error("Erro ao lançar:", error);
             const msg = error?.response?.data?.message || "Erro ao salvar no banco.";
