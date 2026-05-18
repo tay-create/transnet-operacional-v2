@@ -36,6 +36,34 @@ function normalizarCidadeUf(cidade, uf) {
     return `${c}/${u}`;
 }
 
+// Configuração das abas suportadas. Cada aba mapeia as colunas dos dados.
+// Indexes 0-based (A=0, B=1, ...).
+const ABAS_CONFIG = [
+    {
+        nome: 'DELTA-PORCELANA',
+        range: "'DELTA-PORCELANA'!A10:AC1000", // dados começam em L10 (header em L9)
+        colRota: 0,        // A
+        colColeta: 4,      // E
+        colCidade: 8,      // I
+        colUf: 9,          // J
+        colData: 28,       // AC
+    },
+    {
+        nome: 'ELETRIK',
+        range: "'ELETRIK'!A11:O1000",          // header em L10, dados começam em L11
+        colRota: 0,        // A
+        colColeta: 2,      // C
+        colCidade: 5,      // F
+        colUf: 6,          // G
+        colData: 12,       // M
+    },
+];
+
+// Lê todas as abas configuradas e devolve linhas NORMALIZADAS:
+//   [{ rotaRaw, coletaRaw, cidade, uf, dataRaw, fonte, rowIdx }, ...]
+// onde rotaRaw e coletaRaw podem estar vazias quando o forward-fill é necessário.
+// A normalização aqui é só ESTRUTURAL — semântica (forward-fill, extrair múltiplas
+// coletas, validar UF, parar em metadados) fica nas funções consumidoras.
 async function lerPlanilha(sheetId) {
     const now = Date.now();
     if (_cache.rows && _cache.sheetId === sheetId && (now - _cache.ts) < TTL_MS) {
@@ -46,13 +74,36 @@ async function lerPlanilha(sheetId) {
         scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
     const sheets = google.sheets({ version: 'v4', auth });
-    const resp = await sheets.spreadsheets.values.get({
-        spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!A10:AC1000`,
-    });
-    const rows = resp.data.values || [];
-    _cache = { rows, sheetId, ts: now };
-    return rows;
+
+    const todasLinhas = [];
+    for (const cfg of ABAS_CONFIG) {
+        try {
+            const resp = await sheets.spreadsheets.values.get({
+                spreadsheetId: sheetId,
+                range: cfg.range,
+            });
+            const rows = resp.data.values || [];
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i] || [];
+                todasLinhas.push({
+                    rotaRaw: (row[cfg.colRota] ?? '').toString().trim(),
+                    coletaRaw: (row[cfg.colColeta] ?? '').toString().trim(),
+                    cidade: (row[cfg.colCidade] ?? '').toString().trim(),
+                    uf: (row[cfg.colUf] ?? '').toString().trim().toUpperCase(),
+                    dataRaw: row[cfg.colData],
+                    fonte: cfg.nome,
+                    rowIdx: i,
+                });
+            }
+            // Separador entre abas — força reset de forward-fill no parser
+            // (rota e coleta vazias + cidade/uf vazias → linha ignorada).
+            todasLinhas.push({ rotaRaw: '__SEPARADOR__', coletaRaw: '', cidade: '', uf: '', dataRaw: '', fonte: '__SEP__', rowIdx: -1 });
+        } catch (e) {
+            console.warn(`[lerPlanilha] falha ao ler aba ${cfg.nome}:`, e.message);
+        }
+    }
+    _cache = { rows: todasLinhas, sheetId, ts: now };
+    return todasLinhas;
 }
 
 function invalidarCache() {
@@ -70,23 +121,45 @@ function ehRotaValida(s) {
     return /^\d+$/.test(String(s || '').trim());
 }
 
-// Faz forward-fill de Rota (A) e Coleta (E) e retorna mapa coleta → { rota, destinos[] }.
-// Para no primeiro Col A que não for rota numérica (sinal de fim dos dados, início de tabelas auxiliares).
-// Suporta células de Col E com MÚLTIPLAS coletas (ex: "1216  1304"): cada coleta é
-// registrada separadamente com a mesma lista de destinos do grupo.
+// Faz forward-fill de Rota e Coleta dentro de cada aba e retorna mapa coleta → { rota, destinos[], fonte }.
+// Itera as linhas NORMALIZADAS (já mapeadas em rotaRaw/coletaRaw/cidade/uf por lerPlanilha).
+// O separador `__SEPARADOR__` reseta o estado entre abas. Em cada aba, para de processar
+// na primeira linha cujo Col A não é número (= metadado/agregação no fim dos dados).
 function indexarPlanilha(rows) {
     const map = new Map();
     let rotaAtual = null;
     let coletasAtuais = [];
+    let abaAtual = null;
+    let abaPausada = false; // true após encontrar metadado, ignora resto até próximo separador
     for (const row of rows) {
         if (!row) continue;
-        const a = (row[0] ?? '').toString().trim();
-        const e = (row[4] ?? '').toString().trim();
-        const cidade = (row[8] ?? '').toString().trim();
-        const uf = (row[9] ?? '').toString().trim().toUpperCase();
 
-        // Se aparece um Col A não-numérico, é metadado/agregação → para o parse.
-        if (a && !ehRotaValida(a)) break;
+        // Separador entre abas: reseta tudo
+        if (row.rotaRaw === '__SEPARADOR__') {
+            rotaAtual = null;
+            coletasAtuais = [];
+            abaAtual = null;
+            abaPausada = false;
+            continue;
+        }
+
+        // Detecta troca de aba (primeira linha de aba nova)
+        if (row.fonte !== abaAtual) {
+            abaAtual = row.fonte;
+            rotaAtual = null;
+            coletasAtuais = [];
+            abaPausada = false;
+        }
+
+        if (abaPausada) continue;
+
+        const a = row.rotaRaw;
+        const e = row.coletaRaw;
+        const cidade = row.cidade;
+        const uf = row.uf;
+
+        // Se aparece um Col A não-numérico, é metadado/agregação → pausa a aba atual.
+        if (a && !ehRotaValida(a)) { abaPausada = true; continue; }
 
         // Nova rota: atualiza rotaAtual E reseta coletas (forward-fill não atravessa fronteira).
         if (a) {
@@ -106,7 +179,7 @@ function indexarPlanilha(rows) {
         // Registra destino em CADA coleta da célula (múltiplas coletas compartilham a rota).
         for (const col of coletasAtuais) {
             if (!map.has(col)) {
-                map.set(col, { rota: rotaAtual, destinos: [], _chavesVistas: new Set(), _rotasDistintas: new Set([rotaAtual]) });
+                map.set(col, { rota: rotaAtual, destinos: [], fonte: abaAtual, _chavesVistas: new Set(), _rotasDistintas: new Set([rotaAtual]) });
             } else {
                 // Se a mesma coleta já existia com OUTRA rota, é erro de digitação na planilha.
                 const grupo = map.get(col);
@@ -247,27 +320,49 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
     const rotasOndeAlvoApareceu = new Set();
     const entregas = [];
     const dedup = new Set();
+    let abaAtual = null;
+    let abaPausada = false;
     for (const row of rows) {
         if (!row) continue;
-        const a = (row[0] ?? '').toString().trim();
-        // Para o parse no primeiro Col A não-numérico (metadado/agregação).
-        if (a && !/^\d+$/.test(a)) break;
+
+        // Separador entre abas: reseta forward-fill
+        if (row.rotaRaw === '__SEPARADOR__') {
+            rotaAtual = null;
+            coletasAtuais = [];
+            abaAtual = null;
+            abaPausada = false;
+            continue;
+        }
+
+        // Troca de aba
+        if (row.fonte !== abaAtual) {
+            abaAtual = row.fonte;
+            rotaAtual = null;
+            coletasAtuais = [];
+            abaPausada = false;
+        }
+
+        if (abaPausada) continue;
+
+        const a = row.rotaRaw;
+        // Pausa a aba ao encontrar metadado
+        if (a && !/^\d+$/.test(a)) { abaPausada = true; continue; }
         if (a) {
             rotaAtual = a;
             coletasAtuais = [];
         }
-        const e = (row[4] ?? '').toString().trim();
+        const e = row.coletaRaw;
         if (e) {
             const lista = extrairColetasDaCelula(e);
             if (lista.length > 0) coletasAtuais = lista;
         }
-        // Filtra linhas que NÃO pertencem à coleta alvo (precisamos que `alvo` esteja entre as coletas atuais).
+        // Filtra linhas que NÃO pertencem à coleta alvo
         if (!rotaAtual || !coletasAtuais.includes(alvo)) continue;
         rotasOndeAlvoApareceu.add(rotaAtual);
 
-        const cidade = (row[8] ?? '').toString().trim();
-        const uf = (row[9] ?? '').toString().trim().toUpperCase();
-        const dataRaw = row[28];
+        const cidade = row.cidade;
+        const uf = row.uf;
+        const dataRaw = row.dataRaw;
         if (!cidade || !UFS_VALIDAS.has(uf)) continue;
         const data = normalizarData(dataRaw);
         if (!data) continue;
