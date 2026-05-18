@@ -343,17 +343,83 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         for (const t of (remanejamento.transferencias || [])) {
             for (const d of (t.destinos || [])) {
                 if (typeof d.lat === 'number' && typeof d.lon === 'number') {
-                    pontos.push({ lat: d.lat, lon: d.lon, cidade: d.cidade, uf: d.uf, isRemanejado: true });
+                    pontos.push({
+                        lat: d.lat, lon: d.lon, cidade: d.cidade, uf: d.uf,
+                        isRemanejado: true,
+                        placa: t.placa || null,
+                        carreta: t.carreta || null,
+                        motorista: t.motorista || null,
+                    });
                 }
             }
         }
         return pontos;
     }, [remanejamento]);
 
-    const linhaRemanejamento = useMemo(
-        () => pontosRemanejamento.map(p => [p.lat, p.lon]),
-        [pontosRemanejamento]
-    );
+    // Segmentos OSRM tracejados: (última entrega do original → ponto de retorno) + (ponto de retorno → cada remanejado).
+    const [segmentosRemanejamento, setSegmentosRemanejamento] = useState([]);
+
+    useEffect(() => {
+        if (!isOpen || !remanejamento || pontosRemanejamento.length < 2 || !veiculo?.id) {
+            setSegmentosRemanejamento([]);
+            return;
+        }
+        let cancel = false;
+        (async () => {
+            try {
+                // Perna 1: última entrega do ORIGINAL → ponto de retorno (se houver destinos do original)
+                const segmentos = [];
+                if (destinos.length > 0) {
+                    const ultDoOriginal = destinos[destinos.length - 1];
+                    if (typeof ultDoOriginal.lat === 'number' && typeof ultDoOriginal.lon === 'number') {
+                        const r = await api.post(`/veiculos/${veiculo.id}/rota-geometria-preview`, {
+                            destinos: [{
+                                cidade: pontosRemanejamento[0]?.label?.split(' ')[0] || 'RECIFE',
+                                uf: 'PE',
+                                lat: pontosRemanejamento[0].lat,
+                                lon: pontosRemanejamento[0].lon,
+                                cidade_uf: remanejamento.ponto_retorno,
+                            }],
+                            origem_override: ultDoOriginal.cidade_uf || `${ultDoOriginal.cidade}/${ultDoOriginal.uf}`,
+                        });
+                        if (cancel) return;
+                        for (const p of (r.data?.pernas || [])) {
+                            if (p.geometry?.coordinates) {
+                                segmentos.push({
+                                    coords: p.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+                                    tipo: 'retorno',
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Perna 2..N: ponto de retorno → cada destino remanejado (em sequência)
+                const destinosRemanejados = pontosRemanejamento.slice(1).map(p => ({
+                    cidade: p.cidade, uf: p.uf, lat: p.lat, lon: p.lon, cidade_uf: `${p.cidade}/${p.uf}`,
+                }));
+                if (destinosRemanejados.length > 0) {
+                    const r = await api.post(`/veiculos/${veiculo.id}/rota-geometria-preview`, {
+                        destinos: destinosRemanejados,
+                        origem_override: remanejamento.ponto_retorno,
+                    });
+                    if (cancel) return;
+                    for (const p of (r.data?.pernas || [])) {
+                        if (p.geometry?.coordinates) {
+                            segmentos.push({
+                                coords: p.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+                                tipo: 'remanejado',
+                            });
+                        }
+                    }
+                }
+                if (!cancel) setSegmentosRemanejamento(segmentos);
+            } catch (e) {
+                if (!cancel) console.warn('preview rota remanejamento falhou', e);
+            }
+        })();
+        return () => { cancel = true; };
+    }, [isOpen, veiculo?.id, remanejamento, pontosRemanejamento, destinos]);
 
     if (!isOpen) return null;
 
@@ -482,11 +548,19 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                 )
                             )}
 
-                            {/* REMANEJAMENTO: ponto de retorno + destinos remanejados em polyline tracejada */}
-                            {pontosRemanejamento.length >= 2 && (
+                            {/* REMANEJAMENTO: pernas OSRM tracejadas (estrada real) */}
+                            {segmentosRemanejamento.map((s, i) => (
                                 <Polyline
-                                    positions={linhaRemanejamento}
+                                    key={`rem-seg-${i}`}
+                                    positions={s.coords}
                                     pathOptions={{ color: '#a78bfa', weight: 4, opacity: 0.85, dashArray: '8 6' }}
+                                />
+                            ))}
+                            {/* Fallback: se segmentos OSRM não carregaram, desenha linha reta entre pontos */}
+                            {segmentosRemanejamento.length === 0 && pontosRemanejamento.length >= 2 && (
+                                <Polyline
+                                    positions={pontosRemanejamento.map(p => [p.lat, p.lon])}
+                                    pathOptions={{ color: '#a78bfa', weight: 3, opacity: 0.5, dashArray: '4 6' }}
                                 />
                             )}
                             {pontosRemanejamento.map((p, idx) => {
@@ -501,13 +575,18 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                         </Marker>
                                     );
                                 }
+                                const placaLbl = p.placa ? (p.carreta ? `${p.placa} / ${p.carreta}` : p.placa) : null;
                                 return (
                                     <Marker key={`rem-${idx}`} position={[p.lat, p.lon]} icon={L.divIcon({
                                         className: 'rota-card-marker',
                                         html: `<div style="background:#a78bfa;color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px dashed #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)">R${idx}</div>`,
                                         iconSize: [28, 28], iconAnchor: [14, 14],
                                     })}>
-                                        <Tooltip direction="top">Remanejado: {p.cidade}/{p.uf}</Tooltip>
+                                        <Tooltip direction="top">
+                                            <div><strong>Remanejado:</strong> {p.cidade}/{p.uf}</div>
+                                            {placaLbl && <div style={{ marginTop: 3 }}><strong>Placa:</strong> {placaLbl}</div>}
+                                            {p.motorista && <div style={{ marginTop: 2, fontSize: 10, opacity: 0.85 }}>{p.motorista}</div>}
+                                        </Tooltip>
                                     </Marker>
                                 );
                             })}

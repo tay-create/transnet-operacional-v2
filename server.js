@@ -1081,6 +1081,24 @@ app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direç
     res.json({ success: true, motoristas: rows });
 }));
 
+// ── Frota Própria: lista somente as placas (para filtros no painel) ──
+// Retorna todas as placas (placa1 + placa2) marcadas como is_frota=1.
+app.get('/api/cadastro/placas-frota', authMiddleware, asyncHandler(async (req, res) => {
+    const rows = await dbAll(`
+        SELECT placa1, placa2
+        FROM marcacoes_placas
+        WHERE is_frota = 1
+    `);
+    const placas = new Set();
+    for (const r of rows) {
+        for (const p of [r.placa1, r.placa2]) {
+            const norm = String(p || '').trim().toUpperCase();
+            if (norm) placas.add(norm);
+        }
+    }
+    res.json({ success: true, placas: [...placas] });
+}));
+
 // ── Frota Própria: atualizar liberação ──
 app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
     const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;

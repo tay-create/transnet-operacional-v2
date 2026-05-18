@@ -94,6 +94,7 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
 
     const [veiculosFrota, setVeiculosFrota] = useState([]);
     const [motoristasFrota, setMotoristasFrota] = useState([]); // de /api/cadastro/frota
+    const [placasFrota, setPlacasFrota] = useState(new Set()); // de /api/cadastro/placas-frota
     const [salvando, setSalvando] = useState(false);
     const [desfazendo, setDesfazendo] = useState(false);
     const [warning, setWarning] = useState('');
@@ -105,7 +106,20 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
         api.get('/api/cadastro/frota')
             .then(r => { if (r.data?.success) setMotoristasFrota(r.data.motoristas || []); })
             .catch(err => console.warn('Falha ao carregar motoristas da frota:', err));
+        api.get('/api/cadastro/placas-frota')
+            .then(r => {
+                if (r.data?.success) {
+                    setPlacasFrota(new Set((r.data.placas || []).map(p => String(p).toUpperCase().trim())));
+                }
+            })
+            .catch(err => console.warn('Falha ao carregar placas da frota:', err));
     }, []);
+
+    // Só permitir remanejar para veículos cuja placa esteja marcada como is_frota=1.
+    const veiculosFiltrados = useMemo(() => {
+        if (placasFrota.size === 0) return veiculosFrota; // ainda carregando: mostra tudo
+        return veiculosFrota.filter(v => placasFrota.has(String(v.placa || '').toUpperCase().trim()));
+    }, [veiculosFrota, placasFrota]);
 
     // Toggle de "fica com original" com regra: desmarcados devem ser contíguos a partir do final.
     const toggleDestino = (idx) => {
@@ -379,11 +393,14 @@ export default function ModalRemanejamento({ veiculo, onConfirmar, onCancelar })
                                                 }}
                                             >
                                                 <option value="">Selecione veículo…</option>
-                                                {veiculosFrota.map(v => (
+                                                {veiculosFiltrados.map(v => (
                                                     <option key={v.id} value={v.id}>
                                                         {[v.placa, v.carreta].filter(Boolean).join(' / ')} · {v.tipo_veiculo}
                                                     </option>
                                                 ))}
+                                                {veiculosFiltrados.length === 0 && placasFrota.size > 0 && (
+                                                    <option value="" disabled>Nenhum veículo da casa cadastrado em Marcações (is_frota=1)</option>
+                                                )}
                                             </select>
                                             <select
                                                 value={a.motorista || ''}

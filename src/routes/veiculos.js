@@ -1494,15 +1494,19 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
     // POST /veiculos/:id/rota-geometria-preview — calcula geometria a partir dos destinos
     // enviados no body (não usa destinos_json do banco). Usado pelo modal quando o usuário
     // reordena ou remove destinos antes de salvar — permite preview da nova polyline.
-    // Body: { destinos: [{ cidade_uf, lat, lon }, ...] }
+    // Body: { destinos: [{ cidade_uf, lat, lon }, ...], origem_override?: 'RECIFE/PE' }
     router.post('/veiculos/:id/rota-geometria-preview', authMiddleware, asyncHandler(async (req, res) => {
-        const { destinos } = req.body || {};
+        const { destinos, origem_override } = req.body || {};
         if (!Array.isArray(destinos)) return res.status(400).json({ pernas: [] });
 
-        const v = await dbGet(`SELECT origem_rota FROM veiculos WHERE id = ?`, [req.params.id]);
-        if (!v?.origem_rota) return res.json({ pernas: [] });
+        let cidadeOrigem = origem_override;
+        if (!cidadeOrigem) {
+            const v = await dbGet(`SELECT origem_rota FROM veiculos WHERE id = ?`, [req.params.id]);
+            if (!v?.origem_rota) return res.json({ pernas: [] });
+            cidadeOrigem = v.origem_rota;
+        }
 
-        const orig = await dbGet(`SELECT cidade_uf, lat, lon FROM geo_cache WHERE cidade_uf = $1`, [v.origem_rota]);
+        const orig = await dbGet(`SELECT cidade_uf, lat, lon FROM geo_cache WHERE cidade_uf = $1`, [cidadeOrigem]);
         if (!orig) return res.json({ pernas: [] });
 
         const pontos = [
@@ -1596,12 +1600,19 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             return res.status(400).json({ success: false, message: 'Nenhum destino selecionado para remanejamento' });
         }
 
-        // Monta payload do remanejamento_json com snapshot
-        const transferenciasResolvidas = transferencias.map(t => ({
-            prov_veiculo_id: t.prov_veiculo_id,
-            motorista: t.motorista || '',
-            destinos: (t.destinos_idx_originais || []).map(i => destinos[i]).filter(Boolean),
-        }));
+        // Monta payload do remanejamento_json com snapshot.
+        // Enriquece cada transferência com placa+carreta do prov_veiculo (pra tooltip no mapa).
+        const transferenciasResolvidas = [];
+        for (const t of transferencias) {
+            const pv = await dbGet(`SELECT placa, carreta FROM prov_veiculos WHERE id = ?`, [t.prov_veiculo_id]);
+            transferenciasResolvidas.push({
+                prov_veiculo_id: t.prov_veiculo_id,
+                placa: pv?.placa || null,
+                carreta: pv?.carreta || null,
+                motorista: t.motorista || '',
+                destinos: (t.destinos_idx_originais || []).map(i => destinos[i]).filter(Boolean),
+            });
+        }
         const remanejamento = {
             ponto_retorno,
             destinos_originais: destinos,
@@ -1618,23 +1629,109 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             [JSON.stringify(destinosNovos), JSON.stringify(remanejamento), req.params.id]
         );
 
-        // Popular prov_programacao para cada destino remanejado
-        for (const t of transferenciasResolvidas) {
-            for (const d of t.destinos) {
-                if (!d.data) continue;
+        // === Provisionamento do veículo ORIGINAL ===
+        // Localiza o prov_veiculo pela placa do card (veiculos.placa).
+        const cardVeic = await dbGet(`SELECT placa, motorista FROM veiculos WHERE id = ?`, [req.params.id]);
+        const placaCard = String(cardVeic?.placa || '').trim().toUpperCase();
+        const provOriginal = placaCard
+            ? await dbGet(`SELECT id FROM prov_veiculos WHERE UPPER(TRIM(placa)) = $1 AND ativo = 1`, [placaCard])
+            : null;
+
+        // Calcula duração OSRM da última entrega do original até o ponto de retorno.
+        let duracaoRetornoSeg = 0;
+        const ultimaEntregaOriginal = destinosNovos[destinosNovos.length - 1];
+        if (ultimaEntregaOriginal && typeof ultimaEntregaOriginal.lat === 'number' && typeof ultimaEntregaOriginal.lon === 'number') {
+            try {
+                const pontoRetGeo = await dbGet(`SELECT cidade_uf, lat, lon FROM geo_cache WHERE cidade_uf = $1`, [ponto_retorno]);
+                if (pontoRetGeo) {
+                    const { routeGeometry } = require('../utils/osmClient');
+                    const r = await routeGeometry(
+                        { cidade_uf: `${ultimaEntregaOriginal.cidade}/${ultimaEntregaOriginal.uf}`, lat: Number(ultimaEntregaOriginal.lat), lon: Number(ultimaEntregaOriginal.lon) },
+                        { cidade_uf: pontoRetGeo.cidade_uf, lat: Number(pontoRetGeo.lat), lon: Number(pontoRetGeo.lon) }
+                    );
+                    duracaoRetornoSeg = r?.duracao_segundos || 0;
+                }
+            } catch (e) {
+                console.warn('[remanejamento] OSRM falhou; assumindo 24h', e.message);
+                duracaoRetornoSeg = 24 * 3600;
+            }
+        }
+        // ≤24h → 1 dia de RETORNANDO. >24h → ceil(duracao/24h).
+        const diasRetorno = duracaoRetornoSeg > 0 ? Math.max(1, Math.ceil(duracaoRetornoSeg / (24 * 3600))) : 1;
+
+        let ultimoDiaRetornandoOriginal = null;
+        if (provOriginal && ultimaEntregaOriginal?.data) {
+            const dataUltimaEntregaOrig = ultimaEntregaOriginal.data;
+
+            // (a) Datas das entregas REMANEJADAS (posteriores à última do original) viram RETORNANDO no original
+            for (const t of transferenciasResolvidas) {
+                for (const d of t.destinos) {
+                    if (!d.data || d.data <= dataUltimaEntregaOrig) continue;
+                    await dbRun(
+                        `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
+                         VALUES ($1, $2, 'RETORNANDO', $3, NULL)
+                         ON CONFLICT (veiculo_id, data) DO UPDATE
+                         SET status='RETORNANDO', motorista=$3, destino=NULL`,
+                        [provOriginal.id, d.data, cardVeic?.motorista || null]
+                    );
+                    io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provOriginal.id, data: d.data, status: 'RETORNANDO', destino: null, motorista: cardVeic?.motorista || null });
+                    ultimoDiaRetornandoOriginal = d.data > (ultimoDiaRetornandoOriginal || '') ? d.data : ultimoDiaRetornandoOriginal;
+                }
+            }
+
+            // (b) Garantir N dias de RETORNANDO a partir do dia SEGUINTE à última entrega do original
+            const cursor = new Date(dataUltimaEntregaOrig + 'T00:00:00Z');
+            for (let i = 0; i < diasRetorno; i++) {
+                cursor.setUTCDate(cursor.getUTCDate() + 1);
+                const dia = cursor.toISOString().substring(0, 10);
                 await dbRun(
                     `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
-                     VALUES ($1, $2, 'EM_VIAGEM', $3, $4)
+                     VALUES ($1, $2, 'RETORNANDO', $3, NULL)
                      ON CONFLICT (veiculo_id, data) DO UPDATE
-                     SET status = 'EM_VIAGEM', motorista = $3, destino = $4`,
-                    [t.prov_veiculo_id, d.data, t.motorista || null, `${d.cidade}/${d.uf}`]
+                     SET status='RETORNANDO', motorista=$3, destino=NULL`,
+                    [provOriginal.id, dia, cardVeic?.motorista || null]
                 );
-                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: d.data, status: 'EM_VIAGEM', destino: `${d.cidade}/${d.uf}`, motorista: t.motorista || null });
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provOriginal.id, data: dia, status: 'RETORNANDO', destino: null, motorista: cardVeic?.motorista || null });
+                ultimoDiaRetornandoOriginal = dia > (ultimoDiaRetornandoOriginal || '') ? dia : ultimoDiaRetornandoOriginal;
+            }
+        }
+
+        // === Provisionamento dos veículos REMANEJADOS ===
+        // Calcula D0: primeiro dia útil (seg-sex) após o último dia de RETORNANDO do original.
+        function proximoDiaUtil(dataYmd) {
+            const d = new Date(dataYmd + 'T00:00:00Z');
+            do {
+                d.setUTCDate(d.getUTCDate() + 1);
+            } while ([0, 6].includes(d.getUTCDay())); // 0=domingo, 6=sábado
+            return d.toISOString().substring(0, 10);
+        }
+        const dataInicioRemanejados = ultimoDiaRetornandoOriginal
+            ? proximoDiaUtil(ultimoDiaRetornandoOriginal)
+            : null;
+
+        // Insere EM_OPERACAO (não EM_VIAGEM) começando em D0, +1 dia por destino seguinte.
+        for (const t of transferenciasResolvidas) {
+            for (let i = 0; i < t.destinos.length; i++) {
+                const d = t.destinos[i];
+                let dataEfetiva = d.data;
+                if (dataInicioRemanejados) {
+                    const cur = new Date(dataInicioRemanejados + 'T00:00:00Z');
+                    cur.setUTCDate(cur.getUTCDate() + i);
+                    dataEfetiva = cur.toISOString().substring(0, 10);
+                }
+                await dbRun(
+                    `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
+                     VALUES ($1, $2, 'EM_OPERACAO', $3, $4)
+                     ON CONFLICT (veiculo_id, data) DO UPDATE
+                     SET status='EM_OPERACAO', motorista=$3, destino=$4`,
+                    [t.prov_veiculo_id, dataEfetiva, t.motorista || null, `${d.cidade}/${d.uf}`]
+                );
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: dataEfetiva, status: 'EM_OPERACAO', destino: `${d.cidade}/${d.uf}`, motorista: t.motorista || null });
             }
         }
 
         await registrarLog('REMANEJAMENTO', req.user?.nome || '?', req.params.id, 'veiculo', null, null,
-            `Ponto de retorno: ${ponto_retorno}. ${transferenciasResolvidas.length} transferência(s), ${indicesRemanejados.size} destino(s) remanejado(s).`);
+            `Ponto de retorno: ${ponto_retorno}. ${transferenciasResolvidas.length} transferência(s), ${indicesRemanejados.size} destino(s) remanejado(s). RetornoOSRM=${Math.round(duracaoRetornoSeg/3600)}h, diasRetornando=${diasRetorno}, D0=${dataInicioRemanejados || 'n/a'}.`);
 
         io.emit('receber_atualizacao', {
             tipo: 'atualiza_veiculo',
@@ -1643,7 +1740,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             remanejamento_json: JSON.stringify(remanejamento),
         });
 
-        res.json({ success: true, destinos_json: destinosNovos, remanejamento_json: remanejamento });
+        res.json({ success: true, destinos_json: destinosNovos, remanejamento_json: remanejamento, diasRetorno, data_inicio_remanejados: dataInicioRemanejados });
     }));
 
     // DELETE /veiculos/:id/remanejamento — desfaz remanejamento, restaura destinos_json
@@ -1664,16 +1761,69 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             [JSON.stringify(destinosOriginais), req.params.id]
         );
 
-        // Limpar prov_programacao dos veículos menores nas datas das transferências
+        // Limpar prov_programacao dos veículos menores em TODAS as datas que receberam EM_OPERACAO ou EM_VIAGEM.
+        // Como os destinos podem ter sido reposicionados a partir de D0, varremos um range generoso.
         for (const t of (rem.transferencias || [])) {
             for (const d of (t.destinos || [])) {
                 if (!d.data) continue;
+                // Apaga a data ORIGINAL (caso versão antiga ainda tenha gravado EM_VIAGEM lá)
                 await dbRun(
                     `DELETE FROM prov_programacao
-                      WHERE veiculo_id = $1 AND data = $2 AND status = 'EM_VIAGEM' AND destino = $3`,
+                      WHERE veiculo_id = $1 AND data = $2
+                        AND status IN ('EM_VIAGEM','EM_OPERACAO')
+                        AND (destino = $3 OR destino IS NULL)`,
                     [t.prov_veiculo_id, d.data, `${d.cidade}/${d.uf}`]
                 );
                 io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: d.data, status: 'DISPONIVEL', destino: null, motorista: null });
+            }
+            // Também apaga qualquer EM_OPERACAO posterior nesse veículo cujo destino bata com algum dos remanejados.
+            const cidadesUf = (t.destinos || []).map(d => `${d.cidade}/${d.uf}`);
+            if (cidadesUf.length > 0) {
+                const placeholders = cidadesUf.map((_, i) => `$${i + 2}`).join(',');
+                const rows = await dbAll(
+                    `SELECT data FROM prov_programacao
+                     WHERE veiculo_id = $1 AND status='EM_OPERACAO' AND destino IN (${placeholders})`,
+                    [t.prov_veiculo_id, ...cidadesUf]
+                );
+                for (const r of rows) {
+                    await dbRun(
+                        `DELETE FROM prov_programacao WHERE veiculo_id = $1 AND data = $2 AND status='EM_OPERACAO'`,
+                        [t.prov_veiculo_id, r.data]
+                    );
+                    const diaStr = (r.data instanceof Date) ? r.data.toISOString().substring(0, 10) : String(r.data).substring(0, 10);
+                    io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: t.prov_veiculo_id, data: diaStr, status: 'DISPONIVEL', destino: null, motorista: null });
+                }
+            }
+        }
+
+        // Restaurar prov_programacao do veículo ORIGINAL nas datas afetadas (RETORNANDO → EM_VIAGEM com destino).
+        // Identifica prov_veiculo do original pela placa do card.
+        const cardVeic = await dbGet(`SELECT placa, motorista FROM veiculos WHERE id = ?`, [req.params.id]);
+        const placaCard = String(cardVeic?.placa || '').trim().toUpperCase();
+        const provOriginal = placaCard
+            ? await dbGet(`SELECT id FROM prov_veiculos WHERE UPPER(TRIM(placa)) = $1 AND ativo = 1`, [placaCard])
+            : null;
+        if (provOriginal) {
+            // Para cada data original (incluindo as remanejadas), volta a marcar EM_VIAGEM com o destino.
+            for (const d of destinosOriginais) {
+                if (!d.data) continue;
+                const dest = `${d.cidade}/${d.uf}`;
+                await dbRun(
+                    `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
+                     VALUES ($1, $2, 'EM_VIAGEM', $3, $4)
+                     ON CONFLICT (veiculo_id, data) DO UPDATE
+                     SET status='EM_VIAGEM', motorista=$3, destino=$4`,
+                    [provOriginal.id, d.data, cardVeic?.motorista || null, dest]
+                );
+                io.emit('receber_atualizacao', { tipo: 'prov_status_atualizado', veiculo_id: provOriginal.id, data: d.data, status: 'EM_VIAGEM', destino: dest, motorista: cardVeic?.motorista || null });
+            }
+            // Apaga RETORNANDO órfãos depois da última entrega (que o remanejamento criou).
+            const dataUltima = destinosOriginais[destinosOriginais.length - 1]?.data;
+            if (dataUltima) {
+                await dbRun(
+                    `DELETE FROM prov_programacao WHERE veiculo_id = $1 AND data > $2 AND status='RETORNANDO'`,
+                    [provOriginal.id, dataUltima]
+                );
             }
         }
 
