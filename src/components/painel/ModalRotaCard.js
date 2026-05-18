@@ -9,7 +9,17 @@ import api from '../../services/apiService';
 const COORDS_ORIGEM = {
     'RECIFE/PE': { lat: -8.0434124, lon: -34.9542906, label: 'CD Recife (Várzea)' },
     'MORENO/PE': { lat: -8.130545712978426, lon: -35.12564333469332, label: 'CD Moreno (Distrito Industrial)' },
+    'CARLOS BARBOSA/RS': { lat: -29.28426360237548, lon: -51.4879727918691, label: 'CD Carlos Barbosa (Eletrik Sul)' },
 };
+
+// Fallback: deduz origem pela operação do card quando origem_rota está null/undefined.
+// Mesmas regras do backend (geradorRotas.determinarOrigem).
+function deduzirOrigemPelaOperacao(operacao) {
+    const op = String(operacao || '').toUpperCase().trim();
+    if (op === 'ELETRIK SUL') return 'CARLOS BARBOSA/RS';
+    if (op.includes('RECIFE')) return 'RECIFE/PE';
+    return 'MORENO/PE';
+}
 
 const COR_ROTA = '#e91e63';   // magenta/rosa vibrante
 const COR_FALLBACK = '#94a3b8'; // cinza claro quando OSRM falha
@@ -186,8 +196,9 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         buscarGeometria(veiculo.id);
     }, [isOpen, veiculo?.id, buscarGeometria]);
 
-    const origem = veiculo?.origem_rota || 'RECIFE/PE';
-    const origemCoord = COORDS_ORIGEM[origem] || COORDS_ORIGEM['RECIFE/PE'];
+    // Origem: usa origem_rota gravada no card; se faltar, deduz pela operação (não usa default RECIFE).
+    const origem = veiculo?.origem_rota || deduzirOrigemPelaOperacao(veiculo?.operacao);
+    const origemCoord = COORDS_ORIGEM[origem] || COORDS_ORIGEM['MORENO/PE'];
 
     const pontos = useMemo(() => {
         const validos = destinos.filter(d => typeof d.lat === 'number' && typeof d.lon === 'number');

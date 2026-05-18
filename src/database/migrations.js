@@ -784,6 +784,7 @@ const inicializarBanco = async () => {
         const SEED_GEO = [
             ['RECIFE/PE', -8.0434124, -34.9542906, 'CD Transnet — Av. Barão de Bonito, 1110, Várzea, Recife/PE'],
             ['MORENO/PE', -8.130545712978426, -35.12564333469332, 'CD Transnet — Av. Industrial, Distrito Industrial, Moreno/PE'],
+            ['CARLOS BARBOSA/RS', -29.28426360237548, -51.4879727918691, 'CD Transnet — Carlos Barbosa/RS (operação ELETRIK SUL)'],
         ];
         for (const [chave, lat, lon, nome] of SEED_GEO) {
             try {

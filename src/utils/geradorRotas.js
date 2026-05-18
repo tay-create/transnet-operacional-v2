@@ -215,12 +215,15 @@ async function buscarRotaPorColeta(coleta, sheetId) {
 
 // Determina origem da rota a partir da operação do card.
 // Regra (decidida com usuário): origem fixa pela operação, sem parada intermediária no consolidado misto.
+//   - ELETRIK SUL → CD Carlos Barbosa (CARLOS BARBOSA/RS)
+//   - LEÃO - SP → MORENO/PE (sai de Moreno na operação Leão)
 //   - Recife puro / Consolidado RC+MO → RECIFE/PE
-//   - Moreno puro / Consolidado MO+MO → MORENO/PE
+//   - Moreno puro / Consolidado MO+MO / Porcelana / Eletrik → MORENO/PE
 function determinarOrigem(operacao) {
-    const op = String(operacao || '').toUpperCase();
+    const op = String(operacao || '').toUpperCase().trim();
+    if (op === 'ELETRIK SUL') return 'CARLOS BARBOSA/RS';
     if (op.includes('RECIFE')) return 'RECIFE/PE'; // recife puro OU consolidado RC+MO
-    // Demais casos (moreno puro, MO+MO, eletrik, porcelana, etc): origem Moreno
+    // Demais casos (moreno puro, MO+MO, eletrik, porcelana, leão-sp, etc): origem Moreno
     return 'MORENO/PE';
 }
 
