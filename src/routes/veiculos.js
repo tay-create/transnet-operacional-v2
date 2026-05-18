@@ -1709,16 +1709,30 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             ? proximoDiaUtil(ultimoDiaRetornandoOriginal)
             : null;
 
+        // Fallback de D0 quando o original não tem datas (planilha sem Col AC):
+        // usa data_prevista do card + diasRetorno + próximo dia útil.
+        let dataInicioEfetivo = dataInicioRemanejados;
+        if (!dataInicioEfetivo) {
+            const cardData = await dbGet(`SELECT data_prevista FROM veiculos WHERE id = ?`, [req.params.id]);
+            const baseStr = cardData?.data_prevista
+                ? new Date(cardData.data_prevista).toISOString().substring(0, 10)
+                : new Date().toISOString().substring(0, 10);
+            const base = new Date(baseStr + 'T00:00:00Z');
+            base.setUTCDate(base.getUTCDate() + diasRetorno);
+            dataInicioEfetivo = proximoDiaUtil(base.toISOString().substring(0, 10));
+        }
+
         // Insere EM_OPERACAO (não EM_VIAGEM) começando em D0, +1 dia por destino seguinte.
         for (const t of transferenciasResolvidas) {
             for (let i = 0; i < t.destinos.length; i++) {
                 const d = t.destinos[i];
                 let dataEfetiva = d.data;
-                if (dataInicioRemanejados) {
-                    const cur = new Date(dataInicioRemanejados + 'T00:00:00Z');
+                if (dataInicioEfetivo) {
+                    const cur = new Date(dataInicioEfetivo + 'T00:00:00Z');
                     cur.setUTCDate(cur.getUTCDate() + i);
                     dataEfetiva = cur.toISOString().substring(0, 10);
                 }
+                if (!dataEfetiva) continue; // skip se nem tiver fallback
                 await dbRun(
                     `INSERT INTO prov_programacao (veiculo_id, data, status, motorista, destino)
                      VALUES ($1, $2, 'EM_OPERACAO', $3, $4)
