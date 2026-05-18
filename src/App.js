@@ -695,7 +695,7 @@ function App({ socket }) {
     };
 
     // --- LANÇAMENTO NOVO (MIGRADO PARA API) ---
-    const lancarVeiculoInteligente = async () => {
+    const lancarVeiculoInteligente = async (opts) => {
         const precisaRecife = ehOperacaoRecife(formLanca.operacao);
         const precisaMoreno = ehOperacaoMoreno(formLanca.operacao);
 
@@ -805,6 +805,19 @@ function App({ socket }) {
                 mostrarNotificacao(`⚠️ Veículo lançado SEM rota: a coleta aparece nas rotas ${respLanca.data.rotas_duplicadas.join(' e ')} da planilha. Corrija a planilha e regenere a rota pelo card.`);
             } else {
                 mostrarNotificacao("✅ Veículo Lançado !");
+            }
+
+            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e dispara o evento global.
+            if (opts?.abrirRemanejamento && respLanca.data?.id) {
+                try {
+                    const r = await api.get(`/veiculos/${respLanca.data.id}`);
+                    const cardCriado = r.data?.veiculo || r.data;
+                    if (cardCriado) {
+                        window.dispatchEvent(new CustomEvent('abrir-remanejamento', { detail: cardCriado }));
+                    }
+                } catch (e) {
+                    console.warn('Falha ao buscar card recém-criado para abrir remanejamento:', e);
+                }
             }
         } catch (error) {
             console.error("Erro ao lançar:", error);

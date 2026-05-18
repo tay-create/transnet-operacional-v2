@@ -549,10 +549,10 @@ export default function NovoLancamento({ user, formLanca, setFormLanca, lancarVe
                         || formLanca.coletaInterestadual
                         || ''
                     }
-                    onConfirmar={() => {
+                    onConfirmar={(_entradas, opts) => {
                         setEntregasConfirmadas(true);
                         setModalEntregas(null);
-                        lancarVeiculoInteligente();
+                        lancarVeiculoInteligente(opts);
                     }}
                     onCancelar={() => {
                         setFormLanca(prev => ({ ...prev, placa1Motorista: '', placa2Motorista: '' }));

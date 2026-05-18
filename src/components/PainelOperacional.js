@@ -56,6 +56,15 @@ export default function PainelOperacional({
         abrirModalRemanejamento: (item) => setModalRemanejamentoVeiculo(item),
     }), [funcoes]);
 
+    // Escuta evento global emitido pelo App.js após lançar veículo com "Sim, configurar remanejamento"
+    useEffect(() => {
+        function handler(e) {
+            if (e?.detail) setModalRemanejamentoVeiculo(e.detail);
+        }
+        window.addEventListener('abrir-remanejamento', handler);
+        return () => window.removeEventListener('abrir-remanejamento', handler);
+    }, []);
+
     const { dataInicio, setDataInicio, dataFim, setDataFim, filtroOperacao, setFiltroOperacao, itensFiltrados, itensOrdenados, campoStatus } = usePainelFiltros({ origem, lista, operacoesFixas, termoBusca });
     const {
         modalColetasAberto, setModalColetasAberto,
