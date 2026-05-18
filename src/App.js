@@ -45,6 +45,7 @@ const DashboardPosEmbarque = React.lazy(() => import('./components/DashboardPosE
 const PlanejamentoTramontina = React.lazy(() => import('./components/PlanejamentoTramontina'));
 const PainelLeadTime = React.lazy(() => import('./components/PainelLeadTime'));
 const QRCodeCaminhao         = React.lazy(() => import('./components/QRCodeCaminhao'));
+const ModalRemanejamento     = React.lazy(() => import('./components/painel/ModalRemanejamento'));
 
 // Modals lazy — só carregam quando abertos
 const ModalRelatorio    = React.lazy(() => import('./components/Modals').then(m => ({ default: m.ModalRelatorio })));
@@ -127,6 +128,16 @@ function App({ socket }) {
     const [emailPessoalInput, setEmailPessoalInput] = useState('');
     const [emailPessoalEnviado, setEmailPessoalEnviado] = useState(false);
     const [confirmarRemover, setConfirmarRemover] = useState(null);
+    const [modalRemanejamentoGlobal, setModalRemanejamentoGlobal] = useState(null);
+
+    // Listener global: quando lançamento solicita "Sim, configurar remanejamento", abre o modal aqui (fora das abas).
+    useEffect(() => {
+        function handler(e) {
+            if (e?.detail) setModalRemanejamentoGlobal(e.detail);
+        }
+        window.addEventListener('abrir-remanejamento', handler);
+        return () => window.removeEventListener('abrir-remanejamento', handler);
+    }, []);
 
     const userRef = useRef(user);
     const mostrarNotificacaoRef = useRef(mostrarNotificacao);
@@ -807,13 +818,15 @@ function App({ socket }) {
                 mostrarNotificacao("✅ Veículo Lançado !");
             }
 
-            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e dispara o evento global.
+            // Se o usuário solicitou abrir o modal de remanejamento, busca o card recém-criado e abre o modal global.
+            console.log('[remanejamento] opts recebido:', opts, 'respLanca.id:', respLanca.data?.id);
             if (opts?.abrirRemanejamento && respLanca.data?.id) {
                 try {
                     const r = await api.get(`/veiculos/${respLanca.data.id}`);
                     const cardCriado = r.data?.veiculo || r.data;
+                    console.log('[remanejamento] card buscado:', cardCriado?.id, 'tem destinos_json:', !!cardCriado?.destinos_json);
                     if (cardCriado) {
-                        window.dispatchEvent(new CustomEvent('abrir-remanejamento', { detail: cardCriado }));
+                        setModalRemanejamentoGlobal(cardCriado);
                     }
                 } catch (e) {
                     console.warn('Falha ao buscar card recém-criado para abrir remanejamento:', e);
@@ -1376,6 +1389,17 @@ function App({ socket }) {
         >
             {/* MODAL DE CONFIRMAÇÃO GLOBAL */}
             {confirmarRemover && <ModalConfirm titulo="Excluir veículo" mensagem={confirmarRemover.mensagem} textConfirm="Excluir" onConfirm={confirmarRemover.onConfirm} onCancel={() => setConfirmarRemover(null)} />}
+
+            {/* MODAL DE REMANEJAMENTO GLOBAL (acionado pelo lançamento) */}
+            {modalRemanejamentoGlobal && (
+                <React.Suspense fallback={null}>
+                    <ModalRemanejamento
+                        veiculo={modalRemanejamentoGlobal}
+                        onConfirmar={() => setModalRemanejamentoGlobal(null)}
+                        onCancelar={() => setModalRemanejamentoGlobal(null)}
+                    />
+                </React.Suspense>
+            )}
 
             {/* MODAL OBRIGATÓRIO — CADASTRO DE TELEFONE NO PRIMEIRO LOGIN */}
             {modalTelefone && (
