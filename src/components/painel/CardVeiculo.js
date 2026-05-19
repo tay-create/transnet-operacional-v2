@@ -207,7 +207,34 @@ export default function CardVeiculo({
                 </div>
 
                 {isMista && (
-                    <div style={{ fontSize: '10px', marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', background: souPrimeira ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: souPrimeira ? '#60a5fa' : '#fbbf24', marginLeft: '10px' }}>
+                    <div
+                        onClick={async () => {
+                            if (!podeEditarNaUnidade('operacao')) return;
+                            const novoInicio = origem === 'Recife' ? 'Moreno' : 'Recife';
+                            const novaPrimeira = novoInicio;
+                            const novaSegunda = novoInicio === 'Recife' ? 'Moreno' : 'Recife';
+                            const novaLista = [...lista];
+                            const atualizado = {
+                                ...novaLista[realIndex],
+                                inicio_rota: novoInicio,
+                                origem_criacao: novoInicio,
+                                unidade: novoInicio,
+                                primeira_parada: novaPrimeira,
+                                segunda_parada: novaSegunda,
+                            };
+                            novaLista[realIndex] = atualizado;
+                            setLista(novaLista);
+                            try {
+                                await api.put(`/veiculos/${atualizado.id}`, atualizado);
+                                mostrarNotificacao?.(`✅ 1ª parada agora é ${novoInicio}`);
+                            } catch (err) {
+                                console.error('Erro ao inverter paradas:', err);
+                                mostrarNotificacao?.('⚠️ Erro ao inverter ordem das paradas');
+                            }
+                        }}
+                        title={podeEditarNaUnidade('operacao') ? 'Clique para inverter a ordem das paradas' : ''}
+                        style={{ fontSize: '10px', marginTop: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '4px', background: souPrimeira ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: souPrimeira ? '#60a5fa' : '#fbbf24', marginLeft: '10px', cursor: podeEditarNaUnidade('operacao') ? 'pointer' : 'default', userSelect: 'none' }}
+                    >
                         {souPrimeira ? <MapPin size={10} /> : <ArrowRight size={10} />} {souPrimeira ? '1ª PARADA' : '2ª PARADA'}
                     </div>
                 )}
