@@ -242,6 +242,7 @@ export default function MobileOperacional() {
                     const cteEmitido = v.numero_cte;
                     const temFotoLacre = origem === 'Moreno' ? v.tem_foto_lacre_moreno : v.tem_foto_lacre_recife;
                     const origemLacreParam = origem === 'Moreno' ? 'moreno' : 'recife';
+                    const temRota = !!v.destinos_json && v.destinos_json !== '[]';
                     return (
                         <div key={v.id} style={{
                             background: '#0f172a', border: '1px solid #1e293b',
@@ -296,7 +297,7 @@ export default function MobileOperacional() {
                             </div>
 
                             {/* Botões Lacre + Rota */}
-                            {(temFotoLacre || v.destinos_json) && (
+                            {(temFotoLacre || temRota) && (
                                 <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                     {temFotoLacre && (
                                         <button
@@ -321,7 +322,7 @@ export default function MobileOperacional() {
                                             <Lock size={10} strokeWidth={2} /> Ver Lacre
                                         </button>
                                     )}
-                                    {v.destinos_json && (
+                                    {temRota && (
                                         <button
                                             onClick={() => setRotaAberta(v)}
                                             style={{
