@@ -206,11 +206,92 @@ function indexarPlanilha(rows) {
 
 // Busca uma coleta na planilha. Retorna { rota, destinos: [{cidade, uf, chave}, ...] }
 // ou null se a coleta não foi encontrada.
+// Despachante: se GERADOR_FONTE='banco', lê do PlanejamentoDelta; senão, planilha.
 async function buscarRotaPorColeta(coleta, sheetId) {
     if (!coleta) return null;
+    if (process.env.GERADOR_FONTE === 'banco') {
+        const mes = await derivarMes(sheetId);
+        if (!mes) return null;
+        return buscarRotaPorColetaNoBanco(coleta, mes);
+    }
     const rows = await lerPlanilha(sheetId);
     const idx = indexarPlanilha(rows);
     return idx.get(normalizarColeta(coleta)) || null;
+}
+
+// Lê uma rota+destinos das tabelas tramontina_rotas + tramontina_rota_entregas.
+// Aceita coleta exata OU coleta dentro de string multi-coleta (espaços/vírgulas/pipes).
+// Retorna shape compatível com indexarPlanilha:
+//   { rota: string, destinos: [{cidade, uf, chave}], fonte: 'banco-DELTA-PORCELANA'|'banco-ELETRIK' }
+//   ou null se não achar.
+async function buscarRotaPorColetaNoBanco(coleta, mes) {
+    const { dbAll } = require('../database/db');
+    const alvo = normalizarColeta(coleta);
+    if (!alvo) return null;
+
+    // Busca todas as rotas do mês (não filtra aba — coleta pode estar em qualquer uma)
+    const rotas = await dbAll(
+        `SELECT id, numero_rota, coleta, aba_origem
+         FROM tramontina_rotas WHERE mes_referencia = $1`,
+        [mes]
+    );
+
+    // Encontra rota(s) cuja coluna 'coleta' contém a coleta alvo
+    const rotasMatch = [];
+    for (const r of rotas) {
+        const coletas = extrairColetasDaCelula(r.coleta || '');
+        if (coletas.includes(alvo)) rotasMatch.push(r);
+    }
+
+    if (rotasMatch.length === 0) return null;
+
+    // Mais de uma rota com a mesma coleta = duplicação (erro de digitação)
+    if (rotasMatch.length > 1) {
+        return {
+            rota: String(rotasMatch[0].numero_rota || ''),
+            destinos: [],
+            fonte: `banco-${rotasMatch[0].aba_origem}`,
+            duplicadaEmRotas: rotasMatch.map(r => String(r.numero_rota || '')),
+        };
+    }
+
+    const rotaUnica = rotasMatch[0];
+    const entregas = await dbAll(
+        `SELECT cidade, uf FROM tramontina_rota_entregas
+         WHERE rota_id = $1 AND cidade IS NOT NULL AND uf IS NOT NULL
+         ORDER BY id ASC`,
+        [rotaUnica.id]
+    );
+
+    // Dedup por cidade/uf
+    const destinos = [];
+    const vistas = new Set();
+    for (const e of entregas) {
+        if (!UFS_VALIDAS.has(e.uf)) continue;
+        const chave = normalizarCidadeUf(e.cidade, e.uf);
+        if (vistas.has(chave)) continue;
+        vistas.add(chave);
+        destinos.push({ cidade: e.cidade, uf: e.uf, chave });
+    }
+
+    return {
+        rota: String(rotaUnica.numero_rota || ''),
+        destinos,
+        fonte: `banco-${rotaUnica.aba_origem}`,
+    };
+}
+
+// Derivação de mês: aceita 'YYYY-MM' direto OU sheetId (faz lookup em resultado_sheets).
+async function derivarMes(sheetIdOuMes) {
+    if (!sheetIdOuMes) return null;
+    const s = String(sheetIdOuMes);
+    if (/^\d{4}-\d{2}$/.test(s)) return s;
+    const { dbGet } = require('../database/db');
+    const row = await dbGet(
+        `SELECT mes FROM resultado_sheets WHERE sheet_id = $1 ORDER BY mes DESC LIMIT 1`,
+        [s]
+    );
+    return row?.mes || null;
 }
 
 // Determina origem da rota a partir da operação do card.
@@ -324,6 +405,11 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
 // — entregas ordenadas por data ascendente.
 async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
     if (!coleta) return { encontrada: false, entregas: [] };
+    if (process.env.GERADOR_FONTE === 'banco') {
+        const mes = await derivarMes(sheetId);
+        if (!mes) return { encontrada: false, entregas: [] };
+        return buscarEntregasAgendadasPorColetaNoBanco(coleta, mes);
+    }
     const { normalizarData } = require('./leadTimeOperacional');
     const rows = await lerPlanilha(sheetId);
     const alvo = normalizarColeta(coleta);
@@ -398,6 +484,52 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
     return {
         encontrada: entregas.length > 0,
         rota: rotaDaColeta,
+        entregas,
+    };
+}
+
+// Versão "banco" do buscarEntregasAgendadasPorColeta — lê do tramontina_rotas + entregas
+// Retorna shape compatível: { encontrada, rota?, entregas: [{cidade, uf, data}], duplicada_em_rotas? }
+async function buscarEntregasAgendadasPorColetaNoBanco(coleta, mes) {
+    const { dbAll } = require('../database/db');
+    const alvo = normalizarColeta(coleta);
+    if (!alvo) return { encontrada: false, entregas: [] };
+
+    const rotas = await dbAll(
+        `SELECT id, numero_rota, coleta, aba_origem FROM tramontina_rotas WHERE mes_referencia = $1`,
+        [mes]
+    );
+    const rotasMatch = rotas.filter(r => extrairColetasDaCelula(r.coleta || '').includes(alvo));
+    if (rotasMatch.length === 0) return { encontrada: false, entregas: [] };
+    if (rotasMatch.length > 1) {
+        return {
+            encontrada: false,
+            duplicada_em_rotas: rotasMatch.map(r => String(r.numero_rota || '')),
+            entregas: [],
+        };
+    }
+    const rotaUnica = rotasMatch[0];
+    const entregasRaw = await dbAll(
+        `SELECT cidade, uf, data_entrega_cliente FROM tramontina_rota_entregas
+         WHERE rota_id = $1 AND cidade IS NOT NULL AND uf IS NOT NULL AND data_entrega_cliente IS NOT NULL
+         ORDER BY data_entrega_cliente ASC, id ASC`,
+        [rotaUnica.id]
+    );
+    const entregas = [];
+    const dedup = new Set();
+    for (const e of entregasRaw) {
+        if (!UFS_VALIDAS.has(e.uf)) continue;
+        const dataStr = e.data_entrega_cliente instanceof Date
+            ? e.data_entrega_cliente.toISOString().substring(0, 10)
+            : String(e.data_entrega_cliente).substring(0, 10);
+        const chave = `${e.cidade}|${e.uf}|${dataStr}`;
+        if (dedup.has(chave)) continue;
+        dedup.add(chave);
+        entregas.push({ cidade: e.cidade, uf: e.uf, data: dataStr });
+    }
+    return {
+        encontrada: entregas.length > 0,
+        rota: String(rotaUnica.numero_rota || ''),
         entregas,
     };
 }
