@@ -289,6 +289,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     setUltimaFalha(null);
                     mostrarNotificacao?.('✅ Rota gerada');
                     // Re-busca geometria por estrada — só os destinos mudaram, o effect não dispara sozinho
+                    setPernasPreview(null);
                     recarregarGet();
                 } catch {
                     mostrarNotificacao?.('⚠️ Rota gerada mas resposta inválida');
