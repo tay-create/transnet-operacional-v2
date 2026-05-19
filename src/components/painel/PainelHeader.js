@@ -16,7 +16,6 @@ export default function PainelHeader({
     podeEditarNaUnidade,
     onAddContainer,
     onAbrirPausa,
-    onFinalizarClick,
 }) {
     return (
         <div className="glass-panel-internal" style={{ padding: '15px 25px', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -76,28 +75,10 @@ export default function PainelHeader({
                                 </button>
                             );
                         })()}
-                        {origem === 'Recife' && (podeEditarNaUnidade('operacao') || user.cargo === 'Conhecimento') && (
-                            <button
-                                onClick={onFinalizarClick}
-                                title="Finalizar operação: avança cards pendentes para o próximo dia útil (ambas as unidades)"
-                                style={{
-                                    marginLeft: '8px',
-                                    padding: '4px 12px',
-                                    fontSize: '11px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    background: 'rgba(239,68,68,0.15)',
-                                    border: '1px solid rgba(239,68,68,0.4)',
-                                    color: '#f87171',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontWeight: '700'
-                                }}
-                            >
-                                ✕ FINALIZAR
-                            </button>
-                        )}
+                        {/* Botão "✕ FINALIZAR" oculto: CRON-ROLLOVER às 22:30 já vira os cards
+                            pendentes pro próximo dia (server.js cron '30 22 * * *'). Endpoint
+                            POST /veiculos/finalizar-operacao continua disponível pra cenários
+                            edge (encerrar antes do horário, dia atípico). */}
                     </h2>
                     <div style={{ display: 'flex', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
                         <span className="badge-neon-pill" style={{ display: 'inline-block' }}>
