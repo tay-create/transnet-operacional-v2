@@ -282,8 +282,12 @@ async function buscarRotaPorColetaNoBanco(coleta, mes) {
 }
 
 // Derivação de mês: aceita 'YYYY-MM' direto OU sheetId (faz lookup em resultado_sheets).
+// Fallback: se lookup falhar (sheetId não cadastrado), usa o mês atual em America/Sao_Paulo.
+function mesAtualSP() {
+    return new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+}
 async function derivarMes(sheetIdOuMes) {
-    if (!sheetIdOuMes) return null;
+    if (!sheetIdOuMes) return mesAtualSP();
     const s = String(sheetIdOuMes);
     if (/^\d{4}-\d{2}$/.test(s)) return s;
     const { dbGet } = require('../database/db');
@@ -291,7 +295,7 @@ async function derivarMes(sheetIdOuMes) {
         `SELECT mes FROM resultado_sheets WHERE sheet_id = $1 ORDER BY mes DESC LIMIT 1`,
         [s]
     );
-    return row?.mes || null;
+    return row?.mes || mesAtualSP();
 }
 
 // Determina origem da rota a partir da operação do card.
