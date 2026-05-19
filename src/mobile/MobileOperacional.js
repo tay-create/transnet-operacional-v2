@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Truck, RefreshCw, FileText, Package, Search, Lock, X } from 'lucide-react';
+import { Truck, RefreshCw, FileText, Package, Search, Lock, X, MapPin } from 'lucide-react';
 import api from '../services/apiService';
+import MobileModalRota from './MobileModalRota';
 
 // Cores idênticas ao CORES_STATUS do desktop (src/constants.js)
 const STATUS_COR = {
@@ -28,6 +29,7 @@ function parseFotos(raw) {
 
 export default function MobileOperacional() {
     const [fotoAmpliada, setFotoAmpliada] = useState(null);
+    const [rotaAberta, setRotaAberta] = useState(null);
     const [origem, setOrigem] = useState('Recife');
     const [todosVeiculos, setTodosVeiculos] = useState([]);
     const [carregando, setCarregando] = useState(false);
@@ -127,6 +129,13 @@ export default function MobileOperacional() {
                     </button>
                     <img src={fotoAmpliada} alt="Lacre" style={{ maxWidth: '95vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
                 </div>
+            )}
+
+            {rotaAberta && (
+                <MobileModalRota
+                    veiculo={rotaAberta}
+                    onClose={() => setRotaAberta(null)}
+                />
             )}
 
             {/* Header fixo */}
@@ -286,29 +295,47 @@ export default function MobileOperacional() {
                                 )}
                             </div>
 
-                            {/* Botão Lacre — carrega fotos sob demanda */}
-                            {temFotoLacre && (
-                                <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8 }}>
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                const r = await api.get(`/veiculos/${v.id}/foto-lacre/${origemLacreParam}`);
-                                                const raw = r.data?.foto;
-                                                if (!raw) return;
-                                                const fotos = parseFotos(raw);
-                                                if (fotos.length) setFotoAmpliada(fotos[0]);
-                                            } catch (e) { console.error('Erro ao carregar lacre:', e); }
-                                        }}
-                                        style={{
-                                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                                            padding: '4px 8px', background: 'rgba(74,222,128,0.12)',
-                                            border: '1px solid rgba(74,222,128,0.3)', borderRadius: 6,
-                                            color: '#4ade80', fontSize: 10, fontWeight: 700,
-                                            textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
-                                        }}
-                                    >
-                                        <Lock size={10} strokeWidth={2} /> Ver Lacre
-                                    </button>
+                            {/* Botões Lacre + Rota */}
+                            {(temFotoLacre || v.destinos_json) && (
+                                <div style={{ marginTop: 10, borderTop: '1px solid #1e293b', paddingTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                    {temFotoLacre && (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const r = await api.get(`/veiculos/${v.id}/foto-lacre/${origemLacreParam}`);
+                                                    const raw = r.data?.foto;
+                                                    if (!raw) return;
+                                                    const fotos = parseFotos(raw);
+                                                    if (fotos.length) setFotoAmpliada(fotos[0]);
+                                                } catch (e) { console.error('Erro ao carregar lacre:', e); }
+                                            }}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                padding: '4px 8px', background: 'rgba(74,222,128,0.12)',
+                                                border: '1px solid rgba(74,222,128,0.3)', borderRadius: 6,
+                                                color: '#4ade80', fontSize: 10, fontWeight: 700,
+                                                textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
+                                                WebkitTapHighlightColor: 'transparent',
+                                            }}
+                                        >
+                                            <Lock size={10} strokeWidth={2} /> Ver Lacre
+                                        </button>
+                                    )}
+                                    {v.destinos_json && (
+                                        <button
+                                            onClick={() => setRotaAberta(v)}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                padding: '4px 8px', background: 'rgba(233,30,99,0.12)',
+                                                border: '1px solid rgba(233,30,99,0.3)', borderRadius: 6,
+                                                color: '#e91e63', fontSize: 10, fontWeight: 700,
+                                                textTransform: 'uppercase', letterSpacing: 0.5, cursor: 'pointer',
+                                                WebkitTapHighlightColor: 'transparent',
+                                            }}
+                                        >
+                                            <MapPin size={10} strokeWidth={2} /> Rota
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
