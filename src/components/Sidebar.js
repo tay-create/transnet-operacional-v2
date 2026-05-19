@@ -292,10 +292,10 @@ export default function Sidebar({
                 </>
             )}
 
-            {/* PLANEJAMENTO TRAMONTINA */}
-            {temAcesso('tramontina_planejamento') && (
+            {/* PLANEJAMENTO (DELTA-PORCELANA + ELETRIK) */}
+            {(temAcesso('tramontina_planejamento') || temAcesso('delta_ver')) && (
                 <>
-                    <Divider label="Planejamento Tramontina" aberto={aberto} />
+                    <Divider label="Planejamento" aberto={aberto} />
                     <MenuItem
                         icon={<Calendar size={20} />}
                         label="Planejamento de Rotas"
