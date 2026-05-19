@@ -7,6 +7,7 @@ const {
     classificarLeadTime,
     regiaoDeUF,
     normalizarRegiao,
+    nomeDeRegiao,
     LEAD_PADRAO_TRAMONTINA_REGIAO,
 } = require('./tramontinaLeadTime');
 
@@ -42,9 +43,9 @@ function normalizarData(v) {
     return null;
 }
 
-// Faz parse das linhas vindas de DELTA-PORCELANA!A10:AC670 aplicando forward-fill.
+// Faz parse das linhas vindas de DELTA-PORCELANA!A10:AB670 aplicando forward-fill.
 // Espera array de arrays (rows). Cada linha entrega:
-//   [0]=A Rota, [7]=H Data Embarque, [8]=I Cidade, [9]=J UF, [10]=K Região, [28]=AC Data Agendamento
+//   [0]=A Rota, [7]=H Data Embarque, [8]=I Cidade, [9]=J UF, [10]=K Região, [27]=AB Data Agendamento
 // Retorna array de { rota, embarque, cidade, uf, regiao, agendamento }.
 function parseLinhasLeadTime(rows) {
     const out = [];
@@ -64,16 +65,18 @@ function parseLinhasLeadTime(rows) {
         const cidade = (row[8] || '').toString().trim();
         const uf = (row[9] || '').toString().trim().toUpperCase();
         const regiaoRaw = (row[10] || '').toString().trim();
-        const agendamento = normalizarData(row[28]);
+        const agendamento = normalizarData(row[27]);
 
         // Descarta linhas sem dados úteis
         if (!rotaAtual || !uf || !agendamento) continue;
+        const regiao = normalizarRegiao(regiaoRaw) || regiaoDeUF(uf);
         out.push({
             rota: rotaAtual,
             embarque: embarqueAtual,
             cidade,
             uf,
-            regiao: normalizarRegiao(regiaoRaw) || regiaoDeUF(uf),
+            regiao,
+            regiaoNome: nomeDeRegiao(regiao),
             agendamento,
         });
     }
@@ -151,7 +154,9 @@ function agregarLeadTime(entregasClassificadas) {
         transnet: finalizarAgg(totaisT),
         tramontina: finalizarAgg(totaisM),
         porUF: Object.fromEntries(Object.entries(porUF).map(([k, v]) => [k, finalizarAgg(v)])),
-        porRegiao: Object.fromEntries(Object.entries(porRegiao).map(([k, v]) => [k, finalizarAgg(v)])),
+        porRegiao: Object.fromEntries(
+            Object.entries(porRegiao).map(([k, v]) => [k, { ...finalizarAgg(v), regiaoNome: nomeDeRegiao(k) }])
+        ),
     };
 }
 

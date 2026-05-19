@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X, MapPin, ArrowUp, ArrowDown, Trash2, Save, Truck, ExternalLink, Shuffle, Warehouse } from 'lucide-react';
 import api from '../../services/apiService';
+import useRotaGeometria, { cidadeUfLabel } from '../../hooks/useRotaGeometria';
 
 // Origens fixas conhecidas (endereço real dos CDs, não centro da cidade).
 const COORDS_ORIGEM = {
@@ -24,12 +25,6 @@ function deduzirOrigemPelaOperacao(operacao) {
 const COR_ROTA = '#e91e63';   // magenta/rosa vibrante
 const COR_FALLBACK = '#94a3b8'; // cinza claro quando OSRM falha
 
-// Resolve cidade/uf de um destino com fallback para cidade_uf legado.
-function cidadeUf(d) {
-    if (d?.cidade && d?.uf) return `${d.cidade}/${d.uf}`;
-    if (d?.cidade_uf) return d.cidade_uf;
-    return '—';
-}
 
 function iconeNumerado(n) {
     return L.divIcon({
@@ -155,7 +150,6 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
     const [destinos, setDestinos] = useState([]);
     const [salvando, setSalvando] = useState(false);
     const [regenerando, setRegenerando] = useState(false);
-    const [pernas, setPernas] = useState(null); // null = carregando, [] = falha total, [{...}] = ok
     const [carregandoGeo, setCarregandoGeo] = useState(false);
     const [ultimaFalha, setUltimaFalha] = useState(null); // { aviso, cidade_falhou }
 
@@ -170,40 +164,38 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         setUltimaFalha(null);
     }, [isOpen, veiculo]);
 
-    // Função reutilizável que busca a geometria por estrada do backend.
-    // - Sem destinosLocal: usa GET (lê destinos_json do banco) — para abertura inicial.
-    // - Com destinosLocal: usa POST preview (geometria calculada a partir da ordem local)
-    //   — usado quando o usuário reordena/remove destinos antes de salvar.
-    const buscarGeometria = React.useCallback(async (idAlvo, destinosLocal) => {
-        if (!idAlvo) {
-            setPernas(null);
-            return;
-        }
+    // Hook compartilhado: cobre o caso GET (abertura inicial) — só ativo quando o modal está aberto.
+    const {
+        pernas: pernasGet,
+        carregando: carregandoGet,
+        recarregar: recarregarGet,
+    } = useRotaGeometria(veiculo?.id, { ativo: !!isOpen });
+
+    // pernas pode ser sobrescrita por preview POST quando o usuário reordena destinos localmente.
+    const [pernasPreview, setPernasPreview] = useState(null);
+    const pernas = pernasPreview !== null ? pernasPreview : pernasGet;
+    const carregandoMapa = carregandoGeo || carregandoGet;
+
+    // Reset do preview quando o modal abre/fecha ou o veículo muda.
+    useEffect(() => {
+        setPernasPreview(null);
+    }, [isOpen, veiculo?.id]);
+
+    // Busca de geometria por POST quando o usuário reordena/remove destinos.
+    // Mantida inline porque o mobile não usa este caso (só visualização).
+    const buscarGeometriaPreview = React.useCallback(async (idAlvo, destinosLocal) => {
+        if (!idAlvo || !Array.isArray(destinosLocal)) return;
         setCarregandoGeo(true);
         try {
-            let r;
-            if (Array.isArray(destinosLocal)) {
-                r = await api.post(`/veiculos/${idAlvo}/rota-geometria-preview`, { destinos: destinosLocal });
-            } else {
-                r = await api.get(`/veiculos/${idAlvo}/rota-geometria`);
-            }
-            setPernas(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
+            const r = await api.post(`/veiculos/${idAlvo}/rota-geometria-preview`, { destinos: destinosLocal });
+            setPernasPreview(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
         } catch (err) {
-            console.error('Falha ao buscar geometria de rota:', err);
-            setPernas([]);
+            console.error('Falha ao buscar geometria de rota (preview):', err);
+            setPernasPreview([]);
         } finally {
             setCarregandoGeo(false);
         }
     }, []);
-
-    // Busca ao abrir o modal (GET — usa destinos do banco).
-    useEffect(() => {
-        if (!isOpen || !veiculo?.id) {
-            setPernas(null);
-            return;
-        }
-        buscarGeometria(veiculo.id);
-    }, [isOpen, veiculo?.id, buscarGeometria]);
 
     // Re-buscar geometria quando o usuário reordenar/remover destinos.
     // Usamos uma assinatura concatenada dos destinos para detectar mudanças de ordem/composição.
@@ -218,7 +210,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         // Pula a primeira execução (já feita pelo useEffect de abertura)
         if (primeiraMontagem.current) { primeiraMontagem.current = false; return; }
         const t = setTimeout(() => {
-            buscarGeometria(veiculo.id, destinos);
+            buscarGeometriaPreview(veiculo.id, destinos);
         }, 300);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,7 +289,8 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     setUltimaFalha(null);
                     mostrarNotificacao?.('✅ Rota gerada');
                     // Re-busca geometria por estrada — só os destinos mudaram, o effect não dispara sozinho
-                    buscarGeometria(veiculo.id);
+                    setPernasPreview(null);
+                    recarregarGet();
                 } catch {
                     mostrarNotificacao?.('⚠️ Rota gerada mas resposta inválida');
                 }
@@ -554,7 +547,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                 }}>{idx + 1}</div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {cidadeUf(d)}
+                                        {cidadeUfLabel(d)}
                                     </div>
                                     <div style={{ color: '#64748b', fontSize: 11 }}>
                                         {idx === 0
@@ -600,7 +593,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                             {destinos.map((d, idx) => (
                                 typeof d.lat === 'number' && typeof d.lon === 'number' && (
                                     <Marker key={`m-${idx}`} position={[d.lat, d.lon]} icon={iconeNumerado(idx + 1)}>
-                                        <Tooltip direction="top">{cidadeUf(d)}</Tooltip>
+                                        <Tooltip direction="top">{cidadeUfLabel(d)}</Tooltip>
                                     </Marker>
                                 )
                             ))}
@@ -680,7 +673,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                         )}
 
                         {/* Loading spinner durante geocode/route */}
-                        {carregandoGeo && (
+                        {carregandoMapa && (
                             <div style={{
                                 position: 'absolute', bottom: 16, left: 16, zIndex: 1000,
                                 background: 'rgba(15,23,42,0.85)', color: '#fff',
