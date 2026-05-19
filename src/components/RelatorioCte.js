@@ -113,6 +113,7 @@ function OciosidadeCard({ unidade, dados }) {
                 </div>
                 <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
                     {gaps} gap{gaps !== 1 ? 's' : ''} acima de 2h
+                    {dados?.janela ? <span style={{ color: '#64748b', marginLeft: 6 }}>· {dados.janela}</span> : null}
                 </div>
             </div>
         </div>
@@ -132,32 +133,46 @@ export default function RelatorioCte() {
     const [registros, setRegistros] = useState([]);
     const [heatmap, setHeatmap] = useState([]);
     const [ociosidade, setOciosidade] = useState({});
+    const [stats, setStats] = useState(null);
     const [carregando, setCarregando] = useState(false);
+    const [erro, setErro] = useState(null);
     const [aba, setAba] = useState('graficos');
+    const [paginaTabela, setPaginaTabela] = useState(0);
 
     const buscar = useCallback(async () => {
         setCarregando(true);
+        setErro(null);
         try {
             const res = await api.get(`/api/relatorio/cte?de=${dataInicio}&ate=${dataFim}`);
             setRegistros(res.data.registros || []);
             setHeatmap(res.data.heatmap || []);
             setOciosidade(res.data.ociosidade || {});
+            setStats(res.data.stats || null);
+            setPaginaTabela(0);
         } catch (e) {
             console.error('Erro ao buscar relatório CT-e:', e);
+            setErro(e?.response?.data?.message || e?.message || 'Falha ao carregar relatório.');
         } finally {
             setCarregando(false);
         }
     }, [dataInicio, dataFim]);
 
     const resumo = useMemo(() => {
-        const comHoras = registros.filter(r => r.horas_lancamento_cte !== null);
-        const media = comHoras.length
-            ? comHoras.reduce((a, r) => a + r.horas_lancamento_cte, 0) / comHoras.length
-            : null;
-        const recife = registros.filter(r => r.origem === 'Recife').length;
-        const moreno = registros.filter(r => r.origem === 'Moreno').length;
-        return { total: registros.length, media, recife, moreno };
-    }, [registros]);
+        let recife = 0;
+        let moreno = 0;
+        for (const r of registros) {
+            if (r.origem === 'Recife') recife++;
+            else if (r.origem === 'Moreno') moreno++;
+        }
+        return {
+            total: registros.length,
+            media: stats?.media ?? null,
+            mediana: stats?.mediana ?? null,
+            p90: stats?.p90 ?? null,
+            recife,
+            moreno,
+        };
+    }, [registros, stats]);
 
     const dadosPorDia = useMemo(() => {
         const mapa = {};
@@ -174,20 +189,39 @@ export default function RelatorioCte() {
     }, [registros]);
 
     const dadosPorTurno = useMemo(() => {
-        const mapa = { 'Manhã': [], 'Tarde': [], 'Noite': [] };
+        const acc = { 'Manhã': { qtd: 0, soma: 0, com: 0 }, 'Tarde': { qtd: 0, soma: 0, com: 0 }, 'Noite': { qtd: 0, soma: 0, com: 0 } };
         for (const r of registros) {
-            if (r.turno && mapa[r.turno] !== undefined) mapa[r.turno].push(r);
+            const t = r.turno;
+            if (!acc[t]) continue;
+            acc[t].qtd++;
+            if (r.horas_lancamento_cte !== null && r.horas_lancamento_cte !== undefined) {
+                acc[t].soma += r.horas_lancamento_cte;
+                acc[t].com++;
+            }
         }
         return TURNOS.map(t => ({
             turno: t,
-            quantidade: mapa[t].length,
-            media_horas: mapa[t].filter(r => r.horas_lancamento_cte !== null).length
-                ? parseFloat((mapa[t].filter(r => r.horas_lancamento_cte !== null)
-                    .reduce((a, r) => a + r.horas_lancamento_cte, 0)
-                    / mapa[t].filter(r => r.horas_lancamento_cte !== null).length).toFixed(1))
-                : 0,
+            quantidade: acc[t].qtd,
+            media_horas: acc[t].com > 0 ? parseFloat((acc[t].soma / acc[t].com).toFixed(1)) : 0,
         }));
     }, [registros]);
+
+    const registrosOrdenados = useMemo(
+        () => [...registros].sort((a, b) => (b.datetime_cte || '').localeCompare(a.datetime_cte || '')),
+        [registros]
+    );
+
+    const PAGINA_TAM = 50;
+    const totalPaginas = Math.max(1, Math.ceil(registrosOrdenados.length / PAGINA_TAM));
+    const registrosPagina = useMemo(
+        () => registrosOrdenados.slice(paginaTabela * PAGINA_TAM, (paginaTabela + 1) * PAGINA_TAM),
+        [registrosOrdenados, paginaTabela]
+    );
+
+    const picoHeatmap = useMemo(() => {
+        if (heatmap.length === 0) return null;
+        return heatmap.reduce((m, c) => parseInt(c.qtd, 10) > parseInt(m.qtd, 10) ? c : m, heatmap[0]);
+    }, [heatmap]);
 
     const heatmapMatrix = useMemo(() => {
         const matrix = Array.from({ length: 7 }, () => Array(24).fill(0));
@@ -307,8 +341,24 @@ export default function RelatorioCte() {
                 )}
             </div>
 
+            {/* Erro */}
+            {erro && !carregando && (
+                <div style={{
+                    ...glassCard,
+                    padding: '16px 20px',
+                    marginBottom: '20px',
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    color: '#fca5a5',
+                    fontSize: '13px',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                }}>
+                    <AlertTriangle size={16} /> {erro}
+                </div>
+            )}
+
             {/* Estado vazio */}
-            {!temDados && !carregando && (
+            {!temDados && !carregando && !erro && (
                 <div style={{
                     ...glassCard,
                     padding: '60px 20px', textAlign: 'center',
@@ -321,9 +371,11 @@ export default function RelatorioCte() {
             {temDados && (
                 <>
                     {/* KPI Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                         <KpiCard icon={<FileText size={16} />} label="Total emitidos" valor={resumo.total} cor="#facc15" />
                         <KpiCard icon={<Clock size={16} />} label="Tempo médio" valor={formatHoras(resumo.media)} cor="#60a5fa" />
+                        <KpiCard icon={<Clock size={16} />} label="Mediana" valor={formatHoras(resumo.mediana)} cor="#22d3ee" />
+                        <KpiCard icon={<Clock size={16} />} label="P90 (9 em 10 abaixo de)" valor={formatHoras(resumo.p90)} cor="#fb923c" />
                         <KpiCard icon={<MapPin size={16} />} label="Recife" valor={resumo.recife} cor="#60a5fa" />
                         <KpiCard icon={<MapPin size={16} />} label="Moreno" valor={resumo.moreno} cor="#a78bfa" />
                     </div>
@@ -481,21 +533,18 @@ export default function RelatorioCte() {
                             </div>
 
                             {/* Insight do pico */}
-                            {heatmap.length > 0 && (() => {
-                                const pico = heatmap.reduce((m, c) => parseInt(c.qtd, 10) > parseInt(m.qtd, 10) ? c : m, heatmap[0]);
-                                return (
-                                    <div style={{
-                                        marginTop: '16px', padding: '12px 16px',
-                                        background: 'rgba(251,191,36,0.1)',
-                                        border: '1px solid rgba(251,191,36,0.3)',
-                                        borderRadius: '10px',
-                                        fontSize: '12px', color: '#fbbf24',
-                                    }}>
-                                        <strong>Pico:</strong> {DIAS_SEMANA[parseInt(pico.dia_semana, 10)]} às {pico.hora}h
-                                        com <strong>{pico.qtd}</strong> CT-e{parseInt(pico.qtd, 10) !== 1 ? 's' : ''}
-                                    </div>
-                                );
-                            })()}
+                            {picoHeatmap && (
+                                <div style={{
+                                    marginTop: '16px', padding: '12px 16px',
+                                    background: 'rgba(251,191,36,0.1)',
+                                    border: '1px solid rgba(251,191,36,0.3)',
+                                    borderRadius: '10px',
+                                    fontSize: '12px', color: '#fbbf24',
+                                }}>
+                                    <strong>Pico:</strong> {DIAS_SEMANA[parseInt(picoHeatmap.dia_semana, 10)]} às {picoHeatmap.hora}h
+                                    com <strong>{picoHeatmap.qtd}</strong> CT-e{parseInt(picoHeatmap.qtd, 10) !== 1 ? 's' : ''}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -519,7 +568,7 @@ export default function RelatorioCte() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[...registros].reverse().map(r => (
+                                        {registrosPagina.map(r => (
                                             <tr key={r.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                                                 <td style={{ padding: '10px', color: '#f1f5f9', fontWeight: 500 }}>{r.motorista}</td>
                                                 <td style={{ padding: '10px', textAlign: 'center', color: '#94a3b8' }}>{r.num_coleta || '—'}</td>
@@ -559,6 +608,48 @@ export default function RelatorioCte() {
                                     </tbody>
                                 </table>
                             </div>
+                            {/* Paginação */}
+                            {totalPaginas > 1 && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '12px 16px',
+                                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                                    fontSize: '12px', color: '#94a3b8',
+                                }}>
+                                    <span>
+                                        Mostrando {paginaTabela * PAGINA_TAM + 1}–{Math.min((paginaTabela + 1) * PAGINA_TAM, registrosOrdenados.length)} de {registrosOrdenados.length}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <button
+                                            onClick={() => setPaginaTabela(p => Math.max(0, p - 1))}
+                                            disabled={paginaTabela === 0}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '8px',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: paginaTabela === 0 ? '#475569' : '#cbd5e1',
+                                                fontSize: '12px', cursor: paginaTabela === 0 ? 'not-allowed' : 'pointer',
+                                            }}>
+                                            Anterior
+                                        </button>
+                                        <span style={{ minWidth: 70, textAlign: 'center', fontWeight: 600, color: '#cbd5e1' }}>
+                                            {paginaTabela + 1} / {totalPaginas}
+                                        </span>
+                                        <button
+                                            onClick={() => setPaginaTabela(p => Math.min(totalPaginas - 1, p + 1))}
+                                            disabled={paginaTabela >= totalPaginas - 1}
+                                            style={{
+                                                padding: '6px 12px', borderRadius: '8px',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: paginaTabela >= totalPaginas - 1 ? '#475569' : '#cbd5e1',
+                                                fontSize: '12px', cursor: paginaTabela >= totalPaginas - 1 ? 'not-allowed' : 'pointer',
+                                            }}>
+                                            Próxima
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>
