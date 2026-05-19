@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../services/apiService';
 
 // Hook que busca a geometria de rota (pernas OSRM) de um veículo.
@@ -14,23 +14,31 @@ export default function useRotaGeometria(veiculoId, { ativo = true } = {}) {
     const [pernas, setPernas] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [erro, setErro] = useState(null);
+    const abortRef = useRef(null);
 
     const recarregar = useCallback(async () => {
         if (!veiculoId) {
             setPernas(null);
             return;
         }
+        // Cancela request anterior em voo (race em troca rápida de veiculoId).
+        if (abortRef.current) abortRef.current.abort();
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         setCarregando(true);
         setErro(null);
         try {
-            const r = await api.get(`/veiculos/${veiculoId}/rota-geometria`);
+            const r = await api.get(`/veiculos/${veiculoId}/rota-geometria`, { signal: controller.signal });
+            if (controller.signal.aborted) return;
             setPernas(Array.isArray(r.data?.pernas) ? r.data.pernas : []);
         } catch (err) {
+            if (controller.signal.aborted || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
             console.error('[useRotaGeometria] falha:', err);
-            setErro(err);
+            setErro(err?.message || 'Erro ao buscar rota');
             setPernas([]);
         } finally {
-            setCarregando(false);
+            if (!controller.signal.aborted) setCarregando(false);
         }
     }, [veiculoId]);
 
@@ -41,6 +49,11 @@ export default function useRotaGeometria(veiculoId, { ativo = true } = {}) {
         }
         recarregar();
     }, [ativo, veiculoId, recarregar]);
+
+    // Cleanup: aborta fetch em voo quando hook desmonta.
+    useEffect(() => () => {
+        if (abortRef.current) abortRef.current.abort();
+    }, []);
 
     return { pernas, carregando, erro, recarregar };
 }
