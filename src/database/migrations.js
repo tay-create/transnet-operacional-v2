@@ -3,33 +3,33 @@ const { dbRun, dbGet, db: pool } = require('./db');
 
 // Configurações Padrão de Permissões
 const PERMISSOES_PADRAO = JSON.stringify({
-    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
-    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
-    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Direção':          ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional', 'delta_ver'],
+    'Coordenador':      ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional', 'delta_ver'],
+    'Desenvolvedor':    ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional', 'delta_ver'],
     'Adm Frota':        ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'provisionamento', 'marcacao_placas', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
-    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional'],
+    'Planejamento':     ['operacao', 'cte', 'cubagem', 'relatorios', 'relatorio_op', 'dashboard_tv', 'fila', 'ver_unidade_recife', 'ver_unidade_moreno', 'performance_cte', 'gestao_frota', 'cadastro', 'checklist_carreta', 'historico_liberacoes', 'marcacao_placas', 'provisionamento', 'painel_frota', 'roteirizacao_frota', 'tramontina_planejamento', 'lead_time_operacional', 'delta_ver'],
     'Encarregado':      ['operacao', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'saldo_paletes', 'painel_frota'],
     'Aux. Operacional': ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'fila', 'painel_frota'],
     'Conhecimento':     ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
     'Cadastro':         ['operacao', 'cte', 'dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno', 'cadastro', 'marcacao_placas', 'painel_frota'],
     'Dashboard Viewer': ['dashboard_tv'],
     'Conferente':       ['dashboard_tv', 'ver_unidade_recife', 'ver_unidade_moreno'],
-    'Pos Embarque':     ['dashboard_tv', 'marcacao_placas', 'ver_unidade_recife', 'ver_unidade_moreno'],
+    'Pos Embarque':     ['dashboard_tv', 'marcacao_placas', 'ver_unidade_recife', 'ver_unidade_moreno', 'delta_ver'],
     'Manutenção':       ['provisionamento', 'dashboard_tv', 'painel_frota']
 });
 
 const PERMISSOES_EDICAO_PADRAO = JSON.stringify({
     'Direção':          ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
-    'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar'],
-    'Desenvolvedor':    ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar'],
+    'Coordenador':      ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar', 'delta_editar_operacional', 'delta_editar_financeiro'],
+    'Desenvolvedor':    ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar', 'delta_editar_operacional', 'delta_editar_financeiro'],
     'Adm Frota':        ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila'],
-    'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar'],
+    'Planejamento':     ['lancamento', 'operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'cte', 'cubagem', 'fila', 'tramontina_editar', 'delta_editar_operacional', 'delta_editar_financeiro'],
     'Encarregado':      ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo'],
     'Aux. Operacional': ['operacao', 'editar_operacao_card', 'alterar_status_operacao', 'coleta_card', 'adiar_dia', 'timer_solicitado', 'timer_liberado', 'gestao_tempo', 'fila'],
     'Conhecimento':     ['cte'],
     'Cadastro':         [],
     'Conferente':       [],
-    'Pos Embarque':     ['marcacao_placas'],
+    'Pos Embarque':     ['marcacao_placas', 'delta_editar_operacional', 'delta_editar_financeiro'],
     'Manutenção':       []
 });
 
@@ -683,6 +683,37 @@ const inicializarBanco = async () => {
             atualizado_em TIMESTAMPTZ DEFAULT NOW()
         )`);
         await dbRun(`CREATE INDEX IF NOT EXISTS idx_tramontina_rotas_mes ON tramontina_rotas (mes_referencia)`);
+
+        // PlanejamentoDelta: distingue rotas DELTA-PORCELANA vs ELETRIK (2026-05-19)
+        await dbRun(`ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS aba_origem TEXT DEFAULT 'DELTA-PORCELANA'`).catch(() => {});
+        await dbRun(`CREATE INDEX IF NOT EXISTS idx_tramontina_rotas_aba ON tramontina_rotas(aba_origem)`).catch(() => {});
+
+        // PlanejamentoDelta: campos financeiros (só ELETRIK preenche)
+        await dbRun(`ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS status_financeiro TEXT`).catch(() => {});
+        await dbRun(`
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.constraint_column_usage
+                    WHERE table_name='tramontina_rotas' AND constraint_name='tramontina_rotas_status_financeiro_check'
+                ) THEN
+                    ALTER TABLE tramontina_rotas ADD CONSTRAINT tramontina_rotas_status_financeiro_check
+                    CHECK (status_financeiro IS NULL OR status_financeiro IN ('CONCLUIDO','EM_ROTA_DE_ENTREGA','PENDENTE'));
+                END IF;
+            END$$;
+        `).catch(() => {});
+        await dbRun(`ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS valor_carga NUMERIC(14,2)`).catch(() => {});
+        await dbRun(`ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS valor_frete NUMERIC(14,2)`).catch(() => {});
+        await dbRun(`
+            ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS representatividade_pct NUMERIC(7,2)
+            GENERATED ALWAYS AS (
+                CASE
+                    WHEN valor_carga IS NOT NULL AND valor_carga > 0 AND valor_frete IS NOT NULL
+                    THEN (valor_frete / valor_carga) * 100
+                    ELSE NULL
+                END
+            ) STORED
+        `).catch(() => {});
 
         await dbRun(`CREATE TABLE IF NOT EXISTS tramontina_rota_entregas (
             id SERIAL PRIMARY KEY,
