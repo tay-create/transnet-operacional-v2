@@ -279,16 +279,26 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
     const { geocode, tableMatrix } = require('./osmClient');
     let origemGeo;
     const destinosGeo = [];
+    let cidadeFalhou = null;
     try {
         // Origem: cidade/uf vem da chave "RECIFE/PE" ou "MORENO/PE"
         const [origCidade, origUf] = origem_rota.split('/');
+        cidadeFalhou = `${origCidade}/${origUf}`;
         origemGeo = await geocode(origCidade, origUf);
         for (const d of destinos) {
+            cidadeFalhou = `${d.cidade}/${d.uf}`;
             destinosGeo.push(await geocode(d.cidade, d.uf));
         }
+        cidadeFalhou = null;
     } catch (err) {
         console.error('[gerarRota] erro geocoding:', err.message);
-        return { rota, destinos_json: null, origem_rota, aviso: 'erro-geocoding' };
+        return {
+            rota,
+            destinos_json: null,
+            origem_rota,
+            aviso: 'erro-geocoding',
+            cidade_falhou: cidadeFalhou,
+        };
     }
 
     // Matriz OSRM + ordenação por vizinho mais próximo

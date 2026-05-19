@@ -157,6 +157,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
     const [regenerando, setRegenerando] = useState(false);
     const [pernas, setPernas] = useState(null); // null = carregando, [] = falha total, [{...}] = ok
     const [carregandoGeo, setCarregandoGeo] = useState(false);
+    const [ultimaFalha, setUltimaFalha] = useState(null); // { aviso, cidade_falhou }
 
     useEffect(() => {
         if (!isOpen || !veiculo) return;
@@ -166,6 +167,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         } catch {
             setDestinos([]);
         }
+        setUltimaFalha(null);
     }, [isOpen, veiculo]);
 
     // Função reutilizável que busca a geometria por estrada do backend.
@@ -292,6 +294,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                 try {
                     const arr = JSON.parse(r.data.destinos_json);
                     setDestinos(Array.isArray(arr) ? arr : []);
+                    setUltimaFalha(null);
                     mostrarNotificacao?.('✅ Rota gerada');
                     // Re-busca geometria por estrada — só os destinos mudaram, o effect não dispara sozinho
                     buscarGeometria(veiculo.id);
@@ -299,7 +302,11 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                     mostrarNotificacao?.('⚠️ Rota gerada mas resposta inválida');
                 }
             } else {
-                mostrarNotificacao?.(`⚠️ Falhou: ${r.data?.aviso || 'erro desconhecido'}`);
+                const aviso = r.data?.aviso || 'erro desconhecido';
+                const cidade = r.data?.cidade_falhou || null;
+                setUltimaFalha({ aviso, cidade_falhou: cidade });
+                const detalhe = cidade ? ` (cidade não encontrada: ${cidade})` : '';
+                mostrarNotificacao?.(`⚠️ Falhou: ${aviso}${detalhe}`);
             }
         } catch (err) {
             mostrarNotificacao?.('❌ Falha ao gerar rota');
@@ -490,6 +497,38 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                 <div style={{ color: '#94a3b8', fontSize: 13, marginBottom: 12 }}>
                                     Sem destinos. Possíveis causas: coleta não encontrada na planilha, ou OSRM/Nominatim instável na criação do card.
                                 </div>
+                                {ultimaFalha?.cidade_falhou && (
+                                    <div style={{
+                                        background: 'rgba(239, 68, 68, 0.12)',
+                                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                                        color: '#fca5a5',
+                                        fontSize: 12,
+                                        padding: 10,
+                                        borderRadius: 8,
+                                        marginBottom: 12,
+                                        textAlign: 'left',
+                                    }}>
+                                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Cidade não encontrada no mapa:</div>
+                                        <div style={{ fontFamily: 'monospace' }}>{ultimaFalha.cidade_falhou}</div>
+                                        <div style={{ marginTop: 6, color: '#94a3b8' }}>
+                                            Provável erro de digitação na planilha. Corrija a célula da rota e clique novamente em "Tentar gerar rota agora".
+                                        </div>
+                                    </div>
+                                )}
+                                {ultimaFalha && !ultimaFalha.cidade_falhou && (
+                                    <div style={{
+                                        background: 'rgba(234, 179, 8, 0.12)',
+                                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                                        color: '#fde68a',
+                                        fontSize: 12,
+                                        padding: 10,
+                                        borderRadius: 8,
+                                        marginBottom: 12,
+                                        textAlign: 'left',
+                                    }}>
+                                        Falhou: {ultimaFalha.aviso}
+                                    </div>
+                                )}
                                 <button
                                     onClick={regenerar}
                                     disabled={regenerando}

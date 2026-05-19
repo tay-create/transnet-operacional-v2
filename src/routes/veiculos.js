@@ -1566,8 +1566,8 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                 );
                 io.emit('receber_atualizacao', { tipo: 'atualiza_veiculo', id: Number(v.id), destinos_json: r.destinos_json, origem_rota: r.origem_rota });
             }
-            console.log(`[regenerar-rota] id=${v.id} coleta=${coleta} aviso=${r.aviso || 'ok'}`);
-            res.json({ success: true, aviso: r.aviso, destinos_json: r.destinos_json, origem_rota: r.origem_rota });
+            console.log(`[regenerar-rota] id=${v.id} coleta=${coleta} aviso=${r.aviso || 'ok'}${r.cidade_falhou ? ` cidade_falhou=${r.cidade_falhou}` : ''}`);
+            res.json({ success: true, aviso: r.aviso, cidade_falhou: r.cidade_falhou || null, destinos_json: r.destinos_json, origem_rota: r.origem_rota });
         } catch (err) {
             console.error('[regenerar-rota] falha:', err.message);
             res.json({ success: false, aviso: 'erro-gerar-rota', erro: err.message });
