@@ -158,15 +158,6 @@ export default function PainelOperacional({
                     podeEditarNaUnidade={podeEditarNaUnidade}
                     onAddContainer={addCardFulgaz}
                     onAbrirPausa={() => setModalPausaAberto(true)}
-                    onFinalizarClick={() => {
-                        const hoje = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-                        if (hoje.getDay() === 5) {
-                            setModalEscolhaDia(true);
-                        } else {
-                            setProximaDataFinalizar(null);
-                            setConfirmarFinalizar(true);
-                        }
-                    }}
                 />
 
                 {/* Grid Scrollável */}
