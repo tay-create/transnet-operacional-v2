@@ -185,8 +185,32 @@ module.exports = function createTramontinaRouter(io) {
             );
             const novaId = r.lastID;
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [novaId]);
-            io.emit('tramontina_rota_criada', { rota: { ...rota, entregas: [] } });
-            res.json({ success: true, rota: { ...rota, entregas: [] } });
+
+            // PlanejamentoDelta (2026-05-19): aceita destinos[] junto pra criar rota+entregas num POST só
+            const entregasCriadas = [];
+            if (Array.isArray(dados.destinos) && dados.destinos.length > 0) {
+                for (const d of dados.destinos) {
+                    const uf = String(d.uf || '').toUpperCase().slice(0, 2);
+                    const regiao = regiaoDeUF(uf);
+                    const entregaParcial = { ...d, uf, regiao };
+                    const calc = await recalcularEntrega(entregaParcial, rota);
+                    const re = await dbRun(
+                        `INSERT INTO tramontina_rota_entregas
+                            (rota_id, cidade, uf, regiao, cliente, notas_fiscais,
+                             status_agendamento, data_entrega_cliente, dias_uteis, lead_status)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [novaId, d.cidade || null, uf || null, regiao || null,
+                         d.cliente || null, d.notas_fiscais || null,
+                         d.status_agendamento || null, d.data_entrega_cliente || null,
+                         calc.dias_uteis, calc.lead_status]
+                    );
+                    const entregaCriada = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [re.lastID]);
+                    entregasCriadas.push(entregaCriada);
+                }
+            }
+
+            io.emit('tramontina_rota_criada', { rota: { ...rota, entregas: entregasCriadas } });
+            res.json({ success: true, rota: { ...rota, entregas: entregasCriadas } });
         }));
 
     // ── PUT Editar rota ──────────────────────────

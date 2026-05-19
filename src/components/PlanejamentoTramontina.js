@@ -13,6 +13,7 @@ import {
 import ModalImportarTramontina from './ModalImportarTramontina';
 import KpisStrip from './planejamento/KpisStrip';
 import CardRota from './planejamento/CardRota';
+import ModalNovaRota from './planejamento/ModalNovaRota';
 
 const STATUS_FINANCEIRO_OPCOES = [
     { value: '', label: 'Status Fin. · Todos' },
@@ -74,6 +75,7 @@ export default function PlanejamentoTramontina({ socket }) {
     const [loading, setLoading] = useState(false);
     const [expandidas, setExpandidas] = useState(new Set());
     const [modalImportar, setModalImportar] = useState(false);
+    const [modalNovaRotaAberto, setModalNovaRotaAberto] = useState(false);
     const [filtros, setFiltros] = useState({ uf: '', regiao: '', operacao: '', statusEmb: '', agendamento: '', statusFin: '' });
     const [edicoesAtivas, setEdicoesAtivas] = useState({}); // { rotaId__campo: { usuario, expira_em } }
     const fetchTimerRef = useRef(null);
@@ -166,18 +168,16 @@ export default function PlanejamentoTramontina({ socket }) {
     }
 
     // ── Ações ──
-    const novaRota = async () => {
+    const novaRota = () => {
         if (!podeEditar) return;
-        try {
-            const r = await api.post('/api/tramontina/rotas', {
-                mes_referencia: mesRef,
-                aba_origem: abaAtiva,
-                status_embarque: 'PROGRAMADA',
-            });
-            if (r.data?.success && r.data.rota?.id) {
-                setExpandidas(prev => new Set([...prev, r.data.rota.id]));
-            }
-        } catch (e) { console.error(e); }
+        setModalNovaRotaAberto(true);
+    };
+
+    const onRotaSalvaPeloModal = (rota) => {
+        if (rota?.id) {
+            setExpandidas(prev => new Set([...prev, rota.id]));
+        }
+        carregar();
     };
 
     // Helper: PATCH (multi-campos) numa rota - usado pelos blocos novos
@@ -357,6 +357,15 @@ export default function PlanejamentoTramontina({ socket }) {
                     +
                 </button>
             )}
+
+            <ModalNovaRota
+                aberto={modalNovaRotaAberto}
+                abaAtiva={abaAtiva}
+                mesRef={mesRef}
+                podeEditarFinanceiro={podeEditarFinanceiro}
+                onFechar={() => setModalNovaRotaAberto(false)}
+                onSalvo={onRotaSalvaPeloModal}
+            />
 
             {modalImportar && (
                 <ModalImportarTramontina
