@@ -98,14 +98,21 @@ export default function MobileOperacional() {
     // Resetar filtro quando mudar origem/datas/busca
     useEffect(() => { setFiltroStatus(null); }, [origem, dataInicio, dataFim, busca]);
 
-    // Pull to refresh
-    const onTouchStart = (e) => setStartY(e.touches[0].clientY);
+    // Pull to refresh — só ativa quando a página já está no topo (evita disparar
+    // ao scrollar a lista de volta pra cima ou ao tocar em botões).
+    const onTouchStart = (e) => {
+        if (window.scrollY > 0) { setStartY(null); return; }
+        setStartY(e.touches[0].clientY);
+    };
     const onTouchEnd = (e) => {
         if (startY !== null && e.changedTouches[0].clientY - startY > 80) carregar();
         setStartY(null); setPuxando(false);
     };
     const onTouchMove = (e) => {
-        if (startY !== null && e.touches[0].clientY - startY > 40) setPuxando(true);
+        if (startY === null) return;
+        const dy = e.touches[0].clientY - startY;
+        if (dy > 40) setPuxando(true);
+        else if (dy < 0) setPuxando(false);
     };
 
     return (
