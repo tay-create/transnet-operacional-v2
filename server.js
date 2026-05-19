@@ -2264,38 +2264,45 @@ app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamen
 }));
 
 // Relatório CT-e — histórico_liberacoes com métricas de tempo, turno, heatmap e ociosidade
+// Todos os cálculos temporais são normalizados para o fuso America/Recife.
 app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), asyncHandler(async (req, res) => {
     const { de, ate } = req.query;
     if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
+        // Filtro normaliza datetime_cte para o fuso Recife antes de aplicar o range,
+        // para que "de=2026-05-01 até 2026-05-01" corresponda ao dia inteiro no fuso operacional.
         const rows = await dbAll(`
             SELECT
                 hl.id, hl.motorista_nome, hl.num_coleta, hl.num_liberacao,
                 hl.datetime_cte, hl.origem, hl.destino_uf, hl.destino_cidade,
                 hl.operacao, hl.veiculo_id,
                 v.data_criacao AS data_lancamento,
-                EXTRACT(EPOCH FROM (hl.datetime_cte::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_lancamento_cte
+                EXTRACT(EPOCH FROM (hl.datetime_cte::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_lancamento_cte,
+                EXTRACT(HOUR FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS hora_recife,
+                EXTRACT(DOW FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS dow_recife,
+                EXTRACT(EPOCH FROM hl.datetime_cte::timestamptz) AS epoch_cte
             FROM historico_liberacoes hl
             LEFT JOIN veiculos v ON v.id = hl.veiculo_id
-            WHERE hl.datetime_cte::timestamptz >= $1::date AND hl.datetime_cte::timestamptz < ($2::date + interval '1 day')
+            WHERE (hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::date
+                  BETWEEN $1::date AND $2::date
             ORDER BY hl.datetime_cte ASC
         `, [de, ate]);
 
-        // Heatmap: dia da semana × hora (fuso Recife = UTC-3)
+        // Heatmap: dia da semana × hora no fuso Recife
         const heatmapRows = await dbAll(`
             SELECT
                 EXTRACT(DOW FROM datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS dia_semana,
                 EXTRACT(HOUR FROM datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS hora,
                 COUNT(*)::int AS qtd
             FROM historico_liberacoes
-            WHERE datetime_cte::timestamptz >= $1::date AND datetime_cte::timestamptz < ($2::date + interval '1 day')
+            WHERE (datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::date
+                  BETWEEN $1::date AND $2::date
             GROUP BY dia_semana, hora
             ORDER BY dia_semana, hora
         `, [de, ate]);
 
-        function turno(dtStr) {
-            if (!dtStr) return 'Indefinido';
-            const h = new Date(dtStr).getHours();
+        function turnoPorHora(h) {
+            if (h === null || h === undefined) return 'Indefinido';
             if (h >= 6 && h < 12) return 'Manhã';
             if (h >= 12 && h < 18) return 'Tarde';
             return 'Noite';
@@ -2313,28 +2320,71 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             destino_uf: row.destino_uf || '',
             destino_cidade: row.destino_cidade || '',
             operacao: row.operacao || '',
-            turno: turno(row.datetime_cte),
+            turno: turnoPorHora(row.hora_recife),
+            hora_recife: row.hora_recife,
+            dow_recife: row.dow_recife,
         }));
 
-        // Ociosidade/gargalo por unidade — gaps entre CT-es consecutivos
+        // Estatísticas do tempo lançamento→CT-e: média, mediana, p90
+        const tempos = registros
+            .map(r => r.horas_lancamento_cte)
+            .filter(v => v !== null && !Number.isNaN(v))
+            .sort((a, b) => a - b);
+        function percentil(arrSorted, p) {
+            if (arrSorted.length === 0) return null;
+            const idx = Math.min(arrSorted.length - 1, Math.floor(p * arrSorted.length));
+            return parseFloat(arrSorted[idx].toFixed(2));
+        }
+        const stats = {
+            media: tempos.length ? parseFloat((tempos.reduce((a, b) => a + b, 0) / tempos.length).toFixed(2)) : null,
+            mediana: percentil(tempos, 0.5),
+            p90: percentil(tempos, 0.9),
+            amostra: tempos.length,
+        };
+
+        // Ociosidade/gargalo — só considera gaps DENTRO do horário comercial (06h–22h, seg-sex)
+        // no fuso Recife. Evita falso-positivo de gap noturno/fim-de-semana.
+        const HORA_INI = 6;
+        const HORA_FIM = 22;
+        function dentroHorarioComercial(epochSec) {
+            const d = new Date(epochSec * 1000);
+            // Converter para hora local Recife via toLocaleString
+            const parts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Recife',
+                weekday: 'short', hour: '2-digit', hour12: false,
+            }).formatToParts(d);
+            const wd = parts.find(p => p.type === 'weekday')?.value; // Mon, Tue, ...
+            const hr = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+            const ehDiaUtil = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd);
+            return ehDiaUtil && hr >= HORA_INI && hr < HORA_FIM;
+        }
+
         const ociosidade = {};
         for (const unidade of ['Recife', 'Moreno']) {
-            const ctesDaUnidade = rows
-                .filter(r => r.origem === unidade && r.datetime_cte)
-                .map(r => new Date(r.datetime_cte).getTime())
+            const ctesUnidade = rows
+                .filter(r => r.origem === unidade && r.epoch_cte != null)
+                .map(r => parseFloat(r.epoch_cte))
                 .sort((a, b) => a - b);
 
             let maxGap = 0;
             let gapsAcima2h = 0;
-            for (let i = 1; i < ctesDaUnidade.length; i++) {
-                const gapH = (ctesDaUnidade[i] - ctesDaUnidade[i - 1]) / 3600000;
+            let gapsConsiderados = 0;
+            for (let i = 1; i < ctesUnidade.length; i++) {
+                const prev = ctesUnidade[i - 1];
+                const cur = ctesUnidade[i];
+                // Só conta gap se ambos os CT-es estão em horário comercial (mesma janela operacional)
+                if (!dentroHorarioComercial(prev) || !dentroHorarioComercial(cur)) continue;
+                const gapH = (cur - prev) / 3600;
+                gapsConsiderados++;
                 if (gapH > maxGap) maxGap = gapH;
                 if (gapH > 2) gapsAcima2h++;
             }
             ociosidade[unidade] = {
-                max_gap_horas: ctesDaUnidade.length > 1 ? parseFloat(maxGap.toFixed(2)) : null,
+                max_gap_horas: gapsConsiderados > 0 ? parseFloat(maxGap.toFixed(2)) : null,
                 gaps_acima_2h: gapsAcima2h,
-                total: ctesDaUnidade.length,
+                gaps_considerados: gapsConsiderados,
+                total: ctesUnidade.length,
+                janela: `${HORA_INI}h–${HORA_FIM}h seg-sex`,
             };
         }
 
@@ -2343,6 +2393,7 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             registros,
             heatmap: heatmapRows,
             ociosidade,
+            stats,
         });
 }));
 
