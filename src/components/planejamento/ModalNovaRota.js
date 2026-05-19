@@ -3,7 +3,14 @@ import { X, Plus, Trash2, Save } from 'lucide-react';
 import api from '../../services/apiService';
 import { formatBRL, parseBRL } from '../../utils/formatBRL';
 
-const REGIOES = ['', 'N', 'NE', 'CO', 'SE', 'S'];
+const REGIOES = [
+    { value: '', label: '—' },
+    { value: 'N', label: 'Norte' },
+    { value: 'NE', label: 'Nordeste' },
+    { value: 'CO', label: 'Centro-Oeste' },
+    { value: 'SE', label: 'Sudeste' },
+    { value: 'S', label: 'Sul' },
+];
 const STATUS_EMBARQUE = ['PROGRAMADA', 'EMBARCADA', 'PENDENTE'];
 const STATUS_FINANCEIRO = [
     { value: '', label: '—' },
@@ -17,7 +24,8 @@ const STATUS_AGENDAMENTO = [
     { value: 'S_AG', label: 'S/ AG' },
     { value: 'CONFIRMADO', label: 'Confirmado' },
 ];
-const TIPOS_VEICULO = ['CARRETA', 'TRUCK', '3/4', 'VAN'];
+const TIPOS_VEICULO = ['CARRETA', 'TRUCK', '3/4'];
+const OPERACOES = ['PLASTICO', 'PORCELANA', 'PLASTICO CONSOLIDADO', 'PORCELANA CONSOLIDADA'];
 
 const inputStyle = {
     background: '#1e293b',
@@ -38,8 +46,9 @@ const labelStyle = {
 
 function destinoVazio() {
     return {
-        cidade: '', uf: '', regiao: '', cliente: '',
+        cidade: '', uf: '', cliente: '',
         notas_fiscais: '', status_agendamento: '', data_entrega_cliente: '',
+        is_redespacho: false, redespacho_via: '',
     };
 }
 
@@ -55,7 +64,7 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
     const [operacaoCodigo, setOperacaoCodigo] = useState('');
     const [tipoVeiculo, setTipoVeiculo] = useState('');
     const [motoristaNome, setMotoristaNome] = useState('');
-    const [redespacho, setRedespacho] = useState('');
+    const [regiao, setRegiao] = useState('');
     const [observacao, setObservacao] = useState('');
 
     // Financeiro (só ELETRIK)
@@ -73,7 +82,7 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
         if (aberto) {
             setColeta(''); setDataPrevista(''); setDataEmbarque('');
             setStatusEmbarque('PROGRAMADA'); setOperacaoCodigo('');
-            setTipoVeiculo(''); setMotoristaNome(''); setRedespacho(''); setObservacao('');
+            setTipoVeiculo(''); setMotoristaNome(''); setRegiao(''); setObservacao('');
             setStatusFin(''); setValorCargaTxt(''); setValorFreteTxt('');
             setDestinos([destinoVazio()]);
             setErro(''); setSalvando(false);
@@ -99,11 +108,12 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
             .map(d => ({
                 cidade: (d.cidade || '').trim() || null,
                 uf: (d.uf || '').trim().toUpperCase().slice(0, 2) || null,
-                regiao: d.regiao || null,
                 cliente: (d.cliente || '').trim() || null,
                 notas_fiscais: (d.notas_fiscais || '').trim() || null,
                 status_agendamento: d.status_agendamento || null,
                 data_entrega_cliente: d.data_entrega_cliente || null,
+                is_redespacho: !!d.is_redespacho,
+                redespacho_via: (d.redespacho_via || '').trim() || null,
             }));
 
         const payload = {
@@ -113,10 +123,10 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
             data_prevista: dataPrevista || null,
             data_embarque: dataEmbarque || null,
             status_embarque: statusEmbarque,
-            operacao_codigo: operacaoCodigo.trim() || null,
+            operacao_codigo: operacaoCodigo || null,
             tipo_veiculo: tipoVeiculo || null,
             motorista_nome: motoristaNome.trim() || null,
-            redespacho: redespacho.trim() || null,
+            regiao: regiao || null,
             observacao: observacao.trim() || null,
             destinos: destinosLimpos,
         };
@@ -188,7 +198,7 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
                         <div>
-                            <label style={labelStyle}>Coleta</label>
+                            <label style={labelStyle}>Coleta <span style={{ textTransform: 'none', color: '#475569', fontWeight: 400 }}>(opcional)</span></label>
                             <input type="text" value={coleta} onChange={e => setColeta(e.target.value)}
                                 placeholder="Nº coleta" style={inputStyle} />
                         </div>
@@ -208,9 +218,11 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
                         </div>
 
                         <div>
-                            <label style={labelStyle}>Operação (cód.)</label>
-                            <input type="text" value={operacaoCodigo} onChange={e => setOperacaoCodigo(e.target.value)}
-                                placeholder="D, DC, PC..." maxLength={4} style={inputStyle} />
+                            <label style={labelStyle}>Operação</label>
+                            <select value={operacaoCodigo} onChange={e => setOperacaoCodigo(e.target.value)} style={inputStyle}>
+                                <option value="">—</option>
+                                {OPERACOES.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
                         </div>
                         <div>
                             <label style={labelStyle}>Tipo veículo</label>
@@ -219,17 +231,19 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
                                 {TIPOS_VEICULO.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
-                        <div style={{ gridColumn: 'span 2' }}>
+                        <div>
+                            <label style={labelStyle}>Região</label>
+                            <select value={regiao} onChange={e => setRegiao(e.target.value)} style={inputStyle}>
+                                {REGIOES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
                             <label style={labelStyle}>Motorista</label>
                             <input type="text" value={motoristaNome} onChange={e => setMotoristaNome(e.target.value)}
                                 placeholder="Nome do motorista" style={inputStyle} />
                         </div>
 
-                        <div style={{ gridColumn: 'span 2' }}>
-                            <label style={labelStyle}>Redespacho</label>
-                            <input type="text" value={redespacho} onChange={e => setRedespacho(e.target.value)} style={inputStyle} />
-                        </div>
-                        <div style={{ gridColumn: 'span 2' }}>
+                        <div style={{ gridColumn: 'span 4' }}>
                             <label style={labelStyle}>Observações</label>
                             <input type="text" value={observacao} onChange={e => setObservacao(e.target.value)} style={inputStyle} />
                         </div>
@@ -317,22 +331,18 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
                                         </button>
                                     )}
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 80px 2fr', gap: 8, marginBottom: 8 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 3fr', gap: 8, marginBottom: 8 }}>
                                     <input type="text" placeholder="Cidade"
                                         value={d.cidade} onChange={e => atualizarDestino(idx, 'cidade', e.target.value)}
                                         style={inputStyle} />
                                     <input type="text" placeholder="UF" maxLength={2}
                                         value={d.uf} onChange={e => atualizarDestino(idx, 'uf', e.target.value.toUpperCase())}
                                         style={{ ...inputStyle, textTransform: 'uppercase' }} />
-                                    <select value={d.regiao} onChange={e => atualizarDestino(idx, 'regiao', e.target.value)}
-                                        style={inputStyle}>
-                                        {REGIOES.map(r => <option key={r} value={r}>{r || 'Região'}</option>)}
-                                    </select>
                                     <input type="text" placeholder="Cliente"
                                         value={d.cliente} onChange={e => atualizarDestino(idx, 'cliente', e.target.value)}
                                         style={inputStyle} />
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 130px', gap: 8 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 130px', gap: 8, marginBottom: 8 }}>
                                     <input type="text" placeholder="Notas Fiscais"
                                         value={d.notas_fiscais} onChange={e => atualizarDestino(idx, 'notas_fiscais', e.target.value)}
                                         style={inputStyle} />
@@ -343,6 +353,20 @@ export default function ModalNovaRota({ aberto, abaAtiva, mesRef, podeEditarFina
                                     <input type="date"
                                         value={d.data_entrega_cliente} onChange={e => atualizarDestino(idx, 'data_entrega_cliente', e.target.value)}
                                         style={inputStyle} title="Data prevista da entrega" />
+                                </div>
+                                {/* Redespacho */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#94a3b8', cursor: 'pointer', userSelect: 'none' }}>
+                                        <input type="checkbox" checked={!!d.is_redespacho}
+                                            onChange={e => atualizarDestino(idx, 'is_redespacho', e.target.checked)} />
+                                        Redespacho
+                                    </label>
+                                    {d.is_redespacho && (
+                                        <input type="text" placeholder="Redespacho via... (opcional)"
+                                            value={d.redespacho_via}
+                                            onChange={e => atualizarDestino(idx, 'redespacho_via', e.target.value)}
+                                            style={{ ...inputStyle, flex: 1 }} />
+                                    )}
                                 </div>
                             </div>
                         ))}

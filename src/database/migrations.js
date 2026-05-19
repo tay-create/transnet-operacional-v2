@@ -715,6 +715,34 @@ const inicializarBanco = async () => {
             ) STORED
         `).catch(() => {});
 
+        // PlanejamentoDelta (2026-05-19, fase 2): regiao migra de entregas para rota,
+        // is_redespacho (bool) + redespacho_via (texto) migram para entregas.
+        await dbRun(`ALTER TABLE tramontina_rotas ADD COLUMN IF NOT EXISTS regiao TEXT`).catch(() => {});
+        await dbRun(`ALTER TABLE tramontina_rota_entregas ADD COLUMN IF NOT EXISTS is_redespacho BOOLEAN DEFAULT false`).catch(() => {});
+        await dbRun(`ALTER TABLE tramontina_rota_entregas ADD COLUMN IF NOT EXISTS redespacho_via TEXT`).catch(() => {});
+
+        // Backfill: copia regiao da primeira entrega de cada rota pra rota
+        await dbRun(`
+            UPDATE tramontina_rotas r SET regiao = sub.regiao
+            FROM (
+                SELECT DISTINCT ON (rota_id) rota_id, regiao
+                FROM tramontina_rota_entregas
+                WHERE regiao IS NOT NULL AND regiao <> ''
+                ORDER BY rota_id, id ASC
+            ) sub
+            WHERE r.id = sub.rota_id AND (r.regiao IS NULL OR r.regiao = '')
+        `).catch(() => {});
+
+        // Backfill: se rota tinha redespacho (texto), copia pra primeira entrega como redespacho_via + is_redespacho=true
+        await dbRun(`
+            UPDATE tramontina_rota_entregas e SET is_redespacho = true, redespacho_via = r.redespacho
+            FROM tramontina_rotas r
+            WHERE e.rota_id = r.id
+              AND r.redespacho IS NOT NULL AND r.redespacho <> ''
+              AND (e.is_redespacho IS NULL OR e.is_redespacho = false)
+              AND e.id = (SELECT MIN(id) FROM tramontina_rota_entregas WHERE rota_id = r.id)
+        `).catch(() => {});
+
         await dbRun(`CREATE TABLE IF NOT EXISTS tramontina_rota_entregas (
             id SERIAL PRIMARY KEY,
             rota_id INTEGER NOT NULL REFERENCES tramontina_rotas(id) ON DELETE CASCADE,

@@ -85,11 +85,14 @@ module.exports = function createTramontinaRouter(io) {
             );
             const totalEnt = entregas.length;
             const cnt = { ANTECIPADO: 0, DENTRO: 0, FORA: 0, AGUARDANDO: 0 };
+            // PlanejamentoDelta fase 2: regiao agora vive na rota. Conta rotas por região (não entregas).
             const porRegiao = { N: 0, NE: 0, CO: 0, SE: 0, S: 0 };
             for (const e of entregas) {
                 if (cnt[e.lead_status] !== undefined) cnt[e.lead_status]++;
                 else cnt.AGUARDANDO++;
-                if (porRegiao[e.regiao] !== undefined) porRegiao[e.regiao]++;
+            }
+            for (const r of rotas) {
+                if (r.regiao && porRegiao[r.regiao] !== undefined) porRegiao[r.regiao]++;
             }
             const pct = (n) => totalEnt > 0 ? Math.round((n / totalEnt) * 1000) / 10 : 0;
 
@@ -289,18 +292,19 @@ module.exports = function createTramontinaRouter(io) {
             if (!rota) return res.status(404).json({ success: false, message: 'Rota não encontrada.' });
             const dados = req.body || {};
             const uf = String(dados.uf || '').toUpperCase().slice(0, 2);
-            const regiao = regiaoDeUF(uf);
-            const entregaParcial = { ...dados, uf, regiao };
+            const entregaParcial = { ...dados, uf };
             const calc = await recalcularEntrega(entregaParcial, rota);
             const r = await dbRun(
                 `INSERT INTO tramontina_rota_entregas
-                    (rota_id, cidade, uf, regiao, cliente, notas_fiscais,
-                     status_agendamento, data_entrega_cliente, dias_uteis, lead_status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [rotaId, dados.cidade || null, uf || null, regiao || null,
+                    (rota_id, cidade, uf, cliente, notas_fiscais,
+                     status_agendamento, data_entrega_cliente, dias_uteis, lead_status,
+                     is_redespacho, redespacho_via)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [rotaId, dados.cidade || null, uf || null,
                  dados.cliente || null, dados.notas_fiscais || null,
                  dados.status_agendamento || null, dados.data_entrega_cliente || null,
-                 calc.dias_uteis, calc.lead_status]
+                 calc.dias_uteis, calc.lead_status,
+                 !!dados.is_redespacho, dados.redespacho_via || null]
             );
             const entrega = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [r.lastID]);
             io.emit('tramontina_entrega_criada', { rotaId, entrega });
@@ -313,22 +317,24 @@ module.exports = function createTramontinaRouter(io) {
             const entrega = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             if (!entrega) return res.status(404).json({ success: false, message: 'Entrega não encontrada.' });
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [entrega.rota_id]);
-            const campos = ['cidade','uf','cliente','notas_fiscais','status_agendamento','data_entrega_cliente'];
+            const campos = ['cidade','uf','cliente','notas_fiscais','status_agendamento','data_entrega_cliente',
+                            'is_redespacho','redespacho_via'];
             const novo = { ...entrega };
             for (const c of campos) {
                 if (Object.prototype.hasOwnProperty.call(req.body, c)) novo[c] = req.body[c];
             }
             novo.uf = novo.uf ? String(novo.uf).toUpperCase().slice(0, 2) : null;
-            novo.regiao = regiaoDeUF(novo.uf);
             const calc = await recalcularEntrega(novo, rota);
             await dbRun(
                 `UPDATE tramontina_rota_entregas SET
-                    cidade = ?, uf = ?, regiao = ?, cliente = ?, notas_fiscais = ?,
+                    cidade = ?, uf = ?, cliente = ?, notas_fiscais = ?,
                     status_agendamento = ?, data_entrega_cliente = ?,
-                    dias_uteis = ?, lead_status = ?
+                    dias_uteis = ?, lead_status = ?,
+                    is_redespacho = ?, redespacho_via = ?
                  WHERE id = ?`,
-                [novo.cidade, novo.uf, novo.regiao, novo.cliente, novo.notas_fiscais,
-                 novo.status_agendamento, novo.data_entrega_cliente, calc.dias_uteis, calc.lead_status, id]
+                [novo.cidade, novo.uf, novo.cliente, novo.notas_fiscais,
+                 novo.status_agendamento, novo.data_entrega_cliente, calc.dias_uteis, calc.lead_status,
+                 !!novo.is_redespacho, novo.redespacho_via || null, id]
             );
             const final = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             io.emit('tramontina_entrega_atualizada', { rotaId: entrega.rota_id, entrega: final });

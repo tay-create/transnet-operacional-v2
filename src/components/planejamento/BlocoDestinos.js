@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../../services/apiService';
 
-const REGIOES = ['', 'N', 'NE', 'CO', 'SE', 'S'];
 const STATUS_AGENDAMENTO = [
     { value: '', label: '—' },
     { value: 'AG', label: 'AG' },
@@ -35,46 +34,62 @@ function MiniEntrega({ entrega, podeEditar, onSalvar, onRemover }) {
     }
     return (
         <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1.5fr 50px 1fr 2fr 2fr 80px 110px 80px 30px',
-            gap: 6, alignItems: 'center',
             padding: '6px 8px',
             background: 'rgba(15,23,42,0.5)',
             borderRadius: 4,
             marginBottom: 4,
         }}>
-            <input type="text" placeholder="Cidade"
-                defaultValue={entrega.cidade || ''} onBlur={e => blur('cidade', e.target.value)}
-                disabled={!podeEditar} style={inputStyle} />
-            <input type="text" placeholder="UF"
-                defaultValue={entrega.uf || ''} onBlur={e => blur('uf', e.target.value.toUpperCase().slice(0, 2))}
-                disabled={!podeEditar} style={{ ...inputStyle, textTransform: 'uppercase' }} maxLength={2} />
-            <select defaultValue={entrega.regiao || ''} onChange={e => onSalvar(entrega.id, { regiao: e.target.value || null })}
-                disabled={!podeEditar} style={inputStyle}>
-                {REGIOES.map(r => <option key={r} value={r}>{r || '—'}</option>)}
-            </select>
-            <input type="text" placeholder="Cliente"
-                defaultValue={entrega.cliente || ''} onBlur={e => blur('cliente', e.target.value)}
-                disabled={!podeEditar} style={inputStyle} />
-            <input type="text" placeholder="Notas Fiscais"
-                defaultValue={entrega.notas_fiscais || ''} onBlur={e => blur('notas_fiscais', e.target.value)}
-                disabled={!podeEditar} style={inputStyle} />
-            <select defaultValue={entrega.status_agendamento || ''} onChange={e => onSalvar(entrega.id, { status_agendamento: e.target.value || null })}
-                disabled={!podeEditar} style={inputStyle}>
-                {STATUS_AGENDAMENTO.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <input type="date"
-                defaultValue={entrega.data_entrega_cliente || ''} onBlur={e => blur('data_entrega_cliente', e.target.value)}
-                disabled={!podeEditar} style={inputStyle} />
-            <span style={{ color: leadCor[entrega.lead_status] || '#64748b', fontSize: 11, fontWeight: 600 }}>
-                {entrega.lead_status || '—'}
-            </span>
-            {podeEditar ? (
-                <button onClick={() => onRemover(entrega.id)} title="Remover"
-                    style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}>
-                    <Trash2 size={14} />
-                </button>
-            ) : <span />}
+            {/* Linha 1: Cidade, UF, Cliente, Notas, Agendamento, Data, Lead, Lixeira */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1.5fr 50px 2fr 2fr 80px 110px 80px 30px',
+                gap: 6, alignItems: 'center',
+            }}>
+                <input type="text" placeholder="Cidade"
+                    defaultValue={entrega.cidade || ''} onBlur={e => blur('cidade', e.target.value)}
+                    disabled={!podeEditar} style={inputStyle} />
+                <input type="text" placeholder="UF"
+                    defaultValue={entrega.uf || ''} onBlur={e => blur('uf', e.target.value.toUpperCase().slice(0, 2))}
+                    disabled={!podeEditar} style={{ ...inputStyle, textTransform: 'uppercase' }} maxLength={2} />
+                <input type="text" placeholder="Cliente"
+                    defaultValue={entrega.cliente || ''} onBlur={e => blur('cliente', e.target.value)}
+                    disabled={!podeEditar} style={inputStyle} />
+                <input type="text" placeholder="Notas Fiscais"
+                    defaultValue={entrega.notas_fiscais || ''} onBlur={e => blur('notas_fiscais', e.target.value)}
+                    disabled={!podeEditar} style={inputStyle} />
+                <select defaultValue={entrega.status_agendamento || ''} onChange={e => onSalvar(entrega.id, { status_agendamento: e.target.value || null })}
+                    disabled={!podeEditar} style={inputStyle}>
+                    {STATUS_AGENDAMENTO.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <input type="date"
+                    defaultValue={entrega.data_entrega_cliente || ''} onBlur={e => blur('data_entrega_cliente', e.target.value)}
+                    disabled={!podeEditar} style={inputStyle} />
+                <span style={{ color: leadCor[entrega.lead_status] || '#64748b', fontSize: 11, fontWeight: 600 }}>
+                    {entrega.lead_status || '—'}
+                </span>
+                {podeEditar ? (
+                    <button onClick={() => onRemover(entrega.id)} title="Remover"
+                        style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}>
+                        <Trash2 size={14} />
+                    </button>
+                ) : <span />}
+            </div>
+            {/* Linha 2: checkbox Redespacho + campo opcional */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#94a3b8', cursor: podeEditar ? 'pointer' : 'default', userSelect: 'none' }}>
+                    <input type="checkbox" checked={!!entrega.is_redespacho}
+                        onChange={e => onSalvar(entrega.id, { is_redespacho: e.target.checked })}
+                        disabled={!podeEditar} />
+                    Redespacho
+                </label>
+                {entrega.is_redespacho && (
+                    <input type="text" placeholder="Redespacho via..."
+                        defaultValue={entrega.redespacho_via || ''}
+                        onBlur={e => blur('redespacho_via', e.target.value)}
+                        disabled={!podeEditar}
+                        style={{ ...inputStyle, flex: 1 }} />
+                )}
+            </div>
         </div>
     );
 }
@@ -153,12 +168,12 @@ export default function BlocoDestinos({ rota, entregas = [], podeEditar, onAlter
                 <div>
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: '1.5fr 50px 1fr 2fr 2fr 80px 110px 80px 30px',
+                        gridTemplateColumns: '1.5fr 50px 2fr 2fr 80px 110px 80px 30px',
                         gap: 6, fontSize: 10, color: '#64748b',
                         textTransform: 'uppercase', letterSpacing: 0.3,
                         padding: '0 8px 4px 8px',
                     }}>
-                        <span>Cidade</span><span>UF</span><span>Região</span>
+                        <span>Cidade</span><span>UF</span>
                         <span>Cliente</span><span>Notas Fiscais</span>
                         <span>Agenda</span><span>Entrega</span><span>Lead</span><span></span>
                     </div>

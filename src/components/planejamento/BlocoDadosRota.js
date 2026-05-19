@@ -6,7 +6,32 @@ const STATUS_EMBARQUE_OPCOES = [
     { value: 'PENDENTE', label: 'Pendente' },
 ];
 
-const TIPOS_VEICULO = ['CARRETA', 'TRUCK', '3/4', 'VAN'];
+const TIPOS_VEICULO = ['CARRETA', 'TRUCK', '3/4'];
+
+const OPERACOES = [
+    'PLASTICO',
+    'PORCELANA',
+    'PLASTICO CONSOLIDADO',
+    'PORCELANA CONSOLIDADA',
+];
+
+const REGIOES = [
+    { value: '', label: '—' },
+    { value: 'N', label: 'Norte' },
+    { value: 'NE', label: 'Nordeste' },
+    { value: 'CO', label: 'Centro-Oeste' },
+    { value: 'SE', label: 'Sudeste' },
+    { value: 'S', label: 'Sul' },
+];
+
+function formatarDataBr(iso) {
+    if (!iso) return '—';
+    try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleDateString('pt-BR');
+    } catch { return '—'; }
+}
 
 const inputStyle = {
     background: '#1e293b',
@@ -60,6 +85,11 @@ export default function BlocoDadosRota({ rota, podeEditar, onSalvar }) {
             }}>Dados da rota</div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <Campo label="Data de criação">
+                    <input type="text" value={formatarDataBr(local.data_criacao)}
+                        disabled title="Data automática de criação da rota"
+                        style={style({ opacity: 0.7, fontFamily: 'monospace' })} />
+                </Campo>
                 <Campo label="Data prevista">
                     <input type="date" value={local.data_prevista || ''}
                         onChange={e => mudarLocal('data_prevista', e.target.value)}
@@ -79,13 +109,15 @@ export default function BlocoDadosRota({ rota, podeEditar, onSalvar }) {
                         {STATUS_EMBARQUE_OPCOES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                 </Campo>
-                <Campo label="Operação (código)">
-                    <input type="text" value={local.operacao_codigo || ''}
-                        onChange={e => mudarLocal('operacao_codigo', e.target.value)}
-                        onBlur={e => blurCampo('operacao_codigo', e.target.value)}
-                        disabled={!podeEditar} title={tip} style={style()} maxLength={4} />
-                </Campo>
 
+                <Campo label="Operação">
+                    <select value={local.operacao_codigo || ''}
+                        onChange={e => { mudarLocal('operacao_codigo', e.target.value); onSalvar({ operacao_codigo: e.target.value || null }); }}
+                        disabled={!podeEditar} title={tip} style={style()}>
+                        <option value="">—</option>
+                        {OPERACOES.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                </Campo>
                 <Campo label="Tipo veículo">
                     <select value={local.tipo_veiculo || ''}
                         onChange={e => { mudarLocal('tipo_veiculo', e.target.value); onSalvar({ tipo_veiculo: e.target.value || null }); }}
@@ -94,37 +126,24 @@ export default function BlocoDadosRota({ rota, podeEditar, onSalvar }) {
                         {TIPOS_VEICULO.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                 </Campo>
-                <Campo label="Motorista">
-                    <input type="text" value={local.motorista_nome || ''}
-                        onChange={e => mudarLocal('motorista_nome', e.target.value)}
-                        onBlur={e => blurCampo('motorista_nome', e.target.value)}
-                        disabled={!podeEditar} title={tip} style={style()} />
+                <Campo label="Região">
+                    <select value={local.regiao || ''}
+                        onChange={e => { mudarLocal('regiao', e.target.value); onSalvar({ regiao: e.target.value || null }); }}
+                        disabled={!podeEditar} title={tip} style={style()}>
+                        {REGIOES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
                 </Campo>
-                <Campo label="Placa cavalo">
-                    <input type="text" value={local.placa_cavalo || ''}
-                        onChange={e => mudarLocal('placa_cavalo', e.target.value)}
-                        onBlur={e => blurCampo('placa_cavalo', e.target.value)}
-                        disabled={!podeEditar} title={tip}
-                        style={style({ fontFamily: 'monospace', textTransform: 'uppercase' })} />
-                </Campo>
-                <Campo label="Placa carreta">
-                    <input type="text" value={local.placa_carreta || ''}
-                        onChange={e => mudarLocal('placa_carreta', e.target.value)}
-                        onBlur={e => blurCampo('placa_carreta', e.target.value)}
-                        disabled={!podeEditar} title={tip}
-                        style={style({ fontFamily: 'monospace', textTransform: 'uppercase' })} />
-                </Campo>
-
-                <Campo label="Coleta" span={1}>
+                <Campo label="Coleta">
                     <input type="text" value={local.coleta || ''}
                         onChange={e => mudarLocal('coleta', e.target.value)}
                         onBlur={e => blurCampo('coleta', e.target.value)}
-                        disabled={!podeEditar} title={tip} style={style()} />
+                        disabled={!podeEditar} title={tip} placeholder="opcional" style={style()} />
                 </Campo>
-                <Campo label="Redespacho" span={1}>
-                    <input type="text" value={local.redespacho || ''}
-                        onChange={e => mudarLocal('redespacho', e.target.value)}
-                        onBlur={e => blurCampo('redespacho', e.target.value)}
+
+                <Campo label="Motorista" span={2}>
+                    <input type="text" value={local.motorista_nome || ''}
+                        onChange={e => mudarLocal('motorista_nome', e.target.value)}
+                        onBlur={e => blurCampo('motorista_nome', e.target.value)}
                         disabled={!podeEditar} title={tip} style={style()} />
                 </Campo>
                 <Campo label="Observações" span={2}>
