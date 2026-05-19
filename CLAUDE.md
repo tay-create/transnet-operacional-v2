@@ -27,6 +27,14 @@ Build local (para testar): npm run build
 - Respostas curtas e diretas, sem recapitulacoes ao final
 - Build React antes de testar qualquer mudanca frontend
 
+## Testes automatizados — obrigatorio antes de PR/merge
+
+- Antes de cada commit/push que mexa em codigo JS/JSX, rodar `npm test -- --watchAll=false`. Se algum teste falhar, NAO commitar — corrigir primeiro.
+- Ao criar funcoes utilitarias novas em `src/utils/`, criar `<arquivo>.test.js` na mesma pasta com casos felizes + edge cases.
+- Ao criar/alterar endpoints em `src/routes/`, considerar adicionar teste de integracao quando o endpoint tem logica nao-trivial (validacao, permissao, calculo, side effects).
+- O CI no GitHub roda os testes a cada push em qualquer branch — PR pra `main` exige check verde (branch protection).
+- Cobertura nao precisa ser 100%, mas todo bug fixado deve ganhar teste de regressao.
+
 ## Postura — parceiro de debate, nao bajulador
 
 Em decisoes tecnicas e de implementacao (arquitetura, escolhas de codigo, abordagem de problemas, trade-offs de stack/biblioteca, design de banco, performance, seguranca, refactor):

@@ -6,6 +6,19 @@ const { asyncHandler } = require('../../middleware/asyncHandler');
 const { ROLES } = require('../../middleware/roles');
 
 const CARGOS_EDITAR = ['Coordenador', 'Planejamento', 'Desenvolvedor'];
+// PlanejamentoDelta (2026-05-19): cargos que podem editar o operacional (rota/datas/motorista)
+const CARGOS_EDITAR_OPERACIONAL = ['Coordenador', 'Planejamento', 'Desenvolvedor', 'Pos Embarque'];
+// PlanejamentoDelta: cargos que podem editar campos financeiros (valor_carga/valor_frete/status_financeiro)
+const CARGOS_EDITAR_FINANCEIRO = ['Coordenador', 'Planejamento', 'Pos Embarque', 'Desenvolvedor'];
+const ABAS_VALIDAS = ['DELTA-PORCELANA', 'ELETRIK'];
+const STATUS_FINANCEIRO_VALIDOS = ['CONCLUIDO', 'EM_ROTA_DE_ENTREGA', 'PENDENTE'];
+
+// CARGOS_ADMIN já passam (definido em authorize); aqui são apenas os extras.
+function temPermissaoFinanceiro(req) {
+    const CARGOS_ADMIN = ['Coordenador', 'Direção', 'Adm Frota', 'Desenvolvedor'];
+    const cargo = req.user?.cargo;
+    return CARGOS_ADMIN.includes(cargo) || CARGOS_EDITAR_FINANCEIRO.includes(cargo);
+}
 
 module.exports = function createTramontinaRouter(io) {
     const router = express.Router();
@@ -28,9 +41,13 @@ module.exports = function createTramontinaRouter(io) {
     router.get('/api/tramontina/rotas', authMiddleware, asyncHandler(async (req, res) => {
             const mes = req.query.mes;
             if (!mes) return res.status(400).json({ success: false, message: 'Parâmetro mes obrigatório (formato YYYY-MM).' });
+            const aba = (req.query.aba || 'DELTA-PORCELANA').toUpperCase();
+            if (!ABAS_VALIDAS.includes(aba)) {
+                return res.status(400).json({ success: false, message: 'Parâmetro aba inválido (use DELTA-PORCELANA ou ELETRIK).' });
+            }
             const rotas = await dbAll(
-                `SELECT * FROM tramontina_rotas WHERE mes_referencia = ? ORDER BY numero_rota ASC, id ASC`,
-                [mes]
+                `SELECT * FROM tramontina_rotas WHERE mes_referencia = ? AND aba_origem = ? ORDER BY numero_rota ASC, id ASC`,
+                [mes, aba]
             );
             if (!rotas.length) return res.json({ success: true, rotas: [] });
             const ids = rotas.map(r => r.id);
@@ -51,7 +68,11 @@ module.exports = function createTramontinaRouter(io) {
     router.get('/api/tramontina/kpis', authMiddleware, asyncHandler(async (req, res) => {
             const mes = req.query.mes;
             if (!mes) return res.status(400).json({ success: false, message: 'Parâmetro mes obrigatório.' });
-            const rotas = await dbAll(`SELECT * FROM tramontina_rotas WHERE mes_referencia = ?`, [mes]);
+            const aba = (req.query.aba || 'DELTA-PORCELANA').toUpperCase();
+            if (!ABAS_VALIDAS.includes(aba)) {
+                return res.status(400).json({ success: false, message: 'Parâmetro aba inválido.' });
+            }
+            const rotas = await dbAll(`SELECT * FROM tramontina_rotas WHERE mes_referencia = ? AND aba_origem = ?`, [mes, aba]);
             const total = rotas.length;
             const programadas = rotas.filter(r => r.status_embarque === 'PROGRAMADA').length;
             const embarcadas = rotas.filter(r => r.status_embarque === 'EMBARCADA').length;
@@ -59,8 +80,8 @@ module.exports = function createTramontinaRouter(io) {
             const entregas = await dbAll(
                 `SELECT e.* FROM tramontina_rota_entregas e
                  INNER JOIN tramontina_rotas r ON r.id = e.rota_id
-                 WHERE r.mes_referencia = ?`,
-                [mes]
+                 WHERE r.mes_referencia = ? AND r.aba_origem = ?`,
+                [mes, aba]
             );
             const totalEnt = entregas.length;
             const cnt = { ANTECIPADO: 0, DENTRO: 0, FORA: 0, AGUARDANDO: 0 };
@@ -71,6 +92,25 @@ module.exports = function createTramontinaRouter(io) {
                 if (porRegiao[e.regiao] !== undefined) porRegiao[e.regiao]++;
             }
             const pct = (n) => totalEnt > 0 ? Math.round((n / totalEnt) * 1000) / 10 : 0;
+
+            // PlanejamentoDelta (2026-05-19): KPIs financeiros só pra ELETRIK
+            let financeiro = null;
+            if (aba === 'ELETRIK') {
+                const fin = await dbGet(`
+                    SELECT
+                        COALESCE(SUM(valor_carga), 0) AS total_mercadoria,
+                        COALESCE(SUM(valor_frete), 0) AS total_frete,
+                        COALESCE(AVG(representatividade_pct) FILTER (WHERE representatividade_pct IS NOT NULL), 0) AS repres_media
+                    FROM tramontina_rotas
+                    WHERE mes_referencia = ? AND aba_origem = 'ELETRIK'
+                `, [mes]);
+                financeiro = {
+                    total_mercadoria: parseFloat(fin?.total_mercadoria) || 0,
+                    total_frete: parseFloat(fin?.total_frete) || 0,
+                    repres_media: parseFloat(fin?.repres_media) || 0,
+                };
+            }
+
             res.json({
                 success: true,
                 kpis: {
@@ -81,30 +121,66 @@ module.exports = function createTramontinaRouter(io) {
                     },
                     regioes: porRegiao,
                     totalEntregas: totalEnt,
+                    financeiro,
                 }
             });
         }));
 
     // ── POST Criar rota ──────────────────────────
-    router.post('/api/tramontina/rotas', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.post('/api/tramontina/rotas', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const dados = req.body || {};
             const mes = dados.mes_referencia;
             if (!mes) return res.status(400).json({ success: false, message: 'mes_referencia obrigatório.' });
-            const ult = await dbGet(`SELECT MAX(numero_rota) as max FROM tramontina_rotas WHERE mes_referencia = ?`, [mes]);
+
+            // PlanejamentoDelta (2026-05-19): validar aba_origem
+            const aba = (dados.aba_origem || 'DELTA-PORCELANA').toUpperCase();
+            if (!ABAS_VALIDAS.includes(aba)) {
+                return res.status(400).json({ success: false, message: 'aba_origem inválida (use DELTA-PORCELANA ou ELETRIK).' });
+            }
+
+            // PlanejamentoDelta: validar campos financeiros (permissão + valores)
+            const tinhaFinanceiro = (
+                dados.status_financeiro !== undefined ||
+                dados.valor_carga !== undefined ||
+                dados.valor_frete !== undefined
+            );
+            if (tinhaFinanceiro && !temPermissaoFinanceiro(req)) {
+                return res.status(403).json({ success: false, message: 'Sem permissão para editar campos financeiros.' });
+            }
+            if (dados.status_financeiro !== undefined && dados.status_financeiro !== null
+                && !STATUS_FINANCEIRO_VALIDOS.includes(dados.status_financeiro)) {
+                return res.status(400).json({ success: false, message: 'status_financeiro inválido.' });
+            }
+            for (const campo of ['valor_carga', 'valor_frete']) {
+                if (dados[campo] !== undefined && dados[campo] !== null) {
+                    const n = Number(dados[campo]);
+                    if (isNaN(n) || n < 0) {
+                        return res.status(400).json({ success: false, message: `${campo} deve ser número não-negativo.` });
+                    }
+                    dados[campo] = n;
+                }
+            }
+
+            const ult = await dbGet(`SELECT MAX(numero_rota) as max FROM tramontina_rotas WHERE mes_referencia = ? AND aba_origem = ?`, [mes, aba]);
             const proximoNum = (ult?.max || 0) + 1;
             const r = await dbRun(
                 `INSERT INTO tramontina_rotas
                     (mes_referencia, numero_rota, coleta, data_prevista, data_embarque, operacao_codigo,
                      tipo_veiculo, motorista_nome, placa_cavalo, placa_carreta, redespacho,
-                     status_embarque, observacao, criado_por)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                     status_embarque, observacao, criado_por, aba_origem,
+                     status_financeiro, valor_carga, valor_frete)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     mes, dados.numero_rota || proximoNum, dados.coleta || null,
                     dados.data_prevista || null, dados.data_embarque || null, dados.operacao_codigo || null,
                     dados.tipo_veiculo || null, dados.motorista_nome || null,
                     dados.placa_cavalo || null, dados.placa_carreta || null, dados.redespacho || null,
                     dados.status_embarque || 'PROGRAMADA', dados.observacao || null,
-                    req.user?.nome || null
+                    req.user?.nome || null,
+                    aba,
+                    dados.status_financeiro || null,
+                    dados.valor_carga != null ? dados.valor_carga : null,
+                    dados.valor_frete != null ? dados.valor_frete : null,
                 ]
             );
             const novaId = r.lastID;
@@ -114,12 +190,37 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── PUT Editar rota ──────────────────────────
-    router.put('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.put('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [id]);
             if (!rota) return res.status(404).json({ success: false, message: 'Rota não encontrada.' });
+
+            // PlanejamentoDelta (2026-05-19): valida financeiros se vierem no body
+            const tinhaFinanceiro = (
+                req.body.status_financeiro !== undefined ||
+                req.body.valor_carga !== undefined ||
+                req.body.valor_frete !== undefined
+            );
+            if (tinhaFinanceiro && !temPermissaoFinanceiro(req)) {
+                return res.status(403).json({ success: false, message: 'Sem permissão para editar campos financeiros.' });
+            }
+            if (req.body.status_financeiro !== undefined && req.body.status_financeiro !== null
+                && !STATUS_FINANCEIRO_VALIDOS.includes(req.body.status_financeiro)) {
+                return res.status(400).json({ success: false, message: 'status_financeiro inválido.' });
+            }
+            for (const campo of ['valor_carga', 'valor_frete']) {
+                if (req.body[campo] !== undefined && req.body[campo] !== null) {
+                    const n = Number(req.body[campo]);
+                    if (isNaN(n) || n < 0) {
+                        return res.status(400).json({ success: false, message: `${campo} deve ser número não-negativo.` });
+                    }
+                    req.body[campo] = n;
+                }
+            }
+
             const campos = ['numero_rota','coleta','data_prevista','data_embarque','operacao_codigo','tipo_veiculo',
-                            'motorista_nome','placa_cavalo','placa_carreta','redespacho','status_embarque','observacao'];
+                            'motorista_nome','placa_cavalo','placa_carreta','redespacho','status_embarque','observacao',
+                            'aba_origem','status_financeiro','valor_carga','valor_frete'];
             const sets = [];
             const vals = [];
             for (const c of campos) {
@@ -150,7 +251,7 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── DELETE Remover rota ──────────────────────────
-    router.delete('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.delete('/api/tramontina/rotas/:id', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             await dbRun(`DELETE FROM tramontina_rotas WHERE id = ?`, [id]);
             io.emit('tramontina_rota_removida', { id });
@@ -158,7 +259,7 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── POST Adicionar entrega ──────────────────────────
-    router.post('/api/tramontina/rotas/:rotaId/entregas', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.post('/api/tramontina/rotas/:rotaId/entregas', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const rotaId = Number(req.params.rotaId);
             const rota = await dbGet(`SELECT * FROM tramontina_rotas WHERE id = ?`, [rotaId]);
             if (!rota) return res.status(404).json({ success: false, message: 'Rota não encontrada.' });
@@ -183,7 +284,7 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── PUT Editar entrega ──────────────────────────
-    router.put('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.put('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const entrega = await dbGet(`SELECT * FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             if (!entrega) return res.status(404).json({ success: false, message: 'Entrega não encontrada.' });
@@ -211,7 +312,7 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── DELETE Remover entrega ──────────────────────────
-    router.delete('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.delete('/api/tramontina/entregas/:id', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const id = Number(req.params.id);
             const ent = await dbGet(`SELECT rota_id FROM tramontina_rota_entregas WHERE id = ?`, [id]);
             if (!ent) return res.status(404).json({ success: false, message: 'Entrega não encontrada.' });
@@ -221,7 +322,7 @@ module.exports = function createTramontinaRouter(io) {
         }));
 
     // ── Lock visual (broadcast quem está editando) ──────────────────────────
-    router.post('/api/tramontina/editando', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.post('/api/tramontina/editando', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
         const { rotaId, campo } = req.body || {};
         io.emit('tramontina_usuario_editando', {
             rotaId, campo,
@@ -232,7 +333,7 @@ module.exports = function createTramontinaRouter(io) {
     }));
 
     // ── POST Importar (recebe JSON pré-parseado do frontend, ver ModalImportarTramontina.js) ──
-    router.post('/api/tramontina/importar', authMiddleware, authorize(CARGOS_EDITAR), asyncHandler(async (req, res) => {
+    router.post('/api/tramontina/importar', authMiddleware, authorize(CARGOS_EDITAR_OPERACIONAL), asyncHandler(async (req, res) => {
             const { mes_referencia: mes, rotas: payload } = req.body || {};
             if (!mes) return res.status(400).json({ success: false, message: 'mes_referencia obrigatório.' });
             if (!Array.isArray(payload) || !payload.length) return res.status(400).json({ success: false, message: 'Nenhuma rota recebida.' });
