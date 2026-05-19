@@ -2,12 +2,15 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Cor por % de FORA do lead. Operadora dentro do lead → verde. Acumula vermelho.
+// Gradiente HSL vermelho→amarelo→verde por % de FORA do lead.
+// Mesmo padrão visual usado no Relatório Operacional (corChoropleth).
+// 0% fora = verde forte (hue 130). 100% fora = vermelho forte (hue 0).
 function corPorPctFora(pct) {
-    if (pct == null) return '#1f2937'; // cinza escuro: sem dados
-    if (pct < 10)  return '#22c55e';
-    if (pct < 30)  return '#eab308';
-    return '#ef4444';
+    if (pct == null) return '#475569'; // slate-600: sem dados (visível, não preto)
+    const v = Math.min(Math.max(parseFloat(pct) || 0, 0), 100);
+    const hue = Math.round(130 - (v / 100) * 130); // 130 → 0
+    const light = Math.round(55 - (v / 100) * 15);  // 55% → 40%
+    return `hsl(${hue}, 70%, ${light}%)`;
 }
 
 // porUF: { 'SP': { antecipado, dentro, fora, total, mediaDias }, ... }
@@ -31,9 +34,9 @@ export default function MapaLeadTime({ porUF, ufSelecionada, onClickUF, height =
         const selecionado = sigla === ufSelecionada;
         return {
             fillColor: corPorPctFora(pct),
-            fillOpacity: total > 0 ? 0.7 : 0.25,
-            color: selecionado ? '#f8fafc' : '#0f172a',
-            weight: selecionado ? 2.5 : 0.6,
+            fillOpacity: total > 0 ? 0.85 : 0.45,
+            color: selecionado ? '#f8fafc' : '#1e293b',
+            weight: selecionado ? 2.5 : 0.7,
         };
     }, [porUF, ufSelecionada]);
 
@@ -82,10 +85,11 @@ export default function MapaLeadTime({ porUF, ufSelecionada, onClickUF, height =
                 <GeoJSON key={JSON.stringify({ ufSelecionada, n: Object.keys(porUF || {}).length })} data={geo} style={estiloFeature} onEachFeature={onEachFeature} />
             </MapContainer>
             <div style={{ display: 'flex', gap: 12, padding: '8px 12px', fontSize: 11, color: '#cbd5e1', background: 'rgba(15,23,42,0.6)', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-                <Legenda cor="#22c55e" label="< 10% fora" />
-                <Legenda cor="#eab308" label="10–30% fora" />
-                <Legenda cor="#ef4444" label="> 30% fora" />
-                <Legenda cor="#1f2937" label="sem dados" />
+                <Legenda cor="hsl(130, 70%, 55%)" label="0% fora" />
+                <Legenda cor="hsl(85, 70%, 50%)" label="~30%" />
+                <Legenda cor="hsl(40, 70%, 47%)" label="~60%" />
+                <Legenda cor="hsl(0, 70%, 40%)" label="100% fora" />
+                <Legenda cor="#475569" label="sem dados" />
             </div>
         </div>
     );

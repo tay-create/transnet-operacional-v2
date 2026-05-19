@@ -63,6 +63,21 @@ const LEAD_PADRAO_TRAMONTINA_REGIAO = {
     SE: 10,
 };
 
+// Mapa código curto → nome completo (para exibição na UI/payload).
+// Mantém a chave interna estável (usada em banco e LEAD_PADRAO_TRAMONTINA_REGIAO).
+const REGIAO_NOME = {
+    N: 'NORTE',
+    NE: 'NORDESTE',
+    CO: 'CENTRO-OESTE',
+    SE: 'SUDESTE',
+    S: 'SUL',
+};
+
+function nomeDeRegiao(codigo) {
+    if (!codigo) return null;
+    return REGIAO_NOME[codigo] || null;
+}
+
 // Normaliza string vinda da planilha (Col K) para o código de REGIOES_BR
 function normalizarRegiao(s) {
     if (!s) return null;
@@ -80,6 +95,8 @@ module.exports = {
     classificarLeadTime,
     regiaoDeUF,
     normalizarRegiao,
+    nomeDeRegiao,
     REGIOES_BR,
+    REGIAO_NOME,
     LEAD_PADRAO_TRAMONTINA_REGIAO,
 };

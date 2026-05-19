@@ -3532,12 +3532,12 @@ app.get('/api/lead-time-operacional', authMiddleware, asyncHandler(async (req, r
 
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!A10:AC670`,
+        range: `'DELTA-PORCELANA'!A10:AB670`,
     });
     const rows = resp.data.values || [];
 
     const { parseLinhasLeadTime, classificarEntrega, agregarLeadTime } = require('./src/utils/leadTimeOperacional');
-    const { LEAD_PADRAO_TRAMONTINA_REGIAO } = require('./src/utils/tramontinaLeadTime');
+    const { LEAD_PADRAO_TRAMONTINA_REGIAO, REGIAO_NOME } = require('./src/utils/tramontinaLeadTime');
 
     // Lead Transnet por UF (mapa PE → UF destino)
     const ufRows = await dbAll(
@@ -3568,6 +3568,7 @@ app.get('/api/lead-time-operacional', authMiddleware, asyncHandler(async (req, r
         porRegiao: agregados.porRegiao,
         linhas: entregasClassificadas,
         leads: { transnetPorUF: mapUF, tramontinaPorRegiao: mapRegiao },
+        regiaoNomes: REGIAO_NOME,
     };
     leadTimeCache = { data: payload, ts: Date.now() };
     res.json(payload);
