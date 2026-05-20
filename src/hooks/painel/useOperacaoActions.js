@@ -122,7 +122,9 @@ const handleOperacaoChangeImpl = async (item, novaOperacao, funcoes, lista, setL
 // foiReprogramado=1 ao avançar ou mudar data; foiReprogramado=0 ao voltar para hoje.
 // unidade ('Recife'|'Moreno'|undefined): se preenchido, reprograma só o lado;
 // senão sincroniza ambos (comportamento legado).
-const reprogramarItemImpl = async (lista, setLista, realIndex, novaData, api, mostrarNotificacao, foiReprogramado = 1, unidade) => {
+// programarPlanilha=true (usado pelo calendário do card): em vez de marcar R,
+// limpa R/P e escreve a nova data em G ("DATA DE PREVISÃO") na planilha.
+const reprogramarItemImpl = async (lista, setLista, realIndex, novaData, api, mostrarNotificacao, foiReprogramado = 1, unidade, programarPlanilha = false) => {
     const item = lista[realIndex];
     if (!item?.id) return;
     const ladoLower = unidade ? String(unidade).toLowerCase() : undefined;
@@ -152,16 +154,23 @@ const reprogramarItemImpl = async (lista, setLista, realIndex, novaData, api, mo
             foi_reprogramado: foiReprogramado,
             ...(ladoLower ? { unidade: ladoLower } : {}),
         });
-        // Marcar "R" na planilha (Col B) só quando reprograma de fato.
-        // foiReprogramado=0 significa volta pra hoje (desfaz reprogramação) — não marca R.
-        if (foiReprogramado === 1) {
-            const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
-                .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
-                .filter(Boolean);
-            const coletas = [];
-            if (!ladoLower || ladoLower === 'recife') coletas.push(...extrairNums(item.coletaRecife));
-            if (!ladoLower || ladoLower === 'moreno') coletas.push(...extrairNums(item.coletaMoreno));
-            if (coletas.length === 0) extrairNums(item.coletaInterestadual).forEach(c => coletas.push(c));
+        // Extrair coletas do lado afetado (ou ambos)
+        const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
+            .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+            .filter(Boolean);
+        const coletas = [];
+        if (!ladoLower || ladoLower === 'recife') coletas.push(...extrairNums(item.coletaRecife));
+        if (!ladoLower || ladoLower === 'moreno') coletas.push(...extrairNums(item.coletaMoreno));
+        if (coletas.length === 0) extrairNums(item.coletaInterestadual).forEach(c => coletas.push(c));
+
+        if (programarPlanilha) {
+            // Calendário do card: limpa R/P e escreve a nova data em G na planilha.
+            if (coletas.length > 0) {
+                api.post('/api/planilha/programar', { coletas, data_prevista: novaData })
+                    .catch(err => console.error('[programar] falha ao atualizar planilha:', err?.message));
+            }
+        } else if (foiReprogramado === 1) {
+            // Botão "+1 dia" ou caminho legado: marca "R" na planilha.
             if (coletas.length > 0) {
                 api.post('/api/planilha/marcar-reprogramada', { coletas })
                     .catch(err => console.error('[reprogramar] falha ao marcar R na planilha:', err?.message));

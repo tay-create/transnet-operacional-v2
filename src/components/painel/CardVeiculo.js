@@ -126,20 +126,30 @@ export default function CardVeiculo({
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    {/* Data — específica da unidade da coluna (fallback no guarda-chuva pra cards pré-migração) */}
+                    {/* Data — específica da unidade da coluna (fallback no guarda-chuva pra cards pré-migração).
+                        Calendário muda a data como PROGRAMADO: zera foi_reprogramado e na planilha limpa R/P + escreve em G.
+                        Trava quando o lado já carregou (data_carregado_<lado> ou status CARREGADO/LIBERADO P/ CT-e).
+                        EM CARREGAMENTO NÃO trava. */}
                     {(() => {
                         const dpUnidade = origem === 'Recife'
                             ? (item.data_prevista_recife || item.data_prevista)
                             : (item.data_prevista_moreno || item.data_prevista);
+                        const dataCarregadoUnidade = origem === 'Recife' ? item.data_carregado_recife : item.data_carregado_moreno;
+                        const statusAtualItem = getStatus(item, campoStatus);
+                        const ladoTravado = !!dataCarregadoUnidade || ['CARREGADO', 'LIBERADO P/ CT-e'].includes(statusAtualItem);
+                        const podeMexerCalendario = podeEditarNaUnidade('adiar_dia') && !ladoTravado;
                         return (
                             <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                                <Calendar size={12} style={podeEditarNaUnidade('adiar_dia') ? { cursor: 'pointer' } : {}} />
+                                <Calendar
+                                    size={12}
+                                    style={podeMexerCalendario ? { cursor: 'pointer' } : { opacity: 0.5 }}
+                                />
                                 {dpUnidade ? dpUnidade.split('-').reverse().slice(0, 2).join('/') : '—'}
-                                {podeEditarNaUnidade('adiar_dia') && (
+                                {podeMexerCalendario && (
                                     <input
                                         type="date"
                                         value={dpUnidade || ''}
-                                        onChange={e => e.target.value && reprogramarItem(lista, setLista, realIndex, e.target.value, api, mostrarNotificacao, 1, origem)}
+                                        onChange={e => e.target.value && reprogramarItem(lista, setLista, realIndex, e.target.value, api, mostrarNotificacao, 0, origem, true)}
                                         style={{
                                             position: 'absolute', inset: 0, opacity: 0,
                                             cursor: 'pointer', width: '100%', height: '100%'

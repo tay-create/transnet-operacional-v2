@@ -43,7 +43,7 @@ function normalizarData(v) {
     return null;
 }
 
-// Faz parse das linhas vindas de DELTA-PORCELANA!A10:AB670 aplicando forward-fill.
+// Faz parse das linhas vindas de DELTA-PORCELANA!A10:AB730 aplicando forward-fill.
 // Espera array de arrays (rows). Cada linha entrega:
 //   [0]=A Rota, [7]=H Data Embarque, [8]=I Cidade, [9]=J UF, [10]=K Região, [27]=AB Data Agendamento
 // Retorna array de { rota, embarque, cidade, uf, regiao, agendamento }.

@@ -41,7 +41,7 @@ function normalizarCidadeUf(cidade, uf) {
 const ABAS_CONFIG = [
     {
         nome: 'DELTA-PORCELANA',
-        range: "'DELTA-PORCELANA'!A10:AB1000", // dados começam em L10 (header em L9)
+        range: "'DELTA-PORCELANA'!A10:AB730", // dados começam em L10 (header em L9)
         colRota: 0,        // A
         colColeta: 4,      // E
         colCidade: 8,      // I

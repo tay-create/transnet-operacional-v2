@@ -3465,7 +3465,7 @@ async function marcarReprogramadaNaPlanilha(coletas) {
     // Ler cols B..F: B=R, C=P, D=E, E=coleta, F=...
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!B9:F670`,
+        range: `'DELTA-PORCELANA'!B9:F730`,
     });
     const rows = resp.data.values || [];
     const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
@@ -3502,6 +3502,73 @@ async function marcarReprogramadaNaPlanilha(coletas) {
     return { marcadas, limpasProgramado, detalhes };
 }
 
+// Reprograma como PROGRAMADO via calendário do card:
+// - Limpa "x" das cols B (R) e C (P) em todas as linhas das coletas
+// - Escreve a nova data prevista na col G ("DATA DE PREVISÃO") em formato DD/MM/YYYY
+// dataPrevisao deve vir em 'YYYY-MM-DD'.
+async function programarNaPlanilha(coletas, dataPrevisao) {
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return { linhasAfetadas: 0, detalhes: [] };
+    }
+    if (!dataPrevisao || !/^\d{4}-\d{2}-\d{2}$/.test(dataPrevisao)) {
+        throw new Error(`dataPrevisao inválida: ${dataPrevisao} (esperado YYYY-MM-DD)`);
+    }
+    const dataBR = dataPrevisao.split('-').reverse().join('/'); // DD/MM/YYYY
+    const { sheetId } = await getResultadoSheetId();
+    const auth = new google.auth.GoogleAuth({
+        keyFile: path.join(__dirname, 'google-credentials.json'),
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ler cols B..G: B=R, C=P, D=E, E=coleta, F=data criação, G=data previsão
+    const resp = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `'DELTA-PORCELANA'!B9:G730`,
+    });
+    const rows = resp.data.values || [];
+    const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
+    const extrairNums = (str) => String(str || '').split(/[\s,]+/).map(s => s.trim().replace(/^0+/, '')).filter(Boolean);
+
+    const updates = [];
+    let linhasAfetadas = 0;
+    rows.forEach((row, idx) => {
+        if (idx === 0) return; // header (L9)
+        const colB = (row[0] || '').toString().trim().toLowerCase();
+        const colC = (row[1] || '').toString().trim().toLowerCase();
+        const coleta = row[3] || '';
+        const colG = (row[5] || '').toString().trim();
+        if (!coleta) return;
+        const nums = extrairNums(coleta);
+        if (!nums.some(n => setColetas.has(n))) return;
+        const linhaPlanilha = idx + 9;
+        let mexeu = false;
+        if (colB === 'x') {
+            updates.push({ range: `'DELTA-PORCELANA'!B${linhaPlanilha}`, values: [['']] });
+            mexeu = true;
+        }
+        if (colC === 'x') {
+            updates.push({ range: `'DELTA-PORCELANA'!C${linhaPlanilha}`, values: [['']] });
+            mexeu = true;
+        }
+        if (colG !== dataBR) {
+            updates.push({ range: `'DELTA-PORCELANA'!G${linhaPlanilha}`, values: [[dataBR]] });
+            mexeu = true;
+        }
+        if (mexeu) linhasAfetadas++;
+    });
+
+    if (updates.length > 0) {
+        await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId: sheetId,
+            requestBody: { valueInputOption: 'RAW', data: updates },
+        });
+    }
+    const detalhes = updates.map(u => u.range);
+    console.log('[programar-planilha] linhasAfetadas:', linhasAfetadas, 'data:', dataBR, 'detalhes:', detalhes);
+    return { linhasAfetadas, detalhes, dataBR };
+}
+
 // POST /api/planilha/marcar-reprogramada
 // Marca "x" na Col B (Reprogramado) e limpa "x" da Col C (Programado) se existir.
 app.post('/api/planilha/marcar-reprogramada', authMiddleware, asyncHandler(async (req, res) => {
@@ -3512,6 +3579,66 @@ app.post('/api/planilha/marcar-reprogramada', authMiddleware, asyncHandler(async
     }
     const resultado = await marcarReprogramadaNaPlanilha(coletas);
     res.json({ success: true, ...resultado });
+}));
+
+// POST /api/planilha/programar — usado quando o usuário muda a data via calendário do card.
+// Body: { coletas: ['1243', '1244'], data_prevista: 'YYYY-MM-DD' }
+// Limpa "x" de B e C nas linhas das coletas e escreve nova data em G.
+app.post('/api/planilha/programar', authMiddleware, asyncHandler(async (req, res) => {
+    const { coletas, data_prevista } = req.body;
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return res.json({ success: true, linhasAfetadas: 0, detalhes: [] });
+    }
+    if (!data_prevista) {
+        return res.status(400).json({ success: false, message: 'data_prevista obrigatória (YYYY-MM-DD).' });
+    }
+    try {
+        const resultado = await programarNaPlanilha(coletas, data_prevista);
+        res.json({ success: true, ...resultado });
+    } catch (e) {
+        console.error('[programar-planilha] erro:', e.message);
+        res.status(400).json({ success: false, message: e.message });
+    }
+}));
+
+// PlanejamentoDelta (2026-05-20): insere coleta em rota existente da planilha
+// quando ela está sem coleta. Body: { pares: [{rota, coleta}] }
+app.post('/api/planilha/inserir-coleta-rota', authMiddleware, asyncHandler(async (req, res) => {
+    const { pares } = req.body || {};
+    if (!Array.isArray(pares) || pares.length === 0) {
+        return res.json({ success: true, inseridas: [], avisos: [] });
+    }
+    try {
+        const r = await sheetsWriter.inserirColetaNaRotaSeVazia(pares);
+        if (r.avisos.length > 0) {
+            console.warn('[inserir-coleta-rota] avisos:', r.avisos);
+            io.emit('receber_atualizacao', { tipo: 'planilha_aviso_coleta_diff', avisos: r.avisos });
+        }
+        if (r.inseridas.length > 0) {
+            console.log('[inserir-coleta-rota] inseridas:', r.inseridas);
+        }
+        res.json({ success: true, ...r });
+    } catch (e) {
+        console.error('[inserir-coleta-rota] erro:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+}));
+
+// PlanejamentoDelta (2026-05-20): marca "x" na Col D (Embarcado) e DD/MM/AAAA na Col H
+// Disparado automaticamente quando card transita pra LIBERADO P/ CT-e (chamada interna do PUT veiculos).
+app.post('/api/planilha/marcar-embarcado', authMiddleware, asyncHandler(async (req, res) => {
+    const { coletas } = req.body || {};
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return res.json({ success: true, marcadas: 0, detalhes: [] });
+    }
+    try {
+        const r = await sheetsWriter.marcarEmbarcadoNaPlanilha(coletas);
+        console.log('[marcar-embarcado] resultado:', r);
+        res.json({ success: true, ...r });
+    } catch (e) {
+        console.error('[marcar-embarcado] erro:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
 }));
 
 // ── Lead Time Operacional ────────────────────────────────────────────────
@@ -3532,7 +3659,7 @@ app.get('/api/lead-time-operacional', authMiddleware, asyncHandler(async (req, r
 
     const resp = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: `'DELTA-PORCELANA'!A10:AB670`,
+        range: `'DELTA-PORCELANA'!A10:AB730`,
     });
     const rows = resp.data.values || [];
 
@@ -3591,6 +3718,10 @@ async function getResultadoSheetId() {
     if (fallback) return { sheetId: fallback.sheet_id, mes: fallback.mes };
     throw new Error('Nenhuma planilha de Resultado Operacional cadastrada.');
 }
+
+// PlanejamentoDelta (2026-05-20): injeta getResultadoSheetId no helper de escrita Sheets
+const sheetsWriter = require('./src/utils/sheetsWriter');
+sheetsWriter.setGetResultadoSheetId(getResultadoSheetId);
 
 app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, res) => {
     if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
