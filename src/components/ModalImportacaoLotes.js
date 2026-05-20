@@ -600,6 +600,31 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         setSucessos(prev => ({ ...prev, ...novosSucessos }));
         setLancando(false);
 
+        // PlanejamentoDelta (2026-05-20): manter coerência rota↔coleta na planilha (fire-and-forget)
+        try {
+            const paresPlanilha = [];
+            for (const lote of lotes) {
+                const status = novosSucessos[lote._id];
+                if (!status || status === 'duplicata') continue;
+                const coletaNum = String(lote.coletaRecife || lote.coletaMoreno || lote.coletaInterestadual || '')
+                    .split(/[\s,|]+/)
+                    .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                    .filter(Boolean)[0];
+                if (!coletaNum) continue;
+                if (lote.rotaRecife) paresPlanilha.push({ rota: String(lote.rotaRecife).trim(), coleta: coletaNum });
+                if (lote.rotaMoreno) paresPlanilha.push({ rota: String(lote.rotaMoreno).trim(), coleta: coletaNum });
+            }
+            if (paresPlanilha.length > 0) {
+                api.post('/api/planilha/inserir-coleta-rota', { pares: paresPlanilha })
+                    .then(r => {
+                        if (r.data?.avisos?.length > 0) {
+                            mostrarNotificacao(`⚠️ ${r.data.avisos.length} aviso(s): coleta lançada difere da planilha`);
+                        }
+                    })
+                    .catch(() => {}); // silencioso — não interrompe importação
+            }
+        } catch (_) {}
+
         if (Object.keys(novosErros).length === 0) {
             // Verificar se há veículos de frota nos lotes lançados com sucesso
             const placasProvisao = new Set(veiculosProvisao.flatMap(v => [v.placa, v.carreta].filter(Boolean).map(p => p.toUpperCase())));

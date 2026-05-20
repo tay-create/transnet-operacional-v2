@@ -671,6 +671,47 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             );
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
+
+            // PlanejamentoDelta (2026-05-20): se a rota lançada existe na planilha mas Col E está vazia,
+            // escreve a coleta lá pra manter coerência rota↔coleta (fire-and-forget).
+            try {
+                const { inserirColetaNaRotaSeVazia } = require('../utils/sheetsWriter');
+                const extrairPrimeiroNumero = (s) => {
+                    const nums = String(s || '').split(/[\s,|]+/)
+                        .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                        .filter(Boolean);
+                    return nums[0] || '';
+                };
+                const paresPlanilha = [];
+                const coletaRecNum = extrairPrimeiroNumero(v.coletaRecife);
+                const coletaMorNum = extrairPrimeiroNumero(v.coletaMoreno);
+                const coletaIntNum = extrairPrimeiroNumero(v.coletaInterestadual);
+                if (v.rotaRecife && coletaRecNum) {
+                    paresPlanilha.push({ rota: String(v.rotaRecife).trim(), coleta: coletaRecNum });
+                }
+                if (v.rotaMoreno && coletaMorNum) {
+                    paresPlanilha.push({ rota: String(v.rotaMoreno).trim(), coleta: coletaMorNum });
+                }
+                if ((v.rotaRecife || v.rotaMoreno) && coletaIntNum) {
+                    // Interestadual: tenta a rota que houver
+                    const rotaInt = String(v.rotaRecife || v.rotaMoreno).trim();
+                    if (rotaInt) paresPlanilha.push({ rota: rotaInt, coleta: coletaIntNum });
+                }
+                if (paresPlanilha.length > 0) {
+                    inserirColetaNaRotaSeVazia(paresPlanilha)
+                        .then(r => {
+                            if (r.inseridas.length > 0) console.log('[inserir-coleta-rota]', r.inseridas);
+                            if (r.avisos.length > 0) {
+                                console.warn('[inserir-coleta-rota] avisos:', r.avisos);
+                                io.emit('receber_atualizacao', { tipo: 'planilha_aviso_coleta_diff', avisos: r.avisos });
+                            }
+                        })
+                        .catch(e => console.warn('[inserir-coleta-rota] falha:', e.message));
+                }
+            } catch (errInsRota) {
+                console.warn('[inserir-coleta-rota] erro setup:', errInsRota.message);
+            }
+
             res.json({ success: true, id: result.lastID, aviso_rota: avisoRota, rotas_duplicadas: rotasDuplicadasPlanilha });
         }));
     router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), asyncHandler(async (req, res) => {
@@ -1212,6 +1253,31 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                         );
                     } catch (errHist) {
                         console.error('⚠️ Erro ao salvar histórico de liberação:', errHist);
+                    }
+
+                    // PlanejamentoDelta (2026-05-20): marca EMBARCADO na planilha (fire-and-forget)
+                    try {
+                        const { marcarEmbarcadoNaPlanilha } = require('../utils/sheetsWriter');
+                        const extrairNumsLib = (s) => String(s || '')
+                            .split(/[\s,|]+/)
+                            .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+                            .filter(Boolean);
+                        const coletasParaMarcar = [
+                            ...extrairNumsLib(v.coletaRecife),
+                            ...extrairNumsLib(v.coletaMoreno),
+                            ...extrairNumsLib(v.coletaInterestadual),
+                            ...extrairNumsLib(v.coleta),
+                        ];
+                        const uniqColetas = [...new Set(coletasParaMarcar)];
+                        if (uniqColetas.length > 0) {
+                            marcarEmbarcadoNaPlanilha(uniqColetas)
+                                .then(r => {
+                                    if (r.marcadas > 0) console.log('[embarcado-planilha]', r);
+                                })
+                                .catch(e => console.warn('[embarcado-planilha] falha:', e.message));
+                        }
+                    } catch (errEmb) {
+                        console.warn('[embarcado-planilha] erro setup:', errEmb.message);
                     }
                 }
             }

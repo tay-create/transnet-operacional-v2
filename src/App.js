@@ -366,6 +366,20 @@ function App({ socket }) {
     }, [carregarPermissoes, adicionarNotificacao, mostrarNotificacao]);
 
     const handleReceberAtualizacao = useCallback((data) => {
+        // PlanejamentoDelta (2026-05-20): aviso de divergência rota/coleta vs planilha
+        if (data.tipo === 'planilha_aviso_coleta_diff') {
+            const avisos = data.avisos || [];
+            if (avisos.length > 0) {
+                const primeiro = avisos[0];
+                const msg = avisos.length === 1
+                    ? `⚠️ Planilha tem coleta ${primeiro.coleta_planilha} na rota ${primeiro.rota} (${primeiro.aba}). Coleta lançada: ${primeiro.coleta_lancada}.`
+                    : `⚠️ ${avisos.length} divergência(s) rota↔coleta entre lançamento e planilha. Verifique no console.`;
+                mostrarNotificacaoRef.current?.(msg);
+                console.warn('[planilha_aviso_coleta_diff]', avisos);
+            }
+            return;
+        }
+
         // CORREÇÃO: Adiciona verificação de duplicatas no novo_veiculo (igual ao novo_fila)
         if (data.tipo === 'novo_veiculo') {
             setListaVeiculos(prev => {

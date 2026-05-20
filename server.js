@@ -3463,6 +3463,49 @@ app.post('/api/planilha/marcar-reprogramada', authMiddleware, asyncHandler(async
     res.json({ success: true, ...resultado });
 }));
 
+// PlanejamentoDelta (2026-05-20): insere coleta em rota existente da planilha
+// quando ela está sem coleta. Body: { pares: [{rota, coleta}] }
+app.post('/api/planilha/inserir-coleta-rota', authMiddleware, asyncHandler(async (req, res) => {
+    const { pares } = req.body || {};
+    if (!Array.isArray(pares) || pares.length === 0) {
+        return res.json({ success: true, inseridas: [], avisos: [] });
+    }
+    try {
+        const r = await sheetsWriter.inserirColetaNaRotaSeVazia(pares);
+        if (r.avisos.length > 0) {
+            console.warn('[inserir-coleta-rota] avisos:', r.avisos);
+            io.emit('receber_atualizacao', { tipo: 'planilha_aviso_coleta_diff', avisos: r.avisos });
+        }
+        if (r.inseridas.length > 0) {
+            console.log('[inserir-coleta-rota] inseridas:', r.inseridas);
+        }
+        res.json({ success: true, ...r });
+    } catch (e) {
+        console.error('[inserir-coleta-rota] erro:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+}));
+
+// PlanejamentoDelta (2026-05-20): marca "x" na Col D (Embarcado) e DD/MM/AAAA na Col H
+app.post('/api/planilha/marcar-embarcado', authMiddleware, asyncHandler(async (req, res) => {
+    const { coletas } = req.body || {};
+    if (!Array.isArray(coletas) || coletas.length === 0) {
+        return res.json({ success: true, marcadas: 0, detalhes: [] });
+    }
+    try {
+        const r = await sheetsWriter.marcarEmbarcadoNaPlanilha(coletas);
+        console.log('[marcar-embarcado] resultado:', r);
+        res.json({ success: true, ...r });
+    } catch (e) {
+        console.error('[marcar-embarcado] erro:', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+}));
+
+// PlanejamentoDelta (2026-05-20): instância única do sheetsWriter pra uso nos endpoints acima.
+// O setGetResultadoSheetId é chamado logo após a declaração de getResultadoSheetId.
+const sheetsWriter = require('./src/utils/sheetsWriter');
+
 // ── Lead Time Operacional ────────────────────────────────────────────────
 let leadTimeCache = { data: null, ts: 0 };
 const LEAD_TIME_TTL_MS = 60 * 1000;
@@ -3540,6 +3583,9 @@ async function getResultadoSheetId() {
     if (fallback) return { sheetId: fallback.sheet_id, mes: fallback.mes };
     throw new Error('Nenhuma planilha de Resultado Operacional cadastrada.');
 }
+
+// PlanejamentoDelta (2026-05-20): injeta getResultadoSheetId no helper de escrita Sheets
+sheetsWriter.setGetResultadoSheetId(getResultadoSheetId);
 
 app.get('/api/resultado-operacional', authMiddleware, asyncHandler(async (req, res) => {
     if (resultadoCache.data && Date.now() - resultadoCache.ts < 60000)
