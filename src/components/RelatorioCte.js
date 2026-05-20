@@ -318,23 +318,59 @@ export default function RelatorioCte() {
             });
             y += Math.ceil(kpis.length / colKpi) * (hKpi + 2) + 4;
 
-            // Ociosidade por turno (tabela)
+            // Ociosidade por turno — 3 cards lado a lado (visual igual ao painel)
+            if (y > 240) { doc.addPage(); y = 14; }
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(30, 41, 59);
             doc.text('Ociosidade por turno', margemX, y);
             y += 5;
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
-            for (const turno of TURNOS) {
+            const coresTurnoOci = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Hora Extra': [239, 68, 68] };
+            const wOci = larguraUtil / TURNOS.length;
+            const hOci = 26;
+            TURNOS.forEach((turno, i) => {
                 const d = ociosidadePorTurno[turno] || {};
                 const max = d.max_gap_horas !== null && d.max_gap_horas !== undefined ? formatHoras(d.max_gap_horas) : '—';
                 const med = d.media_gap_horas !== null && d.media_gap_horas !== undefined ? formatHoras(d.media_gap_horas) : '—';
-                doc.text(`${turno}: máx ${max} · médio ${med} · ${d.total || 0} CT-es`, margemX + 2, y);
-                y += 4;
-            }
-            y += 4;
+                const cx = margemX + i * wOci;
+                const c = coresTurnoOci[turno] || [100, 116, 139];
+                // Fundo do card
+                doc.setFillColor(248, 250, 252);
+                doc.setDrawColor(230, 232, 240);
+                doc.roundedRect(cx + 1, y, wOci - 2, hOci, 2, 2, 'FD');
+                // Barra lateral colorida
+                doc.setFillColor(c[0], c[1], c[2]);
+                doc.rect(cx + 1, y, 1.2, hOci, 'F');
+                // Título do turno + contagem de CT-es
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(8);
+                doc.setTextColor(c[0], c[1], c[2]);
+                doc.text(turno.toUpperCase(), cx + 5, y + 5);
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7);
+                doc.setTextColor(100, 116, 139);
+                doc.text(`${d.total || 0} CT-es`, cx + 5, y + 9);
+                // MÁX
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.5);
+                doc.setTextColor(100, 116, 139);
+                doc.text('MÁX', cx + 5, y + 14);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(30, 41, 59);
+                doc.text(max, cx + 5, y + 21);
+                // MÉDIO (segunda coluna do card)
+                const cxMed = cx + wOci / 2;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.5);
+                doc.setTextColor(100, 116, 139);
+                doc.text('MÉDIO', cxMed, y + 14);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                doc.setTextColor(71, 85, 105);
+                doc.text(med, cxMed, y + 21);
+            });
+            y += hOci + 6;
 
             // Por turno (cards com qtd + %)
             if (dadosPorTurno.some(t => t.quantidade > 0)) {
