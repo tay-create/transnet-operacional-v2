@@ -313,7 +313,51 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
     const { nearestNeighbor } = require('./roteirizador');
     const ordenados = nearestNeighbor([origemGeo, ...destinosGeo], matriz);
 
-    return { rota, destinos_json: JSON.stringify(ordenados), origem_rota, aviso: null };
+    // Inversão final: regra operacional é começar pelo destino mais distante.
+    // OSRM otimiza a ordem geográfica (vizinho mais próximo) e depois invertemos
+    // pra que o último ponto da otimização vire o primeiro a entregar.
+    // Recalcula distancia_do_anterior/duracao_do_anterior pra refletir a nova ordem
+    // (saindo da origem -> primeira nova parada -> ... -> última nova parada).
+    const invertidos = inverterERecalcular(ordenados, [origemGeo, ...destinosGeo], matriz);
+
+    return { rota, destinos_json: JSON.stringify(invertidos), origem_rota, aviso: null };
+}
+
+// Inverte a ordem de `ordenados` (saída do nearestNeighbor) e recalcula
+// distancia_do_anterior/duracao_do_anterior baseado na matriz OSRM completa.
+// `pontos` tem origem em [0] e destinos em [1..N]. A correspondência entre os
+// objetos invertidos e a posição na matriz é feita por `cidade_uf` (único).
+function inverterERecalcular(ordenados, pontos, matriz) {
+    if (!Array.isArray(ordenados) || ordenados.length === 0) return ordenados || [];
+    const idxPorChave = new Map();
+    for (let i = 0; i < pontos.length; i++) {
+        const k = pontos[i]?.cidade_uf;
+        if (k) idxPorChave.set(k, i);
+    }
+    const seq = [...ordenados].reverse();
+    const out = [];
+    // anterior começa em 0 (origem). Pra cada destino na nova ordem, pega
+    // distancia/duração da matriz entre o anterior e o atual.
+    let idxAnterior = 0;
+    for (let i = 0; i < seq.length; i++) {
+        const d = seq[i];
+        const idxAtual = idxPorChave.get(d.cidade_uf);
+        let distancia = null;
+        let duracao = null;
+        if (typeof idxAtual === 'number') {
+            const par = matriz?.[idxAnterior]?.[idxAtual];
+            distancia = par?.distancia_metros ?? null;
+            duracao = par?.duracao_segundos ?? null;
+        }
+        out.push({
+            ...d,
+            ordem: i + 1,
+            distancia_do_anterior: distancia,
+            duracao_do_anterior: duracao,
+        });
+        if (typeof idxAtual === 'number') idxAnterior = idxAtual;
+    }
+    return out;
 }
 
 // Busca entregas agendadas de uma coleta na planilha. Diferente de buscarRotaPorColeta
@@ -413,4 +457,5 @@ module.exports = {
     determinarOrigem,
     mesmoConjuntoDestinos,
     gerarRota,
+    inverterERecalcular,
 };
