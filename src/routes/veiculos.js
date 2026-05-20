@@ -25,6 +25,7 @@ function extrairNumerosColeta(str) {
 module.exports = function createVeiculosRouter(io, registrarLog, getResultadoSheetIdFn) {
     const router = express.Router();
     const { gerarRota } = require('../utils/geradorRotas');
+    const sheetsWriter = require('../utils/sheetsWriter');
 
     router.get('/veiculos', authMiddleware, asyncHandler(async (req, res) => {
             const __t0 = Date.now();
@@ -700,6 +701,71 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             );
 
             io.emit('receber_atualizacao', { tipo: 'novo_veiculo', dados: novo });
+
+            // Sincronizar com a planilha DELTA-PORCELANA (fire-and-forget, não bloqueia resposta)
+            const rotaR = recarregado?.rota_recife || v.rotaRecife || '';
+            const rotaM = recarregado?.rota_moreno || v.rotaMoreno || '';
+            const dataPrevistaIso = v.data_prevista || null;
+            const motoristaTrim = (v.motorista || '').trim();
+
+            const paresColeta = [];
+            const paresMotorista = [];
+
+            // Caso consolidado: as duas coletas vão na MESMA rota (P+P, Recife e Moreno casam na planilha DELTA).
+            if (rotaR && rotaM && rotaR === rotaM) {
+                const coletasJuntas = [v.coletaRecife, v.coletaMoreno]
+                    .map(c => String(c || '').trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').replace(/^0+/, ''))
+                    .filter(Boolean);
+                if (coletasJuntas.length > 0) {
+                    paresColeta.push({ rota: rotaR, coletas: coletasJuntas, dataPrevista: dataPrevistaIso });
+                    if (motoristaTrim) {
+                        paresMotorista.push({ rota: rotaR, coleta: coletasJuntas[0], motorista: motoristaTrim });
+                    }
+                }
+            } else {
+                if (rotaR && v.coletaRecife) {
+                    const cR = String(v.coletaRecife).trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').replace(/^0+/, '');
+                    if (cR) {
+                        paresColeta.push({ rota: rotaR, coletas: [cR], dataPrevista: dataPrevistaIso });
+                        if (motoristaTrim) paresMotorista.push({ rota: rotaR, coleta: cR, motorista: motoristaTrim });
+                    }
+                }
+                if (rotaM && v.coletaMoreno) {
+                    const cM = String(v.coletaMoreno).trim().replace(/^(PLAS|PORC|ELET):\s*/i, '').replace(/^0+/, '');
+                    if (cM) {
+                        paresColeta.push({ rota: rotaM, coletas: [cM], dataPrevista: dataPrevistaIso });
+                        if (motoristaTrim) paresMotorista.push({ rota: rotaM, coleta: cM, motorista: motoristaTrim });
+                    }
+                }
+            }
+
+            if (paresColeta.length > 0) {
+                sheetsWriter.inserirColetaNaRotaSeVazia(paresColeta)
+                    .then(r => {
+                        if (r.avisos && r.avisos.length > 0) {
+                            console.warn('[POST /veiculos → planilha] avisos coleta:', r.avisos);
+                            io.emit('receber_atualizacao', { tipo: 'planilha_aviso_coleta_diff', avisos: r.avisos });
+                        }
+                        if (r.inseridas && r.inseridas.length > 0) {
+                            console.log('[POST /veiculos → planilha] inseridas:', r.inseridas);
+                        }
+                    })
+                    .catch(e => console.error('[POST /veiculos → planilha] inserirColeta erro:', e.message));
+            }
+            if (paresMotorista.length > 0) {
+                sheetsWriter.escreverMotoristaNaPlanilha(paresMotorista)
+                    .then(r => {
+                        if (r.substituicoes && r.substituicoes.length > 0) {
+                            console.warn('[POST /veiculos → planilha] substituicoes motorista:', r.substituicoes);
+                            io.emit('receber_atualizacao', { tipo: 'planilha_aviso_motorista_diff', substituicoes: r.substituicoes });
+                        }
+                        if (r.escritas && r.escritas.length > 0) {
+                            console.log('[POST /veiculos → planilha] motorista escrito em:', r.escritas);
+                        }
+                    })
+                    .catch(e => console.error('[POST /veiculos → planilha] escreverMotorista erro:', e.message));
+            }
+
             res.json({ success: true, id: result.lastID, aviso_rota: avisoRota, rotas_duplicadas: rotasDuplicadasPlanilha });
         }));
     router.put('/veiculos/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento', 'Encarregado', 'Aux. Operacional', 'Conhecimento', 'Cadastro']), asyncHandler(async (req, res) => {
@@ -1438,6 +1504,37 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                         cidade: mudouParaDocaRecife ? 'Recife' : 'Moreno'
                     });
                 }
+            }
+
+            // Atualizar motorista na col AE da planilha quando ele muda (fire-and-forget).
+            // Pular se o card não tem rota cadastrada ou se motorista vazio.
+            try {
+                const motoristaAntigo = (veiculoAntigo?.motorista || '').trim();
+                const motoristaNovo = (v.motorista || '').trim();
+                if (motoristaNovo && motoristaNovo !== motoristaAntigo) {
+                    const rotaR = veiculoAntigo?.rota_recife || '';
+                    const rotaM = veiculoAntigo?.rota_moreno || '';
+                    const coletaR = String(veiculoAntigo?.coletaRecife || '').replace(/^(PLAS|PORC|ELET):\s*/i, '').replace(/^0+/, '').trim();
+                    const coletaM = String(veiculoAntigo?.coletaMoreno || '').replace(/^(PLAS|PORC|ELET):\s*/i, '').replace(/^0+/, '').trim();
+                    const paresMotorista = [];
+                    if (rotaR && coletaR) paresMotorista.push({ rota: rotaR, coleta: coletaR, motorista: motoristaNovo });
+                    if (rotaM && coletaM && rotaM !== rotaR) paresMotorista.push({ rota: rotaM, coleta: coletaM, motorista: motoristaNovo });
+                    if (paresMotorista.length > 0) {
+                        sheetsWriter.escreverMotoristaNaPlanilha(paresMotorista)
+                            .then(r => {
+                                if (r.substituicoes && r.substituicoes.length > 0) {
+                                    console.warn('[PUT /veiculos → planilha] substituicoes motorista:', r.substituicoes);
+                                    io.emit('receber_atualizacao', { tipo: 'planilha_aviso_motorista_diff', substituicoes: r.substituicoes });
+                                }
+                                if (r.escritas && r.escritas.length > 0) {
+                                    console.log('[PUT /veiculos → planilha] motorista escrito em:', r.escritas);
+                                }
+                            })
+                            .catch(e => console.error('[PUT /veiculos → planilha] escreverMotorista erro:', e.message));
+                    }
+                }
+            } catch (e) {
+                console.error('[PUT /veiculos → planilha] erro ao preparar motorista:', e.message);
             }
 
             res.json({ success: true });
