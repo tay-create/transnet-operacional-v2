@@ -3239,6 +3239,96 @@ cron.schedule('30 22 * * *', async () => {
 }, { scheduled: true, timezone: 'America/Sao_Paulo' });
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── CRON 04:00 — Marca "x" em P (col C) das coletas do dia ────────────────────
+// Lê cards do painel operacional cuja data_prevista é hoje e status ainda ativo.
+// Pra cada linha da DELTA-PORCELANA cuja coleta está em algum desses cards:
+//   - Se col B (R) já tem "x" → NÃO mexer (foi reprogramado antes).
+//   - Se col C (P) já tem "x" → idempotente, nada.
+//   - Caso contrário → escrever "x" em C.
+// Roda todo dia (seg-dom). Domingo geralmente não tem cards; trata vazio sem erro.
+async function marcarProgramadasNaPlanilha() {
+    try {
+        const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const cards = await dbAll(`
+            SELECT id, coletaRecife, coletaMoreno, rota_recife, rota_moreno,
+                   status_recife, status_moreno, data_prevista,
+                   data_prevista_recife, data_prevista_moreno
+            FROM veiculos
+            WHERE (LEFT(COALESCE(data_prevista,''), 10) = $1
+                OR LEFT(COALESCE(data_prevista_recife,''), 10) = $1
+                OR LEFT(COALESCE(data_prevista_moreno,''), 10) = $1)
+              AND NOT (
+                COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+              )
+        `, [hojeStr]);
+
+        const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
+            .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+            .filter(Boolean);
+        const coletas = new Set();
+        for (const c of cards) {
+            extrairNums(c.coletaRecife).forEach(n => coletas.add(n));
+            extrairNums(c.coletaMoreno).forEach(n => coletas.add(n));
+        }
+        if (coletas.size === 0) {
+            console.log(`[CRON-MARCAR-P] ${hojeStr} — 0 coletas ativas, nada a fazer.`);
+            return { marcadas: 0, total: 0 };
+        }
+
+        const { sheetId } = await getResultadoSheetId();
+        const auth = new google.auth.GoogleAuth({
+            keyFile: path.join(__dirname, 'google-credentials.json'),
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        const resp = await sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: `'DELTA-PORCELANA'!B9:E730`,
+        });
+        const rows = resp.data.values || [];
+        const updates = [];
+        rows.forEach((row, idx) => {
+            if (idx === 0) return; // header
+            const colB = (row[0] || '').toString().trim().toLowerCase();
+            const colC = (row[1] || '').toString().trim().toLowerCase();
+            const coleta = row[3] || '';
+            if (!coleta) return;
+            if (colB === 'x') return; // reprogramado: não toca
+            if (colC === 'x') return; // já programado: idempotente
+            const nums = extrairNums(coleta);
+            if (!nums.some(n => coletas.has(n))) return;
+            updates.push({ range: `'DELTA-PORCELANA'!C${idx + 9}`, values: [['x']] });
+        });
+
+        if (updates.length > 0) {
+            await sheets.spreadsheets.values.batchUpdate({
+                spreadsheetId: sheetId,
+                requestBody: { valueInputOption: 'RAW', data: updates },
+            });
+        }
+        console.log(`[CRON-MARCAR-P] ${hojeStr} — ${updates.length} linha(s) marcada(s) em P. Coletas ativas: ${coletas.size}.`);
+        return { marcadas: updates.length, total: coletas.size, hoje: hojeStr };
+    } catch (e) {
+        console.error('[CRON-MARCAR-P] Erro:', e.message);
+        throw e;
+    }
+}
+
+cron.schedule('0 4 * * *', marcarProgramadasNaPlanilha, { scheduled: true, timezone: 'America/Recife' });
+
+// Endpoint manual pra testar o cron sem esperar 4h (Coordenador/Planejamento)
+app.post('/api/planilha/marcar-programadas-hoje', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    try {
+        const r = await marcarProgramadasNaPlanilha();
+        res.json({ success: true, ...r });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+}));
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ── Tramontina Dashboard ─────────────────────────────────────────────────────
 const { google } = require('googleapis');
 const TRAMONTINA_SHEET_ID = '1zhC6UdzEbOoX9CQOa4_HusEOvw2QudMEBWqwIHTsw8I';
