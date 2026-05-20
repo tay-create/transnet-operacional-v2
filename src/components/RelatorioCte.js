@@ -4,14 +4,15 @@ import {
     CartesianGrid, Cell, Legend
 } from 'recharts';
 import {
-    Filter, Calendar, FileText, Clock, FileDown, RefreshCw, MapPin,
-    TrendingUp, Activity, AlertTriangle, X,
+    Filter, Calendar, FileText, Clock, FileDown, RefreshCw,
+    TrendingUp, Activity, AlertTriangle, Zap, AlertCircle,
 } from 'lucide-react';
 import { obterDataBrasilia } from '../utils/helpers';
 import api from '../services/apiService';
 
-const TURNOS = ['Manhã', 'Tarde', 'Noite'];
-const CORES_TURNO = { 'Manhã': '#f59e0b', 'Tarde': '#3b82f6', 'Noite': '#8b5cf6' };
+// Turnos pela janela operacional 07:30–17:18 seg-sex (resto = Hora Extra)
+const TURNOS = ['Manhã', 'Tarde', 'Hora Extra'];
+const CORES_TURNO = { 'Manhã': '#f59e0b', 'Tarde': '#3b82f6', 'Hora Extra': '#ef4444' };
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function formatHoras(h) {
@@ -38,20 +39,14 @@ const glassCard = {
     backdropFilter: 'blur(12px)',
 };
 
-function KpiCard({ icon, label, valor, cor, onClick, ativo }) {
-    const clicavel = typeof onClick === 'function';
+function KpiCard({ icon, label, valor, sub, cor, tooltip }) {
     return (
         <div
-            onClick={clicavel ? onClick : undefined}
-            title={clicavel ? (ativo ? 'Clique para limpar filtro' : 'Clique para filtrar') : undefined}
+            title={tooltip || undefined}
             style={{
                 ...glassCard,
                 padding: '18px 16px',
                 display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0,
-                cursor: clicavel ? 'pointer' : 'default',
-                border: ativo ? `1px solid ${cor}` : glassCard.border,
-                boxShadow: ativo ? `0 0 0 2px ${cor}33` : 'none',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
             }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{
@@ -63,57 +58,54 @@ function KpiCard({ icon, label, valor, cor, onClick, ativo }) {
                 <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, letterSpacing: '0.3px', textTransform: 'uppercase' }}>
                     {label}
                 </span>
-                {ativo && (
-                    <span style={{
-                        marginLeft: 'auto', fontSize: 9, padding: '2px 6px',
-                        borderRadius: 6, background: `${cor}22`, color: cor, fontWeight: 700,
-                    }}>FILTRADO</span>
-                )}
             </div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: cor, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, color: cor, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
                 {valor}
             </div>
+            {sub && (
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '-2px' }}>
+                    {sub}
+                </div>
+            )}
         </div>
     );
 }
 
-function OciosidadeCard({ unidade, dados }) {
-    const maxH = dados?.max_gap_horas;
-    const gaps = dados?.gaps_acima_2h || 0;
-    const cor = maxH > 4 ? '#f87171' : maxH > 2 ? '#facc15' : '#4ade80';
-    const corUnidade = unidade === 'Recife' ? '#60a5fa' : '#a78bfa';
-
+function OciosidadeTurnoCard({ turno, dados }) {
+    const cor = CORES_TURNO[turno] || '#94a3b8';
+    const max = dados?.max_gap_horas;
+    const media = dados?.media_gap_horas;
+    const total = dados?.total || 0;
+    const tooltip = turno === 'Hora Extra'
+        ? 'Inclui almoço 12:00–13:00, antes de 07:30, depois de 17:18 e sábados/domingos inteiros.'
+        : null;
     return (
-        <div style={{
-            ...glassCard,
-            padding: '16px 20px',
-            borderLeft: `3px solid ${corUnidade}`,
-            display: 'flex', gap: '16px', alignItems: 'center',
-        }}>
-            <div style={{
-                width: '48px', height: '48px', borderRadius: '12px',
-                background: `${cor}18`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: cor, flexShrink: 0,
+        <div
+            title={tooltip || undefined}
+            style={{
+                ...glassCard,
+                padding: '16px 18px',
+                borderLeft: `3px solid ${cor}`,
+                display: 'flex', flexDirection: 'column', gap: '6px',
             }}>
-                <Activity size={24} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: cor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    {turno}
+                </span>
+                <span style={{ fontSize: '10px', color: '#64748b' }}>· {total} CT-es</span>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: corUnidade, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        {unidade}
-                    </span>
-                    <span style={{ fontSize: '9px', color: '#64748b' }}>· {dados?.total || 0} CT-es</span>
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                <div>
+                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Máx</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatHoras(max)}
+                    </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                    <span style={{ fontSize: '22px', fontWeight: 800, color: cor, fontVariantNumeric: 'tabular-nums' }}>
-                        {formatHoras(maxH)}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#64748b' }}>maior gap</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                    {gaps} gap{gaps !== 1 ? 's' : ''} acima de 2h
-                    {dados?.janela ? <span style={{ color: '#64748b', marginLeft: 6 }}>· {dados.janela}</span> : null}
+                <div>
+                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Médio</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatHoras(media)}
+                    </div>
                 </div>
             </div>
         </div>
@@ -130,13 +122,15 @@ export default function RelatorioCte() {
     const [dataFim, setDataFim] = useState(hoje);
     const [registros, setRegistros] = useState([]);
     const [heatmap, setHeatmap] = useState([]);
-    const [ociosidade, setOciosidade] = useState({});
+    const [ociosidade, setOciosidade] = useState({ porTurno: {} });
+    const [horaExtra, setHoraExtra] = useState(null);
+    const [gargalos, setGargalos] = useState(null);
     const [stats, setStats] = useState(null);
     const [carregando, setCarregando] = useState(false);
     const [exportandoPdf, setExportandoPdf] = useState(false);
     const [erro, setErro] = useState(null);
     const [aba, setAba] = useState('graficos');
-    const [unidadeFiltro, setUnidadeFiltro] = useState(null); // 'Recife' | 'Moreno' | null
+    const [unidadeFiltro, setUnidadeFiltro] = useState('Ambas'); // 'Ambas' | 'Recife' | 'Moreno'
 
     const buscar = useCallback(async () => {
         setCarregando(true);
@@ -145,9 +139,10 @@ export default function RelatorioCte() {
             const res = await api.get(`/api/relatorio/cte?de=${dataInicio}&ate=${dataFim}`);
             setRegistros(res.data.registros || []);
             setHeatmap(res.data.heatmap || []);
-            setOciosidade(res.data.ociosidade || {});
+            setOciosidade(res.data.ociosidade || { porTurno: {} });
+            setHoraExtra(res.data.horaExtra || null);
+            setGargalos(res.data.gargalos || null);
             setStats(res.data.stats || null);
-            setUnidadeFiltro(null);
         } catch (e) {
             console.error('Erro ao buscar relatório CT-e:', e);
             setErro(e?.response?.data?.message || e?.message || 'Falha ao carregar relatório.');
@@ -157,24 +152,13 @@ export default function RelatorioCte() {
     }, [dataInicio, dataFim]);
 
     const registrosFiltrados = useMemo(() => {
-        if (!unidadeFiltro) return registros;
+        if (unidadeFiltro === 'Ambas') return registros;
         return registros.filter(r => r.origem === unidadeFiltro);
     }, [registros, unidadeFiltro]);
 
-    const totaisPorUnidade = useMemo(() => {
-        let recife = 0;
-        let moreno = 0;
-        for (const r of registros) {
-            if (r.origem === 'Recife') recife++;
-            else if (r.origem === 'Moreno') moreno++;
-        }
-        return { recife, moreno };
-    }, [registros]);
-
-    // Stats recalculados client-side quando há filtro de unidade.
-    // Sem filtro, usa stats do servidor (cálculo idêntico).
+    // Stats: usa server quando "Ambas"; recalcula client-side quando filtra unidade.
     const statsFiltradas = useMemo(() => {
-        if (!unidadeFiltro) {
+        if (unidadeFiltro === 'Ambas') {
             return { media: stats?.media ?? null, mediana: stats?.mediana ?? null };
         }
         const tempos = registrosFiltrados
@@ -190,13 +174,14 @@ export default function RelatorioCte() {
         };
     }, [unidadeFiltro, registrosFiltrados, stats]);
 
+    const horaExtraEscopo = horaExtra?.[unidadeFiltro] || { total: 0, percentual: 0 };
+    const gargalosEscopo = gargalos?.[unidadeFiltro] || { totalGapsAcima2h: 0, maiorGap: null, mediaGap: null };
+
     const resumo = useMemo(() => ({
         total: registrosFiltrados.length,
         media: statsFiltradas.media,
         mediana: statsFiltradas.mediana,
-        recife: totaisPorUnidade.recife,
-        moreno: totaisPorUnidade.moreno,
-    }), [registrosFiltrados, statsFiltradas, totaisPorUnidade]);
+    }), [registrosFiltrados, statsFiltradas]);
 
     const dadosPorDia = useMemo(() => {
         const mapa = {};
@@ -213,7 +198,9 @@ export default function RelatorioCte() {
     }, [registrosFiltrados]);
 
     const dadosPorTurno = useMemo(() => {
-        const acc = { 'Manhã': { qtd: 0, soma: 0, com: 0 }, 'Tarde': { qtd: 0, soma: 0, com: 0 }, 'Noite': { qtd: 0, soma: 0, com: 0 } };
+        const total = registrosFiltrados.length;
+        const acc = {};
+        for (const t of TURNOS) acc[t] = { qtd: 0, soma: 0, com: 0 };
         for (const r of registrosFiltrados) {
             const t = r.turno;
             if (!acc[t]) continue;
@@ -226,13 +213,14 @@ export default function RelatorioCte() {
         return TURNOS.map(t => ({
             turno: t,
             quantidade: acc[t].qtd,
+            percentual: total > 0 ? parseFloat((acc[t].qtd / total * 100).toFixed(1)) : 0,
             media_horas: acc[t].com > 0 ? parseFloat((acc[t].soma / acc[t].com).toFixed(1)) : 0,
         }));
     }, [registrosFiltrados]);
 
-    // Heatmap: quando há filtro, recalcula client-side; sem filtro, usa o agregado do servidor.
+    // Heatmap: client-side quando filtra unidade; server-side quando Ambas
     const heatmapFiltrado = useMemo(() => {
-        if (!unidadeFiltro) return heatmap;
+        if (unidadeFiltro === 'Ambas') return heatmap;
         const acc = {};
         for (const r of registrosFiltrados) {
             if (r.dow_recife == null || r.hora_recife == null) continue;
@@ -262,10 +250,14 @@ export default function RelatorioCte() {
     const heatmapMax = useMemo(() => Math.max(1, ...heatmapMatrix.flat()), [heatmapMatrix]);
     const horasVisiveis = Array.from({ length: 17 }, (_, i) => i + 6);
 
-    // Ociosidade filtrada: quando há filtro, mostra só a unidade
-    const ociosidadeFiltrada = useMemo(() => {
-        if (!unidadeFiltro) return ociosidade;
-        return { [unidadeFiltro]: ociosidade?.[unidadeFiltro] };
+    // Ociosidade por turno (escopo de unidade aplicado)
+    const ociosidadePorTurno = useMemo(() => {
+        const porTurno = ociosidade?.porTurno || {};
+        const out = {};
+        for (const t of TURNOS) {
+            out[t] = porTurno?.[t]?.[unidadeFiltro] || { max_gap_horas: null, media_gap_horas: null, total: 0 };
+        }
+        return out;
     }, [ociosidade, unidadeFiltro]);
 
     async function exportarPDF() {
@@ -290,20 +282,21 @@ export default function RelatorioCte() {
             doc.setFontSize(9);
             doc.setTextColor(100, 116, 139);
             const periodo = `Período: ${dataInicio.split('-').reverse().join('/')} a ${dataFim.split('-').reverse().join('/')}`;
-            const filtroTxt = unidadeFiltro ? ` · Unidade: ${unidadeFiltro}` : ' · Recife + Moreno';
+            const filtroTxt = ` · Unidade: ${unidadeFiltro}`;
             doc.text(periodo + filtroTxt, margemX, y);
             y += 2;
             doc.setDrawColor(220, 226, 232);
             doc.line(margemX, y, W - margemX, y);
             y += 6;
 
-            // KPI grid (sem P90) — oculta a unidade que não está no filtro
+            // KPI grid
             const kpis = [
                 { label: 'Total emitidos', valor: String(resumo.total), cor: [250, 204, 21] },
                 { label: 'Tempo médio', valor: formatHoras(resumo.media), cor: [96, 165, 250] },
                 { label: 'Mediana', valor: formatHoras(resumo.mediana), cor: [34, 211, 238] },
-                ...(unidadeFiltro !== 'Moreno' ? [{ label: 'Recife', valor: String(resumo.recife), cor: [96, 165, 250] }] : []),
-                ...(unidadeFiltro !== 'Recife' ? [{ label: 'Moreno', valor: String(resumo.moreno), cor: [167, 139, 250] }] : []),
+                { label: 'Hora Extra', valor: `${horaExtraEscopo.total} (${horaExtraEscopo.percentual}%)`, cor: [239, 68, 68] },
+                { label: 'Maior gap', valor: formatHoras(gargalosEscopo.maiorGap), cor: [251, 146, 60] },
+                { label: 'Gaps > 2h', valor: String(gargalosEscopo.totalGapsAcima2h), cor: [248, 113, 113] },
             ];
             const colKpi = 3;
             const wKpi = larguraUtil / colKpi;
@@ -319,86 +312,31 @@ export default function RelatorioCte() {
                 doc.setTextColor(100, 116, 139);
                 doc.text(k.label.toUpperCase(), cx + 4, cy + 5);
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(14);
+                doc.setFontSize(13);
                 doc.setTextColor(k.cor[0], k.cor[1], k.cor[2]);
                 doc.text(k.valor, cx + 4, cy + 14);
             });
             y += Math.ceil(kpis.length / colKpi) * (hKpi + 2) + 4;
 
-            // Ociosidade
-            const ociRecife = ociosidadeFiltrada?.Recife;
-            const ociMoreno = ociosidadeFiltrada?.Moreno;
-            if (ociRecife || ociMoreno) {
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.setTextColor(30, 41, 59);
-                doc.text('Gargalos (horário comercial seg-sex 6h-22h)', margemX, y);
-                y += 5;
-                doc.setFontSize(8);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(71, 85, 105);
-                const linhasOciosidade = [
-                    ...(unidadeFiltro !== 'Moreno' && ociRecife ? [['Recife', ociRecife]] : []),
-                    ...(unidadeFiltro !== 'Recife' && ociMoreno ? [['Moreno', ociMoreno]] : []),
-                ];
-                for (const [unidade, dados] of linhasOciosidade) {
-                    const gap = dados.max_gap_horas !== null && dados.max_gap_horas !== undefined ? formatHoras(dados.max_gap_horas) : '—';
-                    doc.text(`${unidade}: maior gap ${gap} · ${dados.gaps_acima_2h || 0} acima de 2h · ${dados.total || 0} CT-es`, margemX + 2, y);
-                    y += 4;
-                }
-                y += 3;
-            }
-
-            // CT-es por dia
-            if (dadosPorDia.length > 0) {
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.setTextColor(30, 41, 59);
-                doc.text('CT-es por dia', margemX, y);
+            // Ociosidade por turno (tabela)
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.setTextColor(30, 41, 59);
+            doc.text('Ociosidade por turno', margemX, y);
+            y += 5;
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(71, 85, 105);
+            for (const turno of TURNOS) {
+                const d = ociosidadePorTurno[turno] || {};
+                const max = d.max_gap_horas !== null && d.max_gap_horas !== undefined ? formatHoras(d.max_gap_horas) : '—';
+                const med = d.media_gap_horas !== null && d.media_gap_horas !== undefined ? formatHoras(d.media_gap_horas) : '—';
+                doc.text(`${turno}: máx ${max} · médio ${med} · ${d.total || 0} CT-es`, margemX + 2, y);
                 y += 4;
-                const grafW = larguraUtil;
-                const linhaH = 4;
-                const mostraRecife = unidadeFiltro !== 'Moreno';
-                const mostraMoreno = unidadeFiltro !== 'Recife';
-                const maxDia = Math.max(1, ...dadosPorDia.map(d =>
-                    (mostraRecife ? (d.Recife || 0) : 0) + (mostraMoreno ? (d.Moreno || 0) : 0)
-                ));
-                const labelW = 14;
-                const barW = grafW - labelW;
-                dadosPorDia.forEach((d, i) => {
-                    const by = y + i * linhaH;
-                    doc.setFontSize(6);
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(d.data, margemX, by + 3);
-                    const totRec = mostraRecife ? (d.Recife || 0) : 0;
-                    const totMor = mostraMoreno ? (d.Moreno || 0) : 0;
-                    const wRec = (totRec / maxDia) * barW;
-                    const wMor = (totMor / maxDia) * barW;
-                    if (mostraRecife) {
-                        doc.setFillColor(59, 130, 246);
-                        doc.rect(margemX + labelW, by, wRec, linhaH - 1, 'F');
-                    }
-                    if (mostraMoreno) {
-                        doc.setFillColor(139, 92, 246);
-                        doc.rect(margemX + labelW + wRec, by, wMor, linhaH - 1, 'F');
-                    }
-                });
-                y += dadosPorDia.length * linhaH + 4;
-                // Legenda — só quando ambas unidades estão visíveis
-                if (mostraRecife && mostraMoreno) {
-                    doc.setFontSize(7);
-                    doc.setFillColor(59, 130, 246);
-                    doc.rect(margemX, y, 3, 3, 'F');
-                    doc.setTextColor(71, 85, 105);
-                    doc.text('Recife', margemX + 5, y + 2.5);
-                    doc.setFillColor(139, 92, 246);
-                    doc.rect(margemX + 22, y, 3, 3, 'F');
-                    doc.text('Moreno', margemX + 27, y + 2.5);
-                    y += 7;
-                }
             }
+            y += 4;
 
-            // Por turno
+            // Por turno (cards com qtd + %)
             if (dadosPorTurno.some(t => t.quantidade > 0)) {
                 if (y > 250) { doc.addPage(); y = 14; }
                 doc.setFont('helvetica', 'bold');
@@ -407,31 +345,31 @@ export default function RelatorioCte() {
                 doc.text('Por turno', margemX, y);
                 y += 5;
                 const wCol = larguraUtil / 3;
-                const coresTurno = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Noite': [139, 92, 246] };
+                const coresTurnoRgb = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Hora Extra': [239, 68, 68] };
                 dadosPorTurno.forEach((t, i) => {
                     const cx = margemX + i * wCol;
-                    const c = coresTurno[t.turno] || [100, 116, 139];
+                    const c = coresTurnoRgb[t.turno] || [100, 116, 139];
                     doc.setFillColor(248, 250, 252);
                     doc.setDrawColor(c[0], c[1], c[2]);
-                    doc.roundedRect(cx + 1, y, wCol - 2, 18, 2, 2, 'FD');
+                    doc.roundedRect(cx + 1, y, wCol - 2, 20, 2, 2, 'FD');
                     doc.setFontSize(8);
                     doc.setTextColor(c[0], c[1], c[2]);
                     doc.setFont('helvetica', 'bold');
                     doc.text(t.turno.toUpperCase(), cx + 4, y + 5);
                     doc.setFontSize(13);
                     doc.setTextColor(30, 41, 59);
-                    doc.text(String(t.quantidade), cx + 4, y + 12);
+                    doc.text(`${t.quantidade} (${t.percentual}%)`, cx + 4, y + 13);
                 });
-                y += 22;
+                y += 24;
             }
 
-            // Heatmap
+            // Mapa de Calor CT-e
             if (picoHeatmap) {
                 if (y > 220) { doc.addPage(); y = 14; }
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(10);
                 doc.setTextColor(30, 41, 59);
-                doc.text('Horários de pico', margemX, y);
+                doc.text('Mapa de Calor CT-e', margemX, y);
                 y += 5;
                 const cellW = (larguraUtil - 8) / horasVisiveis.length;
                 const cellH = 4.5;
@@ -479,7 +417,7 @@ export default function RelatorioCte() {
             const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' });
             doc.text(`Gerado em ${geradoEm} · Transnet`, margemX, 290);
 
-            const nomeArquivo = `relatorio_cte_${dataInicio}_${dataFim}${unidadeFiltro ? `_${unidadeFiltro}` : ''}.pdf`;
+            const nomeArquivo = `relatorio_cte_${dataInicio}_${dataFim}_${unidadeFiltro}.pdf`;
             doc.save(nomeArquivo);
         } catch (e) {
             console.error('Erro ao gerar PDF:', e);
@@ -518,7 +456,7 @@ export default function RelatorioCte() {
                         Relatório CT-e
                     </h2>
                     <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                        Tempo de emissão · Recife × Moreno · Horários de pico · Ociosidade
+                        Tempo de emissão · Horários de pico · Ociosidade por turno
                     </p>
                 </div>
             </div>
@@ -541,6 +479,16 @@ export default function RelatorioCte() {
                         <Calendar size={10} /> Até
                     </label>
                     <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} style={inputStyle} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <Filter size={10} /> Unidade
+                    </label>
+                    <select value={unidadeFiltro} onChange={e => setUnidadeFiltro(e.target.value)} style={inputStyle}>
+                        <option value="Ambas">Ambas as unidades</option>
+                        <option value="Recife">Recife</option>
+                        <option value="Moreno">Moreno</option>
+                    </select>
                 </div>
                 <button
                     onClick={buscar}
@@ -579,12 +527,10 @@ export default function RelatorioCte() {
             {erro && !carregando && (
                 <div style={{
                     ...glassCard,
-                    padding: '16px 20px',
-                    marginBottom: '20px',
+                    padding: '16px 20px', marginBottom: '20px',
                     background: 'rgba(239,68,68,0.08)',
                     border: '1px solid rgba(239,68,68,0.3)',
-                    color: '#fca5a5',
-                    fontSize: '13px',
+                    color: '#fca5a5', fontSize: '13px',
                     display: 'flex', alignItems: 'center', gap: '10px',
                 }}>
                     <AlertTriangle size={16} /> {erro}
@@ -603,75 +549,55 @@ export default function RelatorioCte() {
 
             {temDados && (
                 <>
-                    {/* KPI Cards — Recife/Moreno clicáveis filtram o restante */}
+                    {/* KPIs principais */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                         <KpiCard icon={<FileText size={16} />} label="Total emitidos" valor={resumo.total} cor="#facc15" />
                         <KpiCard icon={<Clock size={16} />} label="Tempo médio" valor={formatHoras(resumo.media)} cor="#60a5fa" />
                         <KpiCard icon={<Clock size={16} />} label="Mediana" valor={formatHoras(resumo.mediana)} cor="#22d3ee" />
-                        {unidadeFiltro !== 'Moreno' && (
-                            <KpiCard
-                                icon={<MapPin size={16} />} label="Recife" valor={resumo.recife} cor="#60a5fa"
-                                ativo={unidadeFiltro === 'Recife'}
-                                onClick={() => setUnidadeFiltro(prev => prev === 'Recife' ? null : 'Recife')}
-                            />
-                        )}
-                        {unidadeFiltro !== 'Recife' && (
-                            <KpiCard
-                                icon={<MapPin size={16} />} label="Moreno" valor={resumo.moreno} cor="#a78bfa"
-                                ativo={unidadeFiltro === 'Moreno'}
-                                onClick={() => setUnidadeFiltro(prev => prev === 'Moreno' ? null : 'Moreno')}
-                            />
-                        )}
+                        <KpiCard
+                            icon={<Zap size={16} />}
+                            label="Hora Extra"
+                            valor={horaExtraEscopo.total}
+                            sub={`${horaExtraEscopo.percentual}% do total`}
+                            cor="#ef4444"
+                            tooltip="Inclui almoço 12:00–13:00, antes de 07:30, depois de 17:18 e sábados/domingos inteiros."
+                        />
+                        <KpiCard
+                            icon={<AlertCircle size={16} />}
+                            label="Maior gap"
+                            valor={formatHoras(gargalosEscopo.maiorGap)}
+                            sub={`médio: ${formatHoras(gargalosEscopo.mediaGap)}`}
+                            cor="#fb923c"
+                        />
+                        <KpiCard
+                            icon={<AlertTriangle size={16} />}
+                            label="Gaps > 2h"
+                            valor={gargalosEscopo.totalGapsAcima2h}
+                            cor="#f87171"
+                        />
                     </div>
 
-                    {unidadeFiltro && (
+                    {/* Ociosidade por turno */}
+                    <div style={{ marginBottom: '20px' }}>
                         <div style={{
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            padding: '8px 14px', marginBottom: '16px',
-                            background: 'rgba(59,130,246,0.08)',
-                            border: '1px solid rgba(59,130,246,0.25)',
-                            borderRadius: '10px',
-                            fontSize: '12px', color: '#93c5fd',
+                            fontSize: '10px', color: '#64748b', fontWeight: 700,
+                            textTransform: 'uppercase', letterSpacing: '0.8px',
+                            marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
                         }}>
-                            <Filter size={13} />
-                            Filtrando por <strong>{unidadeFiltro}</strong>
-                            <button
-                                onClick={() => setUnidadeFiltro(null)}
-                                style={{
-                                    marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px',
-                                    padding: '4px 10px', borderRadius: '6px',
-                                    background: 'transparent',
-                                    border: '1px solid rgba(147,197,253,0.4)',
-                                    color: '#bfdbfe', fontSize: '11px', fontWeight: 600,
-                                    cursor: 'pointer',
-                                }}>
-                                <X size={11} /> Limpar
-                            </button>
+                            <Activity size={12} /> Ociosidade por turno
                         </div>
-                    )}
-
-                    {/* Ociosidade */}
-                    {(ociosidadeFiltrada.Recife || ociosidadeFiltrada.Moreno) && (
-                        <div style={{ marginBottom: '20px' }}>
-                            <div style={{
-                                fontSize: '10px', color: '#64748b', fontWeight: 700,
-                                textTransform: 'uppercase', letterSpacing: '0.8px',
-                                marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
-                            }}>
-                                <AlertTriangle size={12} /> Ociosidade / Gargalos
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-                                {ociosidadeFiltrada.Recife && <OciosidadeCard unidade="Recife" dados={ociosidadeFiltrada.Recife} />}
-                                {ociosidadeFiltrada.Moreno && <OciosidadeCard unidade="Moreno" dados={ociosidadeFiltrada.Moreno} />}
-                            </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                            {TURNOS.map(t => (
+                                <OciosidadeTurnoCard key={t} turno={t} dados={ociosidadePorTurno[t]} />
+                            ))}
                         </div>
-                    )}
+                    </div>
 
-                    {/* Tabs (sem aba Tabela) */}
+                    {/* Tabs */}
                     <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '16px' }}>
                         {[
                             { id: 'graficos', label: 'Gráficos', icon: <TrendingUp size={12} /> },
-                            { id: 'heatmap', label: 'Heatmap', icon: <Activity size={12} /> },
+                            { id: 'heatmap', label: 'Mapa de Calor', icon: <Activity size={12} /> },
                         ].map(t => (
                             <button key={t.id} onClick={() => setAba(t.id)} style={tabStyle(aba === t.id)}>
                                 {t.icon} {t.label}
@@ -684,7 +610,7 @@ export default function RelatorioCte() {
                             {dadosPorDia.length > 0 && (
                                 <div style={{ ...glassCard, padding: '16px 20px' }}>
                                     <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <TrendingUp size={12} /> CT-es por dia {unidadeFiltro ? `— ${unidadeFiltro}` : '— Recife × Moreno'}
+                                        <TrendingUp size={12} /> CT-es por dia {unidadeFiltro !== 'Ambas' ? `— ${unidadeFiltro}` : '— Recife × Moreno'}
                                     </div>
                                     <ResponsiveContainer width="100%" height={240}>
                                         <BarChart data={dadosPorDia} margin={{ top: 10, right: 8, left: -16, bottom: 0 }}>
@@ -702,6 +628,9 @@ export default function RelatorioCte() {
                                             )}
                                         </BarChart>
                                     </ResponsiveContainer>
+                                    <div style={{ marginTop: 8, fontSize: 10, color: '#475569' }}>
+                                        Disponível apenas no painel. Não é incluído no PDF.
+                                    </div>
                                 </div>
                             )}
 
@@ -717,7 +646,10 @@ export default function RelatorioCte() {
                                         <Tooltip
                                             cursor={false}
                                             contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }}
-                                            formatter={(v, name) => [name === 'quantidade' ? `${v} CT-es` : `${v}h`, name === 'quantidade' ? 'Quantidade' : 'Tempo médio']} />
+                                            formatter={(v, name, props) => {
+                                                if (name === 'quantidade') return [`${v} CT-es (${props.payload.percentual}%)`, 'Quantidade'];
+                                                return [v, name];
+                                            }} />
                                         <Bar dataKey="quantidade" radius={[4, 4, 0, 0]}>
                                             {dadosPorTurno.map((entry, i) => <Cell key={i} fill={CORES_TURNO[entry.turno]} />)}
                                         </Bar>
@@ -732,6 +664,7 @@ export default function RelatorioCte() {
                                         }}>
                                             <div style={{ fontSize: '10px', fontWeight: 700, color: CORES_TURNO[t.turno], textTransform: 'uppercase' }}>{t.turno}</div>
                                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>{t.quantidade}</div>
+                                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{t.percentual}%</div>
                                         </div>
                                     ))}
                                 </div>
@@ -742,7 +675,7 @@ export default function RelatorioCte() {
                     {aba === 'heatmap' && (
                         <div style={{ ...glassCard, padding: '20px' }}>
                             <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Activity size={12} /> Horários de pico — dia da semana × hora
+                                <Activity size={12} /> Mapa de Calor CT-e — dia da semana × hora
                             </div>
 
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
