@@ -377,8 +377,10 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
         const uf = row.uf;
         const dataRaw = row.dataRaw;
         if (!cidade || !UFS_VALIDAS.has(uf)) continue;
-        const data = normalizarData(dataRaw);
-        if (!data) continue;
+        // Aceita entregas sem data — o modal usa a data conhecida das outras como
+        // sugestão padrão e o usuário pode editar/preencher. Antes, qualquer destino
+        // sem data fazia descartar a entrega inteira.
+        const data = normalizarData(dataRaw) || '';
 
         const chave = `${cidade}|${uf}|${data}`;
         if (dedup.has(chave)) continue;
@@ -394,7 +396,13 @@ async function buscarEntregasAgendadasPorColeta(coleta, sheetId) {
             entregas: [],
         };
     }
-    entregas.sort((a, b) => a.data.localeCompare(b.data));
+    // Ordena por data ascendente; entregas sem data vão no final.
+    entregas.sort((a, b) => {
+        if (!a.data && !b.data) return 0;
+        if (!a.data) return 1;
+        if (!b.data) return -1;
+        return a.data.localeCompare(b.data);
+    });
     return {
         encontrada: entregas.length > 0,
         rota: rotaDaColeta,

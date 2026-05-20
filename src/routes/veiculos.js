@@ -191,6 +191,35 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
             res.json({ success: true, veiculo });
         }));
 
+    // Helper: dado um número de coleta, retorna se há card ativo (não-finalizado) com essa coleta
+    // e qual a operação atual. Usado pelo modal de importação pra evitar perguntar SUL/MORENO
+    // em coletas ELETRIK que já têm card criado (operação já decidida em importação anterior).
+    router.get('/veiculos/operacao-por-coleta', authMiddleware, asyncHandler(async (req, res) => {
+        const num = String(req.query.coleta || '').trim().replace(/^0+/, '');
+        if (!num) return res.json({ success: true, exists: false });
+        // Procura em coletaRecife, coletaMoreno, coletaInterestadual, coleta, numero_coleta.
+        // Aceita match parcial (LIKE) pra casos de "ELET:123" e "PORC:123".
+        const row = await dbGet(`
+            SELECT id, operacao, coletaRecife, coletaMoreno, coletaInterestadual, status_recife, status_moreno
+              FROM veiculos
+             WHERE (
+                   coletaRecife LIKE '%' || $1 || '%'
+                OR coletaMoreno LIKE '%' || $1 || '%'
+                OR coletaInterestadual LIKE '%' || $1 || '%'
+                OR coleta LIKE '%' || $1 || '%'
+                OR numero_coleta LIKE '%' || $1 || '%'
+             )
+             AND NOT (
+                COALESCE(status_recife,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+                AND COALESCE(status_moreno,'') IN ('FINALIZADO','Despachado','Em Trânsito','Entregue')
+             )
+             ORDER BY id DESC
+             LIMIT 1
+        `, [num]);
+        if (!row) return res.json({ success: true, exists: false });
+        res.json({ success: true, exists: true, id: row.id, operacao: row.operacao });
+    }));
+
     router.post('/veiculos', authMiddleware, authorize(['Coordenador', 'Direção', 'Planejamento']), validate(novoLancamentoSchema), asyncHandler(async (req, res) => {
             const v = req.body;
             const data_criacao = obterDataHoraBrasilia();

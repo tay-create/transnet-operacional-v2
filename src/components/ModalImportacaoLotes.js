@@ -496,7 +496,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = async (ev) => {
             try {
                 const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
                 const ws = wb.Sheets[wb.SheetNames[0]];
@@ -544,15 +544,45 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 }
 
                 // PORCELANA/ELETRIK é sempre Moreno — só ELETRIK puro é ambíguo
-                const ambiguos = processados.filter(l => l.operacao === 'ELETRIK');
+                const ambiguosBruto = processados.filter(l => l.operacao === 'ELETRIK');
                 const semAmbiguidade = processados.filter(l => l.operacao !== 'ELETRIK');
 
-                if (ambiguos.length > 0) {
-                    setEletrikResolvidos(semAmbiguidade);
-                    setEletrikAtual(ambiguos[0]);
-                    setEletrikFila(ambiguos.slice(1));
+                // Reimportação: pra cada ELETRIK ambíguo, verifica se já existe card ativo
+                // com essa coleta. Se sim, herda a operação (SUL ou MORENO) e não pergunta.
+                const ambiguosFinais = [];
+                const autoResolvidos = [];
+                for (const item of ambiguosBruto) {
+                    const m = (item.coletaMoreno || '').match(/ELET:([^|]+)/i);
+                    const numColeta = (m ? m[1].trim() : (item.coletaMoreno || '')).replace(/^0+/, '');
+                    if (!numColeta) { ambiguosFinais.push(item); continue; }
+                    try {
+                        const r = await api.get(`/veiculos/operacao-por-coleta?coleta=${encodeURIComponent(numColeta)}`);
+                        if (r.data?.exists && r.data?.operacao) {
+                            const opAtual = String(r.data.operacao).toUpperCase();
+                            if (opAtual === 'ELETRIK SUL') {
+                                autoResolvidos.push({ ...item, operacao: 'ELETRIK SUL', coletaMoreno: '', coletaInterestadual: numColeta });
+                            } else if (opAtual.includes('ELETRIK') || opAtual.includes('MORENO')) {
+                                autoResolvidos.push({ ...item }); // mantém ELETRIK (Moreno)
+                            } else {
+                                ambiguosFinais.push(item);
+                            }
+                        } else {
+                            ambiguosFinais.push(item);
+                        }
+                    } catch (e) {
+                        console.warn('[ImportLotes] falha ao consultar operacao-por-coleta:', e?.message);
+                        ambiguosFinais.push(item);
+                    }
+                }
+
+                const resolvidosIniciais = [...semAmbiguidade, ...autoResolvidos];
+
+                if (ambiguosFinais.length > 0) {
+                    setEletrikResolvidos(resolvidosIniciais);
+                    setEletrikAtual(ambiguosFinais[0]);
+                    setEletrikFila(ambiguosFinais.slice(1));
                 } else {
-                    detectarSumidas(processados);
+                    detectarSumidas(resolvidosIniciais);
                 }
             } catch (err) {
                 mostrarNotificacao('❌ Erro ao ler o arquivo. Verifique o formato.');
