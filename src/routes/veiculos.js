@@ -412,8 +412,9 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                                 mudouData && 'data_prevista',
                             ].filter(Boolean).join(', ')}${deveResetar ? ' | Checklist resetado (motorista trocado, card pré-embarque)' : (mudouMotorista && jaEmbarcou ? ' | Checklist PRESERVADO (card já em carregamento)' : '')}`
                         );
-                        // Regenerar rota se a coleta atualizada não tem destinos ainda OU se os destinos podem ter mudado.
-                        // mesmoConjuntoDestinos garante que se a planilha já bate, não chama OSM.
+                        // Regenerar rota sempre na reimport. A função gerarRota não tem mais early return
+                        // quando destinos batem — toda chamada agora roda OSRM + inversão pra garantir
+                        // que a ordem ("destino mais distante primeiro") fique consistente em todos os cards.
                         try {
                             const cur = await dbGet(`SELECT destinos_json, operacao, rota_recife, rota_moreno FROM veiculos WHERE id = ?`, [existente.id]);
                             let destinosAtuais = null;

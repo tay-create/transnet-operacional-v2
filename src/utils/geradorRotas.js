@@ -269,11 +269,10 @@ async function gerarRota({ coleta, operacao, sheetId, destinosAtuais }) {
     const origem_rota = determinarOrigem(operacao);
     const { rota, destinos } = dadosPlanilha;
 
-    // Reaproveitamento: se destinos atuais batem com os novos, mantém a ordem que já existia.
-    if (destinosAtuais && mesmoConjuntoDestinos(destinosAtuais, destinos)) {
-        console.log(`[gerarRota] coleta ${coleta}: destinos iguais aos atuais, mantendo ordem existente`);
-        return { rota, destinos_json: JSON.stringify(destinosAtuais), origem_rota, aviso: null };
-    }
+    // Reimport sempre força regeração de rota (OSRM + inversão).
+    // Antes havia um early return quando destinos atuais batem com novos, mas isso
+    // mantinha a ordem antiga (pré-inversão) em cards já gravados. Agora sempre regenera
+    // pra garantir que toda rota fique no padrão "destino mais distante primeiro".
 
     // Geocoda origem + destinos
     const { geocode, tableMatrix } = require('./osmClient');
