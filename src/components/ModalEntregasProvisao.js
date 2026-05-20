@@ -46,7 +46,20 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
             .then(r => {
                 if (cancelado) return;
                 if (r.data?.encontrada && Array.isArray(r.data.entregas) && r.data.entregas.length > 0) {
-                    setEntradas(r.data.entregas.map(e => ({ cidade: e.cidade, uf: e.uf, data: e.data })));
+                    // Autopreenche entregas sem data usando a data mais comum entre as preenchidas.
+                    // Reduz trabalho do usuário quando a planilha tem 2 entregas e só 1 tem data.
+                    const datasPreenchidas = r.data.entregas.map(e => e.data).filter(Boolean);
+                    let dataPadrao = '';
+                    if (datasPreenchidas.length > 0) {
+                        const cont = {};
+                        datasPreenchidas.forEach(d => { cont[d] = (cont[d] || 0) + 1; });
+                        dataPadrao = Object.entries(cont).sort((a, b) => b[1] - a[1])[0][0];
+                    }
+                    setEntradas(r.data.entregas.map(e => ({
+                        cidade: e.cidade,
+                        uf: e.uf,
+                        data: e.data || dataPadrao,
+                    })));
                     setOrigemEntradas('planilha');
                     setRotaPlanilha(r.data.rota || null);
                 }
