@@ -2263,14 +2263,17 @@ app.get('/relatorios_cte', authMiddleware, authorize(['Coordenador', 'Planejamen
     res.json({ success: true, registros });
 }));
 
-// Relatório CT-e — histórico_liberacoes com métricas de tempo, turno, heatmap e ociosidade
+// Relatório CT-e — histórico_liberacoes com métricas de tempo, turno, heatmap e ociosidade.
 // Todos os cálculos temporais são normalizados para o fuso America/Recife.
+//
+// Janela operacional: 07:30–17:18 seg-sex. Tudo fora (almoço 12:00–13:00,
+// antes 07:30, depois 17:18, sábados e domingos inteiros) = "Hora Extra".
+// Turnos: Manhã 07:30–12:00, Tarde 13:00–17:18, Hora Extra = resto.
 app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planejamento', 'Encarregado', 'Conhecimento', 'Direção']), asyncHandler(async (req, res) => {
     const { de, ate } = req.query;
     if (!de || !ate) return res.status(400).json({ success: false, message: 'Parâmetros de e ate obrigatórios.' });
 
-        // Filtro normaliza datetime_cte para o fuso Recife antes de aplicar o range,
-        // para que "de=2026-05-01 até 2026-05-01" corresponda ao dia inteiro no fuso operacional.
+        // SELECT inclui dow_recife e minuto_do_dia_recife pra classificar turno em JS rápido (sem Intl em loop).
         const rows = await dbAll(`
             SELECT
                 hl.id, hl.motorista_nome, hl.num_coleta, hl.num_liberacao,
@@ -2280,6 +2283,8 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
                 EXTRACT(EPOCH FROM (hl.datetime_cte::timestamptz - v.data_criacao::timestamptz)) / 3600.0 AS horas_lancamento_cte,
                 EXTRACT(HOUR FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS hora_recife,
                 EXTRACT(DOW FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int AS dow_recife,
+                (EXTRACT(HOUR FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int * 60
+                 + EXTRACT(MINUTE FROM hl.datetime_cte::timestamptz AT TIME ZONE 'America/Recife')::int) AS minuto_do_dia_recife,
                 EXTRACT(EPOCH FROM hl.datetime_cte::timestamptz) AS epoch_cte
             FROM historico_liberacoes hl
             LEFT JOIN veiculos v ON v.id = hl.veiculo_id
@@ -2301,11 +2306,13 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             ORDER BY dia_semana, hora
         `, [de, ate]);
 
-        function turnoPorHora(h) {
-            if (h === null || h === undefined) return 'Indefinido';
-            if (h >= 6 && h < 12) return 'Manhã';
-            if (h >= 12 && h < 18) return 'Tarde';
-            return 'Noite';
+        // Classificação por janela operacional. 07:30 = 450 min, 12:00 = 720, 13:00 = 780, 17:18 = 1038.
+        // Sábado (6) e domingo (0) → tudo Hora Extra.
+        function classificarTurno(dow, minutoDoDia) {
+            if (dow === 0 || dow === 6) return 'Hora Extra';
+            if (minutoDoDia >= 450 && minutoDoDia < 720) return 'Manhã';
+            if (minutoDoDia >= 780 && minutoDoDia <= 1038) return 'Tarde';
+            return 'Hora Extra';
         }
 
         const registros = rows.map(row => ({
@@ -2320,71 +2327,102 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             destino_uf: row.destino_uf || '',
             destino_cidade: row.destino_cidade || '',
             operacao: row.operacao || '',
-            turno: turnoPorHora(row.hora_recife),
+            turno: classificarTurno(row.dow_recife, row.minuto_do_dia_recife),
             hora_recife: row.hora_recife,
             dow_recife: row.dow_recife,
+            minuto_do_dia_recife: row.minuto_do_dia_recife,
+            epoch_cte: row.epoch_cte != null ? parseFloat(row.epoch_cte) : null,
         }));
 
-        // Estatísticas do tempo lançamento→CT-e: média, mediana, p90
-        const tempos = registros
-            .map(r => r.horas_lancamento_cte)
-            .filter(v => v !== null && !Number.isNaN(v))
-            .sort((a, b) => a - b);
-        function percentil(arrSorted, p) {
-            if (arrSorted.length === 0) return null;
-            const idx = Math.min(arrSorted.length - 1, Math.floor(p * arrSorted.length));
-            return parseFloat(arrSorted[idx].toFixed(2));
+        // ── Estatísticas (média + mediana). P90 removido. ──
+        function calcStatsTempo(arr) {
+            const tempos = arr
+                .map(r => r.horas_lancamento_cte)
+                .filter(v => v !== null && v !== undefined && !Number.isNaN(v))
+                .sort((a, b) => a - b);
+            if (tempos.length === 0) return { media: null, mediana: null, amostra: 0 };
+            const media = tempos.reduce((a, b) => a + b, 0) / tempos.length;
+            const meio = tempos[Math.min(tempos.length - 1, Math.floor(0.5 * tempos.length))];
+            return {
+                media: parseFloat(media.toFixed(2)),
+                mediana: parseFloat(meio.toFixed(2)),
+                amostra: tempos.length,
+            };
         }
-        const stats = {
-            media: tempos.length ? parseFloat((tempos.reduce((a, b) => a + b, 0) / tempos.length).toFixed(2)) : null,
-            mediana: percentil(tempos, 0.5),
-            p90: percentil(tempos, 0.9),
-            amostra: tempos.length,
+        const stats = calcStatsTempo(registros);
+
+        // ── Hora Extra: total + percentual por escopo (Recife/Moreno/Ambas) ──
+        function calcHoraExtra(arr) {
+            const total = arr.length;
+            const he = arr.filter(r => r.turno === 'Hora Extra').length;
+            return {
+                total: he,
+                percentual: total > 0 ? parseFloat((100 * he / total).toFixed(1)) : 0,
+            };
+        }
+
+        // ── Gargalos: gaps consolidados entre CT-es consecutivos (qualquer turno) ──
+        function calcGargalos(arr) {
+            const epochs = arr
+                .filter(r => r.epoch_cte != null)
+                .map(r => r.epoch_cte)
+                .sort((a, b) => a - b);
+            if (epochs.length < 2) {
+                return { totalGapsAcima2h: 0, maiorGap: null, mediaGap: null };
+            }
+            const gaps = [];
+            for (let i = 1; i < epochs.length; i++) gaps.push((epochs[i] - epochs[i - 1]) / 3600);
+            const totalGapsAcima2h = gaps.filter(g => g > 2).length;
+            const maiorGap = parseFloat(Math.max(...gaps).toFixed(2));
+            const mediaGap = parseFloat((gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(2));
+            return { totalGapsAcima2h, maiorGap, mediaGap };
+        }
+
+        // ── Ociosidade por turno: máx + médio dos gaps DENTRO de cada turno (Recife/Moreno/Ambas) ──
+        function calcOciosidadeTurno(arr, turno) {
+            const epochs = arr
+                .filter(r => r.turno === turno && r.epoch_cte != null)
+                .map(r => r.epoch_cte)
+                .sort((a, b) => a - b);
+            if (epochs.length < 2) {
+                return { max_gap_horas: null, media_gap_horas: null, gaps_acima_2h: 0, total: epochs.length };
+            }
+            const gaps = [];
+            for (let i = 1; i < epochs.length; i++) gaps.push((epochs[i] - epochs[i - 1]) / 3600);
+            return {
+                max_gap_horas: parseFloat(Math.max(...gaps).toFixed(2)),
+                media_gap_horas: parseFloat((gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(2)),
+                gaps_acima_2h: gaps.filter(g => g > 2).length,
+                total: epochs.length,
+            };
+        }
+
+        // Subconjuntos por escopo de unidade
+        const porUnidade = {
+            Recife: registros.filter(r => r.origem === 'Recife'),
+            Moreno: registros.filter(r => r.origem === 'Moreno'),
+            Ambas: registros,
         };
 
-        // Ociosidade/gargalo — só considera gaps DENTRO do horário comercial (06h–22h, seg-sex)
-        // no fuso Recife. Evita falso-positivo de gap noturno/fim-de-semana.
-        const HORA_INI = 6;
-        const HORA_FIM = 22;
-        function dentroHorarioComercial(epochSec) {
-            const d = new Date(epochSec * 1000);
-            // Converter para hora local Recife via toLocaleString
-            const parts = new Intl.DateTimeFormat('en-US', {
-                timeZone: 'America/Recife',
-                weekday: 'short', hour: '2-digit', hour12: false,
-            }).formatToParts(d);
-            const wd = parts.find(p => p.type === 'weekday')?.value; // Mon, Tue, ...
-            const hr = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-            const ehDiaUtil = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd);
-            return ehDiaUtil && hr >= HORA_INI && hr < HORA_FIM;
-        }
+        const horaExtra = {
+            Recife: calcHoraExtra(porUnidade.Recife),
+            Moreno: calcHoraExtra(porUnidade.Moreno),
+            Ambas: calcHoraExtra(porUnidade.Ambas),
+        };
 
-        const ociosidade = {};
-        for (const unidade of ['Recife', 'Moreno']) {
-            const ctesUnidade = rows
-                .filter(r => r.origem === unidade && r.epoch_cte != null)
-                .map(r => parseFloat(r.epoch_cte))
-                .sort((a, b) => a - b);
+        const gargalos = {
+            Recife: calcGargalos(porUnidade.Recife),
+            Moreno: calcGargalos(porUnidade.Moreno),
+            Ambas: calcGargalos(porUnidade.Ambas),
+        };
 
-            let maxGap = 0;
-            let gapsAcima2h = 0;
-            let gapsConsiderados = 0;
-            for (let i = 1; i < ctesUnidade.length; i++) {
-                const prev = ctesUnidade[i - 1];
-                const cur = ctesUnidade[i];
-                // Só conta gap se ambos os CT-es estão em horário comercial (mesma janela operacional)
-                if (!dentroHorarioComercial(prev) || !dentroHorarioComercial(cur)) continue;
-                const gapH = (cur - prev) / 3600;
-                gapsConsiderados++;
-                if (gapH > maxGap) maxGap = gapH;
-                if (gapH > 2) gapsAcima2h++;
-            }
-            ociosidade[unidade] = {
-                max_gap_horas: gapsConsiderados > 0 ? parseFloat(maxGap.toFixed(2)) : null,
-                gaps_acima_2h: gapsAcima2h,
-                gaps_considerados: gapsConsiderados,
-                total: ctesUnidade.length,
-                janela: `${HORA_INI}h–${HORA_FIM}h seg-sex`,
+        const TURNOS = ['Manhã', 'Tarde', 'Hora Extra'];
+        const ociosidade = { porTurno: {} };
+        for (const turno of TURNOS) {
+            ociosidade.porTurno[turno] = {
+                Recife: calcOciosidadeTurno(porUnidade.Recife, turno),
+                Moreno: calcOciosidadeTurno(porUnidade.Moreno, turno),
+                Ambas: calcOciosidadeTurno(porUnidade.Ambas, turno),
             };
         }
 
@@ -2392,8 +2430,10 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             success: true,
             registros,
             heatmap: heatmapRows,
-            ociosidade,
             stats,
+            horaExtra,
+            gargalos,
+            ociosidade,
         });
 }));
 
