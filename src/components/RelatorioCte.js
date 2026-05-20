@@ -297,13 +297,13 @@ export default function RelatorioCte() {
             doc.line(margemX, y, W - margemX, y);
             y += 6;
 
-            // KPI grid (sem P90)
+            // KPI grid (sem P90) — oculta a unidade que não está no filtro
             const kpis = [
                 { label: 'Total emitidos', valor: String(resumo.total), cor: [250, 204, 21] },
                 { label: 'Tempo médio', valor: formatHoras(resumo.media), cor: [96, 165, 250] },
                 { label: 'Mediana', valor: formatHoras(resumo.mediana), cor: [34, 211, 238] },
-                { label: 'Recife', valor: String(resumo.recife), cor: [96, 165, 250] },
-                { label: 'Moreno', valor: String(resumo.moreno), cor: [167, 139, 250] },
+                ...(unidadeFiltro !== 'Moreno' ? [{ label: 'Recife', valor: String(resumo.recife), cor: [96, 165, 250] }] : []),
+                ...(unidadeFiltro !== 'Recife' ? [{ label: 'Moreno', valor: String(resumo.moreno), cor: [167, 139, 250] }] : []),
             ];
             const colKpi = 3;
             const wKpi = larguraUtil / colKpi;
@@ -337,8 +337,11 @@ export default function RelatorioCte() {
                 doc.setFontSize(8);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(71, 85, 105);
-                for (const [unidade, dados] of [['Recife', ociRecife], ['Moreno', ociMoreno]]) {
-                    if (!dados) continue;
+                const linhasOciosidade = [
+                    ...(unidadeFiltro !== 'Moreno' && ociRecife ? [['Recife', ociRecife]] : []),
+                    ...(unidadeFiltro !== 'Recife' && ociMoreno ? [['Moreno', ociMoreno]] : []),
+                ];
+                for (const [unidade, dados] of linhasOciosidade) {
                     const gap = dados.max_gap_horas !== null && dados.max_gap_horas !== undefined ? formatHoras(dados.max_gap_horas) : '—';
                     doc.text(`${unidade}: maior gap ${gap} · ${dados.gaps_acima_2h || 0} acima de 2h · ${dados.total || 0} CT-es`, margemX + 2, y);
                     y += 4;
@@ -355,7 +358,11 @@ export default function RelatorioCte() {
                 y += 4;
                 const grafW = larguraUtil;
                 const linhaH = 4;
-                const maxDia = Math.max(1, ...dadosPorDia.map(d => (d.Recife || 0) + (d.Moreno || 0)));
+                const mostraRecife = unidadeFiltro !== 'Moreno';
+                const mostraMoreno = unidadeFiltro !== 'Recife';
+                const maxDia = Math.max(1, ...dadosPorDia.map(d =>
+                    (mostraRecife ? (d.Recife || 0) : 0) + (mostraMoreno ? (d.Moreno || 0) : 0)
+                ));
                 const labelW = 14;
                 const barW = grafW - labelW;
                 dadosPorDia.forEach((d, i) => {
@@ -363,25 +370,32 @@ export default function RelatorioCte() {
                     doc.setFontSize(6);
                     doc.setTextColor(100, 116, 139);
                     doc.text(d.data, margemX, by + 3);
-                    const totRec = (d.Recife || 0);
-                    const totMor = (d.Moreno || 0);
+                    const totRec = mostraRecife ? (d.Recife || 0) : 0;
+                    const totMor = mostraMoreno ? (d.Moreno || 0) : 0;
                     const wRec = (totRec / maxDia) * barW;
                     const wMor = (totMor / maxDia) * barW;
-                    doc.setFillColor(59, 130, 246);
-                    doc.rect(margemX + labelW, by, wRec, linhaH - 1, 'F');
-                    doc.setFillColor(139, 92, 246);
-                    doc.rect(margemX + labelW + wRec, by, wMor, linhaH - 1, 'F');
+                    if (mostraRecife) {
+                        doc.setFillColor(59, 130, 246);
+                        doc.rect(margemX + labelW, by, wRec, linhaH - 1, 'F');
+                    }
+                    if (mostraMoreno) {
+                        doc.setFillColor(139, 92, 246);
+                        doc.rect(margemX + labelW + wRec, by, wMor, linhaH - 1, 'F');
+                    }
                 });
                 y += dadosPorDia.length * linhaH + 4;
-                doc.setFontSize(7);
-                doc.setFillColor(59, 130, 246);
-                doc.rect(margemX, y, 3, 3, 'F');
-                doc.setTextColor(71, 85, 105);
-                doc.text('Recife', margemX + 5, y + 2.5);
-                doc.setFillColor(139, 92, 246);
-                doc.rect(margemX + 22, y, 3, 3, 'F');
-                doc.text('Moreno', margemX + 27, y + 2.5);
-                y += 7;
+                // Legenda — só quando ambas unidades estão visíveis
+                if (mostraRecife && mostraMoreno) {
+                    doc.setFontSize(7);
+                    doc.setFillColor(59, 130, 246);
+                    doc.rect(margemX, y, 3, 3, 'F');
+                    doc.setTextColor(71, 85, 105);
+                    doc.text('Recife', margemX + 5, y + 2.5);
+                    doc.setFillColor(139, 92, 246);
+                    doc.rect(margemX + 22, y, 3, 3, 'F');
+                    doc.text('Moreno', margemX + 27, y + 2.5);
+                    y += 7;
+                }
             }
 
             // Por turno
@@ -407,10 +421,6 @@ export default function RelatorioCte() {
                     doc.setFontSize(13);
                     doc.setTextColor(30, 41, 59);
                     doc.text(String(t.quantidade), cx + 4, y + 12);
-                    doc.setFontSize(7);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(100, 116, 139);
-                    doc.text(`~${formatHoras(t.media_horas || null)}`, cx + 4, y + 16);
                 });
                 y += 22;
             }
@@ -598,16 +608,20 @@ export default function RelatorioCte() {
                         <KpiCard icon={<FileText size={16} />} label="Total emitidos" valor={resumo.total} cor="#facc15" />
                         <KpiCard icon={<Clock size={16} />} label="Tempo médio" valor={formatHoras(resumo.media)} cor="#60a5fa" />
                         <KpiCard icon={<Clock size={16} />} label="Mediana" valor={formatHoras(resumo.mediana)} cor="#22d3ee" />
-                        <KpiCard
-                            icon={<MapPin size={16} />} label="Recife" valor={resumo.recife} cor="#60a5fa"
-                            ativo={unidadeFiltro === 'Recife'}
-                            onClick={() => setUnidadeFiltro(prev => prev === 'Recife' ? null : 'Recife')}
-                        />
-                        <KpiCard
-                            icon={<MapPin size={16} />} label="Moreno" valor={resumo.moreno} cor="#a78bfa"
-                            ativo={unidadeFiltro === 'Moreno'}
-                            onClick={() => setUnidadeFiltro(prev => prev === 'Moreno' ? null : 'Moreno')}
-                        />
+                        {unidadeFiltro !== 'Moreno' && (
+                            <KpiCard
+                                icon={<MapPin size={16} />} label="Recife" valor={resumo.recife} cor="#60a5fa"
+                                ativo={unidadeFiltro === 'Recife'}
+                                onClick={() => setUnidadeFiltro(prev => prev === 'Recife' ? null : 'Recife')}
+                            />
+                        )}
+                        {unidadeFiltro !== 'Recife' && (
+                            <KpiCard
+                                icon={<MapPin size={16} />} label="Moreno" valor={resumo.moreno} cor="#a78bfa"
+                                ativo={unidadeFiltro === 'Moreno'}
+                                onClick={() => setUnidadeFiltro(prev => prev === 'Moreno' ? null : 'Moreno')}
+                            />
+                        )}
                     </div>
 
                     {unidadeFiltro && (
@@ -679,8 +693,13 @@ export default function RelatorioCte() {
                                             <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" allowDecimals={false} />
                                             <Tooltip cursor={false} contentStyle={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontSize: 12, color: '#f1f5f9' }} />
                                             <Legend wrapperStyle={{ fontSize: 11, color: '#94a3b8', paddingTop: '8px' }} />
-                                            <Bar dataKey="Recife" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                                            <Bar dataKey="Moreno" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                            {unidadeFiltro !== 'Moreno' && (
+                                                <Bar dataKey="Recife" stackId="a" fill="#3b82f6"
+                                                    radius={unidadeFiltro === 'Recife' ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                                            )}
+                                            {unidadeFiltro !== 'Recife' && (
+                                                <Bar dataKey="Moreno" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                                            )}
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -688,7 +707,7 @@ export default function RelatorioCte() {
 
                             <div style={{ ...glassCard, padding: '16px 20px' }}>
                                 <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Clock size={12} /> CT-es por turno (quantidade + tempo médio)
+                                    <Clock size={12} /> CT-es por turno
                                 </div>
                                 <ResponsiveContainer width="100%" height={200}>
                                     <BarChart data={dadosPorTurno} margin={{ top: 10, right: 8, left: -16, bottom: 0 }}>
@@ -713,7 +732,6 @@ export default function RelatorioCte() {
                                         }}>
                                             <div style={{ fontSize: '10px', fontWeight: 700, color: CORES_TURNO[t.turno], textTransform: 'uppercase' }}>{t.turno}</div>
                                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>{t.quantidade}</div>
-                                            <div style={{ fontSize: '10px', color: '#64748b' }}>~{formatHoras(t.media_horas || null)}</div>
                                         </div>
                                     ))}
                                 </div>
