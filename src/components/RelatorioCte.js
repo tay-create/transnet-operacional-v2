@@ -313,17 +313,19 @@ export default function RelatorioCte() {
             });
             y += Math.ceil(kpis.length / colKpi) * (hKpi + 2) + 4;
 
-            // Maior gap entre CT-es por turno — 3 cards lado a lado (visual igual ao painel)
+            // Maior gap entre CT-es — só Hora Extra. Manhã/Tarde foram removidos
+            // porque o gap atravessava noite/fim-de-semana e dava números enganosos.
+            const turnosGap = ['Hora Extra'];
             if (y > 240) { doc.addPage(); y = 14; }
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(30, 41, 59);
-            doc.text('Maior gap entre CT-es por turno', margemX, y);
+            doc.text('Maior gap entre CT-es · Hora Extra', margemX, y);
             y += 5;
             const coresTurnoOci = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Hora Extra': [239, 68, 68] };
-            const wOci = larguraUtil / TURNOS.length;
+            const wOci = larguraUtil / turnosGap.length;
             const hOci = 26;
-            TURNOS.forEach((turno, i) => {
+            turnosGap.forEach((turno, i) => {
                 const d = ociosidadePorTurno[turno] || {};
                 const max = d.max_gap_horas !== null && d.max_gap_horas !== undefined ? formatHoras(d.max_gap_horas) : '—';
                 const med = d.media_gap_horas !== null && d.media_gap_horas !== undefined ? formatHoras(d.media_gap_horas) : '—';
@@ -592,21 +594,25 @@ export default function RelatorioCte() {
                         />
                     </div>
 
-                    {/* Maior gap entre CT-es por turno */}
-                    <div style={{ marginBottom: '20px' }}>
-                        <div style={{
-                            fontSize: '10px', color: '#64748b', fontWeight: 700,
-                            textTransform: 'uppercase', letterSpacing: '0.8px',
-                            marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
-                        }}>
-                            <Activity size={12} /> Maior gap entre CT-es por turno
+                    {/* Maior gap entre CT-es fora do expediente.
+                        Manhã/Tarde foram removidos porque o gap atravessava fim-de-semana
+                        e dava números enganosos (72h "no turno Manhã" = sex 11h -> ter 11h
+                        do outro dia). Só Hora Extra faz sentido aqui — mede pausas reais
+                        no plantão fora da janela operacional. */}
+                    {ociosidadePorTurno['Hora Extra'] && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <div style={{
+                                fontSize: '10px', color: '#64748b', fontWeight: 700,
+                                textTransform: 'uppercase', letterSpacing: '0.8px',
+                                marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
+                            }}>
+                                <Activity size={12} /> Maior gap entre CT-es · Hora Extra
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                                <OciosidadeTurnoCard turno="Hora Extra" dados={ociosidadePorTurno['Hora Extra']} />
+                            </div>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                            {TURNOS.map(t => (
-                                <OciosidadeTurnoCard key={t} turno={t} dados={ociosidadePorTurno[t]} />
-                            ))}
-                        </div>
-                    </div>
+                    )}
 
                     {/* Tabs */}
                     <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: '16px' }}>
