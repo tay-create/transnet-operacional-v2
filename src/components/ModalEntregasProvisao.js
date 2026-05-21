@@ -212,16 +212,38 @@ export default function ModalEntregasProvisao({ veiculo, motorista, dataSaida, c
                                     <span style={{ flex: 1, color: '#e2e8f0', fontSize: 13, fontWeight: 600 }}>
                                         {e.cidade}{e.uf ? `/${e.uf}` : ''}
                                     </span>
-                                    <span style={{ color: '#94a3b8', fontSize: 12, fontFamily: 'monospace' }}>
-                                        {formatarDataBr(e.data)}
+                                    <span style={{ color: e.data ? '#94a3b8' : '#f87171', fontSize: 12, fontFamily: 'monospace' }}>
+                                        {e.data ? formatarDataBr(e.data) : 'sem data'}
                                     </span>
                                 </div>
                             ))}
                         </div>
-                        <p style={{ fontSize: 11, color: '#64748b', margin: '8px 0 0', lineHeight: 1.4 }}>
-                            O dia da operação fica como <strong style={{ color: '#a78bfa' }}>Em Operação</strong> (segue o fluxo do conferente).
-                            Do dia seguinte até a última entrega, fica como <strong style={{ color: '#facc15' }}>Em Viagem</strong> — com cidade nos dias de entrega.
-                        </p>
+                        {entradas.some(e => !e.data) && (
+                            <div style={{
+                                marginTop: 8, padding: '8px 10px',
+                                background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                                borderRadius: 6, fontSize: 11, color: '#fca5a5',
+                            }}>
+                                Algumas entregas vieram da planilha sem data. Use "Editar manualmente" pra preencher.
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                            <p style={{ fontSize: 11, color: '#64748b', margin: 0, lineHeight: 1.4, flex: 1 }}>
+                                O dia da operação fica como <strong style={{ color: '#a78bfa' }}>Em Operação</strong> (segue o fluxo do conferente).
+                                Do dia seguinte até a última entrega, fica como <strong style={{ color: '#facc15' }}>Em Viagem</strong> — com cidade nos dias de entrega.
+                            </p>
+                            <button
+                                onClick={() => setOrigemEntradas('manual')}
+                                style={{
+                                    background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)',
+                                    borderRadius: 6, color: '#60a5fa', cursor: 'pointer',
+                                    padding: '6px 10px', fontSize: 11, fontWeight: 600,
+                                    marginLeft: 12, flexShrink: 0, whiteSpace: 'nowrap',
+                                }}
+                            >
+                                Editar manualmente
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     /* MODO MANUAL: lista editável (fallback) */
