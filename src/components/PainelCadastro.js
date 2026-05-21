@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ShieldCheck, CheckCircle, XCircle, AlertTriangle, Clock, Save, RefreshCw, Truck, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { ShieldCheck, CheckCircle, XCircle, AlertTriangle, Clock, Save, RefreshCw, Truck, ChevronDown, ChevronUp, Search, Lock } from 'lucide-react';
 import api from '../services/apiService';
 
 const SEGURADORAS = ['BUONNY', 'VERTTICE'];
@@ -43,10 +43,24 @@ function corSituacao(sit) {
     return { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.25)', text: '#f87171' };
 }
 
+function extrairMensagemErro(e) {
+    const status = e?.response?.status;
+    const msgServidor = e?.response?.data?.message;
+    if (status === 403) return 'Sem permissão para salvar. Procure um Coordenador, Encarregado ou Cadastro.';
+    if (status === 401) return 'Sessão expirada. Faça login novamente.';
+    if (status === 404) return msgServidor || 'Registro não encontrado.';
+    if (msgServidor) return msgServidor;
+    if (e?.code === 'ERR_NETWORK') return 'Sem conexão com o servidor.';
+    return 'Erro inesperado ao salvar. Tente novamente.';
+}
+
 export default function PainelCadastro({ user, socket }) {
-    // ── Blindagem de Acesso ──
+    // ── Blindagem de Acesso ── espelha autorização do backend (server.js
+    // PUT /api/cadastro/motoristas|frota|veiculos-em-operacao)
     const cargo = (user?.cargo || '').toUpperCase();
-    const podeEditar = ['COORDENADOR', 'PLANEJAMENTO', 'CADASTRO', 'CONHECIMENTO', 'DESENVOLVEDOR'].includes(cargo);
+    const podeEditarEspera = ['COORDENADOR', 'DIREÇÃO', 'DIRECAO', 'ENCARREGADO', 'CADASTRO'].includes(cargo);
+    const podeEditarOperacao = ['COORDENADOR', 'CADASTRO', 'CONHECIMENTO'].includes(cargo);
+    const podeEditarFrota = ['COORDENADOR', 'DIREÇÃO', 'DIRECAO', 'ENCARREGADO', 'CADASTRO'].includes(cargo);
 
     const [motoristas, setMotoristas] = useState([]);
     const [edicoes, setEdicoes] = useState({}); // { [id]: { chk_cnh_cad, ... } }
@@ -67,6 +81,8 @@ export default function PainelCadastro({ user, socket }) {
 
     // Modal aviso duplicata de número de liberação
     const [avisoDuplicata, setAvisoDuplicata] = useState(null); // string com a mensagem
+    // Modal aviso de erro de salvamento (403, 500, rede etc.)
+    const [avisoErro, setAvisoErro] = useState(null);
 
     // Em Espera: expandir/colapsar e filtro
     const [expandidoEspera, setExpandidoEspera] = useState(null);
@@ -75,10 +91,13 @@ export default function PainelCadastro({ user, socket }) {
 
     // Filtro de datas para Na Operação
     const dataHojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
-    const [dataInicioOp, setDataInicioOp] = useState(dataHojeStr);
-    const [dataFimOp, setDataFimOp] = useState(dataHojeStr);
+    const [dataInicioOp, setDataInicioOpRaw] = useState(dataHojeStr);
+    const [dataFimOp, setDataFimOpRaw] = useState(dataHojeStr);
     const dataInicioOpRef = useRef(dataHojeStr);
     const dataFimOpRef = useRef(dataHojeStr);
+    // Wrappers sincronizam refs imediatamente, evitando race com socket
+    const setDataInicioOp = useCallback(v => { dataInicioOpRef.current = v; setDataInicioOpRaw(v); }, []);
+    const setDataFimOp = useCallback(v => { dataFimOpRef.current = v; setDataFimOpRaw(v); }, []);
 
     const carregarMotoristas = useCallback(async () => {
         setCarregando(true);
@@ -105,9 +124,12 @@ export default function PainelCadastro({ user, socket }) {
                     };
                 });
                 setEdicoes(inicial);
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao carregar motoristas em espera.');
             }
         } catch (e) {
             console.error('Erro ao carregar motoristas:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setCarregando(false);
         }
@@ -147,9 +169,12 @@ export default function PainelCadastro({ user, socket }) {
                     };
                 });
                 setEdicoesOp(inicial);
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao carregar veículos em operação.');
             }
         } catch (e) {
             console.error('Erro ao carregar veiculos em operacao:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setCarregando(false);
         }
@@ -172,9 +197,12 @@ export default function PainelCadastro({ user, socket }) {
                     };
                 });
                 setEdicoesFrota(inicial);
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao carregar motoristas da frota.');
             }
         } catch (e) {
             console.error('Erro ao carregar motoristas frota:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setCarregando(false);
         }
@@ -205,10 +233,8 @@ export default function PainelCadastro({ user, socket }) {
         return () => clearInterval(interval);
     }, []); // eslint-disable-line
 
-    // Rebuscar Na Operação quando datas mudam + sincronizar refs
+    // Rebuscar Na Operação quando datas mudam (refs já sincronizadas pelos setters)
     useEffect(() => {
-        dataInicioOpRef.current = dataInicioOp;
-        dataFimOpRef.current = dataFimOp;
         carregarMotoristasOperacao(dataInicioOp, dataFimOp);
     }, [dataInicioOp, dataFimOp]); // eslint-disable-line
 
@@ -270,9 +296,12 @@ export default function PainelCadastro({ user, socket }) {
                     ? { ...m, ...dados, situacao_cad: r.data.situacao, data_liberacao_cad: r.data.data_liberacao_cad }
                     : m
                 ));
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao salvar checklist.');
             }
         } catch (e) {
             console.error('Erro ao salvar checklist:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setSalvando(null);
         }
@@ -318,9 +347,12 @@ export default function PainelCadastro({ user, socket }) {
                     ? { ...m, ...dados, situacao_cad: r.data.situacao, data_liberacao_cad: r.data.data_liberacao_cad }
                     : m
                 ));
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao salvar checklist da operação.');
             }
         } catch (e) {
             console.error('Erro ao salvar checklist da operação:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setSalvandoOp(null);
         }
@@ -330,12 +362,23 @@ export default function PainelCadastro({ user, socket }) {
         setEdicoesFrota(prev => {
             const atual = prev[id] || {};
             const novo = { ...atual, [campo]: valor };
+            // Espelha regra do backend (server.js PUT /api/cadastro/frota/:id)
+            const temLib = !!(novo.num_liberacao_cad && String(novo.num_liberacao_cad).trim());
+            const temSeg = !!(novo.seguradora_cad && String(novo.seguradora_cad).trim());
+            novo.situacao_cad = (temLib && temSeg) ? 'LIBERADO'
+                : (temLib || temSeg) ? 'PENDENTE'
+                    : 'NÃO CONFERIDO';
             return { ...prev, [id]: novo };
         });
     }
 
     async function salvarFrota(id) {
         if (salvandoFrota === id) return;
+        const dadosCheck = edicoesFrota[id] || {};
+        const dupFrota = verificarDuplicataLiberacao(dadosCheck.num_liberacao_cad, id, motoristasFrota, edicoesFrota, motoristas, edicoes);
+        const dupOp = verificarDuplicataLiberacao(dadosCheck.num_liberacao_cad, id, motoristasOperacao, edicoesOp, [], {});
+        const duplicata = dupFrota || dupOp;
+        if (duplicata) { setAvisoDuplicata(`Número de liberação já está em uso por: ${duplicata}`); return; }
         setSalvandoFrota(id);
         try {
             const dados = edicoesFrota[id] || {};
@@ -356,9 +399,12 @@ export default function PainelCadastro({ user, socket }) {
                     ? { ...m, ...dados, situacao_cad: r.data.situacao, data_liberacao_cad: r.data.data_liberacao_cad }
                     : m
                 ));
+            } else {
+                setAvisoErro(r.data.message || 'Falha ao salvar liberação da frota.');
             }
         } catch (e) {
             console.error('Erro ao salvar liberação frota:', e);
+            setAvisoErro(extrairMensagemErro(e));
         } finally {
             setSalvandoFrota(null);
         }
@@ -421,7 +467,7 @@ export default function PainelCadastro({ user, socket }) {
                     </div>
                 </div>
                 <button
-                    onClick={() => { carregarMotoristas(); carregarMotoristasOperacao(); carregarMotoristasFrota(); }}
+                    onClick={() => { carregarMotoristas(); carregarMotoristasOperacao(dataInicioOp, dataFimOp); carregarMotoristasFrota(); }}
                     disabled={carregando}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '6px',
@@ -530,15 +576,15 @@ export default function PainelCadastro({ user, socket }) {
                                                                 return (
                                                                     <button
                                                                         key={campo}
-                                                                        disabled={!podeEditar}
-                                                                        onClick={() => podeEditar && atualizarEdicao(m.id, campo, !ed[campo])}
+                                                                        disabled={!podeEditarEspera}
+                                                                        onClick={() => podeEditarEspera && atualizarEdicao(m.id, campo, !ed[campo])}
                                                                         style={{
                                                                             display: 'flex', alignItems: 'center', gap: '5px',
                                                                             background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
                                                                             border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
                                                                             borderRadius: '6px', padding: '5px 10px',
-                                                                            cursor: podeEditar ? 'pointer' : 'not-allowed',
-                                                                            opacity: podeEditar ? 1 : 0.5,
+                                                                            cursor: podeEditarEspera ? 'pointer' : 'not-allowed',
+                                                                            opacity: podeEditarEspera ? 1 : 0.5,
                                                                             color: ok ? '#4ade80' : '#f87171',
                                                                             fontSize: '11px', fontWeight: '700',
                                                                             transition: 'all 0.2s'
@@ -555,7 +601,7 @@ export default function PainelCadastro({ user, socket }) {
 
                                                 {/* Footer — Botão Salvar */}
                                                 <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                                    {podeEditar ? (
+                                                    {podeEditarEspera ? (
                                                         <button
                                                             onClick={() => salvar(m.id)}
                                                             disabled={estaSalvando}
@@ -574,7 +620,7 @@ export default function PainelCadastro({ user, socket }) {
                                                             {estaSalvando ? 'Salvando...' : 'Salvar Checklist'}
                                                         </button>
                                                     ) : (
-                                                        <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
+                                                        <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Lock size={12} /> Somente leitura — sem permissão de edição</div>
                                                     )}
                                                 </div>
                                             </>
@@ -646,7 +692,7 @@ export default function PainelCadastro({ user, socket }) {
                                         {/* Banner CT-e Emitido */}
                                         {cteEmitido && (
                                             <div style={{ background: 'rgba(34,197,94,0.15)', borderBottom: '1px solid rgba(74,222,128,0.3)', padding: '5px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#4ade80', letterSpacing: '0.5px' }}>✓ CT-e EMITIDO</span>
+                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#4ade80', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}><CheckCircle size={12} /> CT-e EMITIDO</span>
                                             </div>
                                         )}
                                         {/* Header do card */}
@@ -706,15 +752,15 @@ export default function PainelCadastro({ user, socket }) {
                                                         return (
                                                             <button
                                                                 key={campo}
-                                                                disabled={!podeEditar}
-                                                                onClick={() => podeEditar && atualizarEdicaoOp(m.id, campo, !ed[campo])}
+                                                                disabled={!podeEditarOperacao}
+                                                                onClick={() => podeEditarOperacao && atualizarEdicaoOp(m.id, campo, !ed[campo])}
                                                                 style={{
                                                                     display: 'flex', alignItems: 'center', gap: '5px',
                                                                     background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.08)',
                                                                     border: `1px solid ${ok ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.25)'}`,
                                                                     borderRadius: '6px', padding: '5px 10px',
-                                                                    cursor: podeEditar ? 'pointer' : 'not-allowed',
-                                                                    opacity: podeEditar ? 1 : 0.5,
+                                                                    cursor: podeEditarOperacao ? 'pointer' : 'not-allowed',
+                                                                    opacity: podeEditarOperacao ? 1 : 0.5,
                                                                     color: ok ? '#4ade80' : '#f87171',
                                                                     fontSize: '11px', fontWeight: '700',
                                                                     transition: 'all 0.2s'
@@ -736,7 +782,7 @@ export default function PainelCadastro({ user, socket }) {
                                                         className="input-internal"
                                                         style={{ fontSize: '12px' }}
                                                         value={ed.origem_cad || ''}
-                                                        disabled={!podeEditar}
+                                                        disabled={!podeEditarOperacao}
                                                         onChange={e => atualizarEdicaoOp(m.id, 'origem_cad', e.target.value)}
                                                     >
                                                         <option value="" style={{ color: 'black' }}>-- Selecione --</option>
@@ -751,7 +797,7 @@ export default function PainelCadastro({ user, socket }) {
                                                         className="input-internal"
                                                         style={{ fontSize: '12px' }}
                                                         value={ed.destino_uf_cad || ''}
-                                                        disabled={!podeEditar}
+                                                        disabled={!podeEditarOperacao}
                                                         onChange={e => atualizarEdicaoOp(m.id, 'destino_uf_cad', e.target.value)}
                                                     >
                                                         <option value="" style={{ color: 'black' }}>--</option>
@@ -765,7 +811,7 @@ export default function PainelCadastro({ user, socket }) {
                                                     className="input-internal"
                                                     style={{ fontSize: '12px' }}
                                                     value={ed.destino_cidade_cad || ''}
-                                                    disabled={!podeEditar}
+                                                    disabled={!podeEditarOperacao}
                                                     onChange={e => atualizarEdicaoOp(m.id, 'destino_cidade_cad', e.target.value)}
                                                     placeholder="Ex: São Paulo"
                                                 />
@@ -787,7 +833,7 @@ export default function PainelCadastro({ user, socket }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '12px', border: faltaSoNumLib ? '1px solid rgba(245,158,11,0.7)' : undefined, boxShadow: faltaSoNumLib ? '0 0 0 2px rgba(245,158,11,0.2)' : undefined }}
                                                                     value={ed.num_liberacao_cad || ''}
-                                                                    disabled={!podeEditar}
+                                                                    disabled={!podeEditarOperacao}
                                                                     onChange={e => atualizarEdicaoOp(m.id, 'num_liberacao_cad', e.target.value)}
                                                                     placeholder="Ex: 123456"
                                                                 />
@@ -799,7 +845,7 @@ export default function PainelCadastro({ user, socket }) {
                                                                     className="input-internal"
                                                                     style={{ fontSize: '11px' }}
                                                                     value={ed.data_liberacao_manual || ''}
-                                                                    disabled={!podeEditar}
+                                                                    disabled={!podeEditarOperacao}
                                                                     onChange={e => atualizarEdicaoOp(m.id, 'data_liberacao_manual', e.target.value)}
                                                                 />
                                                             </div>
@@ -840,7 +886,7 @@ export default function PainelCadastro({ user, socket }) {
 
                                         {/* Footer — Botão Salvar */}
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {podeEditarOperacao ? (
                                                 <button
                                                     onClick={() => salvarOperacao(m.id)}
                                                     disabled={estaSalvando}
@@ -859,7 +905,7 @@ export default function PainelCadastro({ user, socket }) {
                                                     {estaSalvando ? 'Salvando...' : 'Salvar Checklist Operação'}
                                                 </button>
                                             ) : (
-                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura — sem permissão de edição</div>
+                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Lock size={12} /> Somente leitura — sem permissão de edição</div>
                                             )}
                                         </div>
                                     </div>
@@ -936,19 +982,26 @@ export default function PainelCadastro({ user, socket }) {
                                         </div>
 
                                         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                            <div>
-                                                <label className="label-tech-sm">SEGURADORA</label>
-                                                <select
-                                                    className="input-internal"
-                                                    style={{ fontSize: '12px' }}
-                                                    value={ed.seguradora_cad || ''}
-                                                    disabled={!podeEditar}
-                                                    onChange={e => atualizarEdicaoFrota(m.id, 'seguradora_cad', e.target.value)}
-                                                >
-                                                    <option value="" style={{ color: 'black' }}>-- Selecionar --</option>
-                                                    {SEGURADORAS.map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
-                                                </select>
-                                            </div>
+                                            {(() => {
+                                                const faltaSeg = !!(ed.num_liberacao_cad && String(ed.num_liberacao_cad).trim()) && !ed.seguradora_cad;
+                                                return (
+                                                    <div>
+                                                        <label className="label-tech-sm" style={{ color: faltaSeg ? '#f59e0b' : undefined }}>
+                                                            SEGURADORA {faltaSeg && <span style={{ color: '#f59e0b' }}>★ OBRIGATÓRIA PARA LIBERAR</span>}
+                                                        </label>
+                                                        <select
+                                                            className="input-internal"
+                                                            style={{ fontSize: '12px', border: faltaSeg ? '1px solid rgba(245,158,11,0.7)' : undefined, boxShadow: faltaSeg ? '0 0 0 2px rgba(245,158,11,0.2)' : undefined }}
+                                                            value={ed.seguradora_cad || ''}
+                                                            disabled={!podeEditarFrota}
+                                                            onChange={e => atualizarEdicaoFrota(m.id, 'seguradora_cad', e.target.value)}
+                                                        >
+                                                            <option value="" style={{ color: 'black' }}>-- Selecionar --</option>
+                                                            {SEGURADORAS.map(s => <option key={s} value={s} style={{ color: 'black' }}>{s}</option>)}
+                                                        </select>
+                                                    </div>
+                                                );
+                                            })()}
 
                                             <div>
                                                 <label className="label-tech-sm">LIBERAÇÃO (Validade 1 Ano)</label>
@@ -959,7 +1012,7 @@ export default function PainelCadastro({ user, socket }) {
                                                             className="input-internal"
                                                             style={{ fontSize: '12px' }}
                                                             value={ed.num_liberacao_cad || ''}
-                                                            disabled={!podeEditar}
+                                                            disabled={!podeEditarFrota}
                                                             onChange={e => atualizarEdicaoFrota(m.id, 'num_liberacao_cad', e.target.value)}
                                                             placeholder="Ex: 123456"
                                                         />
@@ -971,7 +1024,7 @@ export default function PainelCadastro({ user, socket }) {
                                                             className="input-internal"
                                                             style={{ fontSize: '11px' }}
                                                             value={ed.data_liberacao_manual || ''}
-                                                            disabled={!podeEditar}
+                                                            disabled={!podeEditarFrota}
                                                             onChange={e => atualizarEdicaoFrota(m.id, 'data_liberacao_manual', e.target.value)}
                                                         />
                                                     </div>
@@ -986,7 +1039,7 @@ export default function PainelCadastro({ user, socket }) {
                                         </div>
 
                                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
-                                            {podeEditar ? (
+                                            {podeEditarFrota ? (
                                                 <button
                                                     onClick={() => salvarFrota(m.id)}
                                                     disabled={estaSalvando}
@@ -1005,7 +1058,7 @@ export default function PainelCadastro({ user, socket }) {
                                                     {estaSalvando ? 'Salvando...' : 'Salvar Liberação Frota'}
                                                 </button>
                                             ) : (
-                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0' }}>🔒 Somente leitura</div>
+                                                <div style={{ textAlign: 'center', fontSize: '11px', color: '#64748b', padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Lock size={12} /> Somente leitura</div>
                                             )}
                                         </div>
                                     </div>
@@ -1014,6 +1067,20 @@ export default function PainelCadastro({ user, socket }) {
                         </div>
                     )}
                 </>
+            )}
+            {/* Modal aviso de erro genérico de salvamento */}
+            {avisoErro && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#0f172a', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '12px', padding: '28px 32px', maxWidth: '420px', width: '90vw', textAlign: 'center' }}>
+                        <AlertTriangle size={32} color="#f87171" style={{ marginBottom: '12px' }} />
+                        <div style={{ color: '#f87171', fontWeight: 700, fontSize: '15px', marginBottom: '8px' }}>Não foi possível salvar</div>
+                        <div style={{ color: '#cbd5e1', fontSize: '13px', marginBottom: '20px' }}>{avisoErro}</div>
+                        <button
+                            onClick={() => setAvisoErro(null)}
+                            style={{ padding: '9px 28px', borderRadius: '8px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                        >OK</button>
+                    </div>
+                </div>
             )}
             {/* Modal aviso duplicata de liberação */}
             {avisoDuplicata && (
