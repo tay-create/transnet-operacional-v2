@@ -1044,6 +1044,26 @@ app.put('/api/marcacoes/:id/status', authMiddleware, authorize(['Coordenador', '
 }));
 
 // ── Módulo Cadastro / Gerenciamento de Risco ─────────────────────────────────
+
+// Normaliza datetime informado pelo operador. Se vier sem timezone
+// (ex: "2026-05-21T14:30"), assume horário de Recife (UTC-3, sem DST) em vez
+// de UTC do servidor — o container roda em UTC, então new Date(stringSemTz)
+// interpretaria 3h adiantado.
+function parseDataLiberacaoManual(valor) {
+    if (!valor) return null;
+    const s = String(valor).trim();
+    if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s)) {
+        return new Date(s).toISOString();
+    }
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(s);
+    if (m) {
+        const [, y, mo, d, h, mi, se] = m;
+        return new Date(`${y}-${mo}-${d}T${h}:${mi}:${se || '00'}-03:00`).toISOString();
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Conhecimento']), asyncHandler(async (req, res) => {
     const isCoordenador = ['Coordenador', 'Direção'].includes(req.user.cargo);
         const cidade = req.user.cidade;
@@ -1068,14 +1088,17 @@ app.get('/api/cadastro/motoristas', authMiddleware, authorize(['Coordenador', 'D
 }));
 
 // ── Frota Própria: listar motoristas de frota para o PainelCadastro ──
+// Exclui motoristas marcados como Indisponível (afastados/desligados) para
+// que o badge "Frota Própria" no painel reflita apenas ativos.
 app.get('/api/cadastro/frota', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro', 'Planejamento', 'Adm Frota', 'Manutenção', 'Desenvolvedor']), asyncHandler(async (req, res) => {
     const rows = await dbAll(`
         SELECT id, nome_motorista, telefone, placa1, placa2, tipo_veiculo,
                data_marcacao, data_contratacao,
                seguradora_cad, num_liberacao_cad, data_liberacao_cad, situacao_cad,
-               is_frota, foto
+               is_frota, foto, disponibilidade, status_operacional
         FROM marcacoes_placas
         WHERE is_frota = 1
+          AND (disponibilidade IS NULL OR disponibilidade != 'Indisponível')
         ORDER BY nome_motorista ASC
     `);
     res.json({ success: true, motoristas: rows });
@@ -1103,7 +1126,7 @@ app.get('/api/cadastro/placas-frota', authMiddleware, asyncHandler(async (req, r
 app.put('/api/cadastro/frota/:id', authMiddleware, authorize(['Coordenador', 'Direção', 'Encarregado', 'Cadastro']), asyncHandler(async (req, res) => {
     const { num_liberacao_cad, seguradora_cad, data_liberacao_manual } = req.body;
         // data pode vir como data_liberacao_cad ou data_liberacao_manual (compatibilidade com frontend)
-        const data_liberacao_cad = req.body.data_liberacao_cad || (data_liberacao_manual ? new Date(data_liberacao_manual).toISOString() : null) || null;
+        const data_liberacao_cad = req.body.data_liberacao_cad || parseDataLiberacaoManual(data_liberacao_manual);
 
         // Calcular situacao_cad: LIBERADO se tem num_liberacao + seguradora e não expirou (1 ano)
         let situacao_cad = 'NÃO CONFERIDO';
@@ -1146,7 +1169,7 @@ app.put('/api/cadastro/motoristas/:id', authMiddleware, authorize(['Coordenador'
         let novaDataLib = null;
         if (num_liberacao_cad) {
             if (data_liberacao_manual) {
-                novaDataLib = new Date(data_liberacao_manual).toISOString();
+                novaDataLib = parseDataLiberacaoManual(data_liberacao_manual);
             } else if (numMudou) {
                 novaDataLib = new Date().toISOString();
             } else {
@@ -1324,7 +1347,7 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
         let novaDataLib = null;
         if (num_liberacao_cad) {
             if (data_liberacao_manual) {
-                novaDataLib = new Date(data_liberacao_manual).toISOString();
+                novaDataLib = parseDataLiberacaoManual(data_liberacao_manual);
             } else if (numMudou) {
                 novaDataLib = new Date().toISOString();
             } else {
@@ -1356,6 +1379,40 @@ app.put('/api/cadastro/veiculos-em-operacao/:id', authMiddleware, authorize(['Co
 
         // Emitir socket + sincronizar em marcacoes_placas
         const dj = (() => { try { return JSON.parse(atual.dados_json || '{}'); } catch { return {}; } })();
+
+        // Sincroniza checks/liberação/seguradora/origem/destino no espelho de
+        // marcacoes_placas — sem isso, próxima viagem do mesmo motorista herda
+        // dados defasados via COALESCE no GET /veiculos-em-operacao.
+        const telMot = dj.telefoneMotorista || null;
+        if (telMot) {
+            await dbRun(
+                `UPDATE marcacoes_placas SET
+                    chk_cnh_cad=?, chk_antt_cad=?, chk_tacografo_cad=?, chk_crlv_cad=?,
+                    num_liberacao_cad=COALESCE(?, num_liberacao_cad),
+                    data_liberacao_cad=COALESCE(?, data_liberacao_cad),
+                    situacao_cad=?,
+                    seguradora_cad=COALESCE(?, seguradora_cad),
+                    origem_cad=COALESCE(?, origem_cad),
+                    destino_uf_cad=COALESCE(?, destino_uf_cad),
+                    destino_cidade_cad=COALESCE(?, destino_cidade_cad)
+                 WHERE telefone=?`,
+                [
+                    chk_cnh_cad ? 1 : 0,
+                    chk_antt_cad ? 1 : 0,
+                    chk_tacografo_cad ? 1 : 0,
+                    chk_crlv_cad ? 1 : 0,
+                    num_liberacao_cad || null,
+                    novaDataLib,
+                    situacao,
+                    seguradora_cad || null,
+                    origem_cad || null,
+                    destino_uf_cad || null,
+                    destino_cidade_cad || null,
+                    telMot
+                ]
+            );
+        }
+
         io.emit('cadastro_situacao_atualizada', {
             veiculoId: Number(req.params.id),
             telefone: dj.telefoneMotorista || null,
