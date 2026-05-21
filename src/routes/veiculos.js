@@ -1308,6 +1308,16 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
                     } catch (errHist) {
                         console.error('⚠️ Erro ao salvar histórico de liberação:', errHist);
                     }
+
+                    // Fire-and-forget: marca embarcado na planilha (col D = "x" + col H = data).
+                    // Não bloqueia o response — falha do Google Sheets não deve travar o PUT.
+                    const coletasParaPlanilha = [v.coletaRecife, v.coletaMoreno, v.coletaInterestadual].filter(Boolean);
+                    if (coletasParaPlanilha.length > 0) {
+                        const sheetsWriter = require('../utils/sheetsWriter');
+                        sheetsWriter.marcarEmbarcadoNaPlanilha(coletasParaPlanilha)
+                            .then(r => console.log(`[liberado-cte] marcar-embarcado coletas=${coletasParaPlanilha.join(',')} resultado=`, r))
+                            .catch(err => console.error('[liberado-cte] marcar-embarcado falhou:', err.message));
+                    }
                 }
             }
             // ───────────────────────────────────────────────────────────────────────
