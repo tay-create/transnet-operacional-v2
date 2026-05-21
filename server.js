@@ -2391,19 +2391,21 @@ app.get('/api/relatorio/cte', authMiddleware, authorize(['Coordenador', 'Planeja
             epoch_cte: row.epoch_cte != null ? parseFloat(row.epoch_cte) : null,
         }));
 
-        // ── Estatísticas (média + mediana). P90 removido. ──
+        // ── Tempo médio = intervalo médio entre CT-es consecutivos (em horas).
+        // Sob o capô é o mesmo mediaGap de calcGargalos, mas calculado pra cada escopo
+        // de unidade e devolvido como `stats` no payload.
         function calcStatsTempo(arr) {
-            const tempos = arr
-                .map(r => r.horas_lancamento_cte)
-                .filter(v => v !== null && v !== undefined && !Number.isNaN(v))
+            const epochs = arr
+                .filter(r => r.epoch_cte != null)
+                .map(r => r.epoch_cte)
                 .sort((a, b) => a - b);
-            if (tempos.length === 0) return { media: null, mediana: null, amostra: 0 };
-            const media = tempos.reduce((a, b) => a + b, 0) / tempos.length;
-            const meio = tempos[Math.min(tempos.length - 1, Math.floor(0.5 * tempos.length))];
+            if (epochs.length < 2) return { media: null, amostra: epochs.length };
+            const gaps = [];
+            for (let i = 1; i < epochs.length; i++) gaps.push((epochs[i] - epochs[i - 1]) / 3600);
+            const media = gaps.reduce((a, b) => a + b, 0) / gaps.length;
             return {
                 media: parseFloat(media.toFixed(2)),
-                mediana: parseFloat(meio.toFixed(2)),
-                amostra: tempos.length,
+                amostra: epochs.length,
             };
         }
         const stats = calcStatsTempo(registros);
