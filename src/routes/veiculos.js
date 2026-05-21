@@ -1671,7 +1671,7 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
         // Postgres devolve nomes de coluna em lowercase quando não estão entre aspas duplas.
         // Os campos no banco são "coletarecife", "coletamoreno", "coletainterestadual".
         const v = await dbGet(
-            `SELECT id, operacao, coletarecife, coletamoreno, coletainterestadual FROM veiculos WHERE id = ?`,
+            `SELECT id, operacao, coletarecife, coletamoreno, coletainterestadual, rota_recife, rota_moreno, data_prevista FROM veiculos WHERE id = ?`,
             [req.params.id]
         );
         if (!v) return res.status(404).json({ success: false, message: 'Veículo não encontrado' });
@@ -1684,7 +1684,59 @@ module.exports = function createVeiculosRouter(io, registrarLog, getResultadoShe
 
         try {
             const { sheetId } = await getResultadoSheetIdFn();
-            const r = await gerarRota({ coleta, operacao: v.operacao, sheetId });
+            const { inserirColetaNaRotaSeVazia } = require('../utils/sheetsWriter');
+            const { invalidarCache } = require('../utils/geradorRotas');
+
+            let r = await gerarRota({ coleta, operacao: v.operacao, sheetId });
+
+            // Se coleta não está na planilha, tenta escrever e gerar de novo (1x)
+            if (r.aviso === 'coleta-nao-encontrada') {
+                const rotaManual = String((req.body || {}).rotaManual || '').trim();
+                const rotaEscolhida = rotaManual
+                    || String(v.rota_recife || '').trim()
+                    || String(v.rota_moreno || '').trim();
+
+                if (!rotaEscolhida) {
+                    return res.json({ success: false, aviso: 'rota-nao-cadastrada-na-planilha' });
+                }
+
+                const op = String(v.operacao || '').toUpperCase();
+                if (op.includes('ELETRIK') || op.includes('INTERESTADUAL') || op.includes('LEAO')) {
+                    return res.json({ success: false, aviso: 'operacao-nao-suporta-escrita-planilha', operacao: v.operacao });
+                }
+
+                const coletas = [
+                    ...extrair(v.coletarecife),
+                    ...extrair(v.coletamoreno),
+                    ...extrair(v.coletainterestadual),
+                ];
+
+                const dataPrevistaIso = v.data_prevista
+                    ? (v.data_prevista instanceof Date
+                        ? v.data_prevista.toISOString().slice(0, 10)
+                        : String(v.data_prevista).slice(0, 10))
+                    : null;
+
+                const result = await inserirColetaNaRotaSeVazia([{
+                    rota: rotaEscolhida,
+                    coletas,
+                    dataPrevista: dataPrevistaIso,
+                    naoConcatenar: true,
+                }]);
+
+                if (result.avisos.some(a => a.motivo === 'rota-ja-tem-coleta-diferente')) {
+                    const detalhe = result.avisos.find(a => a.motivo === 'rota-ja-tem-coleta-diferente');
+                    return res.json({ success: false, aviso: 'rota-ja-tem-coleta-diferente', detalhe });
+                }
+
+                if (result.inseridas.length === 0) {
+                    return res.json({ success: false, aviso: 'rota-nao-existe-na-planilha', rota: rotaEscolhida });
+                }
+
+                invalidarCache();
+                r = await gerarRota({ coleta, operacao: v.operacao, sheetId });
+            }
+
             if (r.destinos_json || r.origem_rota) {
                 await dbRun(
                     `UPDATE veiculos SET destinos_json = $1, origem_rota = $2 WHERE id = $3`,
