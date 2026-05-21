@@ -173,6 +173,7 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
 
     // pernas pode ser sobrescrita por preview POST quando o usuário reordena destinos localmente.
     const [pernasPreview, setPernasPreview] = useState(null);
+    const [rotaManualInput, setRotaManualInput] = useState('');
     const pernas = pernasPreview !== null ? pernasPreview : pernasGet;
     const carregandoMapa = carregandoGeo || carregandoGet;
 
@@ -277,18 +278,19 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
         setDestinos(prev => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, ordem: i + 1 })));
     };
 
-    const regenerar = async () => {
+    const regenerar = async (rotaManual = null) => {
         if (!veiculo?.id) return;
         setRegenerando(true);
         try {
-            const r = await api.post(`/veiculos/${veiculo.id}/regenerar-rota`);
+            const body = rotaManual ? { rotaManual } : undefined;
+            const r = await api.post(`/veiculos/${veiculo.id}/regenerar-rota`, body);
             if (r.data?.destinos_json) {
                 try {
                     const arr = JSON.parse(r.data.destinos_json);
                     setDestinos(Array.isArray(arr) ? arr : []);
                     setUltimaFalha(null);
+                    setRotaManualInput('');
                     mostrarNotificacao?.('✅ Rota gerada');
-                    // Re-busca geometria por estrada — só os destinos mudaram, o effect não dispara sozinho
                     setPernasPreview(null);
                     recarregarGet();
                 } catch {
@@ -296,10 +298,15 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                 }
             } else {
                 const aviso = r.data?.aviso || 'erro desconhecido';
-                const cidade = r.data?.cidade_falhou || null;
-                setUltimaFalha({ aviso, cidade_falhou: cidade });
-                const detalhe = cidade ? ` (cidade não encontrada: ${cidade})` : '';
-                mostrarNotificacao?.(`⚠️ Falhou: ${aviso}${detalhe}`);
+                setUltimaFalha({
+                    aviso,
+                    cidade_falhou: r.data?.cidade_falhou || null,
+                    rota: r.data?.rota || null,
+                    detalhe: r.data?.detalhe || null,
+                    operacao: r.data?.operacao || null,
+                });
+                const cidadeDetalhe = r.data?.cidade_falhou ? ` (cidade não encontrada: ${r.data.cidade_falhou})` : '';
+                mostrarNotificacao?.(`⚠️ Falhou: ${aviso}${cidadeDetalhe}`);
             }
         } catch (err) {
             mostrarNotificacao?.('❌ Falha ao gerar rota');
@@ -508,8 +515,8 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                         </div>
                                     </div>
                                 )}
-                                {ultimaFalha && !ultimaFalha.cidade_falhou && (
-                                    <div style={{
+                                {ultimaFalha && !ultimaFalha.cidade_falhou && (() => {
+                                    const avisoBoxStyle = {
                                         background: 'rgba(234, 179, 8, 0.12)',
                                         border: '1px solid rgba(234, 179, 8, 0.35)',
                                         color: '#fde68a',
@@ -518,12 +525,67 @@ export default function ModalRotaCard({ isOpen, onClose, veiculo, mostrarNotific
                                         borderRadius: 8,
                                         marginBottom: 12,
                                         textAlign: 'left',
-                                    }}>
-                                        Falhou: {ultimaFalha.aviso}
-                                    </div>
-                                )}
+                                    };
+                                    const precisaInputRota =
+                                        ultimaFalha.aviso === 'rota-nao-cadastrada-na-planilha' ||
+                                        ultimaFalha.aviso === 'rota-nao-existe-na-planilha';
+                                    let mensagem;
+                                    if (ultimaFalha.aviso === 'rota-nao-cadastrada-na-planilha') {
+                                        mensagem = 'Esse card não tem rota planilha cadastrada. Digite o número da rota:';
+                                    } else if (ultimaFalha.aviso === 'rota-nao-existe-na-planilha') {
+                                        mensagem = `Rota ${ultimaFalha.rota} não existe na planilha. Confere o número:`;
+                                    } else if (ultimaFalha.aviso === 'rota-ja-tem-coleta-diferente') {
+                                        const d = ultimaFalha.detalhe || {};
+                                        mensagem = `A rota ${d.rota} na planilha já está com a coleta "${d.coleta_planilha}". Verifica antes de sobrescrever na mão.`;
+                                    } else if (ultimaFalha.aviso === 'operacao-nao-suporta-escrita-planilha') {
+                                        mensagem = `Operação "${ultimaFalha.operacao}" não suporta escrita automática na planilha.`;
+                                    } else {
+                                        mensagem = `Falhou: ${ultimaFalha.aviso}`;
+                                    }
+                                    return (
+                                        <div style={avisoBoxStyle}>
+                                            <div>{mensagem}</div>
+                                            {precisaInputRota && (
+                                                <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                                                    <input
+                                                        type="text"
+                                                        value={rotaManualInput}
+                                                        onChange={(e) => setRotaManualInput(e.target.value.replace(/\D/g, ''))}
+                                                        placeholder="Ex: 181"
+                                                        style={{
+                                                            flex: 1,
+                                                            background: 'rgba(15,23,42,0.6)',
+                                                            border: '1px solid rgba(255,255,255,0.1)',
+                                                            color: '#e2e8f0',
+                                                            padding: '6px 10px',
+                                                            borderRadius: 6,
+                                                            fontSize: 13,
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={() => regenerar(rotaManualInput)}
+                                                        disabled={!rotaManualInput || regenerando}
+                                                        style={{
+                                                            background: COR_ROTA,
+                                                            color: '#fff',
+                                                            border: 0,
+                                                            padding: '6px 12px',
+                                                            borderRadius: 6,
+                                                            fontSize: 12,
+                                                            fontWeight: 600,
+                                                            cursor: (!rotaManualInput || regenerando) ? 'not-allowed' : 'pointer',
+                                                            opacity: (!rotaManualInput || regenerando) ? 0.6 : 1,
+                                                        }}
+                                                    >
+                                                        Confirmar
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 <button
-                                    onClick={regenerar}
+                                    onClick={() => regenerar()}
                                     disabled={regenerando}
                                     style={{
                                         background: COR_ROTA, color: '#fff', border: 0,
