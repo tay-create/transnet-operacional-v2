@@ -151,4 +151,51 @@ describe('inserirColetaNaRotaSeVazia', () => {
         expect(r.avisos).toHaveLength(1);
         expect(r.avisos[0].motivo).toBeUndefined();
     });
+
+    test('col G data — para na proxima rota (numero puro em col A)', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['181', '', '', '', '', 'JOAO PESSOA', ''],
+                ['',    '', '', '', '', 'GUARABIRA',   ''],
+                ['200', '', '', '', '', 'CARUARU',     ''],
+            ]},
+        });
+        await inserirColetaNaRotaSeVazia([{ rota: '181', coletas: ['1451'], dataPrevista: '2026-05-22' }]);
+        const updates = mockBatchUpdate.mock.calls[0][0].requestBody.data;
+        const ranges = updates.map(u => u.range).filter(r => r.includes('!G'));
+        expect(ranges).toEqual(["'DELTA-PORCELANA'!G10", "'DELTA-PORCELANA'!G11"]);
+        expect(ranges).not.toContain("'DELTA-PORCELANA'!G12");
+    });
+
+    test('col G data — para em metadado (col A com texto nao-numerico)', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['181',     '', '', '', '', 'JOAO PESSOA', ''],
+                ['',        '', '', '', '', 'GUARABIRA',   ''],
+                ['REGIOES', '', '', '', '', '',            ''],
+                ['',        '', '', '', '', '',            ''],
+            ]},
+        });
+        await inserirColetaNaRotaSeVazia([{ rota: '181', coletas: ['1451'], dataPrevista: '2026-05-22' }]);
+        const updates = mockBatchUpdate.mock.calls[0][0].requestBody.data;
+        const ranges = updates.map(u => u.range).filter(r => r.includes('!G'));
+        expect(ranges).toEqual(["'DELTA-PORCELANA'!G10", "'DELTA-PORCELANA'!G11"]);
+    });
+
+    test('col G data — para em linha completamente vazia (separador visual)', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['181', '', '', '', '', 'JOAO PESSOA', ''],
+                ['',    '', '', '', '', 'GUARABIRA',   ''],
+                ['',    '', '', '', '', '',            ''],
+                ['',    '', '', '', '', 'CARUARU',     ''],
+            ]},
+        });
+        await inserirColetaNaRotaSeVazia([{ rota: '181', coletas: ['1451'], dataPrevista: '2026-05-22' }]);
+        const updates = mockBatchUpdate.mock.calls[0][0].requestBody.data;
+        const ranges = updates.map(u => u.range).filter(r => r.includes('!G'));
+        expect(ranges).toEqual(["'DELTA-PORCELANA'!G10", "'DELTA-PORCELANA'!G11"]);
+        expect(ranges).not.toContain("'DELTA-PORCELANA'!G12");
+        expect(ranges).not.toContain("'DELTA-PORCELANA'!G13");
+    });
 });
