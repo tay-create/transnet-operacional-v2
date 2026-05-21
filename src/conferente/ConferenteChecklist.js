@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     ClipboardCheck, Truck, MapPin, Hash, RefreshCw, Anchor,
     ChevronRight, ShieldCheck, CheckCircle, X, AlertTriangle,
-    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar, Camera, Lock, Plus
+    Loader, Timer, Edit2, ArrowRightLeft, ChevronLeft, Calendar, Camera, Lock, Plus, Image as ImageIcon
 } from 'lucide-react';
 import api from '../services/apiService';
 import useConferenteStore from './useConferenteStore';
@@ -114,7 +114,8 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
     const [salvandoCordas, setSalvandoCordas] = useState(false);
     const [fotosLacre, setFotosLacre] = useState([]);
     const [salvandoLacre, setSalvandoLacre] = useState(false);
-    const inputFotoRef = useRef(null);
+    const inputFotoRef = useRef(null);      // câmera (capture=environment)
+    const inputGaleriaRef = useRef(null);   // galeria (sem capture)
     const [horaManual, setHoraManual] = useState(() => {
         const now = new Date();
         return `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -658,9 +659,25 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             </div>
                         )}
 
-                        {/* Input foto do lacre (oculto) — sem capture pra permitir câmera OU galeria */}
+                        {/* Inputs ocultos: um pra câmera (capture), outro pra galeria.
+                            Separar é o único jeito confiável de garantir que o usuário escolha
+                            — sem capture o browser default vai pra galeria; com capture vai só pra câmera. */}
                         <input
                             ref={inputFotoRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const b64 = await comprimirImagem(file);
+                                setFotosLacre(prev => [...prev, b64]);
+                                e.target.value = '';
+                            }}
+                        />
+                        <input
+                            ref={inputGaleriaRef}
                             type="file"
                             accept="image/*"
                             style={{ display: 'none' }}
@@ -693,18 +710,29 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             </div>
                         )}
 
-                        {/* Botão adicionar foto */}
-                        <button
-                            onClick={() => inputFotoRef.current?.click()}
-                            disabled={salvandoLacre}
-                            style={{ width: '100%', padding: fotosLacre.length === 0 ? '28px' : '12px', marginBottom: '16px', borderRadius: '10px', border: '2px dashed rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.05)', color: '#22c55e', cursor: 'pointer', display: 'flex', flexDirection: fotosLacre.length === 0 ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                        >
-                            <Camera size={fotosLacre.length === 0 ? 28 : 16} />
-                            <span style={{ fontSize: '13px', fontWeight: '700' }}>
-                                {fotosLacre.length === 0 ? 'Tirar Foto do Lacre' : '+ Adicionar mais um lacre'}
-                            </span>
-                            {fotosLacre.length === 0 && <span style={{ fontSize: '11px', color: '#64748b' }}>ou selecionar da galeria</span>}
-                        </button>
+                        {/* Botões adicionar foto — câmera ou galeria, escolha explícita */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                            <button
+                                onClick={() => inputFotoRef.current?.click()}
+                                disabled={salvandoLacre}
+                                style={{ flex: 1, padding: fotosLacre.length === 0 ? '24px 12px' : '12px', borderRadius: '10px', border: '2px dashed rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.05)', color: '#22c55e', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                <Camera size={fotosLacre.length === 0 ? 24 : 16} />
+                                <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                                    {fotosLacre.length === 0 ? 'Câmera' : '+ Câmera'}
+                                </span>
+                            </button>
+                            <button
+                                onClick={() => inputGaleriaRef.current?.click()}
+                                disabled={salvandoLacre}
+                                style={{ flex: 1, padding: fotosLacre.length === 0 ? '24px 12px' : '12px', borderRadius: '10px', border: '2px dashed rgba(59,130,246,0.35)', background: 'rgba(59,130,246,0.05)', color: '#60a5fa', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                <ImageIcon size={fotosLacre.length === 0 ? 24 : 16} />
+                                <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                                    {fotosLacre.length === 0 ? 'Galeria' : '+ Galeria'}
+                                </span>
+                            </button>
+                        </div>
 
                         {/* Erro */}
                         {erro && (

@@ -101,11 +101,13 @@ async function marcarEmbarcadoNaPlanilha(coletas) {
  *
  * - Só roda na aba DELTA-PORCELANA por enquanto.
  * - Quando há múltiplas coletas no card (consolidado P+P), junta com " / " na mesma célula.
- * - Se col E já tem coleta diferente, gera aviso (mas escreve as outras coletas faltantes).
+ * - Se col E já tem coleta diferente:
+ *   - Modo padrão (naoConcatenar:false): concatena as faltantes e gera aviso.
+ *   - Modo estrito (naoConcatenar:true): NÃO escreve, só gera aviso com motivo='rota-ja-tem-coleta-diferente'.
  *
- * pares: [{ rota: '42', coletas: ['1426', '1427'], dataPrevista: '2026-05-21' }]
+ * pares: [{ rota: '42', coletas: ['1426', '1427'], dataPrevista: '2026-05-21', naoConcatenar?: false }]
  *   - aceita também body antigo { rota, coleta } pra compatibilidade.
- * Retorna: { inseridas: [range...], avisos: [{rota, linha, coleta_planilha, coletas_lancadas}] }
+ * Retorna: { inseridas: [range...], avisos: [{rota, linha, coleta_planilha, coletas_lancadas, motivo?}] }
  */
 async function inserirColetaNaRotaSeVazia(pares) {
     if (!Array.isArray(pares) || pares.length === 0) return { inseridas: [], avisos: [] };
@@ -139,7 +141,8 @@ async function inserirColetaNaRotaSeVazia(pares) {
             coletas = [String(p.coleta).trim().replace(/^0+/, '')].filter(Boolean);
         }
         const dataPrevista = dataIsoParaBR(p.dataPrevista);
-        return { rota, coletas, dataPrevista };
+        const naoConcatenar = p.naoConcatenar === true;
+        return { rota, coletas, dataPrevista, naoConcatenar };
     }).filter(p => p.rota && p.coletas.length > 0);
 
     for (const par of paresNorm) {
@@ -158,6 +161,15 @@ async function inserirColetaNaRotaSeVazia(pares) {
             const faltantes = par.coletas.filter(n => !numsExistentes.includes(n));
             if (faltantes.length === 0) {
                 // Tudo já presente — nada a fazer, sem aviso.
+            } else if (par.naoConcatenar) {
+                // Modo estrito: não sobrescrever, só avisar.
+                avisos.push({
+                    rota: par.rota,
+                    linha: linhaPrimeira,
+                    coleta_planilha: coletaExistente,
+                    coletas_lancadas: par.coletas,
+                    motivo: 'rota-ja-tem-coleta-diferente',
+                });
             } else if (numsExistentes.length === 0) {
                 // Improvável: existente parsing zerou. Sobrescreve.
                 updates.push({ range: `'DELTA-PORCELANA'!E${linhaPrimeira}`, values: [[valorNovoColetas]] });
@@ -174,16 +186,26 @@ async function inserirColetaNaRotaSeVazia(pares) {
             }
         }
 
-        // Escreve col G (DATA PREVISÃO) em todas as linhas da rota até a próxima rota
+        // Escreve col G (DATA PREVISÃO) em todas as linhas da rota até o fim dela.
+        // Fim da rota = qualquer um:
+        //   1) Próxima rota (col A com número puro)
+        //   2) Metadado (col A com texto não-numérico — REGIÕES, FALTA EMBARCAR, etc)
+        //   3) Linha completamente vazia (col A, E, F todas vazias) — separador visual
+        // Espelha a lógica de `ehRotaValida` + `abaPausada` do leitor em geradorRotas.js.
         if (par.dataPrevista) {
             let i = idxLinha;
             while (i < rows.length) {
                 if (i > idxLinha) {
-                    const a = String(rows[i][0] || '').trim();
-                    if (a && /^\d+$/.test(a)) break; // próxima rota
+                    const row = rows[i] || [];
+                    const a = String(row[0] || '').trim();
+                    const e = String(row[4] || '').trim();
+                    const f = String(row[5] || '').trim();
+                    if (a && /^\d+$/.test(a)) break;   // próxima rota
+                    if (a && !/^\d+$/.test(a)) break;  // metadado
+                    if (!a && !e && !f) break;         // linha completamente vazia
                 }
                 const linha = i + 10;
-                const colGAtual = String(rows[i][6] || '').trim();
+                const colGAtual = String((rows[i] || [])[6] || '').trim();
                 if (colGAtual !== par.dataPrevista) {
                     updates.push({ range: `'DELTA-PORCELANA'!G${linha}`, values: [[par.dataPrevista]] });
                 }
@@ -287,4 +309,6 @@ module.exports = {
     marcarEmbarcadoNaPlanilha,
     inserirColetaNaRotaSeVazia,
     escreverMotoristaNaPlanilha,
+    extrairNums,        // exportado pra testes
+    dataIsoParaBR,      // exportado pra testes
 };
