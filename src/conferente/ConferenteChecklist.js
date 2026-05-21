@@ -658,12 +658,11 @@ function CardConferente({ v, expandido, onToggleExpandido, opcoesDocas, onAtuali
                             </div>
                         )}
 
-                        {/* Input câmera (oculto) */}
+                        {/* Input foto do lacre (oculto) — sem capture pra permitir câmera OU galeria */}
                         <input
                             ref={inputFotoRef}
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             style={{ display: 'none' }}
                             onChange={async (e) => {
                                 const file = e.target.files?.[0];
