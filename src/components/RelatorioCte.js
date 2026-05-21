@@ -76,9 +76,10 @@ function OciosidadeTurnoCard({ turno, dados }) {
     const max = dados?.max_gap_horas;
     const media = dados?.media_gap_horas;
     const total = dados?.total || 0;
+    const tooltipBase = 'Maior e médio intervalo SEM emitir CT-e entre dois CT-es consecutivos do mesmo turno. Pode atravessar noite/fim de semana.';
     const tooltip = turno === 'Hora Extra'
-        ? 'Inclui almoço 12:00–13:00, antes de 07:30, depois de 17:18 e sábados/domingos inteiros.'
-        : null;
+        ? `${tooltipBase} Hora Extra inclui almoço 12:00–13:00, antes de 07:30, depois de 17:18 e sábados/domingos inteiros.`
+        : tooltipBase;
     return (
         <div
             title={tooltip || undefined}
@@ -96,13 +97,13 @@ function OciosidadeTurnoCard({ turno, dados }) {
             </div>
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                 <div>
-                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Máx</div>
+                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Maior gap</div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#f1f5f9', fontVariantNumeric: 'tabular-nums' }}>
                         {formatHoras(max)}
                     </div>
                 </div>
                 <div>
-                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Médio</div>
+                    <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase' }}>Gap médio</div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#cbd5e1', fontVariantNumeric: 'tabular-nums' }}>
                         {formatHoras(media)}
                     </div>
@@ -156,31 +157,29 @@ export default function RelatorioCte() {
         return registros.filter(r => r.origem === unidadeFiltro);
     }, [registros, unidadeFiltro]);
 
-    // Stats: usa server quando "Ambas"; recalcula client-side quando filtra unidade.
+    // Tempo médio = intervalo médio entre CT-es consecutivos (em horas).
+    // Server calcula pra "Ambas"; quando filtra unidade, recalcula client-side
+    // sobre os epoch_cte dos registros já filtrados.
     const statsFiltradas = useMemo(() => {
         if (unidadeFiltro === 'Ambas') {
-            return { media: stats?.media ?? null, mediana: stats?.mediana ?? null };
+            return { media: stats?.media ?? null };
         }
-        const tempos = registrosFiltrados
-            .map(r => r.horas_lancamento_cte)
+        const epochs = registrosFiltrados
+            .map(r => r.epoch_cte)
             .filter(v => v !== null && v !== undefined && !Number.isNaN(v))
             .sort((a, b) => a - b);
-        if (tempos.length === 0) return { media: null, mediana: null };
-        const media = tempos.reduce((a, b) => a + b, 0) / tempos.length;
-        const meio = tempos[Math.min(tempos.length - 1, Math.floor(0.5 * tempos.length))];
-        return {
-            media: parseFloat(media.toFixed(2)),
-            mediana: parseFloat(meio.toFixed(2)),
-        };
+        if (epochs.length < 2) return { media: null };
+        const gaps = [];
+        for (let i = 1; i < epochs.length; i++) gaps.push((epochs[i] - epochs[i - 1]) / 3600);
+        const media = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+        return { media: parseFloat(media.toFixed(2)) };
     }, [unidadeFiltro, registrosFiltrados, stats]);
 
     const horaExtraEscopo = horaExtra?.[unidadeFiltro] || { total: 0, percentual: 0 };
-    const gargalosEscopo = gargalos?.[unidadeFiltro] || { totalGapsAcima2h: 0, maiorGap: null, mediaGap: null };
 
     const resumo = useMemo(() => ({
         total: registrosFiltrados.length,
         media: statsFiltradas.media,
-        mediana: statsFiltradas.mediana,
     }), [registrosFiltrados, statsFiltradas]);
 
     const dadosPorDia = useMemo(() => {
@@ -250,7 +249,7 @@ export default function RelatorioCte() {
     const heatmapMax = useMemo(() => Math.max(1, ...heatmapMatrix.flat()), [heatmapMatrix]);
     const horasVisiveis = Array.from({ length: 17 }, (_, i) => i + 6);
 
-    // Ociosidade por turno (escopo de unidade aplicado)
+    // Maior gap entre CT-es por turno (escopo de unidade aplicado)
     const ociosidadePorTurno = useMemo(() => {
         const porTurno = ociosidade?.porTurno || {};
         const out = {};
@@ -289,14 +288,10 @@ export default function RelatorioCte() {
             doc.line(margemX, y, W - margemX, y);
             y += 6;
 
-            // KPI grid
+            // KPI grid — Mediana, Hora Extra (redundante com Por turno), Maior gap e Gaps > 2h removidos
             const kpis = [
                 { label: 'Total emitidos', valor: String(resumo.total), cor: [250, 204, 21] },
-                { label: 'Tempo médio', valor: formatHoras(resumo.media), cor: [96, 165, 250] },
-                { label: 'Mediana', valor: formatHoras(resumo.mediana), cor: [34, 211, 238] },
-                { label: 'Hora Extra', valor: `${horaExtraEscopo.total} (${horaExtraEscopo.percentual}%)`, cor: [239, 68, 68] },
-                { label: 'Maior gap', valor: formatHoras(gargalosEscopo.maiorGap), cor: [251, 146, 60] },
-                { label: 'Gaps > 2h', valor: String(gargalosEscopo.totalGapsAcima2h), cor: [248, 113, 113] },
+                { label: 'Tempo médio entre CT-es', valor: formatHoras(resumo.media), cor: [96, 165, 250] },
             ];
             const colKpi = 3;
             const wKpi = larguraUtil / colKpi;
@@ -318,12 +313,12 @@ export default function RelatorioCte() {
             });
             y += Math.ceil(kpis.length / colKpi) * (hKpi + 2) + 4;
 
-            // Ociosidade por turno — 3 cards lado a lado (visual igual ao painel)
+            // Maior gap entre CT-es por turno — 3 cards lado a lado (visual igual ao painel)
             if (y > 240) { doc.addPage(); y = 14; }
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
             doc.setTextColor(30, 41, 59);
-            doc.text('Ociosidade por turno', margemX, y);
+            doc.text('Maior gap entre CT-es por turno', margemX, y);
             y += 5;
             const coresTurnoOci = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Hora Extra': [239, 68, 68] };
             const wOci = larguraUtil / TURNOS.length;
@@ -354,7 +349,7 @@ export default function RelatorioCte() {
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(6.5);
                 doc.setTextColor(100, 116, 139);
-                doc.text('MÁX', cx + 5, y + 14);
+                doc.text('MAIOR GAP', cx + 5, y + 14);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(11);
                 doc.setTextColor(30, 41, 59);
@@ -364,7 +359,7 @@ export default function RelatorioCte() {
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(6.5);
                 doc.setTextColor(100, 116, 139);
-                doc.text('MÉDIO', cxMed, y + 14);
+                doc.text('GAP MÉDIO', cxMed, y + 14);
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(11);
                 doc.setTextColor(71, 85, 105);
@@ -492,7 +487,7 @@ export default function RelatorioCte() {
                         Relatório CT-e
                     </h2>
                     <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                        Tempo de emissão · Horários de pico · Ociosidade por turno
+                        Tempo de emissão · Horários de pico · Maior gap entre CT-es por turno
                     </p>
                 </div>
             </div>
@@ -585,42 +580,26 @@ export default function RelatorioCte() {
 
             {temDados && (
                 <>
-                    {/* KPIs principais */}
+                    {/* KPIs principais — Mediana, Hora Extra (redundante com Por turno), Maior gap e Gaps > 2h removidos */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
                         <KpiCard icon={<FileText size={16} />} label="Total emitidos" valor={resumo.total} cor="#facc15" />
-                        <KpiCard icon={<Clock size={16} />} label="Tempo médio" valor={formatHoras(resumo.media)} cor="#60a5fa" />
-                        <KpiCard icon={<Clock size={16} />} label="Mediana" valor={formatHoras(resumo.mediana)} cor="#22d3ee" />
                         <KpiCard
-                            icon={<Zap size={16} />}
-                            label="Hora Extra"
-                            valor={horaExtraEscopo.total}
-                            sub={`${horaExtraEscopo.percentual}% do total`}
-                            cor="#ef4444"
-                            tooltip="Inclui almoço 12:00–13:00, antes de 07:30, depois de 17:18 e sábados/domingos inteiros."
-                        />
-                        <KpiCard
-                            icon={<AlertCircle size={16} />}
-                            label="Maior gap"
-                            valor={formatHoras(gargalosEscopo.maiorGap)}
-                            sub={`médio: ${formatHoras(gargalosEscopo.mediaGap)}`}
-                            cor="#fb923c"
-                        />
-                        <KpiCard
-                            icon={<AlertTriangle size={16} />}
-                            label="Gaps > 2h"
-                            valor={gargalosEscopo.totalGapsAcima2h}
-                            cor="#f87171"
+                            icon={<Clock size={16} />}
+                            label="Tempo médio entre CT-es"
+                            valor={formatHoras(resumo.media)}
+                            cor="#60a5fa"
+                            tooltip="Intervalo médio entre emissões consecutivas de CT-e no período."
                         />
                     </div>
 
-                    {/* Ociosidade por turno */}
+                    {/* Maior gap entre CT-es por turno */}
                     <div style={{ marginBottom: '20px' }}>
                         <div style={{
                             fontSize: '10px', color: '#64748b', fontWeight: 700,
                             textTransform: 'uppercase', letterSpacing: '0.8px',
                             marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px',
                         }}>
-                            <Activity size={12} /> Ociosidade por turno
+                            <Activity size={12} /> Maior gap entre CT-es por turno
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
                             {TURNOS.map(t => (
