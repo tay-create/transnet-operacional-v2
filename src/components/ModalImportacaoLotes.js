@@ -633,7 +633,7 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
         if (Object.keys(novosErros).length === 0) {
             // Verificar se há veículos de frota nos lotes lançados com sucesso
             const placasProvisao = new Set(veiculosProvisao.flatMap(v => [v.placa, v.carreta].filter(Boolean).map(p => p.toUpperCase())));
-            const lotesFreota = lotes.filter(l =>
+            const lotesFreotaBruto = lotes.filter(l =>
                 placasProvisao.has((l.placa1 || '').toUpperCase()) ||
                 placasProvisao.has((l.placa2 || '').toUpperCase())
             ).map(l => {
@@ -645,12 +645,32 @@ export default function ModalImportacaoLotes({ isOpen, onClose, lancarPayloadDir
                 return { lote: l, veiculo, veiculo_id_card: idsPorLote[l._id] || null };
             }).filter(x => x.veiculo);
 
+            // Filtra fora os veiculos que ja tem viagem registrada cobrindo dataPrevista
+            // (evita reabrir o modal Registrar Viagem em reimportacoes).
+            const lotesFreota = [];
+            let puladosPorJaRegistrado = 0;
+            for (const item of lotesFreotaBruto) {
+                try {
+                    const r = await api.get(`/api/provisionamento/viagem-existe?veiculo_id=${item.veiculo.id}&data=${encodeURIComponent(dataPrevista)}`);
+                    if (r.data?.existe) {
+                        puladosPorJaRegistrado++;
+                        continue;
+                    }
+                } catch (e) {
+                    console.warn('[ImportLotes] falha ao consultar viagem-existe:', e?.message);
+                    // Em caso de erro, abre o modal por seguranca (fallback ao comportamento antigo).
+                }
+                lotesFreota.push(item);
+            }
+
             if (lotesFreota.length > 0) {
-                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)! Registrando viagens da frota...`);
+                const sufixo = puladosPorJaRegistrado > 0 ? ` (${puladosPorJaRegistrado} ja registrada(s))` : '';
+                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)! Registrando viagens da frota...${sufixo}`);
                 setProvisaoFila(lotesFreota.slice(1));
                 setProvisaoAtual(lotesFreota[0]);
             } else {
-                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)!`);
+                const sufixo = puladosPorJaRegistrado > 0 ? ` (${puladosPorJaRegistrado} viagem(ns) ja registrada(s))` : '';
+                mostrarNotificacao(`✅ ${ok} lançamento(s) importado(s)!${sufixo}`);
                 fechar();
             }
         } else {
