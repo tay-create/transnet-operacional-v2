@@ -3504,7 +3504,7 @@ async function marcarEmbarcadosNoFinalDoDia(dataParam) {
 
         if (coletasEmbarcar.size > 0) {
             try {
-                const r = await sheetsWriter.marcarEmbarcadoNaPlanilha([...coletasEmbarcar]);
+                const r = await sheetsWriter.marcarEmbarcadoNaPlanilha([...coletasEmbarcar], { dataEmbarque: hojeStr });
                 embarcadas = r.marcadas || 0;
                 console.log(`[CRON-MARCAR-E] ${hojeStr} — marcadas: ${embarcadas} (coletas: ${coletasEmbarcar.size}).`);
             } catch (e) {

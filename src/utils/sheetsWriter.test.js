@@ -280,4 +280,19 @@ describe('marcarEmbarcadoNaPlanilha', () => {
         expect(r.marcadas).toBe(0);
         expect(mockBatchUpdate).not.toHaveBeenCalled();
     });
+
+    test('opts.dataEmbarque substitui hoje em col H', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '', '', '',     '', '', ''],
+                ['181', '', '', '', '1451', '', '', ''],
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451'], { dataEmbarque: '2026-05-21' });
+        expect(r.marcadas).toBe(1);
+        const byRange = Object.fromEntries(
+            mockBatchUpdate.mock.calls[0][0].requestBody.data.map(u => [u.range, u.values])
+        );
+        expect(byRange["'DELTA-PORCELANA'!H10"]).toEqual([['21/05/2026']]);
+    });
 });

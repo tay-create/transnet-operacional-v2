@@ -48,8 +48,14 @@ function dataIsoParaBR(iso) {
  * - Só roda na aba DELTA-PORCELANA (ELETRIK tem estrutura diferente).
  * - Idempotente: se Col D já tem "x", pula a linha.
  * - Só marca linha-cabeçalho (Col A com número puro).
+ *
+ * @param {string[]} coletas - numeros das coletas a marcar.
+ * @param {object} [opts]
+ * @param {string} [opts.dataEmbarque] - YYYY-MM-DD; default = hoje em Recife.
+ *                                       Usado no cron retroativo para passar
+ *                                       a data do dia que realmente carregou.
  */
-async function marcarEmbarcadoNaPlanilha(coletas) {
+async function marcarEmbarcadoNaPlanilha(coletas, opts = {}) {
     if (!Array.isArray(coletas) || coletas.length === 0) return { marcadas: 0, detalhes: [], limpas: 0 };
     if (!_getResultadoSheetIdRef) {
         console.warn('[sheetsWriter] getResultadoSheetId não injetado; pulando marcarEmbarcado');
@@ -67,7 +73,8 @@ async function marcarEmbarcadoNaPlanilha(coletas) {
     const rows = resp.data.values || [];
     const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
 
-    const data = hojeBR();
+    // dataEmbarque opcional (YYYY-MM-DD) — converte pra DD/MM/AAAA; senao usa hoje.
+    const data = opts.dataEmbarque ? dataIsoParaBR(opts.dataEmbarque) || hojeBR() : hojeBR();
     const updates = [];
     const detalhesMarcadas = [];
     let limpas = 0;
