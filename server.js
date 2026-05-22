@@ -3438,11 +3438,15 @@ app.post('/api/planilha/marcar-programadas-hoje', authMiddleware, authorize(['Co
 async function marcarEmbarcadosNoFinalDoDia(dataParam) {
     try {
         const hojeStr = dataParam || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        // Card entra se QUALQUER lado (Recife ou Moreno) esta em CARREGADO.
+        // Cards consolidados Moreno (status_recife=AGUARDANDO + status_moreno=CARREGADO)
+        // tambem embarcaram pelo lado Moreno e devem entrar na planilha.
         const cards = await dbAll(`
             SELECT id, motorista, coletaRecife, coletaMoreno, rota_recife, rota_moreno,
-                   status_recife, data_prevista, data_prevista_recife, data_prevista_moreno
+                   status_recife, status_moreno,
+                   data_prevista, data_prevista_recife, data_prevista_moreno
             FROM veiculos
-            WHERE status_recife = 'CARREGADO'
+            WHERE (status_recife = 'CARREGADO' OR status_moreno = 'CARREGADO')
               AND (LEFT(COALESCE(data_prevista,''), 10) = $1
                 OR LEFT(COALESCE(data_prevista_recife,''), 10) = $1
                 OR LEFT(COALESCE(data_prevista_moreno,''), 10) = $1)
@@ -3461,18 +3465,35 @@ async function marcarEmbarcadosNoFinalDoDia(dataParam) {
         const coletasEmbarcar = new Set();
         const paresMotorista = [];
         for (const c of cards) {
-            extrairNums(c.coletarecife).forEach(n => coletasEmbarcar.add(n));
-            extrairNums(c.coletamoreno).forEach(n => coletasEmbarcar.add(n));
+            const lado_recife_carregado = c.status_recife === 'CARREGADO';
+            const lado_moreno_carregado = c.status_moreno === 'CARREGADO';
             const motoristaNome = String(c.motorista || '').trim();
-            if (!motoristaNome) continue;
-            // Pares rota+coleta apenas pra DELTA-PORCELANA (rota_recife com numero
-            // ou coletarecife com numero — rota_moreno e coletamoreno ficam de fora
-            // porque o cron escreve so na DELTA-PORCELANA).
-            const rotaRecife = String(c.rota_recife || '').trim();
-            const nums = extrairNums(c.coletarecife);
-            if (rotaRecife && /^\d+$/.test(rotaRecife)) {
-                for (const n of nums) {
-                    paresMotorista.push({ rota: rotaRecife, coleta: n, motorista: motoristaNome });
+
+            if (lado_recife_carregado) {
+                extrairNums(c.coletarecife).forEach(n => coletasEmbarcar.add(n));
+            }
+            if (lado_moreno_carregado) {
+                extrairNums(c.coletamoreno).forEach(n => coletasEmbarcar.add(n));
+            }
+
+            // Pares para escrever motorista — rota precisa ser numerica
+            // (rotas tipo "ROTA NOVA" sao novas e nao tem linha-cabecalho ainda).
+            if (motoristaNome) {
+                if (lado_recife_carregado) {
+                    const rotaRecife = String(c.rota_recife || '').trim();
+                    if (rotaRecife && /^\d+$/.test(rotaRecife)) {
+                        for (const n of extrairNums(c.coletarecife)) {
+                            paresMotorista.push({ rota: rotaRecife, coleta: n, motorista: motoristaNome });
+                        }
+                    }
+                }
+                if (lado_moreno_carregado) {
+                    const rotaMoreno = String(c.rota_moreno || '').trim();
+                    if (rotaMoreno && /^\d+$/.test(rotaMoreno)) {
+                        for (const n of extrairNums(c.coletamoreno)) {
+                            paresMotorista.push({ rota: rotaMoreno, coleta: n, motorista: motoristaNome });
+                        }
+                    }
                 }
             }
         }
