@@ -2868,7 +2868,7 @@ async function gerarProgramacaoDiaria(turno) {
                     operacao: v.operacao || '',
                     cliente,
                     unidade: un === 'moreno' ? 'Moreno' : 'Recife',
-                    coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
+                    coleta: v.coletarecife || limparPrefixoColeta(v.coletamoreno) || v.coleta || v.numero_coleta || '',
                     reprogramado: foiReprogramado ? 1 : 0,
                 });
             });
@@ -2906,7 +2906,7 @@ async function gerarProgramacaoDiaria(turno) {
                     operacao: v.operacao || '',
                     cliente,
                     unidade: v.unidade || '',
-                    coleta: v.coletaRecife || limparPrefixoColeta(v.coletaMoreno) || v.coleta || v.numero_coleta || '',
+                    coleta: v.coletarecife || limparPrefixoColeta(v.coletamoreno) || v.coleta || v.numero_coleta || '',
                     reprogramado: 0,
                 });
             });
@@ -3365,10 +3365,12 @@ async function marcarProgramadasNaPlanilha() {
         const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
             .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
             .filter(Boolean);
+        // Postgres devolve nomes de coluna em lowercase quando nao citados na
+        // query; coletaRecife/coletaMoreno chegam como coletarecife/coletamoreno.
         const coletas = new Set();
         for (const c of cards) {
-            extrairNums(c.coletaRecife).forEach(n => coletas.add(n));
-            extrairNums(c.coletaMoreno).forEach(n => coletas.add(n));
+            extrairNums(c.coletarecife).forEach(n => coletas.add(n));
+            extrairNums(c.coletamoreno).forEach(n => coletas.add(n));
         }
         if (coletas.size === 0) {
             console.log(`[CRON-MARCAR-P] ${hojeStr} — 0 coletas ativas, nada a fazer.`);
