@@ -3428,6 +3428,101 @@ app.post('/api/planilha/marcar-programadas-hoje', authMiddleware, authorize(['Co
         res.status(500).json({ success: false, message: e.message });
     }
 }));
+
+// ── CRON 23:00 — Marca "x" em E (col D) dos cards LIBERADO P/ CT-e do dia ────
+// Para cada card com data_prevista=hoje e status_recife='LIBERADO P/ CT-e':
+//   - Marca x em col D (E=Embarcado) + data em col H (via marcarEmbarcadoNaPlanilha).
+//   - Escreve nome do motorista em col AE quando o card tem rota_recife + motorista.
+// Só DELTA-PORCELANA. Idempotente em D; AE sobrescreve se divergir.
+async function marcarEmbarcadosNoFinalDoDia() {
+    try {
+        const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const cards = await dbAll(`
+            SELECT id, motorista, coletaRecife, coletaMoreno, rota_recife, rota_moreno,
+                   status_recife, data_prevista, data_prevista_recife, data_prevista_moreno
+            FROM veiculos
+            WHERE status_recife = 'LIBERADO P/ CT-e'
+              AND (LEFT(COALESCE(data_prevista,''), 10) = $1
+                OR LEFT(COALESCE(data_prevista_recife,''), 10) = $1
+                OR LEFT(COALESCE(data_prevista_moreno,''), 10) = $1)
+        `, [hojeStr]);
+
+        if (cards.length === 0) {
+            console.log(`[CRON-MARCAR-E] ${hojeStr} — 0 cards LIBERADO P/ CT-e, nada a fazer.`);
+            return { embarcadas: 0, motoristas_escritos: 0 };
+        }
+
+        const extrairNums = (s) => String(s || '').split(/[\s,|]+/)
+            .map(t => t.replace(/^(PLAS|PORC|ELET):\s*/i, '').trim().replace(/^0+/, ''))
+            .filter(Boolean);
+
+        // Postgres devolve nomes em lowercase (coletarecife/coletamoreno/rota_recife/rota_moreno)
+        const coletasEmbarcar = new Set();
+        const paresMotorista = [];
+        for (const c of cards) {
+            extrairNums(c.coletarecife).forEach(n => coletasEmbarcar.add(n));
+            extrairNums(c.coletamoreno).forEach(n => coletasEmbarcar.add(n));
+            const motoristaNome = String(c.motorista || '').trim();
+            if (!motoristaNome) continue;
+            // Pares rota+coleta apenas pra DELTA-PORCELANA (rota_recife com numero
+            // ou coletarecife com numero — rota_moreno e coletamoreno ficam de fora
+            // porque o cron escreve so na DELTA-PORCELANA).
+            const rotaRecife = String(c.rota_recife || '').trim();
+            const nums = extrairNums(c.coletarecife);
+            if (rotaRecife && /^\d+$/.test(rotaRecife)) {
+                for (const n of nums) {
+                    paresMotorista.push({ rota: rotaRecife, coleta: n, motorista: motoristaNome });
+                }
+            }
+        }
+
+        let embarcadas = 0;
+        let motoristas_escritos = 0;
+        const erros = [];
+
+        if (coletasEmbarcar.size > 0) {
+            try {
+                const r = await sheetsWriter.marcarEmbarcadoNaPlanilha([...coletasEmbarcar]);
+                embarcadas = r.marcadas || 0;
+                console.log(`[CRON-MARCAR-E] ${hojeStr} — marcadas: ${embarcadas} (coletas: ${coletasEmbarcar.size}).`);
+            } catch (e) {
+                erros.push(`embarcado: ${e.message}`);
+                console.error('[CRON-MARCAR-E] erro marcarEmbarcadoNaPlanilha:', e.message);
+            }
+        }
+
+        if (paresMotorista.length > 0) {
+            try {
+                const r = await sheetsWriter.escreverMotoristaNaPlanilha(paresMotorista);
+                motoristas_escritos = (r.escritas || []).length;
+                if ((r.substituicoes || []).length > 0) {
+                    console.log(`[CRON-MARCAR-E] substituicoes de motorista:`, r.substituicoes);
+                }
+                console.log(`[CRON-MARCAR-E] ${hojeStr} — motoristas escritos: ${motoristas_escritos} (pares: ${paresMotorista.length}).`);
+            } catch (e) {
+                erros.push(`motorista: ${e.message}`);
+                console.error('[CRON-MARCAR-E] erro escreverMotoristaNaPlanilha:', e.message);
+            }
+        }
+
+        return { embarcadas, motoristas_escritos, hoje: hojeStr, cards: cards.length, erros };
+    } catch (e) {
+        console.error('[CRON-MARCAR-E] Erro fatal:', e.message);
+        throw e;
+    }
+}
+
+cron.schedule('0 23 * * *', marcarEmbarcadosNoFinalDoDia, { scheduled: true, timezone: 'America/Recife' });
+
+// Endpoint manual pra testar o cron sem esperar 23h (Coordenador/Planejamento)
+app.post('/api/planilha/marcar-embarcados-hoje', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
+    try {
+        const r = await marcarEmbarcadosNoFinalDoDia();
+        res.json({ success: true, ...r });
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+}));
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Tramontina Dashboard ─────────────────────────────────────────────────────
