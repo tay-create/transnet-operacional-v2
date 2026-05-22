@@ -42,18 +42,27 @@ function dataIsoParaBR(iso) {
  * Marca "x" na Col D (Embarcado) e data DD/MM/AAAA na Col H (DATA DE EMBARQUE)
  * da linha-cabeçalho da rota onde Col E (COLETA) contém alguma das coletas passadas.
  *
+ * Quando marca D, tambem limpa Col B (R/Reprogramado) e Col C (P/Programado)
+ * se estiverem com "x" — embarcado e estado terminal que ofusca os anteriores.
+ *
  * - Só roda na aba DELTA-PORCELANA (ELETRIK tem estrutura diferente).
  * - Idempotente: se Col D já tem "x", pula a linha.
  * - Só marca linha-cabeçalho (Col A com número puro).
+ *
+ * @param {string[]} coletas - numeros das coletas a marcar.
+ * @param {object} [opts]
+ * @param {string} [opts.dataEmbarque] - YYYY-MM-DD; default = hoje em Recife.
+ *                                       Usado no cron retroativo para passar
+ *                                       a data do dia que realmente carregou.
  */
-async function marcarEmbarcadoNaPlanilha(coletas) {
-    if (!Array.isArray(coletas) || coletas.length === 0) return { marcadas: 0, detalhes: [] };
+async function marcarEmbarcadoNaPlanilha(coletas, opts = {}) {
+    if (!Array.isArray(coletas) || coletas.length === 0) return { marcadas: 0, detalhes: [], limpas: 0 };
     if (!_getResultadoSheetIdRef) {
         console.warn('[sheetsWriter] getResultadoSheetId não injetado; pulando marcarEmbarcado');
-        return { marcadas: 0, detalhes: [] };
+        return { marcadas: 0, detalhes: [], limpas: 0 };
     }
     const { sheetId } = await _getResultadoSheetIdRef();
-    if (!sheetId) return { marcadas: 0, detalhes: [] };
+    if (!sheetId) return { marcadas: 0, detalhes: [], limpas: 0 };
 
     const sheets = google.sheets({ version: 'v4', auth: authSheets() });
 
@@ -64,12 +73,17 @@ async function marcarEmbarcadoNaPlanilha(coletas) {
     const rows = resp.data.values || [];
     const setColetas = new Set(coletas.map(c => String(c).trim().replace(/^0+/, '')));
 
-    const data = hojeBR();
+    // dataEmbarque opcional (YYYY-MM-DD) — converte pra DD/MM/AAAA; senao usa hoje.
+    const data = opts.dataEmbarque ? dataIsoParaBR(opts.dataEmbarque) || hojeBR() : hojeBR();
     const updates = [];
+    const detalhesMarcadas = [];
+    let limpas = 0;
 
     rows.forEach((row, idx) => {
         if (idx === 0) return; // header L9
         const colA = String(row[0] || '').trim();
+        const colB = String(row[1] || '').trim().toLowerCase();
+        const colC = String(row[2] || '').trim().toLowerCase();
         const colD = String(row[3] || '').trim().toLowerCase();
         const colE = row[4] || '';
         if (!colA || !/^\d+$/.test(colA)) return; // só linha-cabeçalho da rota
@@ -79,9 +93,19 @@ async function marcarEmbarcadoNaPlanilha(coletas) {
         const linha = idx + 9;
         updates.push({ range: `'DELTA-PORCELANA'!D${linha}`, values: [['x']] });
         updates.push({ range: `'DELTA-PORCELANA'!H${linha}`, values: [[data]] });
+        detalhesMarcadas.push(`'DELTA-PORCELANA'!D${linha}`);
+        // Limpa B/C se tinham x — embarcado sobrescreve estados anteriores.
+        if (colB === 'x') {
+            updates.push({ range: `'DELTA-PORCELANA'!B${linha}`, values: [['']] });
+            limpas++;
+        }
+        if (colC === 'x') {
+            updates.push({ range: `'DELTA-PORCELANA'!C${linha}`, values: [['']] });
+            limpas++;
+        }
     });
 
-    if (updates.length === 0) return { marcadas: 0, detalhes: [] };
+    if (updates.length === 0) return { marcadas: 0, detalhes: [], limpas: 0 };
 
     await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: sheetId,
@@ -89,8 +113,9 @@ async function marcarEmbarcadoNaPlanilha(coletas) {
     });
 
     return {
-        marcadas: updates.length / 2,
-        detalhes: updates.filter(u => u.range.includes('!D')).map(u => u.range),
+        marcadas: detalhesMarcadas.length,
+        detalhes: detalhesMarcadas,
+        limpas,
     };
 }
 

@@ -20,6 +20,7 @@ const {
     dataIsoParaBR,
     setGetResultadoSheetId,
     inserirColetaNaRotaSeVazia,
+    marcarEmbarcadoNaPlanilha,
 } = require('./sheetsWriter');
 
 beforeEach(() => {
@@ -197,5 +198,101 @@ describe('inserirColetaNaRotaSeVazia', () => {
         expect(ranges).toEqual(["'DELTA-PORCELANA'!G10", "'DELTA-PORCELANA'!G11"]);
         expect(ranges).not.toContain("'DELTA-PORCELANA'!G12");
         expect(ranges).not.toContain("'DELTA-PORCELANA'!G13");
+    });
+});
+
+describe('marcarEmbarcadoNaPlanilha', () => {
+    // Layout: [A, B(R), C(P), D(E), E(coleta), F, G, H]
+    // Cabecalho L9 e ignorado.
+    test('marca x em D + data em H quando coleta bate', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '', '', '',     '', '', ''],  // L9 header (ignorado)
+                ['181', '', '', '', '1451', '', '', ''], // L10 rota 181
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451']);
+        expect(r.marcadas).toBe(1);
+        expect(r.detalhes).toEqual(["'DELTA-PORCELANA'!D10"]);
+        expect(r.limpas).toBe(0);
+        const updates = mockBatchUpdate.mock.calls[0][0].requestBody.data;
+        const ranges = updates.map(u => u.range);
+        expect(ranges).toContain("'DELTA-PORCELANA'!D10");
+        expect(ranges).toContain("'DELTA-PORCELANA'!H10");
+        // Sem B/C com x previo, nao deve haver update de B ou C
+        expect(ranges.some(r => r.startsWith("'DELTA-PORCELANA'!B"))).toBe(false);
+        expect(ranges.some(r => r.startsWith("'DELTA-PORCELANA'!C"))).toBe(false);
+    });
+
+    test('limpa B (Reprogramado) e C (Programado) quando marca D', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '',  '',  '', '',     '', '', ''],
+                ['181', 'x', 'x', '', '1451', '', '', ''], // tinha x em B e C
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451']);
+        expect(r.marcadas).toBe(1);
+        expect(r.limpas).toBe(2);
+        const updates = mockBatchUpdate.mock.calls[0][0].requestBody.data;
+        const byRange = Object.fromEntries(updates.map(u => [u.range, u.values]));
+        expect(byRange["'DELTA-PORCELANA'!D10"]).toEqual([['x']]);
+        expect(byRange["'DELTA-PORCELANA'!B10"]).toEqual([['']]);
+        expect(byRange["'DELTA-PORCELANA'!C10"]).toEqual([['']]);
+    });
+
+    test('limpa so C quando so C tinha x', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '',  '', '',     '', '', ''],
+                ['181', '', 'x', '', '1451', '', '', ''],
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451']);
+        expect(r.marcadas).toBe(1);
+        expect(r.limpas).toBe(1);
+        const ranges = mockBatchUpdate.mock.calls[0][0].requestBody.data.map(u => u.range);
+        expect(ranges).toContain("'DELTA-PORCELANA'!C10");
+        expect(ranges).not.toContain("'DELTA-PORCELANA'!B10");
+    });
+
+    test('idempotente: pula linha que ja tem x em D', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '', '',  '',     '', '', ''],
+                ['181', 'x', 'x', 'x', '1451', '', '', ''], // ja embarcado
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451']);
+        expect(r.marcadas).toBe(0);
+        expect(r.limpas).toBe(0);
+        expect(mockBatchUpdate).not.toHaveBeenCalled();
+    });
+
+    test('ignora linhas que nao sao cabecalho de rota (col A nao numerica)', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '', '', '',     '', '', ''],
+                ['',   '', '', '', '1451', '', '', ''], // sem rota em A
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451']);
+        expect(r.marcadas).toBe(0);
+        expect(mockBatchUpdate).not.toHaveBeenCalled();
+    });
+
+    test('opts.dataEmbarque substitui hoje em col H', async () => {
+        mockGet.mockResolvedValueOnce({
+            data: { values: [
+                ['',   '', '', '', '',     '', '', ''],
+                ['181', '', '', '', '1451', '', '', ''],
+            ]},
+        });
+        const r = await marcarEmbarcadoNaPlanilha(['1451'], { dataEmbarque: '2026-05-21' });
+        expect(r.marcadas).toBe(1);
+        const byRange = Object.fromEntries(
+            mockBatchUpdate.mock.calls[0][0].requestBody.data.map(u => [u.range, u.values])
+        );
+        expect(byRange["'DELTA-PORCELANA'!H10"]).toEqual([['21/05/2026']]);
     });
 });
