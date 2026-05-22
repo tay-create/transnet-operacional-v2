@@ -3429,26 +3429,31 @@ app.post('/api/planilha/marcar-programadas-hoje', authMiddleware, authorize(['Co
     }
 }));
 
-// ── CRON 23:00 — Marca "x" em E (col D) dos cards LIBERADO P/ CT-e do dia ────
-// Para cada card com data_prevista=hoje e status_recife='LIBERADO P/ CT-e':
+// ── CRON 23:00 — Marca "x" em E (col D) dos cards CARREGADO do dia ───────────
+// Para cada card com data_prevista=hoje e status_recife='CARREGADO':
 //   - Marca x em col D (E=Embarcado) + data em col H (via marcarEmbarcadoNaPlanilha).
 //   - Escreve nome do motorista em col AE quando o card tem rota_recife + motorista.
 // Só DELTA-PORCELANA. Idempotente em D; AE sobrescreve se divergir.
-async function marcarEmbarcadosNoFinalDoDia() {
+// Aceita data opcional (YYYY-MM-DD) pra reprocessar dias anteriores.
+async function marcarEmbarcadosNoFinalDoDia(dataParam) {
     try {
-        const hojeStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        const hojeStr = dataParam || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Recife' });
+        // Card entra se QUALQUER lado (Recife ou Moreno) esta em CARREGADO.
+        // Cards consolidados Moreno (status_recife=AGUARDANDO + status_moreno=CARREGADO)
+        // tambem embarcaram pelo lado Moreno e devem entrar na planilha.
         const cards = await dbAll(`
             SELECT id, motorista, coletaRecife, coletaMoreno, rota_recife, rota_moreno,
-                   status_recife, data_prevista, data_prevista_recife, data_prevista_moreno
+                   status_recife, status_moreno,
+                   data_prevista, data_prevista_recife, data_prevista_moreno
             FROM veiculos
-            WHERE status_recife = 'LIBERADO P/ CT-e'
+            WHERE (status_recife = 'CARREGADO' OR status_moreno = 'CARREGADO')
               AND (LEFT(COALESCE(data_prevista,''), 10) = $1
                 OR LEFT(COALESCE(data_prevista_recife,''), 10) = $1
                 OR LEFT(COALESCE(data_prevista_moreno,''), 10) = $1)
         `, [hojeStr]);
 
         if (cards.length === 0) {
-            console.log(`[CRON-MARCAR-E] ${hojeStr} — 0 cards LIBERADO P/ CT-e, nada a fazer.`);
+            console.log(`[CRON-MARCAR-E] ${hojeStr} — 0 cards CARREGADO, nada a fazer.`);
             return { embarcadas: 0, motoristas_escritos: 0 };
         }
 
@@ -3460,18 +3465,35 @@ async function marcarEmbarcadosNoFinalDoDia() {
         const coletasEmbarcar = new Set();
         const paresMotorista = [];
         for (const c of cards) {
-            extrairNums(c.coletarecife).forEach(n => coletasEmbarcar.add(n));
-            extrairNums(c.coletamoreno).forEach(n => coletasEmbarcar.add(n));
+            const lado_recife_carregado = c.status_recife === 'CARREGADO';
+            const lado_moreno_carregado = c.status_moreno === 'CARREGADO';
             const motoristaNome = String(c.motorista || '').trim();
-            if (!motoristaNome) continue;
-            // Pares rota+coleta apenas pra DELTA-PORCELANA (rota_recife com numero
-            // ou coletarecife com numero — rota_moreno e coletamoreno ficam de fora
-            // porque o cron escreve so na DELTA-PORCELANA).
-            const rotaRecife = String(c.rota_recife || '').trim();
-            const nums = extrairNums(c.coletarecife);
-            if (rotaRecife && /^\d+$/.test(rotaRecife)) {
-                for (const n of nums) {
-                    paresMotorista.push({ rota: rotaRecife, coleta: n, motorista: motoristaNome });
+
+            if (lado_recife_carregado) {
+                extrairNums(c.coletarecife).forEach(n => coletasEmbarcar.add(n));
+            }
+            if (lado_moreno_carregado) {
+                extrairNums(c.coletamoreno).forEach(n => coletasEmbarcar.add(n));
+            }
+
+            // Pares para escrever motorista — rota precisa ser numerica
+            // (rotas tipo "ROTA NOVA" sao novas e nao tem linha-cabecalho ainda).
+            if (motoristaNome) {
+                if (lado_recife_carregado) {
+                    const rotaRecife = String(c.rota_recife || '').trim();
+                    if (rotaRecife && /^\d+$/.test(rotaRecife)) {
+                        for (const n of extrairNums(c.coletarecife)) {
+                            paresMotorista.push({ rota: rotaRecife, coleta: n, motorista: motoristaNome });
+                        }
+                    }
+                }
+                if (lado_moreno_carregado) {
+                    const rotaMoreno = String(c.rota_moreno || '').trim();
+                    if (rotaMoreno && /^\d+$/.test(rotaMoreno)) {
+                        for (const n of extrairNums(c.coletamoreno)) {
+                            paresMotorista.push({ rota: rotaMoreno, coleta: n, motorista: motoristaNome });
+                        }
+                    }
                 }
             }
         }
@@ -3514,10 +3536,12 @@ async function marcarEmbarcadosNoFinalDoDia() {
 
 cron.schedule('0 23 * * *', marcarEmbarcadosNoFinalDoDia, { scheduled: true, timezone: 'America/Recife' });
 
-// Endpoint manual pra testar o cron sem esperar 23h (Coordenador/Planejamento)
+// Endpoint manual pra testar o cron sem esperar 23h (Coordenador/Planejamento).
+// Aceita ?data=YYYY-MM-DD pra reprocessar dia anterior.
 app.post('/api/planilha/marcar-embarcados-hoje', authMiddleware, authorize(['Coordenador', 'Planejamento']), asyncHandler(async (req, res) => {
     try {
-        const r = await marcarEmbarcadosNoFinalDoDia();
+        const data = req.query.data && /^\d{4}-\d{2}-\d{2}$/.test(req.query.data) ? req.query.data : undefined;
+        const r = await marcarEmbarcadosNoFinalDoDia(data);
         res.json({ success: true, ...r });
     } catch (e) {
         res.status(500).json({ success: false, message: e.message });
