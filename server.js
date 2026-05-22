@@ -3573,9 +3573,11 @@ app.get('/api/tramontina-dashboard', authMiddleware, asyncHandler(async (req, re
         const sheets = google.sheets({ version: 'v4', auth });
 
         // Buscar aba Delta-Porcelana: resumo (H6, J6, J7) + dados linha a linha
+        // Range A10:R730 alinhado com os demais endpoints. O antigo A10:R633
+        // cortava ~34 rotas (em 22/05/2026 a planilha tinha rota 215 na L716).
         const [resumoDP, dadosDP] = await Promise.all([
             lerRangeTramontina(sheets, 'H6:J7', 'DELTA-PORCELANA'),
-            lerRangeTramontina(sheets, 'A10:R633', 'DELTA-PORCELANA'),
+            lerRangeTramontina(sheets, 'A10:R730', 'DELTA-PORCELANA'),
         ]);
 
         // Lógica espelhada do AppScript (codigo.gs) — tudo calculado linha a linha:
@@ -3637,7 +3639,7 @@ app.get('/api/tramontina-dashboard', authMiddleware, asyncHandler(async (req, re
             );
             if (abaEletrik) {
                 const nomeAba = abaEletrik.properties.title;
-                const dadosElBE = await lerRangeTramontina(sheets, 'A11:B633', nomeAba);
+                const dadosElBE = await lerRangeTramontina(sheets, 'A11:B75', nomeAba);
 
                 for (const row of dadosElBE) {
                     const colA = (row[0] || '').toString().trim();
