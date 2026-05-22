@@ -4377,6 +4377,25 @@ app.get('/api/provisionamento/entregas-da-coleta', authMiddleware, asyncHandler(
     }
 }));
 
+// GET /api/provisionamento/viagem-existe?veiculo_id=X&data=YYYY-MM-DD
+// Retorna { existe: bool } — true se há registro EM_VIAGEM ou RETORNANDO para
+// esse veiculo cobrindo a data informada. Usado pelo modal de importacao pra
+// pular o modal de Registrar Viagem quando ja foi preenchido antes.
+app.get('/api/provisionamento/viagem-existe', authMiddleware, asyncHandler(async (req, res) => {
+    const veiculo_id = Number(req.query.veiculo_id);
+    const data = String(req.query.data || '').trim();
+    if (!veiculo_id || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+        return res.status(400).json({ success: false, message: 'veiculo_id e data (YYYY-MM-DD) sao obrigatorios.' });
+    }
+    const row = await dbGet(
+        `SELECT status FROM prov_programacao
+          WHERE veiculo_id = $1 AND data = $2 AND status IN ('EM_VIAGEM','RETORNANDO')
+          LIMIT 1`,
+        [veiculo_id, data]
+    );
+    res.json({ success: true, existe: !!row, status: row?.status || null });
+}));
+
 // POST /api/provisionamento/viagem — Registra dias EM_VIAGEM para um veículo do provisionamento
 // body: { veiculo_id, motorista, data_saida (YYYY-MM-DD), entradas: [{ cidade, data (YYYY-MM-DD) }], marcar_carregado_antes_primeira_entrega? }
 app.post('/api/provisionamento/viagem', authMiddleware, asyncHandler(async (req, res) => {
