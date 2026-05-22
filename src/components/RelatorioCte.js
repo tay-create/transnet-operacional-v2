@@ -200,6 +200,9 @@ export default function RelatorioCte() {
         const total = registrosFiltrados.length;
         const acc = {};
         for (const t of TURNOS) acc[t] = { qtd: 0, soma: 0, com: 0 };
+        // Breakdown da Hora Extra: Seg-Sex vs Sábado. Domingo nao ocorre.
+        let heSegSex = 0;
+        let heSabado = 0;
         for (const r of registrosFiltrados) {
             const t = r.turno;
             if (!acc[t]) continue;
@@ -208,12 +211,18 @@ export default function RelatorioCte() {
                 acc[t].soma += r.horas_lancamento_cte;
                 acc[t].com++;
             }
+            if (t === 'Hora Extra') {
+                if (r.dow_recife === 6) heSabado++;
+                else heSegSex++;
+            }
         }
         return TURNOS.map(t => ({
             turno: t,
             quantidade: acc[t].qtd,
             percentual: total > 0 ? parseFloat((acc[t].qtd / total * 100).toFixed(1)) : 0,
             media_horas: acc[t].com > 0 ? parseFloat((acc[t].soma / acc[t].com).toFixed(1)) : 0,
+            // Só populado no turno "Hora Extra"
+            breakdown: t === 'Hora Extra' ? { segSex: heSegSex, sabado: heSabado } : null,
         }));
     }, [registrosFiltrados]);
 
@@ -369,22 +378,23 @@ export default function RelatorioCte() {
             });
             y += hOci + 6;
 
-            // Por turno (cards com qtd + %)
+            // Por turno (cards com qtd + %). Hora Extra mostra breakdown Seg-Sex / Sab.
             if (dadosPorTurno.some(t => t.quantidade > 0)) {
-                if (y > 250) { doc.addPage(); y = 14; }
+                if (y > 245) { doc.addPage(); y = 14; }
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(10);
                 doc.setTextColor(30, 41, 59);
                 doc.text('Por turno', margemX, y);
                 y += 5;
                 const wCol = larguraUtil / 3;
+                const hCard = 26; // altura aumentada para caber breakdown
                 const coresTurnoRgb = { 'Manhã': [245, 158, 11], 'Tarde': [59, 130, 246], 'Hora Extra': [239, 68, 68] };
                 dadosPorTurno.forEach((t, i) => {
                     const cx = margemX + i * wCol;
                     const c = coresTurnoRgb[t.turno] || [100, 116, 139];
                     doc.setFillColor(248, 250, 252);
                     doc.setDrawColor(c[0], c[1], c[2]);
-                    doc.roundedRect(cx + 1, y, wCol - 2, 20, 2, 2, 'FD');
+                    doc.roundedRect(cx + 1, y, wCol - 2, hCard, 2, 2, 'FD');
                     doc.setFontSize(8);
                     doc.setTextColor(c[0], c[1], c[2]);
                     doc.setFont('helvetica', 'bold');
@@ -392,8 +402,14 @@ export default function RelatorioCte() {
                     doc.setFontSize(13);
                     doc.setTextColor(30, 41, 59);
                     doc.text(`${t.quantidade} (${t.percentual}%)`, cx + 4, y + 13);
+                    if (t.breakdown) {
+                        doc.setFontSize(7);
+                        doc.setFont('helvetica', 'normal');
+                        doc.setTextColor(100, 116, 139);
+                        doc.text(`Seg-Sex: ${t.breakdown.segSex}   ·   Sáb: ${t.breakdown.sabado}`, cx + 4, y + 21);
+                    }
                 });
-                y += 24;
+                y += hCard + 4;
             }
 
             // Mapa de Calor CT-e
@@ -686,6 +702,21 @@ export default function RelatorioCte() {
                                             <div style={{ fontSize: '10px', fontWeight: 700, color: CORES_TURNO[t.turno], textTransform: 'uppercase' }}>{t.turno}</div>
                                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#f1f5f9', marginTop: '2px' }}>{t.quantidade}</div>
                                             <div style={{ fontSize: '11px', color: '#94a3b8' }}>{t.percentual}%</div>
+                                            {t.breakdown && (
+                                                <div style={{
+                                                    marginTop: '8px',
+                                                    paddingTop: '6px',
+                                                    borderTop: `1px dashed ${CORES_TURNO[t.turno]}55`,
+                                                    fontSize: '10px',
+                                                    color: '#cbd5e1',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-around',
+                                                    gap: '6px',
+                                                }}>
+                                                    <span>Seg-Sex: <strong style={{ color: '#f1f5f9' }}>{t.breakdown.segSex}</strong></span>
+                                                    <span>Sáb: <strong style={{ color: '#f1f5f9' }}>{t.breakdown.sabado}</strong></span>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
